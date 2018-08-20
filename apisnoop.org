@@ -55,6 +55,80 @@ Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: E0819 21:00:10.585058     741 kubelet
 Aug 19 21:00:11 ab8afb8aff4e kubelet[741]: I0819 21:00:11.328020     741 kubelet.go:1903] SyncLoop (housekeeping)
 #+END_EXAMPLE
 
+*** TLDR-delete+build+deploy+test
+
+#+NAME: Delete Current DIND
+#+BEGIN_SRC tmux :session k8s:clear
+DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
+# I'd like to ensure the above are set BEFORE we rm -rf directories
+cat <<EOF >/tmp/delete
+set -x
+set -e
+docker rm -f $DIND
+sudo rm -rf $DIND_DIR
+rm -f $KUBECONFIG
+EOF
+chmod +x /tmp/delete
+# inspect and run this if you want
+cat /tmp/delete
+#+END_SRC
+
+#+NAME: Build and Deploy DIND Cluster
+#+BEGIN_SRC tmux :session k8s:kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  time kubetest --build=dind --up --deployment=dind
+#+END_SRC
+
+#+NAME: Build, Deploy, and Test DIND Cluster
+#+BEGIN_SRC tmux :session k8s:kubetest
+time (
+  export KUBE_ROOT=$HOME/go/src/k8s.io/kubernetes/
+  export TOOL_ROOL=$HOME/go/src/k8s.io/test-infra/dind/
+  export KUBERNETES_PROVIDER=skeleton
+  export KUBERNETES_CONFORMANCE_TEST=y 
+  #export TEST_ARGS="--ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton"
+  #unset KUBECONFIG
+  cd ~/go/src/k8s.io/kubernetes/
+  #time go get -u k8s.io/test-infra/kubetest
+  #time kubetest --build=dind --up --deployment=dind
+  #time bazel build //test/e2e:e2e.test
+  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
+  export GINKO_PARALLEL=y
+  PREFIX=./_output/local/bin/linux/amd64
+  PREFIX=./bazel-bin/test/e2e
+  # Will run 179 of 1032 specs
+  time $PREFIX/e2e.test --ginkgo.parallel.total=48 --ginkgo.focus='\[Conformance\]' --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  #  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  # time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
+  # time kubetest --build=dind --up --deployment=dind --test --test_args="$TEST_ARGS"
+)
+#+END_SRC
+
+#+NAME: kubectl shell
+#+BEGIN_SRC tmux :session k8s:kubectl
+  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
+  kubectl get nodes
+  kubectl describe node -l node-role.kubernetes.io/master
+  kubectl get pods --all-namespaces
+  kubectl describe pod -l k8s-app=calico-kube-controllers --namespace=kube-system
+  cd $DIND_K8S_DATA/audit
+  ls -la
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+2018/08/20 20:24:33 dind.go:364: All 4 nodes are now healthy.
+2018/08/20 20:24:33 main.go:309: Something went wrong: encountered 1 errors: [configuration error in GinkgoTester: Kuberoot cannot be empty]
+
+real    5m18.098s
+user    0m3.632s
+sys     0m11.520s
+#+END_EXAMPLE
+
 *** build 
 
 #+NAME: You'll need kubetest with dind-audit-policy
@@ -166,63 +240,6 @@ test/e2e/generated/gobindata_util.go:27:20: undefined: Asset
 test/e2e/generated/gobindata_util.go:30:48: undefined: AssetNames
 #+END_EXAMPLE
 
-*** delete+build+deploy+test
-
-#+NAME: Delete Current DIND
-#+BEGIN_SRC tmux :session k8s:clear
-DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
-KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
-DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
-# I'd like to ensure the above are set BEFORE we rm -rf directories
-cat <<EOF >/tmp/delete
-set -x
-set -e
-docker rm -f $DIND
-sudo rm -rf $DIND_DIR
-rm -f $KUBECONFIG
-EOF
-chmod +x /tmp/delete
-# inspect and run this if you want
-cat /tmp/delete
-#+END_SRC
-
-#+NAME: Build and Deploy DIND Cluster
-#+BEGIN_SRC tmux :session k8s:kubetest
-  cd ~/go/src/k8s.io/kubernetes/
-  time kubetest --build=dind --up --deployment=dind
-#+END_SRC
-
-#+NAME: Build, Deploy, and Test DIND Cluster
-#+BEGIN_SRC tmux :session k8s:kubetest
-time (
-  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
-  export KUBE_ROOT=$HOME/go/src/k8s.io/kubernetes/
-  export TOOL_ROOL=$HOME/go/src/k8s.io/test-infra/dind/
-  export KUBERNETES_PROVIDER=skeleton
-  export KUBERNETES_CONFORMANCE_TEST=y 
-  #export TEST_ARGS="--ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton"
-  #unset KUBECONFIG
-  cd ~/go/src/k8s.io/kubernetes/
-  time go get -u k8s.io/test-infra/kubetest
-  time kubetest --build=dind --up --deployment=dind
-  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
-  #time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
-  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
-  export GINKO_PARALLEL=y
-  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
-  cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
-  # time kubetest --build=dind --up --deployment=dind --test --test_args="$TEST_ARGS"
-)
-#+END_SRC
-
-#+BEGIN_EXAMPLE
-2018/08/20 20:24:33 dind.go:364: All 4 nodes are now healthy.
-2018/08/20 20:24:33 main.go:309: Something went wrong: encountered 1 errors: [configuration error in GinkgoTester: Kuberoot cannot be empty]
-
-real    5m18.098s
-user    0m3.632s
-sys     0m11.520s
-#+END_EXAMPLE
 *** Shells
 **** dind
 
@@ -550,6 +567,7 @@ I0816 20:56:21.340036       1 logs.go:49] http: TLS handshake error from 172.17.
   kubectl get nodes
   kubectl describe node -l node-role.kubernetes.io/master
   kubectl get pods --all-namespaces
+  kubectl describe pod -l k8s-app=calico-kube-controllers --namespace=kube-system
   cd $DIND_K8S_DATA/audit
   ls -la
 #+END_SRC
