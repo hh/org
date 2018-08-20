@@ -57,17 +57,30 @@ Aug 19 21:00:11 ab8afb8aff4e kubelet[741]: I0819 21:00:11.328020     741 kubelet
 
 *** build 
 
-#+NAME: Update kubetest to current
+#+NAME: You'll need kubetest with dind-audit-policy
 #+BEGIN_SRC tmux :session k8s:kubetest
   go get -u k8s.io/test-infra/kubetest
+  cd ~/go/src/k8s.io/test-infra
+  git remote add hh git@github.com:hh/test-infra.git 
+  git fetch -a hh
+  git checkout -b dind-audit-policy hh/dind-audit-policy
 #+END_SRC
 
-#+NAME: Build / Compile your artifacts
+#+NAME: You'll need kubetest with dind-audit-policy
 #+BEGIN_SRC tmux :session k8s:kubetest
-  cd ~/go/src/k8s.io/kubernetes/
-  # bazel build //cmd/kubeadm
-  kubetest --build=dind
+  go get -u k8s.io/kubernetes
+  cd ~/go/src/k8s.io/kubernetes
+  git remote add ii git@github.com:ii/kubernetes.git
+  git fetch -a ii
+  git checkout -b e2e-user-agent ii/e2e-user-agent
 #+END_SRC
+
+ #+NAME: Build / Compile your artifacts
+ #+BEGIN_SRC tmux :session k8s:kubetest
+   cd ~/go/src/k8s.io/kubernetes/
+   # bazel build //cmd/kubeadm
+   kubetest --build=dind
+ #+END_SRC
 
 *** deploy
 #+NAME: Bring up DIND Cluster
