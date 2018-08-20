@@ -40,30 +40,6 @@ Latest version of this document is at https://gist.github.com/hh/fd1e58f2d5e879d
 
 *** TLDR-delete+build+deploy+test
 
-#+NAME: Delete Current DIND
-#+BEGIN_SRC tmux :session k8s:clear
-DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
-KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
-DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
-# I'd like to ensure the above are set BEFORE we rm -rf directories
-cat <<EOF >/tmp/delete
-set -x
-set -e
-docker rm -f $DIND
-sudo rm -rf $DIND_DIR
-rm -f $KUBECONFIG
-EOF
-chmod +x /tmp/delete
-# inspect and run this if you want
-cat /tmp/delete
-#+END_SRC
-
-#+NAME: Build and Deploy DIND Cluster
-#+BEGIN_SRC tmux :session k8s:kubetest
-  cd ~/go/src/k8s.io/kubernetes/
-  time kubetest --build=dind --up --deployment=dind
-#+END_SRC
-
 #+NAME: Build, Deploy, and Test DIND Cluster
 #+BEGIN_SRC tmux :session k8s:kubetest
 time (
@@ -84,7 +60,13 @@ time (
   export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
   export GINKO_PARALLEL=y
   # Will run 179 of 1032 specs
-  time $PREFIX/e2e.test --ginkgo.parallel.total=48 --ginkgo.focus='\[Conformance\]' --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  time $PREFIX/e2e.test \
+    --ginkgo.parallel.total=48 \
+    --ginkgo.focus='\[Conformance\]' \
+    --ginkgo.skip='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]' \
+    --ginkgo.seed=1436380640 \
+    --v=2 \
+    --provider=skeleton
   #  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   # time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
@@ -103,6 +85,25 @@ time (
   cd $DIND_K8S_DATA/audit
   ls -la
 #+END_SRC
+
+#+NAME: Delete Current DIND
+#+BEGIN_SRC tmux :session k8s:clear
+DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
+# I'd like to ensure the above are set BEFORE we rm -rf directories
+cat <<EOF >/tmp/delete
+set -x
+set -e
+docker rm -f $DIND
+sudo rm -rf $DIND_DIR
+rm -f $KUBECONFIG
+EOF
+chmod +x /tmp/delete
+# inspect and run this if you want
+cat /tmp/delete
+#+END_SRC
+
 
 #+BEGIN_EXAMPLE
 2018/08/20 20:24:33 dind.go:364: All 4 nodes are now healthy.
