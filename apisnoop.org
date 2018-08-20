@@ -18,8 +18,9 @@ Issues we ran into:
 - kubeadm bootstrapping args / config file formats being alpha
 - kubeadm documentation
 - dind was not bringing up a working cni
-- @bentheelder is currently making kind
 - User-Agent logging [[https://github.com/kubernetes/kubernetes/commit/d066d547cce64a4f02bb05d718bc53fe71d06ad3][did not make it into APIServer]] until 1.12-0-alpha.1
+
+@bentheelder is currently making kind, which I suspect will be a big improvement.
 
 Latest version of this document is at https://gist.github.com/hh/fd1e58f2d5e879dc8003fe288e09c58c#kubetest-build-and-deploy-via-dind
 
@@ -69,6 +70,15 @@ time (
     --ginkgo.seed=1436380640 \
     --v=2 \
     --provider=skeleton
+  ##### maywe we should try ginkgo-e2e.sh ?
+  time ./hack/ginkgo-e2e.sh \
+    --ginkgo.parallel.total=48 \
+    --ginkgo.focus='\[Conformance\]' \
+    --ginkgo.skip='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]' \
+    --ginkgo.seed=1436380640 \
+    --v=2 \
+    --provider=skeleton \
+    --report-dir=$DIND_K8S_DATA/report
   #  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   # time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
