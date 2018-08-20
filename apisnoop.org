@@ -1,0 +1,963 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Collecting e2e Test Coverage with User Agent
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: August 8th, 2018
+
+* kubetest build and deploy via gke
+
+#+NAME: build binaries / up cluster / run test for gke etc
+#+BEGIN_SRC tmux :session k8s:gke
+cd ~/go/src/k8s.io/kubernetes
+kubetest --build=bazel --up --test --provider=gce --gcp-project=ii-coop --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6"
+#+END_SRC
+
+#+NAME: deploy binaries to gke
+#+BEGIN_SRC tmux :session k8s:gke
+kubetest --up --provider=gce --gcp-project=ii-coop
+go run hack/e2e.go -- --provider=skeleton --test --test_args="--ginkgo.focus=\[Conformance\]"
+#+END_SRC
+
+#+NAME: go run hack/e2e.go JUST A WRAPPER around kubetest
+#+BEGIN_SRC tmux :session k8s:gke
+go run hack/e2e.go -- --provider=skeleton --test --test_args="--ginkgo.focus=\[Conformance\]"
+#+END_SRC
+
+#+NAME: run kubetest to execute the e2e on gke
+#+BEGIN_SRC tmux :session k8s:gke
+kubetest --test --provider=skeleton --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.seedyy=1436380640 --v=6"
+#+END_SRC
+
+#+NAME: run e2e directly
+#+BEGIN_SRC tmux :session k8s:gke
+kubetest --test --provider=skeleton --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6"
+#+END_SRC
+
+**** notes
+#+NAME: how can we run --test on gce kubetest stuff?
+#+BEGIN_EXAMPLE
+2018/08/18 05:35:06 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
+Skeleton Provider: prepare-e2e not implemented
+Client Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+2018/08/18 05:35:08 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 1.186797969s
+2018/08/18 05:35:08 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
+2018/08/18 05:35:09 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 957.767828ms
+2018/08/18 05:35:09 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6
+Setting up for KUBERNETES_PROVIDER="skeleton".
+Skeleton Provider: prepare-e2e not implemented
+/home/hh/go/src/k8s.io/kubernetes/cluster/../cluster/skeleton/util.sh: line 22: KUBE_MASTER_IP: unbound variable
+2018/08/18 05:35:10 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6' finished in 1.392696657s
+2018/08/18 05:35:10 main.go:309: Something went  wrong: encountered 1 errors: [error during ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6: exit status 1]
+#+END_EXAMPLE
+
+* kubetest build and deploy via dind
+
+*** preamble
+    Goals behind kubetest + dind + audit-logging.
+
+- Enable fast feedback look
+- Reuse framework used by CI / test-infra
+- Move away from provider specific cloud / test
+
+Issues we ran into:
+
+- kubeadm bootstrapping args / config file formats being alpha
+- kubeadm documentation
+- dind does not yet bringing up cri
+- @bentheelder is currently making kind
+- User-Agent logging [[https://github.com/kubernetes/kubernetes/commit/d066d547cce64a4f02bb05d718bc53fe71d06ad3][did not make it into APIServer]] until 1.12-0-alpha.1
+
+#+NAME: kubetest+dind+audit.log TLDR
+#+BEGIN_EXAMPLE markdown
+```shell
+  go get -u k8s.io/test-infra/kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  bazel build //cmd/kubeadm
+  kubetest --build=dind
+  kubetest --up --deployment=dind
+  KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  kubectl get nodes
+  DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
+  tail -F /tmp/$DIND_DIR/audit/audit.log
+```
+#+END_EXAMPLE
+
+#+NAME: kublete etc, when is deprecation an error?
+#+BEGIN_EXAMPLE
+Aug 19 20:07:18 ab8afb8aff4e kubelet[169]: F0819 20:07:18.938066     169 server.go:188] failed to load Kubelet config file /var/lib/kubelet/config.yaml, error failed to read kubelet config file "/var/lib/kubelet/config.yaml", error: open /var/lib/kubelet/config.yaml: no such file or directory
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: kubelet.service: Service hold-off time over, scheduling restart.
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Stopped kubelet: The Kubernetes Node Agent.
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Started kubelet: The Kubernetes Node Agent.
+Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: Flag --fail-swap-on has been deprecated, This parameter should be set via the config file specified by the Kubelet's --config flag. See https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/ for more information.
+Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: I0819 20:07:29.114210     296 flags.go:27] FLAG: --address="0.0.0.0"
+#+END_EXAMPLE
+
+#+NAME: debugging CNI issues
+#+BEGIN_EXAMPLE
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: W0819 21:00:10.584762     741 cni.go:188] Unable to update cni config: No networks found in /etc/cni/net.d
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: I0819 21:00:10.585013     741 kubelet.go:2094] Container runtime status: Runtime Conditions: RuntimeReady=true reason: message:, NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: E0819 21:00:10.585058     741 kubelet.go:2097] Container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
+Aug 19 21:00:11 ab8afb8aff4e kubelet[741]: I0819 21:00:11.328020     741 kubelet.go:1903] SyncLoop (housekeeping)
+#+END_EXAMPLE
+
+*** build 
+
+#+NAME: Update kubetest to current
+#+BEGIN_SRC tmux :session k8s:kubetest
+  go get -u k8s.io/test-infra/kubetest
+#+END_SRC
+
+#+NAME: Build / Compile your artifacts
+#+BEGIN_SRC tmux :session k8s:kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  # bazel build //cmd/kubeadm
+  kubetest --build=dind
+#+END_SRC
+
+*** deploy
+#+NAME: Bring up DIND Cluster
+#+BEGIN_SRC tmux :session k8s:kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  kubetest --up --deployment=dind
+#+END_SRC
+*** test
+
+#+NAME: Conformance Testing Variables
+#+BEGIN_SRC tmux :session k8s:kubetest
+  export KUBERNETES_CONFORMANCE_TEST=y 
+  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
+  # cp $DIND_KCS_DATA/audit/audit.log .
+  export TEST_ARGS="--ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton"
+#+END_SRC
+
+#+NAME: Build the e2e.test binary
+#+BEGIN_SRC tmux :session k8s:kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  # I think this should be rebuilt by now?
+  make -j 8 GOGCFLAGS="-N -l -v" WHAT=test/e2e/e2e.test
+#+END_SRC
+
+#+NAME: run e2e.test binary directly
+#+BEGIN_SRC tmux :session k8s:kubetest
+./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+#+END_SRC
+ 
+#+NAME: dlv exec e2e.test binary directly
+#+BEGIN_SRC tmux :session k8s:kubetest
+dlv exec -- /zfs/home/chris/cncf/kubernetes/_output/bin/e2e.test $TEST_ARGS
+#+END_SRC
+#+NAME: dlv test
+
+#+NAME: dlv test load
+#+BEGIN_SRC tmux :session k8s:kubetest
+dlv test k8s.io/kubernetes/test/e2e -- $TEST_ARGS
+#+END_SRC
+
+#+NAME: kubetest
+#+BEGIN_SRC tmux :session k8s:kubetest
+  kubetest --test --test_args=$TEST_ARGS
+#+END_SRC
+
+#+NAME: go run hack
+#+BEGIN_SRC tmux :session k8s:kubetest
+  go run ./hack/e2e.go -- --test --test_args=$TEST_ANGS
+#+END_SRC
+
+#+NAME: BeforeEach (yet again)
+**** notes 
+#+NAME: WHY NO TESTS SUITES
+#+BEGIN_EXAMPLE
+2018/08/18 09:44:53 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
+Skeleton Provider: prepare-e2e not implemented
+Client Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+2018/08/18 09:44:53 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 204.30616ms
+2018/08/18 09:44:53 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
+2018/08/18 09:44:53 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 199.443467ms
+2018/08/18 09:44:53 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=4
+Conformance test: not doing test setup.
+Found no test suites
+For usage instructions:
+        ginkgo help
+!!! Error in ./hack/ginkgo-e2e.sh:143
+  Error in ./hack/ginkgo-e2e.sh:143. '"${ginkgo}" "${ginkgo_args[@]:+${ginkgo_args[@]}}" "${e2e_test}" -- "${auth_config[@]:+${auth_config[@]}}" --ginkgo.flakeAttempts="${FLAKE_ATTEMPTS}" --host="${KUBE_MASTER_URL}" --provider="${KUBERNETES_PROVIDER}" --gce-project="${PROJECT:-}" --gce-zone="${ZONE:-}" --gce-region="${REGION:-}" --gce-multizone="${MULTIZONE:-false}" --gke-cluster="${CLUSTER_NAME:-}" --kube-master="${KUBE_MASTER:-}" --cluster-tag="${CLUSTER_ID:-}" --cloud-config-file="${CLOUD_CONFIG:-}" --repo-root="${KUBE_ROOT}" --node-instance-group="${NODE_INSTANCE_GROUP:-}" --prefix="${KUBE_GCE_INSTANCE_PREFIX:-e2e}" --network="${KUBE_GCE_NETWORK:-${KUBE_GKE_NETWORK:-e2e}}" --node-tag="${NODE_TAG:-}" --master-tag="${MASTER_TAG:-}" --cluster-monitoring-mode="${KUBE_ENABLE_CLUSTER_MONITORING:-standalone}" --prometheus-monitoring="${KUBE_ENABLE_PROMETHEUS_MONITORING:-false}" ${KUBE_CONTAINER_RUNTIME:+"--container-runtime=${KUBE_CONTAINER_RUNTIME}"} ${MASTER_OS_DISTRIBUTION:+"--master-os-distro=${MASTER_OS_DISTRIBUTION}"} ${NODE_OS_DISTRIBUTION:+"--node-os-distro=${NODE_OS_DISTRIBUTION}"} ${NUM_NODES:+"--num-nodes=${NUM_NODES}"} ${E2E_REPORT_DIR:+"--report-dir=${E2E_REPORT_DIR}"} ${E2E_REPORT_PREFIX:+"--report-prefix=${E2E_REPORT_PREFIX}"} "${@:-}"' exited with status 1
+Call stack:
+  1: ./hack/ginkgo-e2e.sh:143 main(...)
+Exiting with status 1
+2018/08/18 09:44:55 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=4' finished in 2.131029505s
+2018/08/18 09:44:55 main.go:309: Something went wrong: encountered 1 errors: [error during ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=4: exit status 1]
+dd
+#+END_EXAMPLE
+
+#+NAME: why does dlv have udefined generated stuff
+#+BEGIN_EXAMPLE
+# k8s.io/kubernetes/test/e2e/generated
+test/e2e/generated/gobindata_util.go:27:20: undefined: Asset
+test/e2e/generated/gobindata_util.go:30:48: undefined: AssetNames
+#+END_EXAMPLE
+
+*** delete+build+deploy+test
+
+#+NAME: Delete Current DIND
+#+BEGIN_SRC tmux :session k8s:clear
+DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
+# I'd like to ensure the above are set BEFORE we rm -rf directories
+cat <<EOF >/tmp/delete
+set -x
+set -e
+docker rm -f $DIND
+sudo rm -rf $DIND_DIR
+rm -f $KUBECONFIG
+EOF
+chmod +x /tmp/delete
+# inspect and run this if you want
+cat /tmp/delete
+#+END_SRC
+
+#+NAME: Build and Deploy DIND Cluster
+#+BEGIN_SRC tmux :session k8s:kubetest
+  cd ~/go/src/k8s.io/kubernetes/
+  time kubetest --build=dind --up --deployment=dind
+#+END_SRC
+
+#+NAME: Build, Deploy, and Test DIND Cluster
+#+BEGIN_SRC tmux :session k8s:kubetest
+time (
+  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
+  export KUBE_ROOT=$HOME/go/src/k8s.io/kubernetes/
+  export TOOL_ROOL=$HOME/go/src/k8s.io/test-infra/dind/
+  export KUBERNETES_PROVIDER=skeleton
+  export KUBERNETES_CONFORMANCE_TEST=y 
+  #export TEST_ARGS="--ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton"
+  #unset KUBECONFIG
+  cd ~/go/src/k8s.io/kubernetes/
+  time go get -u k8s.io/test-infra/kubetest
+  time kubetest --build=dind --up --deployment=dind
+  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  #time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  export GINKO_PARALLEL=y
+  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
+  cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
+  # time kubetest --build=dind --up --deployment=dind --test --test_args="$TEST_ARGS"
+)
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+2018/08/20 20:24:33 dind.go:364: All 4 nodes are now healthy.
+2018/08/20 20:24:33 main.go:309: Something went wrong: encountered 1 errors: [configuration error in GinkgoTester: Kuberoot cannot be empty]
+
+real    5m18.098s
+user    0m3.632s
+sys     0m11.520s
+#+END_EXAMPLE
+*** Shells
+**** dind
+
+
+#+NAME: DIND Shell
+#+BEGIN_SRC tmux :session k8s:dind-sh
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  docker ps
+#+END_SRC
+**** master
+
+#+NAME: MASTER Shell
+#+BEGIN_SRC tmux :session k8s:master-sh
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  MASTER=$(docker ps --format '{{.Names}} {{.Ports}}' | grep 443 | awk '{print $1}')
+  docker exec -ti $MASTER  /bin/bash
+  export PS1='\w MASTER \$ '
+  docker ps
+#+END_SRC
+**** minion
+
+#+NAME: A random MINION Shell
+#+BEGIN_SRC tmux :session k8s:minion-sh
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  A_MINION=$(docker ps --format '{{.Names}} {{.Ports}}' | grep -v 443 | awk '{print $1}'| tail -1)
+  docker exec -ti $A_MINION /bin/bash
+  export PS1='\w MINION \$ '
+  docker ps
+#+END_SRC
+**** apiserver
+
+#+NAME: APIServer Shell
+#+BEGIN_SRC tmux :session k8s:apiserver-sh
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  MASTER=$(docker ps --format '{{.Names}} {{.Ports}}' | grep 443 | awk '{print $1}')
+  docker exec -ti $MASTER /bin/bash
+  export PS1='\w MASTER \$ '
+  APISERVER=$(docker ps --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
+  docker exec -ti $APISERVER /bin/sh
+  export PS1='# APISERVER \$ '
+  ps ax
+#+END_SRC
+
+**** notes
+#+NAME: Probable issue with tokens etc
+#+BEGIN_EXAMPLE
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Failed to connect to API Server "172.18.0.2:6443":
+  token id "abcdef" is invalid for this cluster or it has expired.
+  Use "kubeadm token create" on the master node to creating a new valid token
+#+END_EXAMPLE
+
+*** Logs
+**** dind
+#+NAME: Logs from the dind
+#+BEGIN_SRC tmux :session k8s:dind-logs
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker logs -f $DIND
+#+END_SRC
+
+**** master
+
+#+NAME: Logs from the master
+#+BEGIN_SRC tmux :session k8s:master-logs
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  MASTER=$(docker ps --format '{{.Names}} {{.Ports}}' | grep 443 | awk '{print $1}')
+  docker logs -f $MASTER 
+#+END_SRC
+
+***** TODO APISnoop injection stacktrace
+
+#+NAME: apsnooping pointer erre
+#+BEGIN_EXAMPLE
+[init] waiting for the kubelet to boot up the control plane as Static Pods from directory "/etc/kubernetes/manifests" 
+[init] this might take a minute or longer if the control plane images have to be pulled
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x80 pc=0xe88bb2]
+
+goroutine 91 [running]:
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/specrunner.(*SpecRunner).CurrentSpecSummary(0x0, 0x100c4204b5848, 0x150)
+        vendor/github.com/onsi/ginkgo/internal/specrunner/spec_runner.go:209 +0x22
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/suite.(*Suite).CurrentRunningSpecSummary(0xc4203a6190, 0xc420553000, 0x1)
+        vendor/github.com/onsi/ginkgo/internal/suite/suite.go:105 +0x2f
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo.CurrentGinkgoTestDescription(0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, ...)
+        vendor/github.com/onsi/ginkgo/ginkgo_dsl.go:157 +0x64
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.NewRequest(0x1865560, 0xc4207563f0, 0x170efbf, 0x3, 0xc42074e500, 0xc42074613e, 0x1, 0x0, 0x0, 0x171d54e, ...)
+        staging/src/k8s.io/client-go/rest/request.go:143 +0x2a9
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Verb(0xc420744480, 0x170efbf, 0x3, 0x0)
+        staging/src/k8s.io/client-go/rest/client.go:227 +0x1a7
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Get(0xc420744480, 0x18930c0)
+        staging/src/k8s.io/client-go/rest/client.go:247 +0x40
+k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient.(*KubeWaiter).WaitForAPI.func1(0xc4204c06d8, 0x10fb38d, 0x15b11a0)
+        cmd/kubeadm/app/util/apiclient/wait.go:77 +0x80
+k8s.io/kubernetes/vendor/k8s.io/apimachinery/pkg/util/wait.pollImmediateInternal(0xc420748100, 0xc420756480, 0xc420748100, 0xc420756480)
+        staging/src/k8s.io/apimachinery/pkg/util/wait/wait.go:245 +0x2b
+k8s.io/kubernetes/vendor/k8s.io/apimachinery/pkg/util/wait.PollImmediate(0x1dcd6500, 0x37e11d6000, 0xc420756480, 0x6289ad, 0x82)
+        staging/src/k8s.io/apimachinery/pkg/util/wait/wait.go:241 +0x4d
+k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient.(*KubeWaiter).WaitForAPI(0xc420756450, 0x3d3000001e9, 0x3d300000041)
+        cmd/kubeadm/app/util/apiclient/wait.go:75 +0xbd
+k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient.(Waiter).WaitForAPI-fm(0x0, 0x0)
+        cmd/kubeadm/app/cmd/init.go:385 +0x2f
+k8s.io/kubernetes/cmd/kubeadm/app/cmd.waitForKubeletAndFunc.func2(0xc4207404c0, 0xc4204c2360, 0x18912c0, 0xc420756450)
+        cmd/kubeadm/app/cmd/init.go:621 +0x27
+created by k8s.io/kubernetes/cmd/kubeadm/app/cmd.waitForKubeletAndFunc
+        cmd/kubeadm/app/cmd/init.go:618 +0xb0
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x80 pc=0x886ea2]
+goroutine 1 [running]:                                                                                                                               [39/227]
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/specrunner.(*SpecRunner).CurrentSpecSummary(0x0, 0xc420871400, 0x150)
+        vendor/github.com/onsi/ginkgo/internal/specrunner/spec_runner.go:209 +0x22
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/suite.(*Suite).CurrentRunningSpecSummary(0xc4200beaa0, 0x24a7a00, 0x1)
+        vendor/github.com/onsi/ginkgo/internal/suite/suite.go:105 +0x2f
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo.CurrentGinkgoTestDescription(0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, ...)
+        vendor/github.com/onsi/ginkgo/ginkgo_dsl.go:157 +0x64
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.NewRequest(0x191b560, 0xc420951260, 0x17a98e1, 0x3, 0xc420255980, 0xc42003ecda, 0x1, 0x0, 0x0, 0x17b87de, ...)
+        staging/src/k8s.io/client-go/rest/request.go:143 +0x2a9
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Verb(0xc4200f3080, 0x17a98e1, 0x3, 0x0)
+        staging/src/k8s.io/client-go/rest/client.go:227 +0x1a7
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Get(0xc4200f3080, 0x0)
+        staging/src/k8s.io/client-go/rest/client.go:247 +0x40
+k8s.io/kubernetes/vendor/k8s.io/client-go/discovery.(*DiscoveryClient).OpenAPISchema(0xc42095c800, 0xc420044070, 0xc420044000, 0xc4200d2018)
+        staging/src/k8s.io/client-go/discovery/discovery_client.go:387 +0x4b
+k8s.io/kubernetes/vendor/k8s.io/client-go/discovery.(*CachedDiscoveryClient).OpenAPISchema(0xc4203cd900, 0x428079, 0xc4200d2070, 0xc420871b20)
+        staging/src/k8s.io/client-go/discovery/cached_discovery.go:222 +0x33
+k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi.(*synchronizedOpenAPIGetter).Get.func1()
+        pkg/kubectl/cmd/util/openapi/openapi_getter.go:54 +0x3c
+sync.(*Once).Do(0xc4203cd940, 0xc420871b58)
+        GOROOT/src/sync/once.go:44 +0xbe
+k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi.(*synchronizedOpenAPIGetter).Get(0xc4203cd940, 0xc420871ba0, 0xc4203cd900, 0x0, 0x0)
+        pkg/kubectl/cmd/util/openapi/openapi_getter.go:53 +0x48
+k8s.io/kubernetes/pkg/kubectl/cmd/util.(*factoryImpl).OpenAPISchema(0xc4206fc5d0, 0x191ad00, 0xc4204a0900, 0x191b8e0, 0xc4200bc000)
+        pkg/kubectl/cmd/util/factory_client_access.go:179 +0xc3
+k8s.io/kubernetes/pkg/kubectl/cmd.(*ApplyOptions).Complete(0xc420102a00, 0x194e6e0, 0xc4206fc5d0, 0xc4208ddb80, 0xc420871c28, 0x0)
+        pkg/kubectl/cmd/apply.go:213 +0x1af
+k8s.io/kubernetes/pkg/kubectl/cmd.NewCmdApply.func1(0xc4208ddb80, 0xc4209084b0, 0x0, 0x3)
+        pkg/kubectl/cmd/apply.go:155 +0x4f
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).execute(0xc4208ddb80, 0xc420908420, 0x3, 0x3, 0xc4208ddb80, 0xc420908420)
+        vendor/github.com/spf13/cobra/command.go:760 +0x2c1
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).ExecuteC(0xc420600c80, 0xc420426b40, 0x12a05f200, 0xc420871ee8)
+        vendor/github.com/spf13/cobra/command.go:846 +0x30a
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).Execute(0xc420600c80, 0x18676b0, 0x24a67a0)
+        vendor/github.com/spf13/cobra/command.go:794 +0x2b
+main.main()
+        cmd/kubectl/kubectl.go:50 +0x196
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x80 pc=0x886ea2]
+
+goroutine 1 [running]:
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/specrunner.(*SpecRunner).CurrentSpecSummary(0x0, 0xc420669400, 0x150)
+        vendor/github.com/onsi/ginkgo/internal/specrunner/spec_runner.go:209 +0x22
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo/internal/suite.(*Suite).CurrentRunningSpecSummary(0xc4200b8aa0, 0xc420068c00, 0x1)
+        vendor/github.com/onsi/ginkgo/internal/suite/suite.go:105 +0x2f
+k8s.io/kubernetes/vendor/github.com/onsi/ginkgo.CurrentGinkgoTestDescription(0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, ...)
+        vendor/github.com/onsi/ginkgo/ginkgo_dsl.go:157 +0x64
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.NewRequest(0x191b560, 0xc42094b230, 0x17a98e1, 0x3, 0xc420256280, 0xc42003eb2a, 0x1, 0x0, 0x0, 0x17b87de, ...)
+        staging/src/k8s.io/client-go/rest/request.go:143 +0x2a9
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Verb(0xc4200fbbc0, 0x17a98e1, 0x3, 0x0)
+        staging/src/k8s.io/client-go/rest/client.go:227 +0x1a7
+k8s.io/kubernetes/vendor/k8s.io/client-go/rest.(*RESTClient).Get(0xc4200fbbc0, 0x0)
+        staging/src/k8s.io/client-go/rest/client.go:247 +0x40
+k8s.io/kubernetes/vendor/k8s.io/client-go/discovery.(*DiscoveryClient).OpenAPISchema(0xc420956580, 0xc420044070, 0xc420044000, 0xc4200d8018)
+        staging/src/k8s.io/client-go/discovery/discovery_client.go:387 +0x4b
+k8s.io/kubernetes/vendor/k8s.io/client-go/discovery.(*CachedDiscoveryClient).OpenAPISchema(0xc4205af280, 0x428079, 0xc4200d8070, 0xc420669b20)
+        staging/src/k8s.io/client-go/discovery/cached_discovery.go:222 +0x33
+k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi.(*synchronizedOpenAPIGetter).Get.func1()
+        pkg/kubectl/cmd/util/openapi/openapi_getter.go:54 +0x3c
+sync.(*Once).Do(0xc4205af2c0, 0xc420669b58)
+        GOROOT/src/sync/once.go:44 +0xbe
+k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi.(*synchronizedOpenAPIGetter).Get(0xc4205af2c0, 0xc420669ba0, 0xc4205af280, 0x0, 0x0)
+        pkg/kubectl/cmd/util/openapi/openapi_getter.go:53 +0x48
+k8s.io/kubernetes/pkg/kubectl/cmd/util.(*factoryImpl).OpenAPISchema(0xc42067d5f0, 0x191ad00, 0xc4200b6b00, 0x191b8e0, 0xc4200b6000)
+        pkg/kubectl/cmd/util/factory_client_access.go:179 +0xc3
+k8s.io/kubernetes/pkg/kubectl/cmd.(*ApplyOptions).Complete(0xc42010a780, 0x194e6e0, 0xc42067d5f0, 0xc4208ddb80, 0xc420669c28, 0x0)
+        pkg/kubectl/cmd/apply.go:213 +0x1af
+k8s.io/kubernetes/pkg/kubectl/cmd.NewCmdApply.func1(0xc4208ddb80, 0xc420908480, 0x0, 0x3)
+        pkg/kubectl/cmd/apply.go:155 +0x4f
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).execute(0xc4208ddb80, 0xc4209083f0, 0x3, 0x3, 0xc4208ddb80, 0xc4209083f0)
+        vendor/github.com/spf13/cobra/command.go:760 +0x2c1
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).ExecuteC(0xc420794c80, 0xc4200aeed0, 0x12a05f200, 0xc420669ee8)
+        vendor/github.com/spf13/cobra/command.go:846 +0x30a
+k8s.io/kubernetes/vendor/github.com/spf13/cobra.(*Command).Execute(0xc420794c80, 0x18676b0, 0x24a67a0)
+        vendor/github.com/spf13/cobra/command.go:794 +0x2b
+main.main()
+        cmd/kubectl/kubectl.go:50 +0x196
+#+END_EXAMPLE
+
+***** TODO kubelet not ready.... cri network plugin not init
+
+runtime network not ready:
+NetworkReady=false
+reason:NetworkPluginNotReady
+message: docker: network plugin is not ready: cni config uninitialized
+
+#+NAME: KubeletNotReady
+#+BEGIN_EXAMPLE
+kubectl describe node a90c6304bcb0
+...
+Taints:             node-role.kubernetes.io/master:NoSchedule
+                    node.kubernetes.io/not-ready:NoSchedule
+Unschedulable:      false
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  OutOfDisk        False   Fri, 17 Aug 2018 08:24:46 +1200   Fri, 17 Aug 2018 08:20:45 +1200   KubeletHasSufficientDisk     kubelet has sufficient disk space available
+  MemoryPressure   False   Fri, 17 Aug 2018 08:24:46 +1200   Fri, 17 Aug 2018 08:20:45 +1200   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Fri, 17 Aug 2018 08:24:46 +1200   Fri, 17 Aug 2018 08:20:45 +1200   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Fri, 17 Aug 2018 08:24:46 +1200   Fri, 17 Aug 2018 08:20:45 +1200   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            False   Fri, 17 Aug 2018 08:24:46 +1200   Fri, 17 Aug 2018 08:20:45 +1200   KubeletNotReady              runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
+#+END_EXAMPLE
+***** TODO kubeadm command line args VS config file
+#+NAME: kubeadm can only use command line args OR config file
+#+BEGIN_EXAMPLE
+can not mix '--config' with arguments [token]
+#+END_EXAMPLE
+
+***** TODO kubeadm token differences
+When we lay down kubeadm config in [[file:go/src/k8s.io/test-infra/dind/start.sh::token:%20abcdef.abcdefghijklmnop][dind-start.sh]] it seems to match:
+
+kubeadm join 172.18.0.2:6443 --token abcdef.abcdefghijklmnop
+ --discovery-token-ca-cert-hash sha256:008789ee5ec6758715f39fda15406615c0d7150eb386e5b794cdd066640d46a2
+
+
+#+NAME: kubeadm asks for different token
+#+BEGIN_EXAMPLE
+I0816 19:48:00.302199     394 loader.go:359] Config loaded from file /etc/kubernetes/admin.conf
+
+Your Kubernetes master has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of machines by running the following on each node
+as root:
+
+  kubeadm join 172.18.0.2:6443 --token chjhdc.t64bu80l2u0rex1u --discovery-token-ca-cert-hash sha256:3db5f1b23fefdd7d84aa9a243b529f15cd1b6752b38dbb4d9c12ac4912610d62
+#+END_EXAMPLE
+
+I'm unsure where the chjhdc.* token is coming from
+**** minion
+#+NAME: Logs from a minion
+#+BEGIN_SRC tmux :session k8s:minion-logs
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  A_MINION=$(docker ps --format '{{.Names}} {{.Ports}}' | grep -v 443 | awk '{print $1}'| tail -1)
+  docker logs -f $A_MINION
+#+END_SRC
+***** TODO token issues
+#+NAME: Probable issue with tokens etc
+#+BEGIN_EXAMPLE
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Failed to connect to API Server "172.18.0.2:6443":
+  token id "abcdef" is invalid for this cluster or it has expired.
+  Use "kubeadm token create" on the master node to creating a new valid token
+[discovery] abort connecting to API servers after timeout of 5m0s
+  couldn't validate the identity of the API Server:
+  abort connecting to API servers after timeout of 5m0s
+#+END_EXAMPLE
+
+**** apiserver
+#+NAME: Logs from API Server
+#+BEGIN_SRC tmux :session k8s:apiserver-logs
+  DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+  docker exec -ti $DIND /bin/bash
+  export PS1='\w DIND \$ '
+  MASTER=$(docker ps --format '{{.Names}} {{.Ports}}' | grep 443 | awk '{print $1}')
+  docker exec -ti $MASTER  /bin/bash
+  APISERVER=$(docker ps --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
+  docker logs -f $APISERVER
+#+END_SRC
+***** TODO tls errors
+#+NAME: errors from ssl certs
+#+BEGIN_SRC 
+E0816 20:56:504.688997       1 controller.go:111] loading OpenAPI spec for "v1beta1.metrics.k8s.io" failed with: failed to retrieve openAPI spec, http error: ResponseCode: 503, Body: service unavailable
+, Header: map[X-Content-Type-Options:[nosniff] Content-Type:[text/plain; charset=utf-8]]
+I0816 20:56:04.689024       1 controller.go:119] OpenAPI AggregationController: action for item v1beta1.metrics.k8s.io: Rate Limited Requeue.
+I0816 20:56:11.339507       1 logs.go:49] http: TLS handshake error from 172.17.0.1:39960: remote error: tls: bad certificate
+E0816 20:56:20.536085       1 memcache.go:134] couldn't get resource list for metrics.k8s.io/v1beta1: the server is currently unable to handle the request
+I0816 20:56:21.340036       1 logs.go:49] http: TLS handshake error from 172.17.0.1:39970: remote error: tls: bad certificate
+#+END_SRC
+
+*** Debugging
+**** dlv / gud
+
+#+NAME: start dlv gud session
+#+BEGIN_SRC emacs-lisp :results silent
+;; set this dynamically at some point to the most recent dind
+(setenv "KUBECONFIG" "/tmp/k8s-dind-kubecfg-538244971" )
+;; (setenv "KUBECONFIG" "/home/hh/.kube/config")
+(dlv "dlv test k8s.io/kubernetes/test/e2e -- --provider=skeleton --ginkgo.seed=1436380640 --ginkgo.focus=\\[Conformance\\] -v=6")
+;; (sit-for 1) ;; waiting for it to start
+;; (display-buffer-other-frame "*gud-test*")
+#+END_SRC
+
+#+NAME: BeforeEach (yet again)
+#+BEGIN_SRC emacs-lisp :results silent
+(gud-call "break BeforeEach k8s.io/kubernetes/test/e2e/framework.(*Framework).BeforeEach:11")
+(gud-call "on BeforeEach p config")
+(gud-call "on BeforeEach p userAgent")
+(gud-call "c")
+#+END_SRC
+
+**** kubectl
+#+NAME: kubectl shell
+#+BEGIN_SRC tmux :session k8s:kubectl
+  export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+  export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
+  kubectl get nodes
+  kubectl describe node -l node-role.kubernetes.io/master
+  kubectl get pods --all-namespaces
+  cd $DIND_K8S_DATA/audit
+  ls -la
+#+END_SRC
+
+#+NAME: MASTER Shell
+#+BEGIN_SRC tmux :session k8s:kubectl
+  kubectl get pods --all-namespaces
+#+END_SRC
+**** debug networking
+#+NAME: MASTER Shell
+#+BEGIN_SRC tmux :session k8s:kubectl
+kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /addons/metrics-server/
+#+END_SRC
+
+
+#+NAME: calico to weave
+#+BEGIN_SRC tmux :session k8s:kubectl
+kubectl delete -f https://docs.projectcalico.org/v3.2/getting-started/kubernetes/installation/rbac.yaml
+kubectl delete -f https://docs.projectcalico.org/v3.2/getting-started/kubernetes/installation/hosted/calico.yaml
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+#+END_SRC
+
+
+journalctl -u kubelet -f
+#+NAME: WHY TAINTS!
+#+BEGIN_EXAMPLE
+kubectl describe pod calico-kube-controllers-84fd4db7cd-s5prn  --namespace=kube-system
+Tolerations:     CriticalAddonsOnly
+                 node-role.kubernetes.io/master:NoSchedule
+                 node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+#+END_EXAMPLE
+
+
+#+BEGIN_EXAMPLE
+Aug 19 23:23:23 1b5d88580161 kubelet[511]: I0819 23:23:23.449151     511 cni.go:161] Using CNI configuration file /etc/cni/net.d/10-weave.conf
+Aug 19 23:23:23 1b5d88580161 kubelet[511]: I0819 23:23:23.449405     511 kubelet.go:2094] Container runtime status: Runtime Conditions: RuntimeReady=true reason: message:, NetworkReady=true reason: message:
+Aug 19 23:23:24 1b5d88580161 kubelet[511]: I0819 23:23:24.592610     511 kubelet.go:1903] SyncLoop (housekeeping)
+Aug 19 23:23:25 1b5d88580161 kubelet[511]: I0819 23:23:25.143391     511 worker.go:177] Probe target container not found: coredns-78fcdf6894-vmdpj_kube-system(59eb9c00-a405-11e8-b49a-02422c0a92c5) - coredns
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.589545     511 kubelet.go:1880] SyncLoop (SYNC): 1 pods; kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.593553     511 kubelet_pods.go:1327] Generating status for "kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)"
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.594395     511 kubelet.go:1903] SyncLoop (housekeeping)
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.594397     511 status_manager.go:361] Ignoring same status for pod "kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)", status: {Phase:Running Conditions:[{Type:Initialized Status:True LastProbeTime:0001-01-01 00:00:00 +0000 UTC LastTransitionTime:2018-08-19 23:12:34 +0000 UTC Reason: Message:} {Type:Ready Status:True LastProbeTime:0001-01-01 00:00:00 +0000 UTC LastTransitionTime:2018-08-19 23:12:40 +0000 UTC Reason: Message:} {Type:ContainersReady Status:True LastProbeTime:0001-01-01 00:00:00 +0000 UTC LastTransitionTime:0001-01-01 00:00:00 +0000 UTC Reason: Message:} {Type:PodScheduled Status:True LastProbeTime:0001-01-01 00:00:00 +0000 UTC LastTransitionTime:2018-08-19 23:12:34 +0000 UTC Reason: Message:}] Message: Reason: NominatedNodeName: HostIP:172.18.0.3 PodIP:172.18.0.3 StartTime:2018-08-19 23:12:34 +0000 UTC InitContainerStatuses:[] ContainerStatuses:[{Name:kube-proxy State:{Waiting:nil Running:&ContainerStateRunning{StartedAt:2018-08-19 23:12:40 +0000 UTC,} Terminated:nil} LastTerminationState:{Waiting:nil Running:nil Terminated:nil} Ready:true RestartCount:0 Image:gcr.io/google_containers/kube-proxy:v1.13.0-alpha.0.293_0ff2c8974b074c-dirty ImageID:docker://sha256:792ee91ecaea81b4e4252d5f29d47d6281c78226b5e20ca985717a65f23ed79f ContainerID:docker://67f670ceddd8b660de61c9f81c700d113cb83b6312bbf2099596a38730af2f45}] QOSClass:BestEffort}
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.594729     511 volume_manager.go:350] Waiting for volumes to attach and mount for pod "kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)"
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.594773     511 volume_manager.go:383] All volumes are attached and mounted for pod "kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)"
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.594885     511 kuberuntime_manager.go:570] computePodActions got {KillPod:false CreateSandbox:false SandboxID:364db2e34fe1715f7cdc2fe09d49723987de4522dcbc5c0102651a5d3183fc53 Attempt:0 NextInitContainerToStart:nil ContainersToStart:[] ContainersToKill:map[]} for pod "kube-proxy-w9k6c_kube-system(5b387c5b-a405-11e8-b49a-02422c0a92c5)"
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.656422     511 desired_state_of_world_populator.go:318] Added volume "kube-proxy" (volSpec="kube-proxy") for pod "5b387c5b-a405-11e8-b49a-02422c0a92c5" to desired state.
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.656517     511 desired_state_of_world_populator.go:318] Added volume "xtables-lock" (volSpec="xtables-lock") for pod "5b387c5b-a405-11e8-b49a-02422c0a92c5" to desired state.
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.656565     511 desired_state_of_world_populator.go:318] Added volume "lib-modules" (volSpec="lib-modules") for pod "5b387c5b-a405-11e8-b49a-02422c0a92c5" to desired state.
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.656611     511 desired_state_of_world_populator.go:318] Added volume "kube-proxy-token-dtbzn" (volSpec="kube-proxy-token-dtbzn") for pod "5b387c5b-a405-11e8-b49a-02422c0a92c5" to desired state.
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: I0819 23:23:26.685339     511 eviction_manager.go:226] eviction manager: synchronize housekeeping
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: E0819 23:23:26.716133     511 summary.go:102] Failed to get system container stats for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/kubelet.service": failed to get cgroup stats for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/kubelet.service": failed to get container info for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/kubelet.service": unknown container "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/kubelet.service"
+Aug 19 23:23:26 1b5d88580161 kubelet[511]: E0819 23:23:26.716177     511 summary.go:102] Failed to get system container stats for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/docker.service": failed to get cgroup stats for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/docker.service": failed to get container info for "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/docker.service": unknown container "/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/docker/1b5d885801615259db2d61d6318cfd5a8202da4e3f6ce072b9c13672c67edc3d/system.slice/docker.service"
+
+#+END_EXAMPLE
+#+NAME: weave to calico
+#+BEGIN_SRC tmux :session k8s:kubectl
+kubectl delete -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+kubectl apply -f https://docs.projectcalico.org/v3.2/getting-started/kubernetes/installation/rbac.yaml
+kubectl apply -f https://docs.projectcalico.org/v3.2/getting-started/kubernetes/installation/hosted/calico.yaml
+#+END_SRC
+
+**** other
+#+NAME: MASTER Shell
+#+BEGIN_SRC tmux :session k8s:master-sh
+K8S_CONTROLLER_MANAGER=$(docker ps --format "{{.Names}}" -f label=io.kubernetes.container.name=kube-controller-manager)
+K8S_APISERVER=$(docker ps --format "{{.Names}}" -f label=io.kubernetes.container.name=kube-apiserver)
+kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /addons/metrics-server/
+  # kubectl logs kube-controller-manager-744ab16bec5e --namespace=kube-system
+#+END_SRC
+
+#+NAME: kube-controller-manager
+#+BEGIN_SRC tmux :session k8s:master-sh
+docker logs -f $K8S_CONTROLLER_MANAGER
+#+END_SRC
+
+https://github.com/moby/moby/issues/24000
+
+  kube-proxy, 9bfe955f825d
+DOCKER RESTART NEEDED (docker issue #24000):
+/sys is read-only: cannot modify conntrack limits, problems may arise later.
+
+#+NAME: worker says DOCKER RESTART NEEDED
+#+BEGIN_EXAMPLE
+Events:
+  Type     Reason                   Age                From                      Message
+  ----     ------                   ----               ----                      -------
+  Normal   Starting                 43m                kubelet, 9bfe955f825d     Starting kubelet.
+  Normal   NodeHasSufficientDisk    43m (x6 over 43m)  kubelet, 9bfe955f825d     Node 9bfe955f825d status is now: NodeHasSufficientDisk
+  Normal   NodeHasSufficientMemory  43m (x6 over 43m)  kubelet, 9bfe955f825d     Node 9bfe955f825d status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    43m (x6 over 43m)  kubelet, 9bfe955f825d     Node 9bfe955f825d status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     43m (x5 over 43m)  kubelet, 9bfe955f825d     Node 9bfe955f825d status is now: NodeHasSufficientPID
+  Normal   NodeAllocatableEnforced  43m                kubelet, 9bfe955f825d     Updated Node Allocatable limit across pods
+  Warning  readOnlySysFS            43m                kube-proxy, 9bfe955f825d  DOCKER RESTART NEEDED (docker issue #24000): /sys is read-only: cannot modify conntrack limits, problems may arise later.
+  Normal   Starting                 43m                kube-proxy, 9bfe955f825d  Starting kube-proxy.
+#+END_EXAMPLE
+
+#+BEGIN_EXAMPLE
+E0819 22:25:54.940285       1 resource_quota_controller.go:430] unable to retrieve the complete list of server APIs: metrics.k8s.io/v1beta1: the server is currently unable to handle the request
+W0819 22:26:00.641928       1 garbagecollector.go:647] failed to discover some groups: map[metrics.k8s.io/v1beta1:the server is currently unable to handle the request]
+E0819 22:26:05.560679       1 memcache.go:134] couldn't get resource list for metrics.k8s.io/v1beta1: the server is currently unable to handle the request
+E0819 22:26:24.972716       1 resource_quota_controller.go:430] unable to retrieve the complete list of server APIs: metrics.k8s.io/v1beta1: the server is currently unable to handle the request
+W0819 22:26:32.148227       1 garbagecollector.go:647] failed to discover some groups: map[metrics.k8s.io/v1beta1:the server is currently unable to handle the request]
+E0819 22:26:35.644535       1 memcache.go:134] couldn't get resource list for metrics.k8s.io/v1beta1: the server is currently unable to handle the request
+#+END_EXAMPLE
+
+#+NAME: Describe Kube-DNS
+#+BEGIN_SRC tmux :session k8s:kubectl
+kubectl describe pod -l k8s-app=kube-dns --namespace=kube-system
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+Events:
+  Type     Reason                  Age              From                   Message
+  ----     ------                  ----             ----                   -------
+  Warning  FailedScheduling        7m (x4 over 7m)  default-scheduler      0/1 nodes are available: 1 node(s) had taints that the pod didn't tolerate.
+  Normal   Scheduled               7m               default-scheduler      Successfully assigned kube-system/coredns-78fcdf6894-k9ghv to ceec70d7c995
+  Warning  NetworkNotReady         6m (x3 over 7m)  kubelet, ceec70d7c995  network is not ready: [runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized]
+  Warning  FailedCreatePodSandBox  2m               kubelet, ceec70d7c995  Failed create pod sandbox: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+  Normal   SandboxChanged          2m               kubelet, ceec70d7c995  Pod sandbox changed, it will be killed and re-created.
+#+END_EXAMPLE
+*** Deleting containers
+**** current
+#+NAME: Delete all trace of the current dind
+#+BEGIN_SRC tmux :session k8s:clear
+DIND=$(docker ps --format "{{.Names}} {{.Image}}"  | grep dind-cluster-amd64 | awk '{print $1}')
+KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
+DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
+# I'd like to ensure the above are set BEFORE we rm -rf directories
+cat <<EOF >/tmp/delete
+set -x
+set -e
+docker rm -f $DIND
+sudo rm -rf $DIND_DIR
+rm -f $KUBECONFIG
+EOF
+chmod +x /tmp/delete
+# inspect and run this if you want
+cat /tmp/delete
+#+END_SRC
+**** all
+#+NAME: Delete all dinds everywhere
+#+BEGIN_SRC tmux :session k8s:clear
+docker ps -a --filter=exited=137 --format "{{.Names}}" | xargs docker rm --volumes
+docker ps -a --filter=exited=137 --format "{{.Names}}" | xargs docker rm --volumes
+docker ps -a --filter=exited=0 --format "{{.Names}}" | xargs docker rm --volumes
+docker ps -a --filter=exited=1 --format "{{.Names}}" | xargs docker rm --volumes
+docker ps -a --filter=exited=2 --format "{{.Names}}" | xargs docker rm --volumes
+docker ps --format "{{.Names}}" --filter "ancestor=k8s.gcr.io/dind-cluster-amd64:v1.12.0-alpha.1" | xargs docker rm --force --volumes
+docker ps --format "{{.Names}}" --filter "ancestor=k8s.gcr.io/dind-cluster-amd64:v1.12.0-alpha.1-dirty" | xargs docker rm --force --volumes
+# delete all our dind configs and logs 
+# Mounts: ... /tmp/dind-k8s-XXXXX => /var/kubernetes
+sudo rm -rf /tmp/dind-k8s-*
+# Outer KUBECONFIG
+sudo rm -f /tmp/k8s-dind-kubecfg-*
+#+END_SRC
+
+  *** Exploring build/deploy/provider options with kubetest
+#+NAME: Build Vars
+#+BEGIN_SRC tmux :session k8s:kubetest
+  export PROJECT=ii-coop
+  export KUBERNETES_PROVIDER=gce
+  export KUBERNETES_CONFORMANCE_PROVIDER=gce
+  export BUILD_FLAG=bazel #(use: bazel, dind, e2e, host-go, quick, release)
+#+END_SRC
+
+#+NAME: Build / Compile your artifacts
+#+BEGIN_SRC tmux :session k8s:kubetest
+  kubetest --build=$BUILD_FLAG
+#+END_SRC
+
+#+NAME: Bring up your k8s cluster from source
+#+BEGIN_SRC tmux :session k8s:kubetest
+  kubetest --up=$BUILD_FLAG --provider=$KUBERNETES_PROVIDER
+#+END_SRC
+
+#+NAME: testing
+#+BEGIN_SRC tmux :session k8s:kubetest
+  kubetest --stage=gcp://i
+    --provider=$KUBERNETES_PROVIDER \
+    --gcp-project=$PROJECT
+#+END_SRC
+
+#+NAME: Bring up your k8s cluster from source
+#+BEGIN_SRC tmux :session k8s:emacs
+  emc .
+#+END_SRC
+
+
+2018/08/14 12:26:04 main.go:239: deployment=bash
+2018/08/14 12:26:04 process.go:153: Running: ./hack/e2e-internal/e2e-down.sh
+
+* Node Conformance Suite
+not part of the same suite
+
+brian grant
+prioritizing conformance testing in general / brian grant
+archictecture tracking repo
+ 
+pod log api / part of conformance
+stability / use in clusters? (brian doesn't care)
+
+exec / stability problems - required to be implemented
+life-cycle-hook / probes - will be in conformance
+
+get more subject matter experts involved in the process
+
+* Setting up large compute node for data sets
+
+Created a Packet.net [[https://www.packet.net/bare-metal/servers/m1-xlarge/][m1.xlarge.x86]] for now.
+We assume the session is aready sshed in as root.
+
+#+NAME: packet setup
+#+BEGIN_SRC tmux :session k8s:packet
+apt-get update
+apt-get -y upgrade
+apt-get install -y \
+ apt-file \
+ apt-transport-https \
+ aptitude \
+ autoconf \
+ build-essential \
+ ca-certificates \
+ curl \
+ gcc \
+ git \
+ gnupg2 \
+ jq \
+ libgnutls28-dev \
+ libncurses5-dev \
+ libtinfo-dev \
+ libxml2-dev \
+ make \
+ mtr \
+ openjdk-8-jdk \
+ python3-dev \
+ sudo \
+ software-properties-common \
+ strace \
+ texinfo \
+ tmux \
+ unzip \
+ whois \
+ whowatch \
+ zip
+#+END_SRC
+
+#+NAME: packet setup
+#+BEGIN_SRC tmux :session k8s:packet
+# https://docs.docker.com/install/linux/docker-ce/debian/#set-up-the-repository
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/debian \
+   $(lsb_release -cs) \
+   stable"
+apt-get update
+apt-get install -y docker-ce
+systemctl start docker
+systemctl enable docker
+#+END_SRC
+
+#+NAME install k8s client bins
+#+BEGIN_SRC tmux :session k8s:packet
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+apt-get update
+apt-get install -y kubelet kubeadm kubectl
+#+END_SRC
+
+#+NAME: install golang
+#+BEGIN_SRC tmux :session k8s:packet
+# https://golang.org/doc/install#install
+curl -L https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/usr-local-go-path.sh
+#+END_SRC
+
+#+NAME: install emacs
+#+BEGIN_SRC tmux :session k8s:packet
+# possibly look into shallow or specific tag clone
+#git clone git clone https://git.savannah.gnu.org/git/emacs.git /usr/local/src/emacs
+# https://golang.org/doc/install#install
+cd /usr/local/src/emacs
+./autogen
+./configure --with-x-toolkit=no --with-xpm=no --with-jpeg=no --with-png=no --with-gif=no --with-tiff=no
+# find the command to use correct number of jobs... should equal number of (virtual) cores
+make -j 48 install
+#+END_SRC
+
+#+NAME: configure spacemacs (ii+tmate)
+#+BEGIN_SRC tmux :session k8s:packet
+git clone https://github.com/ii/spacemacs ~/.emacs.d
+ln -s ~/.emacs.d/private/local/.spacemacs ~/.spacemacs
+git clone https://github.com/ii/ob-tmux ~/.emacs.d/private/local/ob-tmux.el/
+git clone https://github.com/benma/go-dlv.el ~/.emacs.d/private/local/go-dlv.el/
+echo "alias emc='emacsclient -t '" > /etc/profile.d/emc-alias.sh
+#+END_SRC
+
+#+NAME: install node / tern
+#+BEGIN_SRC tmux :session k8s:packet
+curl https://nodejs.org/dist/v8.11.4/node-v8.11.4-linux-x64.tar.xz | xzcat | tar xvfC - /usr/local
+echo 'export PATH=$PATH:/usr/local/node-v8.11.4-linux-x64/bin' > /etc/profile.d/usr-local-node-path.sh
+. /etc/profile.d/usr-local-node-path.sh
+npm install -g tern
+#+END_SRC
+
+#+NAME: useradd
+#+BEGIN_SRC tmux :session k8s:packet
+# https://golang.org/doc/install#install
+curl -L https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/usr-local-go-path.sh
+#+END_SRC
+
+* Footnotes
+
+** TODO Find a better way to build just the e2e tests
+#+NAME: kubetest/build.go
+#+BEGIN_SRC golang
+case "e2e":
+		//TODO(Q-Lee): we should have a better way of build just the e2e tests
+		target = "bazel-release"
+#+END_SRC
+
+** TODO .bash_profile / bash completion for docker in all dind containers
+** TODO tmate show-messages is BLANK -pain-
+
+** TODO create ticket for kubeadm cmdline args || config
+kubeadm does not allow command line args when using --config
+
+kubeadm config migrate --new-config kubeadm.conf --old-config kubeadm.conf.orig 
+export PATH=$HOME/.local/bin:$PATH
+pip install virtualenv
+virtualenv .pyenv
+source .pyenv/bin/activate
+pip install -r requirements.txt
+python import.py e2e.log.json
+
+#+BEGIN_SRC tmux :session k8s:kubeadm
+bazel build //cmd/kubeadm
+./_output/dockerized/bin/linux/amd64/kubeadm config print-defaul
+#+END_SRC
+
+-  /usr/bin/kubeadm init --token=abcdef.abcdefghijklmnop --ignore-preflight-errors=all --kubernetes-version=$(cat source_version | sed 's/^.//') --pod-network-cidr=192.168.0.0/16 --apiserver-cert-extra-sans $1 2>&1
++  /usr/bin/kubeadm -v 999 init --ignore-preflight-errors=all --config /etc/kubernetes/kubeadm.conf 2>&1
+Kubernetes is failing to come up because to the certs are not signed correctly, the cause of this is using a kubeadm --config-file, because it disables all
+flags including the required  --apiserver-cert-extra-sans flag, atleast this optioncan be set in the config file, see https://github.com/kubernetes/kubernetes/issues/55566
+
+** Document getting up a pair box
+#+BEGIN_EXAMPLE
+rsync -a ~/.config/gcloud hh@ii.nz:.config/
+#+END_EXAMPLE
+
+** tmate stuff
+#+NAME: type this to connect
+#+BEGIN_EXAMPLE
+tmate -S /tmp/ii-tmate.sock new-session -A -s k8s -c ~/go/src/kubernetes
+ssh -tA hh@ii.nz tmate -S /tmp/ob-tmate-socket at
+ssh -tA hh@ii.nz tmate -S /tmp/ob-tmate-socket new
+#+END_EXAMPLE
+
+#+BEGIN_EXAMPLE
+#RUN cd /root ; git clone https://github.com/nviennot/tmate ; cd tmate ; ./autogen.sh && ./configure && make install ; ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ''
+#RUN cat /proc/cpuinfo ;  uname -a ; free -m ; df -H ; ip addr ; ip route
+#RUN tmate -S /tmp/tmate.sock new-session -d ; \
+# tmate -S /tmp/tmate.sock wait tmate-ready ; \
+# tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' ; \
+# cat /dev/random
+#+END_EXAMPLE
+
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# End:
