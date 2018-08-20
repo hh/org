@@ -21,6 +21,8 @@ Issues we ran into:
 - @bentheelder is currently making kind
 - User-Agent logging [[https://github.com/kubernetes/kubernetes/commit/d066d547cce64a4f02bb05d718bc53fe71d06ad3][did not make it into APIServer]] until 1.12-0-alpha.1
 
+Latest version of this document is at https://gist.github.com/hh/fd1e58f2d5e879dc8003fe288e09c58c#kubetest-build-and-deploy-via-dind
+
 #+NAME: kubetest+dind+audit.log TLDR
 #+BEGIN_EXAMPLE markdown
 ```shell
@@ -886,6 +888,19 @@ set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37
 set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
 set -g tmate-identity ""
 set -s escape-time 0
+EOF
+#+END_SRC
+
+#+NAME: setup .gitconfig
+#+BEGIN_SRC tmux :session k8s:packet
+cat <<EOF > ~/.gitconfig
+[user]
+        email = hh@ii.coop
+        name = Hippie Hacker
+[alias]
+        lol = log --graph --decorate --pretty=oneline --abbrev-commit --all
+        create-pull-request = !sh -c 'stash pull-request $0'
+        lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
 EOF
 #+END_SRC
 
