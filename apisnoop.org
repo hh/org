@@ -7,8 +7,7 @@
 
 * kubetest build and deploy via dind
 
-*** preamble
-    Goals behind kubetest + dind + audit-logging.
+*** Goals behind kubetest + dind + audit-logging.
 
 - Enable fast feedback look
 - Reuse framework used by CI / test-infra
@@ -18,7 +17,7 @@ Issues we ran into:
 
 - kubeadm bootstrapping args / config file formats being alpha
 - kubeadm documentation
-- dind does not yet bringing up cri
+- dind was not bringing up a working cni
 - @bentheelder is currently making kind
 - User-Agent logging [[https://github.com/kubernetes/kubernetes/commit/d066d547cce64a4f02bb05d718bc53fe71d06ad3][did not make it into APIServer]] until 1.12-0-alpha.1
 
@@ -35,24 +34,6 @@ Issues we ran into:
   DIND_DIR=$(ls -rdt /tmp/dind-k8s-* | tail -1)
   tail -F /tmp/$DIND_DIR/audit/audit.log
 ```
-#+END_EXAMPLE
-
-#+NAME: kublete etc, when is deprecation an error?
-#+BEGIN_EXAMPLE
-Aug 19 20:07:18 ab8afb8aff4e kubelet[169]: F0819 20:07:18.938066     169 server.go:188] failed to load Kubelet config file /var/lib/kubelet/config.yaml, error failed to read kubelet config file "/var/lib/kubelet/config.yaml", error: open /var/lib/kubelet/config.yaml: no such file or directory
-Aug 19 20:07:28 ab8afb8aff4e systemd[1]: kubelet.service: Service hold-off time over, scheduling restart.
-Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Stopped kubelet: The Kubernetes Node Agent.
-Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Started kubelet: The Kubernetes Node Agent.
-Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: Flag --fail-swap-on has been deprecated, This parameter should be set via the config file specified by the Kubelet's --config flag. See https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/ for more information.
-Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: I0819 20:07:29.114210     296 flags.go:27] FLAG: --address="0.0.0.0"
-#+END_EXAMPLE
-
-#+NAME: debugging CNI issues
-#+BEGIN_EXAMPLE
-Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: W0819 21:00:10.584762     741 cni.go:188] Unable to update cni config: No networks found in /etc/cni/net.d
-Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: I0819 21:00:10.585013     741 kubelet.go:2094] Container runtime status: Runtime Conditions: RuntimeReady=true reason: message:, NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
-Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: E0819 21:00:10.585058     741 kubelet.go:2097] Container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
-Aug 19 21:00:11 ab8afb8aff4e kubelet[741]: I0819 21:00:11.328020     741 kubelet.go:1903] SyncLoop (housekeeping)
 #+END_EXAMPLE
 
 *** TLDR-delete+build+deploy+test
@@ -91,14 +72,15 @@ time (
   #export TEST_ARGS="--ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton"
   #unset KUBECONFIG
   cd ~/go/src/k8s.io/kubernetes/
-  #time go get -u k8s.io/test-infra/kubetest
-  #time kubetest --build=dind --up --deployment=dind
-  #time bazel build //test/e2e:e2e.test
+  time go get -u k8s.io/test-infra/kubetest
+  time kubetest --build=dind --up --deployment=dind
+  #time make -j 8 GOGCFLAGS="-N -l -v" WHAT=test/e2e/e2e.test
+  #PREFIX=./_output/local/bin/linux/amd64
+  time bazel build //test/e2e:e2e.test
+  PREFIX=./bazel-bin/test/e2e
   export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
   export DIND_K8S_DATA=$(ls -drt /tmp/dind-k8* | tail -1)
   export GINKO_PARALLEL=y
-  PREFIX=./_output/local/bin/linux/amd64
-  PREFIX=./bazel-bin/test/e2e
   # Will run 179 of 1032 specs
   time $PREFIX/e2e.test --ginkgo.parallel.total=48 --ginkgo.focus='\[Conformance\]' --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   #  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
@@ -649,6 +631,24 @@ https://github.com/moby/moby/issues/24000
   kube-proxy, 9bfe955f825d
 DOCKER RESTART NEEDED (docker issue #24000):
 /sys is read-only: cannot modify conntrack limits, problems may arise later.
+
+#+NAME: kublete etc, when is deprecation an error?
+#+BEGIN_EXAMPLE
+Aug 19 20:07:18 ab8afb8aff4e kubelet[169]: F0819 20:07:18.938066     169 server.go:188] failed to load Kubelet config file /var/lib/kubelet/config.yaml, error failed to read kubelet config file "/var/lib/kubelet/config.yaml", error: open /var/lib/kubelet/config.yaml: no such file or directory
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: kubelet.service: Service hold-off time over, scheduling restart.
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Stopped kubelet: The Kubernetes Node Agent.
+Aug 19 20:07:28 ab8afb8aff4e systemd[1]: Started kubelet: The Kubernetes Node Agent.
+Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: Flag --fail-swap-on has been deprecated, This parameter should be set via the config file specified by the Kubelet's --config flag. See https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/ for more information.
+Aug 19 20:07:29 ab8afb8aff4e kubelet[296]: I0819 20:07:29.114210     296 flags.go:27] FLAG: --address="0.0.0.0"
+#+END_EXAMPLE
+
+#+NAME: debugging CNI issues
+#+BEGIN_EXAMPLE
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: W0819 21:00:10.584762     741 cni.go:188] Unable to update cni config: No networks found in /etc/cni/net.d
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: I0819 21:00:10.585013     741 kubelet.go:2094] Container runtime status: Runtime Conditions: RuntimeReady=true reason: message:, NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
+Aug 19 21:00:10 ab8afb8aff4e kubelet[741]: E0819 21:00:10.585058     741 kubelet.go:2097] Container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized
+Aug 19 21:00:11 ab8afb8aff4e kubelet[741]: I0819 21:00:11.328020     741 kubelet.go:1903] SyncLoop (housekeeping)
+#+END_EXAMPLE
 
 #+NAME: worker says DOCKER RESTART NEEDED
 #+BEGIN_EXAMPLE
