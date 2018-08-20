@@ -52,8 +52,10 @@ time (
   cd ~/go/src/k8s.io/kubernetes/
   time go get -u k8s.io/test-infra/kubetest
   time kubetest --build=dind --up --deployment=dind
+  ###### We can build with make:
   #time make -j 8 GOGCFLAGS="-N -l -v" WHAT=test/e2e/e2e.test
   #PREFIX=./_output/local/bin/linux/amd64
+  ###### We can build with Bazel
   time bazel build //test/e2e:e2e.test
   PREFIX=./bazel-bin/test/e2e
   export KUBECONFIG=$(ls -rt /tmp/k8s-dind-kubecfg-* | tail -1)
@@ -70,6 +72,8 @@ time (
   #  time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   # time ./_output/local/bin/linux/amd64/e2e.test --ginkgo.skip='\[Serial\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
   cp $DIND_K8S_DATA/audit.log $HOME/apisnoop-e2e-conformance+$(date +%F+%T).log
+  ##### Prefered way, that does not yet work
+  # This gives a GingkTester: Kuberoot cannot be empty error
   # time kubetest --build=dind --up --deployment=dind --test --test_args="$TEST_ARGS"
 )
 #+END_SRC
