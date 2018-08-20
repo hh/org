@@ -105,6 +105,8 @@ cat /tmp/delete
 #+END_SRC
 
 
+**** kubetest --build/--up/--test w/ dind error
+#+NAME: kubetest --build=dind --up --deployment=dind --test ERROR
 #+BEGIN_EXAMPLE
 2018/08/20 20:24:33 dind.go:364: All 4 nodes are now healthy.
 2018/08/20 20:24:33 main.go:309: Something went wrong: encountered 1 errors: [configuration error in GinkgoTester: Kuberoot cannot be empty]
