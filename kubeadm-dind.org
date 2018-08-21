@@ -24,14 +24,16 @@ https://github.com/kubernetes-sigs/kubeadm-dind-cluster#using-with-kubernetes-so
 
 #+NAME: kubeadm Build kubeadm-dind-cluster
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
+  cd ~/go/src/k8s.io/kubernetes
+  ~/dind/dind-cluster.sh clean
   cd ~/dind/
   ./build/build-local.sh
 #+END_SRC
 
 #+NAME: kubeadm deploy
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
-  cd ~/dind/
-  ./build/build-local.sh
+  # cd ~/dind/ .
+  #/build/build-local.sh
   cd ~/go/src/k8s.io/kubernetes
   export BUILD_KUBEADM=y
   export BUILD_HYPERKUBE=y
@@ -51,6 +53,20 @@ cd ~/go/src/k8s.io/kubernetes
 :PROPERTIES:
 :header-args:shell: :wrap SRC yaml :results output verbatim code
 :END:
+
+#+BEGIN_SRC foo
+kubekins - it’s possible to run tests - https://gist.github.com/dims/033cffa467107bcac8df21e7db72d528 (this uses local up cluster, but can run it without local up cluster too) 
+
+#+END_SRC
+#+NAME: Gold from Leigh Capili 
+#+BEGIN_EXAMPLE
+journalctl -xeu kubelet | grep kube-apiserver
+Aug 21 20:31:24 kube-master hyperkube[3100]: I0821 20:31:24.197218    3100 file.go:200] Reading config file "/etc/kubernetes/manifests/kube-apiserver.yaml"
+Aug 21 20:31:24 kube-master hyperkube[3100]: E0821 20:31:24.199095    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
+Aug 21 20:31:44 kube-master hyperkube[3100]: I0821 20:31:44.196965    3100 file.go:200] Reading config file "/etc/kubernetes/manifests/kube-apiserver.yaml"
+Aug 21 20:31:44 kube-master hyperkube[3100]: E0821 20:31:44.199154    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
+
+#+END_EXAMPLE
 ** apiserver does not start after adding auditMount
 
 #+NAME: minifest/kube-apiserver.yaml
@@ -58,7 +74,7 @@ cd ~/go/src/k8s.io/kubernetes
 docker exec kube-master cat /etc/kubernetes/manifests/kube-apiserver.yaml
 #+END_SRC
 
-#+NAME: minifest/kube-apiserver.yaml results
+#+RESULTS: minifest/kube-apiserver.yaml
 #+BEGIN_SRC yaml
 apiVersion: v1
 kind: Pod
@@ -140,14 +156,6 @@ spec:
   priorityClassName: system-cluster-critical
   volumes:
   - hostPath:
-      path: /etc/kubernetes/pki
-      type: DirectoryOrCreate
-    name: k8s-certs
-  - hostPath:
-      path: /etc/ssl/certs
-      type: DirectoryOrCreate
-    name: ca-certs
-  - hostPath:
       path: /usr/share/ca-certificates
       type: DirectoryOrCreate
     name: usr-share-ca-certificates
@@ -163,12 +171,31 @@ spec:
       path: /tmp/audit
       type: ""
     name: auditMount
+  - hostPath:
+      path: /etc/kubernetes/pki
+      type: DirectoryOrCreate
+    name: k8s-certs
+  - hostPath:
+      path: /etc/ssl/certs
+      type: DirectoryOrCreate
+    name: ca-certs
 status: {}
 #+END_SRC
 
 #+NAME: apiserver not running
 #+BEGIN_SRC shell 
 docker exec kube-master docker ps -a 
+#+END_SRC
+
+#+RESULTS: apiserver not running
+#+BEGIN_SRC yaml
+CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS               NAMES
+4541d49ff99b        b8df3b177be2           "etcd --advertise-..."   About a minute ago   Up About a minute                       k8s_etcd_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
+1d7ff804ea74        cbbbee56e288           "kube-controller-m..."   About a minute ago   Up About a minute                       k8s_kube-controller-manager_kube-controller-manager-kube-master_kube-system_43387bfa3bb987eac9c6dd1e386a4111_0
+4fb1b0ca31c6        cbbbee56e288           "kube-scheduler --..."   About a minute ago   Up About a minute                       k8s_kube-scheduler_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+138e02494a82        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_kube-controller-manager-kube-master_kube-system_43387bfa3bb987eac9c6dd1e386a4111_0
+284617abce66        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+08f5deb3f03e        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
 #+END_SRC
 
 #+NAME: apiserver not running results
@@ -313,10 +340,16 @@ unifiedControlPlaneImage: mirantis/hypokube:final
 
 
 *** Leigh Capili [7:16 AM]
+Leigh Capili <leigh@null.net>
 @hh, use `apiServerExtraVolumes` for kubeadm section of the volume mounts
 it's an array of HostPathMounts which you can specify as writeable:
 https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm#HostPathMount
+logging some fixes:
+- add `pathType: DirectoryOrCreate` to the kubeadm config
+- change `name: auditMount` to `name: audit-mount`  (kubelet journal shows volume was failing DNS name validation)
 
+note:
+kubeadm config does not properly validate volume names -- we should fix this
 
 * Footnotes
 ** tmate debugging
@@ -333,8 +366,9 @@ export PS1='# MASTER \$ '
   export APISERVER=$(docker ps --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
   # cat /etc/kubeadm.conf
   # #
-  docker ps | grep -v pause\\\|dns\\\|etcd
-  docker inspect $APISERVER | jq .[0].Args
+  journalctl -xeu kubelet | grep kube-apiserver
+  #docker ps | grep -v pause\\\|dns\\\|etcd
+  #docker inspect $APISERVER | jq .[0].Args
 #+END_SRC
 
 #+NAME: create apiserver shell
