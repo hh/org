@@ -49,7 +49,7 @@ cd ~/go/src/k8s.io/kubernetes
 
 * Debugging
 :PROPERTIES:
-:header-args:shell: :wrap SRC js :results output verbatim
+:header-args:shell: :wrap SRC js :results output verbatim code
 :END:
 ** kubeadm config view on kube-master
 
@@ -100,7 +100,7 @@ unifiedControlPlaneImage: mirantis/hypokube:final
 ** arguments on APIServer container
 
 #+NAME: APIServer container Args
-#+BEGIN_SRC shell 
+#+BEGIN_SRC shell
   APISERVER=$(docker exec kube-master \
     docker ps --format '{{.Names}}' \
     --filter label=io.kubernetes.container.name=kube-apiserver) 
@@ -109,6 +109,7 @@ unifiedControlPlaneImage: mirantis/hypokube:final
       | jq .[0].Args
 #+END_SRC
 
+#+NAME: APIServer container Args Results
 #+RESULTS: APIServer container Args
 #+BEGIN_SRC js
 [
@@ -142,6 +143,7 @@ unifiedControlPlaneImage: mirantis/hypokube:final
   "--insecure-port=8080"
 ]
 #+END_SRC
+
 
 * tmate debugging
 
