@@ -165,20 +165,6 @@ cat <<EOF > ~/.gitconfig
         lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
 EOF
 #+END_SRC
-* Shoutouts
-** #sig-cluster-lifecycle
-
-```
-Paul Michali [12:16 AM]
-@hh You run build/build-local.sh and then set DIND_IMAGE to use that locally built docker image for k-d-c (export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local).
-```
-```
-Leigh Capili [7:16 AM]
-@hh, use `apiServerExtraVolumes` for kubeadm section of the volume mounts
-it's an array of HostPathMounts which you can specify as writeable:
-https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm#HostPathMount
-```
-
 * Footnotes
 # Local Variables:
 # eval: (require (quote ob-shell))

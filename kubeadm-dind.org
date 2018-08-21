@@ -143,8 +143,21 @@ unifiedControlPlaneImage: mirantis/hypokube:final
 ]
 #+END_SRC
 
+* Shoutouts
+** #sig-cluster-lifecycle
 
-* tmate debugging
+*** Paul Michali [12:16 AM]
+@hh You run build/build-local.sh and then set DIND_IMAGE to use that locally built docker image for k-d-c (export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local).
+
+
+*** Leigh Capili [7:16 AM]
+@hh, use `apiServerExtraVolumes` for kubeadm section of the volume mounts
+it's an array of HostPathMounts which you can specify as writeable:
+https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm#HostPathMount
+
+
+* Footnotes
+** tmate debugging
 
 #+NAME: create master shell
 #+BEGIN_SRC tmux :session k8s:kubeadm-master
@@ -184,7 +197,6 @@ ps axuwww | grep apiserver
 invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" flag: unrecognized key: Auditing
 #+END_EXAMPLE
 
-* Footnotes
 
 # Local Variables:
 # eval: (require (quote ob-shell))
@@ -194,3 +206,4 @@ invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" fla
 # eval: (require (quote ob-go))
 # org-confirm-babel-evaluate: nil
 # End:
+
