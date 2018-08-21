@@ -182,6 +182,37 @@ a6b6b07e1239        k8s.gcr.io/pause:3.1   "/pause"                 3 minutes ag
 aa40eb4b363e        k8s.gcr.io/pause:3.1   "/pause"                 3 minutes ago       Up 3 minutes                            k8s_POD_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
 #+END_SRC
 
+#+NAME: kubeadm init (wrapkubeadm init) still running
+#+BEGIN_SRC shell 
+docker exec kube-master ps -auxwwwww
+#+END_SRC
+
+#+NAME: kubeadm init (wrapkubeadm init) still running results
+#+BEGIN_SRC yaml
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.1  0.0  56740  6604 ?        Ss   19:33   0:01 /sbin/dind_init systemd.setenv=CNI_PLUGIN=bridge systemd.setenv=IP_MODE=ipv4 systemd.setenv=POD_NET_PREFIX=10.244.1 systemd.setenv=POD_NET_SIZE=24 systemd.setenv=USE_HAIRPIN=false systemd.setenv=DNS_SVC_IP=10.96.0.10 systemd.setenv=DNS_SERVICE=kube-dns
+root        19  0.6  0.0  87048 40424 ?        Ss   19:33   0:06 /lib/systemd/systemd-journald
+root        54  0.0  0.0  18040  3056 ?        Ss   19:33   0:00 /bin/bash /usr/local/bin/dindnet
+root       105  0.0  0.0  24560  3116 ?        S    19:33   0:00 socat udp4-recvfrom:53,reuseaddr,fork,bind=172.18.0.2 UDP:127.0.0.11:53
+root       256  2.9  0.0 2286508 66824 ?       Ssl  19:33   0:30 /usr/bin/dockerd -H fd:// --storage-driver=overlay2 --storage-opt overlay2.override_kernel_check=true -g /dind/docker
+root       279  0.2  0.0 1889144 15596 ?       Ssl  19:33   0:02 docker-containerd -l unix:///var/run/docker/libcontainerd/docker-containerd.sock --metrics-interval=0 --start-timeout 2m --state-dir /var/run/docker/libcontainerd/containerd --shim docker-containerd-shim --runtime docker-runc
+root       230  0.0  0.0  18188  3112 ?        Ss   19:33   0:00 /bin/bash /usr/local/bin/wrapkubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
+root      7930 23.2  0.0  45380 30428 ?        Sl   19:50   0:05 kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
+root      8403  1.1  0.0 10514488 16788 ?      Ssl  19:51   0:00 etcd --advertise-client-urls=https://127.0.0.1:2379 --cert-file=/etc/kubernetes/pki/etcd/server.crt --client-cert-auth=true --data-dir=/var/lib/etcd --initial-advertise-peer-urls=https://127.0.0.1:2380 --initial-cluster=kube-master=https://127.0.0.1:2380 --key-file=/etc/kubernetes/pki/etcd/server.key --listen-client-urls=https://127.0.0.1:2379 --listen-peer-urls=https://127.0.0.1:2380 --name=kube-master --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt --peer-client-cert-auth=true --peer-key-file=/etc/kubernetes/pki/etcd/peer.key --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt --snapshot-count=10000 --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+root      8194 10.0  0.0 2231064 104248 ?      Ssl  19:50   0:01 /k8s/hyperkube kubelet --kubeconfig=/etc/kubernetes/kubelet.conf --pod-manifest-path=/etc/kubernetes/manifests --allow-privileged=true --network-plugin=cni --cni-conf-dir=/etc/cni/net.d --cni-bin-dir=/opt/cni/bin --cluster-dns=10.96.0.10 --cluster-domain=cluster.local --eviction-hard=memory.available<100Mi,nodefs.available<100Mi,nodefs.inodesFree<1000 --fail-swap-on=false --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --feature-gates=MountPropagation=true,DynamicKubeletConfig=true --v=4
+root      8427  2.0  0.0 1064904 85836 ?       Ssl  19:51   0:00 kube-controller-manager --feature-gates=MountPropagation=true,AdvancedAuditing=true --address=127.0.0.1 --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt --cluster-signing-key-file=/etc/kubernetes/pki/ca.key --controllers=*,bootstrapsigner,tokencleaner --kubeconfig=/etc/kubernetes/controller-manager.conf --leader-elect=true --root-ca-file=/etc/kubernetes/pki/ca.crt --service-account-private-key-file=/etc/kubernetes/pki/sa.key --use-service-account-credentials=true
+root      8451  3.0  0.0 1174336 85748 ?       Ssl  19:51   0:00 kube-scheduler --feature-gates=MountPropagation=true,AdvancedAuditing=true --address=127.0.0.1 --kubeconfig=/etc/kubernetes/scheduler.conf --leader-elect=true
+root      8287  0.0  0.0 347840  3572 ?        Sl   19:51   0:00 docker-containerd-shim fed63ec2b0cd8d3b24c490c3145efe293347b77e46b6db33da589886a532b969 /var/run/docker/libcontainerd/fed63ec2b0cd8d3b24c490c3145efe293347b77e46b6db33da589886a532b969 docker-runc
+root      8310  0.0  0.0 478912  3556 ?        Sl   19:51   0:00 docker-containerd-shim 1ae9336514f45307e6efb714a9fc661833791c5b4c76eb4f8d39cf63fa8d5651 /var/run/docker/libcontainerd/1ae9336514f45307e6efb714a9fc661833791c5b4c76eb4f8d39cf63fa8d5651 docker-runc
+root      8320  0.0  0.0 282304  3680 ?        Sl   19:51   0:00 docker-containerd-shim b75d6981e4f3136943110497b8f3152007093791efa1482b779a60bb468e1b3d /var/run/docker/libcontainerd/b75d6981e4f3136943110497b8f3152007093791efa1482b779a60bb468e1b3d docker-runc
+root      8386  0.0  0.0 413376  3620 ?        Sl   19:51   0:00 docker-containerd-shim e5a200824f3d7626c35e9542b676a36d40b91fe50ab02f23fef1329469d2aa73 /var/run/docker/libcontainerd/e5a200824f3d7626c35e9542b676a36d40b91fe50ab02f23fef1329469d2aa73 docker-runc
+root      8409  0.0  0.0 282304  3808 ?        Sl   19:51   0:00 docker-containerd-shim 577a958ddf532c3fd61e96d078d1ad687d8e6db74699773a0b568e4b1f28d077 /var/run/docker/libcontainerd/577a958ddf532c3fd61e96d078d1ad687d8e6db74699773a0b568e4b1f28d077 docker-runc
+root      8433  0.1  0.0 348096  3676 ?        Sl   19:51   0:00 docker-containerd-shim 2d26e9e4e0cecc62adb2c55362ce61449ce049847101b754a091236994a3cb5d /var/run/docker/libcontainerd/2d26e9e4e0cecc62adb2c55362ce61449ce049847101b754a091236994a3cb5d docker-runc
+root      8304  0.0  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+root      8338  0.1  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+root      8352  0.0  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+#+END_SRC
+
 ** kubeadm config view on kube-master
 
 #+NAME: kubeadm config view on kube-master
