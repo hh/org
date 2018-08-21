@@ -58,7 +58,7 @@ cd ~/go/src/k8s.io/kubernetes
 docker exec kube-master kubeadm config view --kubeconfig /etc/kubernetes/admin.conf
 #+END_SRC
 
-#+RESULTS: kubeadm config view on kube-master
+#+NAME: kubeadm config view on kube-master results
 #+BEGIN_SRC js
 api:
   advertiseAddress: 172.18.0.2
@@ -110,7 +110,6 @@ unifiedControlPlaneImage: mirantis/hypokube:final
 #+END_SRC
 
 #+NAME: APIServer container Args Results
-#+RESULTS: APIServer container Args
 #+BEGIN_SRC js
 [
   "--authorization-mode=Node,RBAC",

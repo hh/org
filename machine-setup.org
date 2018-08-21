@@ -1,0 +1,190 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Setting up an ii-pairing style machine
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: August 8th, 2018
+
+* Get a nice large node
+
+We assume the session is aready sshed in as root.
+
+** TODO swapoff -a / comment out /etc/fstab swap
+** Install some Software
+#+NAME: packet setup
+#+BEGIN_SRC tmux :session k8s:packet
+apt-get update
+apt-get -y upgrade
+apt-get install -y \
+ apt-file \
+ apt-transport-https \
+ aptitude \
+ autoconf \
+ build-essential \
+ ca-certificates \
+ curl \
+ gcc \
+ git \
+ gnupg2 \
+ jq \
+ libgnutls28-dev \
+ libncurses5-dev \
+ libtinfo-dev \
+ libxml2-dev \
+ liblz4-tool \
+ make \
+ mtr \
+ openjdk-8-jdk \
+ python3-dev \
+ silversearcher-ag \
+ software-properties-common \
+ strace \
+ sudo \
+ texinfo \
+ tmux \
+ unzip \
+ whois \
+ whowatch \
+ zip
+#+END_SRC
+** Install Docker
+
+#+NAME: install docker
+#+BEGIN_SRC tmux :session k8s:packet
+# https://docs.docker.com/install/linux/docker-ce/debian/#set-up-the-repository
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/debian \
+   $(lsb_release -cs) \
+   stable"
+apt-get update
+apt-get install -y docker-ce
+systemctl start docker
+systemctl enable docker
+#+END_SRC
+** Install K8s client bins
+#+NAME install k8s client bins
+#+BEGIN_SRC tmux :session k8s:packet
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+apt-get update
+apt-get install -y kubelet kubeadm kubectl
+#+END_SRC
+** Install Go
+#+NAME: install golang
+#+BEGIN_SRC tmux :session k8s:packet
+# https://golang.org/doc/install#install
+curl -L https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/usr-local-go-path.sh
+echo 'export PATH=$PATH:$HOME/go/bin' > /etc/profile.d/homedir-go-path.sh
+#+END_SRC
+** Install Bazel
+#+NAME: install bazel
+#+BEGIN_SRC tmux :session k8s:packet
+curl -L https://github.com/bazelbuild/bazel/releases/download/0.16.1/bazel-0.16.1-linux-x86_64 > /usr/local/bin/bazel
+chmod +x /usr/local/bin/bazel
+#+END_SRC
+** Install Emacs
+#+NAME: install emacs
+#+BEGIN_SRC tmux :session k8s:packet
+# possibly look into shallow or specific tag clone
+#git clone git clone https://git.savannah.gnu.org/git/emacs.git /usr/local/src/emacs
+# https://golang.org/doc/install#install
+cd /usr/local/src/emacs
+./autogen
+./configure --with-x-toolkit=no --with-xpm=no --with-jpeg=no --with-png=no --with-gif=no --with-tiff=no
+# find the command to use correct number of jobs... should equal number of (virtual) cores
+make -j 48 install
+#+END_SRC
+** Install Spacemacs Customizations
+#+NAME: configure spacemacs (ii+tmate)
+#+BEGIN_SRC tmux :session k8s:packet
+git clone https://github.com/ii/spacemacs ~/.emacs.d
+ln -s ~/.emacs.d/private/local/.spacemacs ~/.spacemacs
+git clone https://github.com/ii/ob-tmux ~/.emacs.d/private/local/ob-tmux.el/
+git clone https://github.com/benma/go-dlv.el ~/.emacs.d/private/local/go-dlv.el/
+echo "alias emc='emacsclient -t '" > /etc/profile.d/emc-alias.sh
+#+END_SRC
+** Install Node
+#+NAME: install node
+#+BEGIN_SRC tmux :session k8s:packet
+curl https://nodejs.org/dist/v8.11.4/node-v8.11.4-linux-x64.tar.xz | xzcat | tar xvfC - /usr/local
+echo 'export PATH=$PATH:/usr/local/node-v8.11.4-linux-x64/bin' > /etc/profile.d/usr-local-node-path.sh
+. /etc/profile.d/usr-local-node-path.sh
+#+END_SRC
+** Install Tern
+#+NAME: install tern
+#+BEGIN_SRC tmux :session k8s:packet
+npm install -g tern
+#+END_SRC
+** npm install gocode
+
+If you get an emacs/spacemacs error: (file-missing "Searching for program" "No such file or directory" "gocode")
+You'll need to install [[https://github.com/nsf/gocode][gocode]].
+
+#+NAME: npm instnall gocode / tern
+#+BEGIN_SRC tmux :session k8s:packet
+go get -u github.com/nsf/gocode
+#+END_SRC
+
+** Install tmate
+#+NAME: install tmate
+#+BEGIN_SRC tmux :session k8s:packet
+curl -L https://github.com/tmate-io/tmate/releases/download/2.2.1/tmate-2.2.1-static-linux-amd64.tar.gz \
+  | tar  -f - -C /usr/local/bin -xvz --strip-components=1
+#+END_SRC
+** Configure tmate
+#+NAME: configure tmate
+#+BEGIN_SRC tmux :session k8s:packet
+  # tmate -S /tmp/ii-tmate.socket new-session -A -c /root -s ii-k8s -n main
+  cat <<EOF > ~/.tmate.conf
+  set-option -g set-clipboard on
+  set-option -g mouse on
+  set-option -g history-limit 50000
+  # ii tmate -- pair.ii.coop
+  # set -g tmate-server-host pair.ii.coop
+  # set -g tmate-server-port 22
+  # set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
+  # set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
+  set -g tmate-identity ""
+  set -s escape-time 0
+  EOF
+#+END_SRC
+** Configure git
+#+NAME: setup .gitconfig
+#+BEGIN_SRC tmux :session k8s:packet
+cat <<EOF > ~/.gitconfig
+[user]
+        email = hh@ii.coop
+        name = Hippie Hacker
+[alias]
+        lol = log --graph --decorate --pretty=oneline --abbrev-commit --all
+        create-pull-request = !sh -c 'stash pull-request $0'
+        lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+EOF
+#+END_SRC
+* Shoutouts
+** #sig-cluster-lifecycle
+
+```
+Paul Michali [12:16 AM]
+@hh You run build/build-local.sh and then set DIND_IMAGE to use that locally built docker image for k-d-c (export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local).
+```
+```
+Leigh Capili [7:16 AM]
+@hh, use `apiServerExtraVolumes` for kubeadm section of the volume mounts
+it's an array of HostPathMounts which you can specify as writeable:
+https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm#HostPathMount
+```
+
+* Footnotes
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# End:
