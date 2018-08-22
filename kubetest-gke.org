@@ -1,0 +1,65 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Kubetest w/ GKE
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: August 8th, 2018
+
+* kubetest build and deploy via gke
+
+** The oneliner to build, up, and test on gke
+#+NAME: build binaries / up cluster / run test for gke etc
+#+BEGIN_SRC tmux :session k8s:gke
+cd ~/go/src/k8s.io/kubernetes
+kubetest --build=bazel --up --test --provider=gce --gcp-project=ii-coop --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6"
+#+END_SRC
+** Just make the binaries
+#+NAME: deploy binaries to gke
+#+BEGIN_SRC tmux :session k8s:gke
+kubetest --up --provider=gce --gcp-project=ii-coop
+go run hack/e2e.go -- --provider=skeleton --test --test_args="--ginkgo.focus=\[Conformance\]"
+#+END_SRC
+** run the hack/e2e.go wrapper for kubetest
+#+NAME: go run hack/e2e.go JUST A WRAPPER around kubetest
+#+BEGIN_SRC tmux :session k8s:gke
+go run hack/e2e.go -- --provider=skeleton --test --test_args="--ginkgo.focus=\[Conformance\]"
+#+END_SRC
+** Run kubetest to test against gke
+#+NAME: run kubetest to execute the e2e on gke
+#+BEGIN_SRC tmux :session k8s:gke
+kubetest --test --provider=skeleton --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.seedyy=1436380640 --v=6"
+#+END_SRC
+
+#+NAME: run e2e directly
+#+BEGIN_SRC tmux :session k8s:gke
+#+END_SRC
+
+** Some errors when trying to run on gke
+
+#+NAME: how can we run --test on gce kubetest stuff?
+#+BEGIN_EXAMPLE
+2018/08/18 05:35:06 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
+Skeleton Provider: prepare-e2e not implemented
+Client Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"12+", GitVersion:"v1.12.0-alpha.1-dirty", GitCommit:"94c2c6c8423d722f436305cd67ef515a8800d723", GitTreeState:"dirty", BuildDate:"2018-08-17T17:11:29Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+2018/08/18 05:35:08 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 1.186797969s
+2018/08/18 05:35:08 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
+2018/08/18 05:35:09 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 957.767828ms
+2018/08/18 05:35:09 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6
+Setting up for KUBERNETES_PROVIDER="skeleton".
+Skeleton Provider: prepare-e2e not implemented
+/home/hh/go/src/k8s.io/kubernetes/cluster/../cluster/skeleton/util.sh: line 22: KUBE_MASTER_IP: unbound variable
+2018/08/18 05:35:10 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6' finished in 1.392696657s
+2018/08/18 05:35:10 main.go:309: Something went  wrong: encountered 1 errors: [error during ./hack/ginkgo-e2e.sh --ginkgo.focus=\[Conformance\] --ginkgo.seed=1436380640 --v=6: exit status 1]
+#+END_EXAMPLE
+
+
+* Footnotes
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# End:
