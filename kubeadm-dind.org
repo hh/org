@@ -22,9 +22,10 @@ git checkout -b audit-policy origin/audit-policy
 
 https://github.com/kubernetes-sigs/kubeadm-dind-cluster#using-with-kubernetes-source  
 
-#+NAME: remove _ALL_ images
+#+NAME: DOCKER DEATH
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
-docker rm $(docker ps -a -q) ; docker rmi $(docker images -q)
+docker rm -f $(docker ps -a -q)
+docker rmi $(docker images -q)
 #+END_SRC
 
 #+NAME: kubeadm Build kubeadm-dind-cluster
@@ -40,21 +41,22 @@ docker rm $(docker ps -a -q) ; docker rmi $(docker images -q)
   # cd ~/dind/ .
   #/build/build-local.sh
   cd ~/go/src/k8s.io/kubernetes
+  export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local
   export BUILD_KUBEADM=y
   export BUILD_HYPERKUBE=y
-  export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local
   time ~/dind/dind-cluster.sh up
 #+END_SRC
 
-* TODO Testing
+
+* Testing
 
 #+NAME: kubeadm deploy
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
 cd ~/go/src/k8s.io/kubernetes
-time ~/dind/dind-cluster.sh e2e '[Conformance]'
+time ~/dind/dind-cluster.sh e2e
+ #'[Conformance]'
 # '[Slow]|[Serial]|[Disruptive]|[Flaky]|[Feature:.+]'
 #+END_SRC
-
 
 https://kubernetes.io/docs/reference/access-authn-authz/rbac/#permissive-rbac-permissions
 
@@ -158,7 +160,7 @@ configmaps "kubelet-config-1.12" is forbidden: User "system:bootstrap:bz9yiz" ca
 Why does running e2e test with a focus on Conformance and skipping all the slow disruptive bits still run all 1032 specs?
 #+NAME: It says 'Will run 1032 specs' but in the end it only run 177
 #+BEGIN_EXAMPLE
-* Running e2e tests with args: --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
+*** Running e2e tests with args: --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
 +++ [0822 06:12:49] Verifying Prerequisites....
 Cluster "dind" set.
 Context "dind" created.
@@ -195,6 +197,8 @@ Test Suite Passed
 
 
 #+END_EXAMPLE
+#+END_EXAMPLE
+
 * Debugging
 :PROPERTIES:
 :header-args:shell: :wrap SRC yaml :results output verbatim code
@@ -234,7 +238,8 @@ Aug 21 20:31:24 kube-master hyperkube[3100]: I0821 20:31:24.197218    3100 file.
 Aug 21 20:31:24 kube-master hyperkube[3100]: E0821 20:31:24.199095    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
 Aug 21 20:31:44 kube-master hyperkube[3100]: I0821 20:31:44.196965    3100 file.go:200] Reading config file "/etc/kubernetes/manifests/kube-apiserver.yaml"
 Aug 21 20:31:44 kube-master hyperkube[3100]: E0821 20:31:44.199154    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
-
+kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables 
+kubeadm reset && kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
 #+END_EXAMPLE
 ** apiserver does not start after adding auditMount
 
