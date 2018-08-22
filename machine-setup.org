@@ -3,16 +3,15 @@
 #+AUTHOR: Hippie Hacker
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
-#+DATE: August 8th, 2018
+#+DATE: August 23rd, 2018
 
-* Get a nice large node
-
+* Configure a Debian / Ubuntu box
+  
 We assume the session is aready sshed in as root.
 
-** TODO swapoff -a / comment out /etc/fstab swap
-** Install some Software
+** apt-install some Software
 #+NAME: packet setup
-#+BEGIN_SRC tmux :session k8s:packet
+#+BEGIN_SRC tmux :session k8s:setup
 apt-get update
 apt-get -y upgrade
 apt-get install -y \
@@ -72,6 +71,17 @@ curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 apt-get update
 apt-get install -y kubelet kubeadm kubectl
 #+END_SRC
+** Install Google Cloud SDK
+#+NAME: Install Google Cloud SDK
+#+BEGIN_SRC tmux :session k8s:boxsetup
+export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
+echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+sudo apt-get update && sudo apt-get install -y google-cloud-sdk
+#rsync -av .config/gcloud root@147.75.109.157:.config/gcloud
+#rsync -av .ssh/google_compute_engine root@147.75.109.157:.ssh/
+#rsync -av .ssh/google_compute_engine.pub root@147.75.109.157:.ssh/
+#+END_SRC
 ** Install Go
 #+NAME: install golang
 #+BEGIN_SRC tmux :session k8s:packet
@@ -79,6 +89,40 @@ apt-get install -y kubelet kubeadm kubectl
 curl -L https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/usr-local-go-path.sh
 echo 'export PATH=$PATH:$HOME/go/bin' > /etc/profile.d/homedir-go-path.sh
+#+END_SRC
+** go get gocode
+
+If you get an emacs/spacemacs error: (file-missing "Searching for program" "No such file or directory" "gocode")
+You'll need to install [[https://github.com/nsf/gocode][gocode]].
+
+#+NAME: npm instnall gocode / tern
+#+BEGIN_SRC tmux :session k8s:packet
+go get -u github.com/nsf/gocode
+#+END_SRC
+
+** go get gron
+
+If you get an emacs/spacemacs error: (file-missing "Searching for program" "No such file or directory" "gocode")
+You'll need to install [[https://github.com/nsf/gocode][gocode]].
+
+#+NAME: npm instnall gocode / tern
+#+BEGIN_SRC tmux :session k8s:boxconfig
+go get -u github.com/tomnomnom/gron
+echo "alias norg='gron --ungron'" > /etc/profile.d/gron-alias.sh
+echo "alias ungron='gron --ungron'" > /etc/profile.d/gron-alias.sh
+#+END_SRC
+
+** Install Node
+#+NAME: install node
+#+BEGIN_SRC tmux :session k8s:packet
+curl https://nodejs.org/dist/v8.11.4/node-v8.11.4-linux-x64.tar.xz | xzcat | tar xvfC - /usr/local
+echo 'export PATH=$PATH:/usr/local/node-v8.11.4-linux-x64/bin' > /etc/profile.d/usr-local-node-path.sh
+. /etc/profile.d/usr-local-node-path.sh
+#+END_SRC
+** Install Tern
+#+NAME: install tern
+#+BEGIN_SRC tmux :session k8s:packet
+npm install -g tern
 #+END_SRC
 ** Install Bazel
 #+NAME: install bazel
@@ -107,28 +151,6 @@ git clone https://github.com/ii/ob-tmux ~/.emacs.d/private/local/ob-tmux.el/
 git clone https://github.com/benma/go-dlv.el ~/.emacs.d/private/local/go-dlv.el/
 echo "alias emc='emacsclient -t '" > /etc/profile.d/emc-alias.sh
 #+END_SRC
-** Install Node
-#+NAME: install node
-#+BEGIN_SRC tmux :session k8s:packet
-curl https://nodejs.org/dist/v8.11.4/node-v8.11.4-linux-x64.tar.xz | xzcat | tar xvfC - /usr/local
-echo 'export PATH=$PATH:/usr/local/node-v8.11.4-linux-x64/bin' > /etc/profile.d/usr-local-node-path.sh
-. /etc/profile.d/usr-local-node-path.sh
-#+END_SRC
-** Install Tern
-#+NAME: install tern
-#+BEGIN_SRC tmux :session k8s:packet
-npm install -g tern
-#+END_SRC
-** npm install gocode
-
-If you get an emacs/spacemacs error: (file-missing "Searching for program" "No such file or directory" "gocode")
-You'll need to install [[https://github.com/nsf/gocode][gocode]].
-
-#+NAME: npm instnall gocode / tern
-#+BEGIN_SRC tmux :session k8s:packet
-go get -u github.com/nsf/gocode
-#+END_SRC
-
 ** Install tmate
 #+NAME: install tmate
 #+BEGIN_SRC tmux :session k8s:packet
@@ -165,7 +187,47 @@ cat <<EOF > ~/.gitconfig
         lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
 EOF
 #+END_SRC
+
 * Footnotes
+** TODO swapoff -a / comment out /etc/fstab swap
+** TODO .bash_profile / bash completion for docker in all dind containers
+** TODO tmate show-messages is BLANK -pain-
+** TODO Python virtualenv setup
+#+BEGIN_EXAMPLE
+export PATH=$HOME/.local/bin:$PATH
+pip install virtualenv
+virtualenv .pyenv
+source .pyenv/bin/activate
+pip install -r requirements.txt
+#+END_EXAMPLE
+
+
+#+BEGIN_SRC tmux :session k8s:kubeadm
+bazel build //cmd/kubeadm
+./_output/dockerized/bin/linux/amd64/kubeadm config print-defaul
+#+END_SRC
+
+-  /usr/bin/kubeadm init --token=abcdef.abcdefghijklmnop --ignore-preflight-errors=all --kubernetes-version=$(cat source_version | sed 's/^.//') --pod-network-cidr=192.168.0.0/16 --apiserver-cert-extra-sans $1 2>&1
++  /usr/bin/kubeadm -v 999 init --ignore-preflight-errors=all --config /etc/kubernetes/kubeadm.conf 2>&1
+Kubernetes is failing to come up because to the certs are not signed correctly, the cause of this is using a kubeadm --config-file, because it disables all
+flags including the required  --apiserver-cert-extra-sans flag, atleast this optioncan be set in the config file, see https://github.com/kubernetes/kubernetes/issues/55566
+
+** tmate stuff
+#+NAME: create or reconnect to the target k8s tmate session
+#+BEGIN_EXAMPLE
+tmate -S /tmp/ii-tmate.sock new-session -A -s k8s -c ~/go/src/kubernetes
+#+END_EXAMPLE
+
+#+NAME: tmate injection for CI
+#+BEGIN_EXAMPLE
+#RUN cd /root ; git clone https://github.com/nviennot/tmate ; cd tmate ; ./autogen.sh && ./configure && make install ; ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ''
+#RUN cat /proc/cpuinfo ;  uname -a ; free -m ; df -H ; ip addr ; ip route
+#RUN tmate -S /tmp/tmate.sock new-session -d ; \
+# tmate -S /tmp/tmate.sock wait tmate-ready ; \
+# tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' ; \
+# cat /dev/random
+#+END_EXAMPLE
+
 # Local Variables:
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
