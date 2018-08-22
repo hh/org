@@ -15,7 +15,7 @@
 - Move away from provider specific cloud / test
 
 Issues we ran into:
-
+- likely kubeadm regression with regards to audit-* arguments
 - kubeadm bootstrapping args / config file formats being alpha
 - kubeadm documentation
 - dind was not bringing up a working cni
