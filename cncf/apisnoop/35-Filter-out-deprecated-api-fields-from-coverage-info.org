@@ -22,6 +22,19 @@ Note the various case and presence of colons...
 After this dive, I'm confident we can exclude at least 189 endpoints (all watch related) from our calculations.
 As for the others, I'm unsure, but suspect the deprecated parameters and definitions have little bearing for now.
 
+#+NAME: deprecated: path count
+#+BEGIN_SRC shell :results verbatim 
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .paths \
+  | gron | grep deprecated: | gron --ungron \
+  | jq 'keys[]' -r \
+  | sort -r | wc -l
+#+END_SRC
+
+#+RESULTS: deprecated: path count
+: 189
+
 * deprecated: Paths
 
 There are full on paths that are deprecated, we see this info in the description
@@ -382,22 +395,9 @@ This gives us our specific list of deprecated paths:
 /apis/admissionregistration.k8s.io/v1alpha1/watch/initializerconfigurations
 #+end_example
 
-#+NAME: deprecated: path count
-#+BEGIN_SRC shell :results verbatim 
-  cd ~/go/src/k8s.io/kubernetes
-  cat ./api/openapi-spec/swagger.json \
-  | jq .paths \
-  | gron | grep deprecated: | gron --ungron \
-  | jq 'keys[]' -r \
-  | sort -r | wc -l
-#+END_SRC
-
-#+RESULTS: deprecated: path count
-: 189
-
 * Deprecated: delete Parameters
 
-Some endpoints have deprecated parameters (orphanDependents was dropped at commit X)
+Some endpoints have deprecated parameters (orphanDependents)
 
 #+NAME: Deprecated endpoint parameter (orphanDependents)
 #+BEGIN_SRC shell :results verbatim :wrap SRC json

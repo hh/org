@@ -1,9 +1,9 @@
 
 # Table of Contents
 
-1.  [deprecated: Paths](#orgf3b6137)
-2.  [Deprecated: delete Parameters](#orgbbf955e)
-3.  [DEPRECATED definitions](#org9e0bb10)
+1.  [deprecated: Paths](#org1f3207e)
+2.  [Deprecated: delete Parameters](#org671d1fd)
+3.  [DEPRECATED definitions](#orged5cf85)
 
 This is an exploration of the openAPI definition for kubernetes:
 <https://github.com/kubernetes/kubernetes/blob/master/api/openapi-spec/swagger.json>
@@ -19,8 +19,17 @@ Note the various case and presence of colons&#x2026;
 After this dive, I'm confident we can exclude at least 189 endpoints (all watch related) from our calculations.
 As for the others, I'm unsure, but suspect the deprecated parameters and definitions have little bearing for now.
 
+    cd ~/go/src/k8s.io/kubernetes
+    cat ./api/openapi-spec/swagger.json \
+    | jq .paths \
+    | gron | grep deprecated: | gron --ungron \
+    | jq 'keys[]' -r \
+    | sort -r | wc -l
 
-<a id="orgf3b6137"></a>
+    189
+
+
+<a id="org1f3207e"></a>
 
 # deprecated: Paths
 
@@ -364,21 +373,12 @@ This gives us our specific list of deprecated paths:
     /apis/admissionregistration.k8s.io/v1alpha1/watch/initializerconfigurations/{name}
     /apis/admissionregistration.k8s.io/v1alpha1/watch/initializerconfigurations
 
-    cd ~/go/src/k8s.io/kubernetes
-    cat ./api/openapi-spec/swagger.json \
-    | jq .paths \
-    | gron | grep deprecated: | gron --ungron \
-    | jq 'keys[]' -r \
-    | sort -r | wc -l
 
-    189
-
-
-<a id="orgbbf955e"></a>
+<a id="org671d1fd"></a>
 
 # Deprecated: delete Parameters
 
-Some endpoints have deprecated parameters (orphanDependents was dropped at commit X)
+Some endpoints have deprecated parameters (orphanDependents)
 
     cd ~/go/src/k8s.io/kubernetes
     cat ./api/openapi-spec/swagger.json \
@@ -476,7 +476,7 @@ should not affect coverage percentage.
     "/apis/storage.k8s.io/v1beta1/volumeattachments/{name}"
 
 
-<a id="org9e0bb10"></a>
+<a id="orged5cf85"></a>
 
 # DEPRECATED definitions
 
