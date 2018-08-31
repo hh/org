@@ -1,0 +1,950 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Better Rules OpenFisca and Web Infrastructure Manual
+#+AUTHOR: James Blair
+#+EMAIL: mail@jamesblair.net
+#+CREATOR: legalhackers.nz
+#+DATE: September 1st, 2018
+* OpenFisca First
+** Who curates the code?
+   
+The Service Innovation Lab of New Zealand Govt are the curators of the NZ
+focused rules set.
+
+https://github.com/serviceinnovationlab/openfisca-aoteroa.git
+
+We will be standing up both an OpenFisca instance and a web front end to enable
+OpenAPI interaction with OpenFisca.
+
+** How do I get it? 
+
+#+NAME: OpenFisca source checkout
+#+BEGIN_SRC tmux :session br:src 
+cd ~/
+git clone https://github.com/ServiceInnovationLab/openfisca-aotearoa.git
+#+END_SRC
+
+** Now what do I do?
+*** DONE Install Python-dev / PIP
+    CLOSED: [2018-08-31 Fri 22:38]
+
+#+NAME: OpenFisca Dependency Setup
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+apt-get install -y python-pip
+#+END_SRC
+
+*** DONE Verify that you have python2.7 and a recent version of pip
+    CLOSED: [2018-08-31 Fri 22:39]
+#+NAME: Pip Version
+#+BEGIN_SRC shell
+pip --version
+#+END_SRC
+
+#+RESULTS: Pip Version
+: pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
+
+*** DONE Install Pew
+    CLOSED: [2018-08-31 Fri 22:47]
+#+NAME: Install Pew
+#+BEGIN_SRC tmux :session br:src 
+pip install pew
+#+END_SRC
+
+*** DONE Setup Virtual Environment for Open Fisca
+    CLOSED: [2018-08-31 Fri 22:47]
+
+    We added echo because we were unsure how to avoid the bashrc modification
+    prompt.
+
+#+NAME: Setup Virtual Environment for Open Fisca
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+echo | pew new openfisca --python=python2.7
+#+END_SRC
+**** Verify that you are in the Open Fisca pew ENV
+
+#+NAME: pew env verification
+#+BEGIN_EXAMPLE
+# pew workon 
+openfisca
+#+END_EXAMPLE
+*** DONE Verify Versions of Everything
+    CLOSED: [2018-08-31 Fri 23:05]
+
+#+NAME: Verify Versions of Everything
+#+BEGIN_SRC shell :results output verbatim drawer replace
+  cd ~/openfisca-aotearoa
+  set -x -e # Show commands in output as they are executed
+python --version 2>&1 # python puts version on stderr
+pip --version  # should print at least 9.0.
+pew workon # Should be openfisca
+#+END_SRC
+
+#+RESULTS: Verify Versions of Everything
+:RESULTS:
+Python 2.7.13
+pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
+openfisca
+:END:
+
+*** DONE Installing OpenFISCA dependences
+    CLOSED: [2018-08-31 Fri 23:16]
+#+NAME: Installing OpenFISCA and run tests
+#+BEGIN_SRC shell :results output verbatim drawer replace 
+cd ~/openfisca-aotearoa
+pew workon openfisca
+pip install -e ".[test]"
+make test 2>&1
+#+END_SRC
+
+#+RESULTS: Installing OpenFISCA and run tests
+:RESULTS:
+Obtaining file:///root/openfisca-aotearoa
+Collecting OpenFisca-Core<25.0,>=24 (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/ed/e7/eda46ba44056419d5054fce6c7bd535d28e166a14c213c573a376cd59280/OpenFisca_Core-24.2.0-py2-none-any.whl
+Collecting flake8<3.5.0,>=3.4.0 (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/b2/d3/e80ea2616e3871ae22459c415c63d64b9bd744c92267482670fcdbcea72d/flake8-3.4.1-py2.py3-none-any.whl
+Collecting flake8-print (from OpenFisca-Aotearoa==4.2.0)
+Collecting nose (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/99/4f/13fb671119e65c4dce97c60e67d3fd9e6f7f809f2b307e2611f4701205cb/nose-1.3.7-py2-none-any.whl
+Collecting numpy<1.15,>=1.11 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/6a/a9/c01a2d5f7b045f508c8cefef3b079fe8c413d05498ca0ae877cffa230564/numpy-1.14.5-cp27-cp27mu-manylinux1_x86_64.whl
+Collecting Biryani[datetimeconv]>=0.10.8 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/c0/f1/63dc750a98e2a0c091adcfe90924c32b897b3b284c353dc30fe67cc2bebf/Biryani-0.10.8-py2-none-any.whl
+Collecting psutil==5.4.6 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting future (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting PyYAML>=3.10 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting dpath==1.4.0 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting enum34>=1.1.6 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/c5/db/e56e6b4bbac7c4a06de1c50de6fe1ef3810018ae11732a50f15f62c7d050/enum34-1.1.6-py2-none-any.whl
+Collecting sortedcontainers==1.5.9 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/ea/67/c76c354ff30a689aeb2c75c4d383ae618c27fc2180d313f387f8918a3429/sortedcontainers-1.5.9-py2.py3-none-any.whl
+Collecting pyflakes<1.6.0,>=1.5.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/27/49/924098b3b85c286696f37e014475d79471ffc44509613af420645a3c12cb/pyflakes-1.5.0-py2.py3-none-any.whl
+Collecting configparser; python_version < "3.2" (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+Collecting pycodestyle<2.4.0,>=2.0.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/e4/81/78fe51eb4038d1388b7217dd63770b0f428370207125047312886c923b26/pycodestyle-2.3.1-py2.py3-none-any.whl
+Collecting mccabe<0.7.0,>=0.6.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/87/89/479dc97e18549e21354893e4ee4ef36db1d237534982482c3681ee6e7b57/mccabe-0.6.1-py2.py3-none-any.whl
+Collecting six (from flake8-print->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/67/4b/141a581104b1f6397bfa78ac9d43d8ad29a7ca43ea90a2d863fe3056e86a/six-1.11.0-py2.py3-none-any.whl
+Collecting Babel>=0.9.4 (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/b8/ad/c6f60602d3ee3d92fbed87675b6fb6a6f9a38c223343ababdb44ba201f10/Babel-2.6.0-py2.py3-none-any.whl
+Collecting isodate>=0.4; extra == "datetimeconv" (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/9b/9f/b36f7774ff5ea8e428fdcfc4bb332c39ee5b9362ddd3d40d9516a55221b2/isodate-0.6.0-py2.py3-none-any.whl
+Collecting pytz; extra == "datetimeconv" (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/30/4e/27c34b62430286c6d59177a0842ed90dc789ce5d1ed740887653b898779a/pytz-2018.5-py2.py3-none-any.whl
+Installing collected packages: numpy, pytz, Babel, six, isodate, Biryani, psutil, future, PyYAML, dpath, enum34, sortedcontainers, OpenFisca-Core, pyflakes, configparser, pycodestyle, mccabe, flake8, flake8-print, nose, OpenFisca-Aotearoa
+  Running setup.py develop for OpenFisca-Aotearoa
+Successfully installed Babel-2.6.0 Biryani-0.10.8 OpenFisca-Aotearoa OpenFisca-Core-24.2.0 PyYAML-3.13 configparser-3.5.0 dpath-1.4.0 enum34-1.1.6 flake8-3.4.1 flake8-print-3.1.0 future-0.16.0 isodate-0.6.0 mccabe-0.6.1 nose-1.3.7 numpy-1.14.5 psutil-5.4.6 pycodestyle-2.3.1 pyflakes-1.5.0 pytz-2018.5 six-1.11.0 sortedcontainers-1.5.9
+openfisca-run-test --country-package openfisca_aotearoa openfisca_aotearoa/tests
+WARNING:openfisca_core.tools.test_runner: libyaml is not installed in your environment, this can make your test suite slower to run. Once you have installed libyaml, run `pip uninstall pyyaml && pip install pyyaml` so that it is used in your Python environment.
+WARNING:openfisca_core.parameters:libyaml is not installed in your environment. This can make OpenFisca slower to start. Once you have installed libyaml, run 'pip uninstall pyyaml && pip install pyyaml' so that it is used in your Python environment.
+
+.....................................................................
+----------------------------------------------------------------------
+Ran 69 tests in 0.596s
+
+OK
+:END:
+
+** Now what do I do?
+*** Install Python-dev / PIP
+
+#+NAME: OpenFisca Dependency Setup
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+apt-get install -y python-pip
+#+END_SRC
+
+
+
+* kubeadm-dind with k8s source
+
+https://github.com/kubernetes-sigs/kubeadm-dind-cluster#using-with-kubernetes-source  
+
+#+NAME: DOCKER DEATH
+#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+docker rm -f $(docker ps -a -q)
+docker rmi $(docker images -q)
+#+END_SRC
+
+#+NAME: kubeadm Build kubeadm-dind-cluster
+#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+  cd ~/go/src/k8s.io/kubernetes
+  time ~/dind/dind-cluster.sh clean
+  cd ~/dind/
+  time ./build/build-local.sh
+#+END_SRC
+
+#+NAME: kubeadm deploy
+#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+  # cd ~/dind/ .
+  #/build/build-local.sh
+  cd ~/go/src/k8s.io/kubernetes
+  export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local
+  export BUILD_KUBEADM=y
+  export BUILD_HYPERKUBE=y
+  time ~/dind/dind-cluster.sh up
+#+END_SRC
+
+
+* Testing
+
+#+NAME: kubeadm deploy
+#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+cd ~/go/src/k8s.io/kubernetes
+time ~/dind/dind-cluster.sh e2e '[Conformance]'
+# '[Slow]|[Serial]|[Disruptive]|[Flaky]|[Feature:.+]'
+#+END_SRC
+
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/#permissive-rbac-permissions
+
+#+NAME: seem to be setup with configured RBAC rules for our tokens
+#+BEGIN_EXAMPLE
+[init] using Kubernetes version: v1.13.0
+[preflight] running pre-flight checks
+        [WARNING KubernetesVersion]: kubernetes version is greater than kubeadm version. Please consider to upgrade kubeadm. kubernetes version: 1.13.0. Kubeadm version: 1.12.x
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:25:44.908039     669 kernel_validator.go:81] Validating kernel version
+I0822 07:25:44.908172     669 kernel_validator.go:96] Validating kernel config
+[preflight/images] Pulling images required for setting up a Kubernetes cluster
+[preflight/images] This might take a minute or two, depending on the speed of your internet connection
+[preflight/images] You can also perform this action in beforehand using 'kubeadm config images pull'
+[kubelet] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[preflight] Activating the kubelet service
+[certificates] Generated ca certificate and key.
+[certificates] Generated apiserver certificate and key.
+[certificates] apiserver serving cert is signed for DNS names [kube-master kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 172.18.0.2]
+[certificates] Generated apiserver-kubelet-client certificate and key.
+[certificates] Generated sa key and public key.
+[certificates] Generated front-proxy-ca certificate and key.
+[certificates] Generated front-proxy-client certificate and key.
+[certificates] Generated etcd/ca certificate and key.
+[certificates] Generated etcd/server certificate and key.
+[certificates] etcd/server serving cert is signed for DNS names [kube-master localhost] and IPs [127.0.0.1 ::1]
+[certificates] Generated etcd/peer certificate and key.
+[certificates] etcd/peer serving cert is signed for DNS names [kube-master localhost] and IPs [172.18.0.2 127.0.0.1 ::1]
+[certificates] Generated etcd/healthcheck-client certificate and key.
+[certificates] Generated apiserver-etcd-client certificate and key.
+[certificates] valid certificates and keys now exist in "/etc/kubernetes/pki"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/admin.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/kubelet.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/controller-manager.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/scheduler.conf"
+[controlplane] Adding extra host path mount "audit-mount" to "kube-apiserver"
+[controlplane] wrote Static Pod manifest for component kube-apiserver to "/etc/kubernetes/manifests/kube-apiserver.yaml"
+[controlplane] wrote Static Pod manifest for component kube-controller-manager to "/etc/kubernetes/manifests/kube-controller-manager.yaml"
+[controlplane] wrote Static Pod manifest for component kube-scheduler to "/etc/kubernetes/manifests/kube-scheduler.yaml"
+[etcd] Wrote Static Pod manifest for a local etcd instance to "/etc/kubernetes/manifests/etcd.yaml"
+[init] waiting for the kubelet to boot up the control plane as Static Pods from directory "/etc/kubernetes/manifests" 
+[init] this might take a minute or longer if the control plane images have to be pulled
+[apiclient] All control plane components are healthy after 20.002864 seconds
+[uploadconfig] storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+[kubelet] Creating a ConfigMap "kubelet-config-1.13" in namespace kube-system with the configuration for the kubelets in the cluster
+[markmaster] Marking the node kube-master as master by adding the label "node-role.kubernetes.io/master=''"
+[markmaster] Marking the node kube-master as master by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+[patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "kube-master" as an annotation
+[bootstraptoken] using token: bz9yiz.0s2ofw0d6zhg00yq
+[bootstraptoken] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstraptoken] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstraptoken] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+#+END_EXAMPLE
+
+#+NAME: kubeadm reset complains about RBAC
+#+BEGIN_EXAMPLE
+*** 'kubeadm join --ignore-preflight-errors=all 172.18.0.2:6443 --token bz9yiz.0s2ofw0d6zhg00yq --discovery-token-ca-cert-hash sha256:608746551b2863ebfb865a4bc55d0305a99d3c614fbdf36fb81592242ff274a3' f
+ailed, doing kubeadm reset ***
+'/etc/cni' -> '/etc/cni.bak'
+'/etc/cni/net.d' -> '/etc/cni.bak/net.d'
+'/etc/cni/net.d/cni.conf' -> '/etc/cni.bak/net.d/cni.conf'
+[preflight] running pre-flight checks
+[reset] stopping the kubelet service
+[reset] unmounting mounted directories in "/var/lib/kubelet"
+[preflight] running pre-flight checks
+[reset] stopping the kubelet service
+[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
+[reset] please manually reset etcd to prevent further issues
+[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
+[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
+[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
+[reset] unmounting mounted directories in "/var/lib/kubelet"
+[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
+[reset] please manually reset etcd to prevent further issues
+[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
+[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
+[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
+[preflight] running pre-flight checks
+[preflight] running pre-flight checks
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:28:20.286245    2856 kernel_validator.go:81] Validating kernel version
+I0822 07:28:20.286365    2856 kernel_validator.go:96] Validating kernel config
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:28:20.292405    2847 kernel_validator.go:81] Validating kernel version
+I0822 07:28:20.292559    2847 kernel_validator.go:96] Validating kernel config
+[discovery] Trying to connect to API Server "172.18.0.2:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Trying to connect to API Server "172.18.0.2:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
+[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
+[discovery] Successfully established connection with API Server "172.18.0.2:6443"
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
+[discovery] Successfully established connection with API Server "172.18.0.2:6443"
+[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.12" ConfigMap in the kube-system namespace
+configmaps "kubelet-config-1.12" is forbidden: User "system:bootstrap:bz9yiz" cannot get resource "configmaps" in API group "" in the namespace "kube-system": no RBAC policy matched
+#+END_EXAMPLE
+
+Why does running e2e test with a focus on Conformance and skipping all the slow disruptive bits still run all 1032 specs?
+#+NAME: It says 'Will run 1032 specs' but in the end it only run 177
+#+BEGIN_EXAMPLE
+*** Running e2e tests with args: --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
++++ [0822 06:12:49] Verifying Prerequisites....
+Cluster "dind" set.
+Context "dind" created.
+Switched to context "dind".
+2018/08/22 06:12:51 e2e.go:158: Updating kubetest binary...
+2018/08/22 06:13:27 e2e.go:79: Calling kubetest --verbose-commands=true --v 6 --test --check-version-skew=false --test_args=--ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive
+\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882...
+2018/08/22 06:13:27 util.go:132: Please use kubetest --provider=dind (instead of deprecated KUBERNETES_PROVIDER=dind)
+2018/08/22 06:13:27 main.go:1041: Please use kubetest --ginkgo-parallel (instead of deprecated GINKGO_PARALLEL=y)
+2018/08/22 06:13:27 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
+Skeleton Provider: prepare-e2e not implemented
+Client Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
+6:12:15Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
+5:56:34Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+2018/08/22 06:13:27 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 147.661919ms
+2018/08/22 06:13:27 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
+2018/08/22 06:13:27 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 134.763439ms
+2018/08/22 06:13:27 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
+Conformance test: not doing test setup.
+Running Suite: Kubernetes e2e suite
+===================================
+Random Seed: 1534918408 - Will randomize all specs
+Will run 1032 specs
+
+Running in parallel across 25 nodes
+
+Ran 177 of 1032 Specs in 450.760 seconds
+SUCCESS! -- 177 Passed | 0 Failed | 0 Pending | 855 Skipped 
+
+Ginkgo ran 1 suite in 7m31.369138928s
+Test Suite Passed
+2018/08/22 06:20:59 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882' finished in 7m31.859376975s
+
+
+#+END_EXAMPLE
+#+END_EXAMPLE
+
+* Debugging
+:PROPERTIES:
+:header-args:shell: :wrap SRC yaml :results output verbatim code
+:END:
+** clean all docker containers and images
+#+BEGIN_SRC 
+docker rm $(docker ps -a -q) ; docker rmi $(docker images)
+
+#+END_SRC
+** tight loop
+
+#+BEGIN_SRC text
+~/dind/dind-cluster.sh clean
+cd ~/dind/
+./build/build-local.sh
+cd ~/go/src/k8s.io/kubernetes
+~/dind/dind-cluster.sh up
+#+END_SRC
+
+** TODO understand what auditPolicy: in kubeadm.conf should do
+It's not doing what I would expect:
+*** setup the apiserver args
+*** setup the volumes
+It might also make sense to embed the policy yaml as a sub thing within the kubeadm.yaml
+
+making it just need an external file and not having to copy the policy file about.
+
+** other notes
+#+BEGIN_SRC foo
+kubekins - it’s possible to run tests - https://gist.github.com/dims/033cffa467107bcac8df21e7db72d528 (this uses local up cluster, but can run it without local up cluster too) 
+
+#+END_SRC
+#+NAME: Gold from Leigh Capili 
+#+BEGIN_EXAMPLE
+journalctl -xeu kubelet | grep kube-apiserver
+Aug 21 20:31:24 kube-master hyperkube[3100]: I0821 20:31:24.197218    3100 file.go:200] Reading config file "/etc/kubernetes/manifests/kube-apiserver.yaml"
+Aug 21 20:31:24 kube-master hyperkube[3100]: E0821 20:31:24.199095    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
+Aug 21 20:31:44 kube-master hyperkube[3100]: I0821 20:31:44.196965    3100 file.go:200] Reading config file "/etc/kubernetes/manifests/kube-apiserver.yaml"
+Aug 21 20:31:44 kube-master hyperkube[3100]: E0821 20:31:44.199154    3100 file.go:187] Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml": invalid pod: [spec.volumes[5].name: Invalid value: "auditMount": a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?') spec.containers[0].volumeMounts[5].name: Not found: "auditMount"]
+kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables 
+kubeadm reset && kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
+#+END_EXAMPLE
+** apiserver does not start after adding auditMount
+
+#+NAME: minifest/kube-apiserver.yaml
+#+BEGIN_SRC shell 
+docker exec kube-master cat /etc/kubernetes/manifests/kube-apiserver.yaml
+#+END_SRC
+
+#+RESULTS: minifest/kube-apiserver.yaml
+#+BEGIN_SRC yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --authorization-mode=Node,RBAC
+    - --feature-gates=MountPropagation=true,AdvancedAuditing=true
+    - --insecure-bind-address=0.0.0.0
+    - --insecure-port=8080
+    - --advertise-address=172.18.0.2
+    - --allow-privileged=true
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+    - --etcd-servers=https://127.0.0.1:2379
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    image: mirantis/hypokube:final
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      failureThreshold: 8
+      httpGet:
+        host: 172.18.0.2
+        path: /healthz
+        port: 6443
+        scheme: HTTPS
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+    name: kube-apiserver
+    resources:
+      requests:
+        cpu: 250m
+    volumeMounts:
+    - mountPath: /etc/kubernetes/pki
+      name: k8s-certs
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: ca-certs
+      readOnly: true
+    - mountPath: /usr/share/ca-certificates
+      name: usr-share-ca-certificates
+      readOnly: true
+    - mountPath: /usr/local/share/ca-certificates
+      name: usr-local-share-ca-certificates
+      readOnly: true
+    - mountPath: /etc/ca-certificates
+      name: etc-ca-certificates
+      readOnly: true
+    - mountPath: /etc/kubernetes/audit
+      name: auditMount
+  hostNetwork: true
+  priorityClassName: system-cluster-critical
+  volumes:
+  - hostPath:
+      path: /usr/share/ca-certificates
+      type: DirectoryOrCreate
+    name: usr-share-ca-certificates
+  - hostPath:
+      path: /usr/local/share/ca-certificates
+      type: DirectoryOrCreate
+    name: usr-local-share-ca-certificates
+  - hostPath:
+      path: /etc/ca-certificates
+      type: DirectoryOrCreate
+    name: etc-ca-certificates
+  - hostPath:
+      path: /tmp/audit
+      type: ""
+    name: auditMount
+  - hostPath:
+      path: /etc/kubernetes/pki
+      type: DirectoryOrCreate
+    name: k8s-certs
+  - hostPath:
+      path: /etc/ssl/certs
+      type: DirectoryOrCreate
+    name: ca-certs
+status: {}
+#+END_SRC
+
+#+NAME: apiserver not running
+#+BEGIN_SRC shell 
+docker exec kube-master docker ps -a 
+#+END_SRC
+
+#+RESULTS: apiserver not running
+#+BEGIN_SRC yaml
+CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS               NAMES
+4541d49ff99b        b8df3b177be2           "etcd --advertise-..."   About a minute ago   Up About a minute                       k8s_etcd_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
+1d7ff804ea74        cbbbee56e288           "kube-controller-m..."   About a minute ago   Up About a minute                       k8s_kube-controller-manager_kube-controller-manager-kube-master_kube-system_43387bfa3bb987eac9c6dd1e386a4111_0
+4fb1b0ca31c6        cbbbee56e288           "kube-scheduler --..."   About a minute ago   Up About a minute                       k8s_kube-scheduler_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+138e02494a82        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_kube-controller-manager-kube-master_kube-system_43387bfa3bb987eac9c6dd1e386a4111_0
+284617abce66        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+08f5deb3f03e        k8s.gcr.io/pause:3.1   "/pause"                 About a minute ago   Up About a minute                       k8s_POD_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
+#+END_SRC
+
+#+NAME: apiserver not running results
+#+BEGIN_SRC yaml
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS               NAMES
+b206593db042        b8df3b177be2           "etcd --advertise-..."   3 minutes ago       Up 3 minutes                            k8s_etcd_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
+03b2a5e2b035        23b6e5d23516           "kube-controller-m..."   3 minutes ago       Up 3 minutes                            k8s_kube-controller-manager_kube-controller-manager-kube-master_kube-system_49c60401cce7c9fefaa5362cd4a90d56_0
+de97d38fa194        23b6e5d23516           "kube-scheduler --..."   3 minutes ago       Up 3 minutes                            k8s_kube-scheduler_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+30c6a51b746f        k8s.gcr.io/pause:3.1   "/pause"                 3 minutes ago       Up 3 minutes                            k8s_POD_kube-controller-manager-kube-master_kube-system_49c60401cce7c9fefaa5362cd4a90d56_0
+a6b6b07e1239        k8s.gcr.io/pause:3.1   "/pause"                 3 minutes ago       Up 3 minutes                            k8s_POD_kube-scheduler-kube-master_kube-system_3b695f958ffb31926f9f96a9389c1ef2_0
+aa40eb4b363e        k8s.gcr.io/pause:3.1   "/pause"                 3 minutes ago       Up 3 minutes                            k8s_POD_etcd-kube-master_kube-system_78263d83ff9d8e4fa24f4ff1b321f5b4_0
+#+END_SRC
+
+#+NAME: kubeadm init (wrapkubeadm init) still running
+#+BEGIN_SRC shell 
+docker exec kube-master ps -auxwwwww
+#+END_SRC
+
+#+NAME: kubeadm init (wrapkubeadm init) still running results
+#+BEGIN_SRC yaml
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.1  0.0  56740  6604 ?        Ss   19:33   0:01 /sbin/dind_init systemd.setenv=CNI_PLUGIN=bridge systemd.setenv=IP_MODE=ipv4 systemd.setenv=POD_NET_PREFIX=10.244.1 systemd.setenv=POD_NET_SIZE=24 systemd.setenv=USE_HAIRPIN=false systemd.setenv=DNS_SVC_IP=10.96.0.10 systemd.setenv=DNS_SERVICE=kube-dns
+root        19  0.6  0.0  87048 40424 ?        Ss   19:33   0:06 /lib/systemd/systemd-journald
+root        54  0.0  0.0  18040  3056 ?        Ss   19:33   0:00 /bin/bash /usr/local/bin/dindnet
+root       105  0.0  0.0  24560  3116 ?        S    19:33   0:00 socat udp4-recvfrom:53,reuseaddr,fork,bind=172.18.0.2 UDP:127.0.0.11:53
+root       256  2.9  0.0 2286508 66824 ?       Ssl  19:33   0:30 /usr/bin/dockerd -H fd:// --storage-driver=overlay2 --storage-opt overlay2.override_kernel_check=true -g /dind/docker
+root       279  0.2  0.0 1889144 15596 ?       Ssl  19:33   0:02 docker-containerd -l unix:///var/run/docker/libcontainerd/docker-containerd.sock --metrics-interval=0 --start-timeout 2m --state-dir /var/run/docker/libcontainerd/containerd --shim docker-containerd-shim --runtime docker-runc
+root       230  0.0  0.0  18188  3112 ?        Ss   19:33   0:00 /bin/bash /usr/local/bin/wrapkubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
+root      7930 23.2  0.0  45380 30428 ?        Sl   19:50   0:05 kubeadm init --config /etc/kubeadm.conf --ignore-preflight-errors=all
+root      8403  1.1  0.0 10514488 16788 ?      Ssl  19:51   0:00 etcd --advertise-client-urls=https://127.0.0.1:2379 --cert-file=/etc/kubernetes/pki/etcd/server.crt --client-cert-auth=true --data-dir=/var/lib/etcd --initial-advertise-peer-urls=https://127.0.0.1:2380 --initial-cluster=kube-master=https://127.0.0.1:2380 --key-file=/etc/kubernetes/pki/etcd/server.key --listen-client-urls=https://127.0.0.1:2379 --listen-peer-urls=https://127.0.0.1:2380 --name=kube-master --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt --peer-client-cert-auth=true --peer-key-file=/etc/kubernetes/pki/etcd/peer.key --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt --snapshot-count=10000 --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+root      8194 10.0  0.0 2231064 104248 ?      Ssl  19:50   0:01 /k8s/hyperkube kubelet --kubeconfig=/etc/kubernetes/kubelet.conf --pod-manifest-path=/etc/kubernetes/manifests --allow-privileged=true --network-plugin=cni --cni-conf-dir=/etc/cni/net.d --cni-bin-dir=/opt/cni/bin --cluster-dns=10.96.0.10 --cluster-domain=cluster.local --eviction-hard=memory.available<100Mi,nodefs.available<100Mi,nodefs.inodesFree<1000 --fail-swap-on=false --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --feature-gates=MountPropagation=true,DynamicKubeletConfig=true --v=4
+root      8427  2.0  0.0 1064904 85836 ?       Ssl  19:51   0:00 kube-controller-manager --feature-gates=MountPropagation=true,AdvancedAuditing=true --address=127.0.0.1 --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt --cluster-signing-key-file=/etc/kubernetes/pki/ca.key --controllers=*,bootstrapsigner,tokencleaner --kubeconfig=/etc/kubernetes/controller-manager.conf --leader-elect=true --root-ca-file=/etc/kubernetes/pki/ca.crt --service-account-private-key-file=/etc/kubernetes/pki/sa.key --use-service-account-credentials=true
+root      8451  3.0  0.0 1174336 85748 ?       Ssl  19:51   0:00 kube-scheduler --feature-gates=MountPropagation=true,AdvancedAuditing=true --address=127.0.0.1 --kubeconfig=/etc/kubernetes/scheduler.conf --leader-elect=true
+root      8287  0.0  0.0 347840  3572 ?        Sl   19:51   0:00 docker-containerd-shim fed63ec2b0cd8d3b24c490c3145efe293347b77e46b6db33da589886a532b969 /var/run/docker/libcontainerd/fed63ec2b0cd8d3b24c490c3145efe293347b77e46b6db33da589886a532b969 docker-runc
+root      8310  0.0  0.0 478912  3556 ?        Sl   19:51   0:00 docker-containerd-shim 1ae9336514f45307e6efb714a9fc661833791c5b4c76eb4f8d39cf63fa8d5651 /var/run/docker/libcontainerd/1ae9336514f45307e6efb714a9fc661833791c5b4c76eb4f8d39cf63fa8d5651 docker-runc
+root      8320  0.0  0.0 282304  3680 ?        Sl   19:51   0:00 docker-containerd-shim b75d6981e4f3136943110497b8f3152007093791efa1482b779a60bb468e1b3d /var/run/docker/libcontainerd/b75d6981e4f3136943110497b8f3152007093791efa1482b779a60bb468e1b3d docker-runc
+root      8386  0.0  0.0 413376  3620 ?        Sl   19:51   0:00 docker-containerd-shim e5a200824f3d7626c35e9542b676a36d40b91fe50ab02f23fef1329469d2aa73 /var/run/docker/libcontainerd/e5a200824f3d7626c35e9542b676a36d40b91fe50ab02f23fef1329469d2aa73 docker-runc
+root      8409  0.0  0.0 282304  3808 ?        Sl   19:51   0:00 docker-containerd-shim 577a958ddf532c3fd61e96d078d1ad687d8e6db74699773a0b568e4b1f28d077 /var/run/docker/libcontainerd/577a958ddf532c3fd61e96d078d1ad687d8e6db74699773a0b568e4b1f28d077 docker-runc
+root      8433  0.1  0.0 348096  3676 ?        Sl   19:51   0:00 docker-containerd-shim 2d26e9e4e0cecc62adb2c55362ce61449ce049847101b754a091236994a3cb5d /var/run/docker/libcontainerd/2d26e9e4e0cecc62adb2c55362ce61449ce049847101b754a091236994a3cb5d docker-runc
+root      8304  0.0  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+root      8338  0.1  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+root      8352  0.0  0.0   1020     4 ?        Ss   19:51   0:00 /pause
+#+END_SRC
+
+** kubeadm config view on kube-master
+
+#+NAME: kubeadm config view on kube-master
+#+BEGIN_SRC shell 
+docker exec kube-master kubeadm config view --kubeconfig /etc/kubernetes/admin.conf
+#+END_SRC
+
+#+RESULTS: kubeadm config view on kube-master
+#+BEGIN_SRC yaml
+api:
+  advertiseAddress: 172.18.0.2
+  bindPort: 6443
+  controlPlaneEndpoint: ""
+apiServerExtraArgs:
+  authorization-mode: Node,RBAC
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+  insecure-bind-address: 0.0.0.0
+  insecure-port: "8080"
+apiVersion: kubeadm.k8s.io/v1alpha3
+auditPolicy:
+  logDir: /etc/kubernetes/audit
+  logMaxAge: 2
+  path: /etc/kube-audit-policy.yaml
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controllerManagerExtraArgs:
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+    image: ""
+featureGates:
+  Auditing: false
+  CoreDNS: false
+imageRepository: k8s.gcr.io
+kind: InitConfiguration
+kubernetesVersion: v1.13.0
+networking:
+  dnsDomain: cluster.local
+  podSubnet: ""
+  serviceSubnet: 10.96.0.0/12
+nodeRegistration: {}
+schedulerExtraArgs:
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+unifiedControlPlaneImage: mirantis/hypokube:final
+#+END_SRC
+
+#+NAME: kubeadm config view on kube-master results
+#+BEGIN_SRC js
+api:
+  advertiseAddress: 172.18.0.2
+  bindPort: 6443
+  controlPlaneEndpoint: ""
+apiServerExtraArgs:
+  authorization-mode: Node,RBAC
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+  insecure-bind-address: 0.0.0.0
+  insecure-port: "8080"
+apiVersion: kubeadm.k8s.io/v1alpha3
+auditPolicy:
+  logDir: /etc/kubernetes/audit/
+  logMaxAge: 2
+  path: /etc/kubernetes/audit-policy.yaml
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controllerManagerExtraArgs:
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+    image: ""
+featureGates:
+  CoreDNS: false
+imageRepository: k8s.gcr.io
+kind: InitConfiguration
+kubernetesVersion: v1.13.0
+networking:
+  dnsDomain: cluster.local
+  podSubnet: ""
+  serviceSubnet: 10.96.0.0/12
+nodeRegistration: {}
+schedulerExtraArgs:
+  feature-gates: MountPropagation=true,AdvancedAuditing=true
+unifiedControlPlaneImage: mirantis/hypokube:final
+#+END_SRC
+
+** arguments on APIServer container
+
+#+NAME: APIServer container Args
+#+BEGIN_SRC shell
+  APISERVER=$(docker exec kube-master \
+    docker ps --format '{{.Names}}' \
+    --filter label=io.kubernetes.container.name=kube-apiserver) 
+  docker exec kube-master \
+    docker inspect $APISERVER \
+      | jq .[0].Args
+#+END_SRC
+
+#+RESULTS: APIServer container Args
+#+BEGIN_SRC yaml
+[
+  "--authorization-mode=Node,RBAC",
+  "--feature-gates=MountPropagation=true,AdvancedAuditing=true",
+  "--advertise-address=172.18.0.2",
+  "--allow-privileged=true",
+  "--client-ca-file=/etc/kubernetes/pki/ca.crt",
+  "--enable-admission-plugins=NodeRestriction",
+  "--enable-bootstrap-token-auth=true",
+  "--etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt",
+  "--etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt",
+  "--etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key",
+  "--etcd-servers=https://127.0.0.1:2379",
+  "--kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt",
+  "--kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key",
+  "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname",
+  "--proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt",
+  "--proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key",
+  "--requestheader-allowed-names=front-proxy-client",
+  "--requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt",
+  "--requestheader-extra-headers-prefix=X-Remote-Extra-",
+  "--requestheader-group-headers=X-Remote-Group",
+  "--requestheader-username-headers=X-Remote-User",
+  "--secure-port=6443",
+  "--service-account-key-file=/etc/kubernetes/pki/sa.pub",
+  "--service-cluster-ip-range=10.96.0.0/12",
+  "--tls-cert-file=/etc/kubernetes/pki/apiserver.crt",
+  "--tls-private-key-file=/etc/kubernetes/pki/apiserver.key",
+  "--insecure-bind-address=0.0.0.0",
+  "--insecure-port=8080"
+]
+#+END_SRC
+
+** kubeadm config print-defaults
+
+#+NAME: kubeadm config print-defaults
+#+BEGIN_SRC shell
+docker exec kube-master kubeadm config print-defaults
+#+END_SRC
+
+#+RESULTS: kubeadm config print-defaults
+#+BEGIN_SRC yaml
+api:
+  advertiseAddress: 1.2.3.4
+  bindPort: 6443
+  controlPlaneEndpoint: ""
+apiVersion: kubeadm.k8s.io/v1alpha3
+auditPolicy:
+  logDir: /var/log/kubernetes/audit
+  logMaxAge: 2
+  path: ""
+bootstrapTokens:
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: abcdef.0123456789abcdef
+  ttl: 24h0m0s
+  usages:
+  - signing
+  - authentication
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+    image: ""
+imageRepository: k8s.gcr.io
+kind: InitConfiguration
+kubernetesVersion: v1.11.0
+networking:
+  dnsDomain: cluster.local
+  podSubnet: ""
+  serviceSubnet: 10.96.0.0/12
+nodeRegistration:
+  criSocket: /var/run/dockershim.sock
+  name: kube-master
+  taints:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+unifiedControlPlaneImage: ""
+---
+advertiseAddress: 172.18.0.2
+apiVersion: kubeadm.k8s.io/v1alpha3
+caCertPath: /etc/kubernetes/pki/ca.crt
+clusterName: kubernetes
+discoveryFile: ""
+discoveryTimeout: 5m0s
+discoveryToken: abcdef.0123456789abcdef
+discoveryTokenAPIServers:
+- kube-apiserver:6443
+discoveryTokenUnsafeSkipCAVerification: true
+kind: JoinConfiguration
+nodeRegistration:
+  criSocket: /var/run/dockershim.sock
+  name: kube-master
+tlsBootstrapToken: abcdef.0123456789abcdef
+token: abcdef.0123456789abcdef
+---
+address: 0.0.0.0
+apiVersion: kubelet.config.k8s.io/v1beta1
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    cacheTTL: 2m0s
+    enabled: true
+  x509:
+    clientCAFile: /etc/kubernetes/pki/ca.crt
+authorization:
+  mode: Webhook
+  webhook:
+    cacheAuthorizedTTL: 5m0s
+    cacheUnauthorizedTTL: 30s
+cgroupDriver: cgroupfs
+cgroupsPerQOS: true
+clusterDNS:
+- 10.96.0.10
+clusterDomain: cluster.local
+configMapAndSecretChangeDetectionStrategy: Watch
+containerLogMaxFiles: 5
+containerLogMaxSize: 10Mi
+contentType: application/vnd.kubernetes.protobuf
+cpuCFSQuota: true
+cpuManagerPolicy: none
+cpuManagerReconcilePeriod: 10s
+enableControllerAttachDetach: true
+enableDebuggingHandlers: true
+enforceNodeAllocatable:
+- pods
+eventBurst: 10
+eventRecordQPS: 5
+evictionHard:
+  imagefs.available: 15%
+  memory.available: 100Mi
+  nodefs.available: 10%
+  nodefs.inodesFree: 5%
+evictionPressureTransitionPeriod: 5m0s
+failSwapOn: true
+fileCheckFrequency: 20s
+hairpinMode: promiscuous-bridge
+healthzBindAddress: 127.0.0.1
+healthzPort: 10248
+httpCheckFrequency: 20s
+imageGCHighThresholdPercent: 85
+imageGCLowThresholdPercent: 80
+imageMinimumGCAge: 2m0s
+iptablesDropBit: 15
+iptablesMasqueradeBit: 14
+kind: KubeletConfiguration
+kubeAPIBurst: 10
+kubeAPIQPS: 5
+makeIPTablesUtilChains: true
+maxOpenFiles: 1000000
+maxPods: 110
+nodeStatusUpdateFrequency: 10s
+oomScoreAdj: -999
+podPidsLimit: -1
+port: 10250
+registryBurst: 10
+registryPullQPS: 5
+resolvConf: /etc/resolv.conf
+rotateCertificates: true
+runtimeRequestTimeout: 2m0s
+serializeImagePulls: true
+staticPodPath: /etc/kubernetes/manifests
+streamingConnectionIdleTimeout: 4h0m0s
+syncFrequency: 1m0s
+volumeStatsAggPeriod: 1m0s
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+bindAddress: 0.0.0.0
+clientConnection:
+  acceptContentTypes: ""
+  burst: 10
+  contentType: application/vnd.kubernetes.protobuf
+  kubeconfig: /var/lib/kube-proxy/kubeconfig.conf
+  qps: 5
+clusterCIDR: ""
+configSyncPeriod: 15m0s
+conntrack:
+  max: null
+  maxPerCore: 32768
+  min: 131072
+  tcpCloseWaitTimeout: 1h0m0s
+  tcpEstablishedTimeout: 24h0m0s
+enableProfiling: false
+healthzBindAddress: 0.0.0.0:10256
+hostnameOverride: ""
+iptables:
+  masqueradeAll: false
+  masqueradeBit: 14
+  minSyncPeriod: 0s
+  syncPeriod: 30s
+ipvs:
+  excludeCIDRs: null
+  minSyncPeriod: 0s
+  scheduler: ""
+  syncPeriod: 30s
+kind: KubeProxyConfiguration
+metricsBindAddress: 127.0.0.1:10249
+mode: ""
+nodePortAddresses: null
+oomScoreAdj: -999
+portRange: ""
+resourceContainer: /kube-proxy
+udpIdleTimeout: 250ms
+#+END_SRC
+
+* Shoutouts
+** #sig-cluster-lifecycle
+
+*** Paul Michali [12:16 AM]
+@hh You run build/build-local.sh and then set DIND_IMAGE to use that locally built docker image for k-d-c (export DIND_IMAGE=mirantis/kubeadm-dind-cluster:local).
+
+
+*** Leigh Capili [7:16 AM]
+Leigh Capili <leigh@null.net>
+@hh, use `apiServerExtraVolumes` for kubeadm section of the volume mounts
+it's an array of HostPathMounts which you can specify as writeable:
+https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm#HostPathMount
+logging some fixes:
+- add `pathType: DirectoryOrCreate` to the kubeadm config
+- change `name: auditMount` to `name: audit-mount`  (kubelet journal shows volume was failing DNS name validation)
+
+note:
+kubeadm config does not properly validate volume names -- we should fix this
+
+* Footnotes
+
+** How to find out which debian package has the sepecifyc
+
+#+NAME: Find which debian package
+#+BEGIN_SRC shell
+apt-file search -x `which pip`$
+#+END_SRC
+
+#+RESULTS: Find which debian package
+: python-pip: /usr/bin/pip
+
+
+
+
+** tmate debugging
+
+#+NAME: create master shell
+#+BEGIN_SRC tmux :session k8s:kubeadm-master
+docker exec -ti kube-master /bin/bash
+export APISERVER=$(docker ps --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
+export PS1='# MASTER \$ '
+#+END_SRC
+
+#+NAME: run commands on master
+#+BEGIN_SRC tmux :session k8s:kubeadm-master
+  export APISERVER=$(docker ps -a --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
+  docker logs $APISERVER  
+  # cat /etc/kubeadm.conf
+  # #
+  journalctl -xeu kubelet | grep kube-apiserver
+  #docker ps | grep -v pause\\\|dns\\\|etcd
+  #docker inspect $APISERVER | jq .[0].Args
+#+END_SRC
+
+#+NAME: create apiserver shell
+#+BEGIN_SRC tmux :session k8s:kubeadm-apiserver
+#MASTER=$(docker ps --filter label=mirantis.kubeadm_dind_cluster --format "{{.Names}}")
+docker exec -ti kube-master /bin/bash
+APISERVER=$(docker ps --filter label=io.kubernetes.container.name=kube-apiserver --format '{{.Names}}')
+docker exec -ti $APISERVER /bin/bash
+export PS1='# APISERVER \$ '
+#docker logs $APISERVER 
+#+END_SRC
+
+#+NAME: exploring issues
+#+BEGIN_SRC tmux :session k8s:kubeadm-apiserver
+clear
+ps axuwww | grep apiserver
+#+END_SRC
+
+#+NAME: apiserver unrecocnized flag
+#+BEGIN_EXAMPLE
+# from docker logs on apiserver
+invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" flag: unrecognized key: Auditing
+#+END_EXAMPLE
+
+
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# End:
+
+
+
