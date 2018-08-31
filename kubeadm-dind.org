@@ -53,8 +53,7 @@ docker rmi $(docker images -q)
 #+NAME: kubeadm deploy
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
 cd ~/go/src/k8s.io/kubernetes
-time ~/dind/dind-cluster.sh e2e
- #'[Conformance]'
+time ~/dind/dind-cluster.sh e2e '[Conformance]'
 # '[Slow]|[Serial]|[Disruptive]|[Flaky]|[Feature:.+]'
 #+END_SRC
 

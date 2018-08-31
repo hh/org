@@ -213,6 +213,11 @@ Kubernetes is failing to come up because to the certs are not signed correctly, 
 flags including the required  --apiserver-cert-extra-sans flag, atleast this optioncan be set in the config file, see https://github.com/kubernetes/kubernetes/issues/55566
 
 ** tmate stuff
+*** window management
+#+BEGIN_SRC shell
+tmate list-windows
+tmate kill-window -t X
+#+END_SRC
 #+NAME: create or reconnect to the target k8s tmate session
 #+BEGIN_EXAMPLE
 tmate -S /tmp/ii-tmate.sock new-session -A -s k8s -c ~/go/src/kubernetes
