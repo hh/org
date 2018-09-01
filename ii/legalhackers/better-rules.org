@@ -1,22 +1,163 @@
 # -*- org-use-property-inheritance: t; -*-
-#+TITLE: Debugging kubeadm-dind-audit-logging
-#+AUTHOR: Hippie Hacker
-#+EMAIL: hh@ii.coop
-#+CREATOR: ii.coop
-#+DATE: August 22nd, 2018
+#+TITLE: Better Rules OpenFisca and Web Infrastructure Manual
+#+AUTHOR: James Blair
+#+EMAIL: mail@jamesblair.net
+#+CREATOR: legalhackers.nz
+#+DATE: September 1st, 2018
+* OpenFisca First
+** Who curates the code?
+   
+The Service Innovation Lab of New Zealand Govt are the curators of the NZ
+focused rules set.
 
-* Branch Setup
+https://github.com/serviceinnovationlab/openfisca-aoteroa.git
 
-https://github.com/ii/kubeadm-dind-cluster/tree/audit-policy
+We will be standing up both an OpenFisca instance and a web front end to enable
+OpenAPI interaction with OpenFisca.
 
-https://github.com/kubernetes-sigs/kubeadm-dind-cluster/pull/204
+** How do I get it? 
 
-#+NAME: kubeadm source checkout
-#+BEGIN_SRC tmux :session k8s:kubeadm-dind
-#git clone git@github.com:kubernetes-sigs/kubeadm-dind-cluster.git ~/dind
-git clone git@github.com:ii/kubeadm-dind-cluster.git ~/dind
-git checkout -b audit-policy origin/audit-policy
+#+NAME: OpenFisca source checkout
+#+BEGIN_SRC tmux :session br:src 
+cd ~/
+git clone https://github.com/ServiceInnovationLab/openfisca-aotearoa.git
 #+END_SRC
+
+** Now what do I do?
+*** DONE Install Python-dev / PIP
+    CLOSED: [2018-08-31 Fri 22:38]
+
+#+NAME: OpenFisca Dependency Setup
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+apt-get install -y python-pip
+#+END_SRC
+
+*** DONE Verify that you have python2.7 and a recent version of pip
+    CLOSED: [2018-08-31 Fri 22:39]
+#+NAME: Pip Version
+#+BEGIN_SRC shell
+pip --version
+#+END_SRC
+
+#+RESULTS: Pip Version
+: pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
+
+*** DONE Install Pew
+    CLOSED: [2018-08-31 Fri 22:47]
+#+NAME: Install Pew
+#+BEGIN_SRC tmux :session br:src 
+pip install pew
+#+END_SRC
+
+*** DONE Setup Virtual Environment for Open Fisca
+    CLOSED: [2018-08-31 Fri 22:47]
+
+    We added echo because we were unsure how to avoid the bashrc modification
+    prompt.
+
+#+NAME: Setup Virtual Environment for Open Fisca
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+echo | pew new openfisca --python=python2.7
+#+END_SRC
+**** Verify that you are in the Open Fisca pew ENV
+
+#+NAME: pew env verification
+#+BEGIN_EXAMPLE
+# pew workon 
+openfisca
+#+END_EXAMPLE
+*** DONE Verify Versions of Everything
+    CLOSED: [2018-08-31 Fri 23:05]
+
+#+NAME: Verify Versions of Everything
+#+BEGIN_SRC shell :results output verbatim drawer replace
+  cd ~/openfisca-aotearoa
+  set -x -e # Show commands in output as they are executed
+python --version 2>&1 # python puts version on stderr
+pip --version  # should print at least 9.0.
+pew workon # Should be openfisca
+#+END_SRC
+
+#+RESULTS: Verify Versions of Everything
+:RESULTS:
+Python 2.7.13
+pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
+openfisca
+:END:
+
+*** DONE Installing OpenFISCA dependences
+    CLOSED: [2018-08-31 Fri 23:16]
+#+NAME: Installing OpenFISCA and run tests
+#+BEGIN_SRC shell :results output verbatim drawer replace 
+cd ~/openfisca-aotearoa
+pew workon openfisca
+pip install -e ".[test]"
+make test 2>&1
+#+END_SRC
+
+#+RESULTS: Installing OpenFISCA and run tests
+:RESULTS:
+Obtaining file:///root/openfisca-aotearoa
+Collecting OpenFisca-Core<25.0,>=24 (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/ed/e7/eda46ba44056419d5054fce6c7bd535d28e166a14c213c573a376cd59280/OpenFisca_Core-24.2.0-py2-none-any.whl
+Collecting flake8<3.5.0,>=3.4.0 (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/b2/d3/e80ea2616e3871ae22459c415c63d64b9bd744c92267482670fcdbcea72d/flake8-3.4.1-py2.py3-none-any.whl
+Collecting flake8-print (from OpenFisca-Aotearoa==4.2.0)
+Collecting nose (from OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/99/4f/13fb671119e65c4dce97c60e67d3fd9e6f7f809f2b307e2611f4701205cb/nose-1.3.7-py2-none-any.whl
+Collecting numpy<1.15,>=1.11 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/6a/a9/c01a2d5f7b045f508c8cefef3b079fe8c413d05498ca0ae877cffa230564/numpy-1.14.5-cp27-cp27mu-manylinux1_x86_64.whl
+Collecting Biryani[datetimeconv]>=0.10.8 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/c0/f1/63dc750a98e2a0c091adcfe90924c32b897b3b284c353dc30fe67cc2bebf/Biryani-0.10.8-py2-none-any.whl
+Collecting psutil==5.4.6 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting future (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting PyYAML>=3.10 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting dpath==1.4.0 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+Collecting enum34>=1.1.6 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/c5/db/e56e6b4bbac7c4a06de1c50de6fe1ef3810018ae11732a50f15f62c7d050/enum34-1.1.6-py2-none-any.whl
+Collecting sortedcontainers==1.5.9 (from OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/ea/67/c76c354ff30a689aeb2c75c4d383ae618c27fc2180d313f387f8918a3429/sortedcontainers-1.5.9-py2.py3-none-any.whl
+Collecting pyflakes<1.6.0,>=1.5.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/27/49/924098b3b85c286696f37e014475d79471ffc44509613af420645a3c12cb/pyflakes-1.5.0-py2.py3-none-any.whl
+Collecting configparser; python_version < "3.2" (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+Collecting pycodestyle<2.4.0,>=2.0.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/e4/81/78fe51eb4038d1388b7217dd63770b0f428370207125047312886c923b26/pycodestyle-2.3.1-py2.py3-none-any.whl
+Collecting mccabe<0.7.0,>=0.6.0 (from flake8<3.5.0,>=3.4.0->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/87/89/479dc97e18549e21354893e4ee4ef36db1d237534982482c3681ee6e7b57/mccabe-0.6.1-py2.py3-none-any.whl
+Collecting six (from flake8-print->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/67/4b/141a581104b1f6397bfa78ac9d43d8ad29a7ca43ea90a2d863fe3056e86a/six-1.11.0-py2.py3-none-any.whl
+Collecting Babel>=0.9.4 (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/b8/ad/c6f60602d3ee3d92fbed87675b6fb6a6f9a38c223343ababdb44ba201f10/Babel-2.6.0-py2.py3-none-any.whl
+Collecting isodate>=0.4; extra == "datetimeconv" (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/9b/9f/b36f7774ff5ea8e428fdcfc4bb332c39ee5b9362ddd3d40d9516a55221b2/isodate-0.6.0-py2.py3-none-any.whl
+Collecting pytz; extra == "datetimeconv" (from Biryani[datetimeconv]>=0.10.8->OpenFisca-Core<25.0,>=24->OpenFisca-Aotearoa==4.2.0)
+  Using cached https://files.pythonhosted.org/packages/30/4e/27c34b62430286c6d59177a0842ed90dc789ce5d1ed740887653b898779a/pytz-2018.5-py2.py3-none-any.whl
+Installing collected packages: numpy, pytz, Babel, six, isodate, Biryani, psutil, future, PyYAML, dpath, enum34, sortedcontainers, OpenFisca-Core, pyflakes, configparser, pycodestyle, mccabe, flake8, flake8-print, nose, OpenFisca-Aotearoa
+  Running setup.py develop for OpenFisca-Aotearoa
+Successfully installed Babel-2.6.0 Biryani-0.10.8 OpenFisca-Aotearoa OpenFisca-Core-24.2.0 PyYAML-3.13 configparser-3.5.0 dpath-1.4.0 enum34-1.1.6 flake8-3.4.1 flake8-print-3.1.0 future-0.16.0 isodate-0.6.0 mccabe-0.6.1 nose-1.3.7 numpy-1.14.5 psutil-5.4.6 pycodestyle-2.3.1 pyflakes-1.5.0 pytz-2018.5 six-1.11.0 sortedcontainers-1.5.9
+openfisca-run-test --country-package openfisca_aotearoa openfisca_aotearoa/tests
+WARNING:openfisca_core.tools.test_runner: libyaml is not installed in your environment, this can make your test suite slower to run. Once you have installed libyaml, run `pip uninstall pyyaml && pip install pyyaml` so that it is used in your Python environment.
+WARNING:openfisca_core.parameters:libyaml is not installed in your environment. This can make OpenFisca slower to start. Once you have installed libyaml, run 'pip uninstall pyyaml && pip install pyyaml' so that it is used in your Python environment.
+
+.....................................................................
+----------------------------------------------------------------------
+Ran 69 tests in 0.596s
+
+OK
+:END:
+
+** Now what do I do?
+*** Install Python-dev / PIP
+
+#+NAME: OpenFisca Dependency Setup
+#+BEGIN_SRC tmux :session br:src 
+cd ~/openfisca-aotearoa
+apt-get install -y python-pip
+#+END_SRC
+
+
 
 * kubeadm-dind with k8s source
 
@@ -739,6 +880,20 @@ note:
 kubeadm config does not properly validate volume names -- we should fix this
 
 * Footnotes
+
+** How to find out which debian package has the sepecifyc
+
+#+NAME: Find which debian package
+#+BEGIN_SRC shell
+apt-file search -x `which pip`$
+#+END_SRC
+
+#+RESULTS: Find which debian package
+: python-pip: /usr/bin/pip
+
+
+
+
 ** tmate debugging
 
 #+NAME: create master shell
@@ -790,4 +945,6 @@ invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" fla
 # eval: (require (quote ob-go))
 # org-confirm-babel-evaluate: nil
 # End:
+
+
 
