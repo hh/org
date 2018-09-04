@@ -1,0 +1,102 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Debugging kubeadm-dind-audit-logging
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: August 22nd, 2018
+#+PROPERTY: header-args:tmux :socket "/tmp/hh-tmate.socket"
+#+PROPERTY: header-args:tmux :session "main"
+#+PROPERTY: header-args:tmux :results "silent"
+
+* Backporting apisnoop work for 1.9,1.10,1.11
+Kubernetes 1.12 includes both the e2e test-as-userAgent and userAgent-auditLogging patches.
+
+Version 1.11 and prior will need them applied in order to work.
+** 1.12: this is fine
+#+NAME: kubernetes 1.12 branch
+#+BEGIN_SRC tmux :session k8s:src
+cd ~/go/src/k8s.io/kubernetes
+git checkout release-1.12
+#+END_SRC
+
+** Backport e2e-user-agent-test-auditing
+
+We'll need to backport these patches to increase coverage
+
+#+NAME: kubernetes v1.11.2 checkout
+#+BEGIN_SRC tmux :session k8s:src :results output verbatim drawer silent
+cd ~/go/src/k8s.io/kubernetes
+git checkout -b v1.11.2-apisnoop v1.11.2
+#+END_SRC
+
+#+NAME: kubernetes v1.10.7 checkout
+#+BEGIN_SRC tmux :session k8s:src :results output verbatim drawer silent
+cd ~/go/src/k8s.io/kubernetes
+git checkout -b v1.10.7-apisnoop v1.10.7
+#+END_SRC
+
+#+NAME: kubernetes v1.9.9 checkout
+#+BEGIN_SRC tmux :session k8s:src :results output verbatim drawer silent
+cd ~/go/src/k8s.io/kubernetes
+git checkout -b v1.9.9-apisnoop v1.9.9
+#+END_SRC
+
+** Backport by cherry picking
+
+#+NAME: backport - send current e2e.test as user agent patch
+#+BEGIN_SRC tmux :session k8s:src
+# https://github.com/kubernetes/kubernetes/pull/67550/commits
+git cherry-pick 229ecedac50 # send current e2e.test as user-agent
+#+END_SRC
+
+#+NAME: backport - log 1k user-agent in audit
+#+BEGIN_SRC tmux :session k8s:src :results output verbatim drawer silent
+  # https://github.com/kubernetes/kubernetes/pull/64812/commits
+  git cherry-pick d066d547cc # logging user-agent in audit
+  # git cherry-pick b5990b78cb # auto gen # Will not apply cleanly to 1.9
+  git cherry-pick a8b0ccc70c # add ut for audit useragent
+  # not sure I want this backported, also does not apply cleanly to 1.9
+  # git cherry-pick f0b1f1c2f6 # limit User-Agent max length 1024 and add ...TRUNCATED suffix
+#+END_SRC
+
+** The oneliner to build, up, and test on gke
+#+NAME: build binaries / up cluster / run test for gke etc
+#+BEGIN_SRC tmux :session k8s:gke
+cd ~/go/src/k8s.io/kubernetes
+kubetest --build=bazel --up --provider=gce --gcp-project=ii-coop
+#+END_SRC
+** This approach to running the tests takes a _very_ long time
+
+I wonder if there is a way to speed this up.
+
+#+NAME: build e2e test binary, run ginko parallel
+#+BEGIN_SRC tmux :session k8s:gke
+cd ~/go/src/k8s.io/kubernetes
+time bazel build //test/e2e:e2e.test
+PREFIX=./bazel-bin/test/e2e
+export GINKO_PARALLEL=y
+# Will run 179 of 1032 specs
+export KUBECONFIG=~/.kube/config
+time $PREFIX/e2e.test \
+  --ginkgo.parallel.total=48 \
+  --ginkgo.focus='\[Conformance\]' \
+  --ginkgo.skip='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]' \
+  --ginkgo.seed=1436380640 \
+  --v=2 \
+  --provider=skeleton
+#+END_SRC
+
+* Footnotes
+
+
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# org-babel-tmux-session-prefix: "hh-"
+# End:
+
+
