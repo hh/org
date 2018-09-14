@@ -1,5 +1,5 @@
 # -*- org-use-property-inheritance: t; -*-
-#+TITLE: Kubetest w/ GKE
+#+TITLE: Setting up gitlab from scratch
 #+AUTHOR: Hippie Hacker
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
@@ -57,7 +57,7 @@ gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION -
 #+END_SRC
 
 * Deploy Using the Gitlab Chart
-
+  
 ** Get Chart for gitlab
 #+NAME: Get Chart for gitlab
 #+BEGIN_SRC tmux :session br:gitlab
@@ -150,7 +150,6 @@ kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.passwor
 
 ** TODO email
 ** TODO SMTP OUTGOING
-
 
 
 * Footnotes
