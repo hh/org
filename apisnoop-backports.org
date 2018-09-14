@@ -1,17 +1,179 @@
 # -*- org-use-property-inheritance: t; -*-
-#+TITLE: Debugging kubeadm-dind-audit-logging
+#+TITLE: APISnoop e2e test - user agent
 #+AUTHOR: Hippie Hacker
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: August 22nd, 2018
 #+PROPERTY: header-args:tmux :socket "/tmp/hh-tmate.socket"
-#+PROPERTY: header-args:tmux :session "main"
+#+PROPERTY: header-args:tmux :session "k8s:apisnoop"
 #+PROPERTY: header-args:tmux :results "silent"
+#+PROPERTY: header-args:shell :dir /home/apisnoop/dev/audit-log-review
+
+* Test-Grid Artifacts
+** dev/latest
+*** master
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20master%20(dev)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/590
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/590/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.12
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.12%20(dev)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-12/55
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-12/55/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.11
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.11%20(dev)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-11/392
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-11/392/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.10
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.10%20(dev)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-10/550
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-10/550/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.9
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.9%20(dev)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-9/550
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-9/550/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+
+** release/stable
+*** 1.11
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.11%20(release)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-11/55
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-11/392/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.10
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.10%20(release)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-10/550
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-10/550/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+*** 1.9
+https://k8s-testgrid.appspot.com/conformance-gce#GCE,%20v1.9%20(release)
+https://k8s-gubernator.appspot.com/build/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-9/550
+https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-9/550/artifacts/bootstrap-e2e-master/kube-apiserver-audit.log
+
+* How do you process the audit logs?
+
+[[file:/home/apisnoop/dev/audit-log-review/logs][file:/home/apisnoop/dev/audit-log-review/logs/]]
+
+#+NAME: install current apisnooping requirements
+#+BEGIN_SRC tmux :session k8s:apisnoop
+cd /home/apisnoop/dev/audit-log-review/
+pip install -r requirements.txt
+#+END_SRC
+
+#+NAME: version
+#+begin_src shell :results verbatim :wrap src json
+  #cat logs/dev-1.12.log \
+  # cat logs/dev-1.12.log \
+  grep e2e.test/ logs/dev-1.12.log \
+    | head -1000000000 \
+    | jq .userAgent -r \
+    | sort \
+    | uniq
+    #| jq .
+  # Still need some sed foo here
+#+END_SRC
+
+#+RESULTS: version
+#+BEGIN_src json
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [k8s.io] Docker Containers should be able to override the image's default arguments (docker cmd) [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [k8s.io] Docker Containers should be able to override the image's default command and arguments [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [k8s.io] InitContainer [NodeConformance] should invoke init containers on a RestartNever pod [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [k8s.io] InitContainer [NodeConformance] should not start app containers if init containers fail on a RestartAlways pod [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-api-machinery] ConfigMap should be consumable via environment variable [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-api-machinery] Garbage collector should delete pods created by rc when not orphaning [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-apps] ReplicationController should serve a basic image on each replica with a public image  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-auth] ServiceAccounts should mount an API token into pods  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] DNS should provide DNS for services  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] Proxy version v1 should proxy logs on node using proxy subresource  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] Proxy version v1 should proxy logs on node with explicit kubelet port using proxy subresource  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] Proxy version v1 should proxy through a service and a pod  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] Services should provide secure master service  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-network] Services should serve a basic endpoint from pods  [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] ConfigMap should be consumable from pods in volume [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Downward API volume should provide container's cpu request [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Downward API volume should provide container's memory request [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Projected should be consumable in multiple volumes in a pod [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Projected should project all components that make up the projection API [Projection][NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Projected should provide container's memory limit [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Secrets should be consumable from pods in volume with mappings and Item Mode set [NodeConformance] [Conformance]
+e2e.test/v1.12.0 (linux/amd64) kubernetes/4d9bb04 -- [sig-storage] Subpath Atomic writer volumes should support subpaths with downward pod [Conformance]
+#+END_src
+
+#+NAME: set vars
+#+BEGIN_SRC tmux :session k8s:apisnoop
+# What branch to grab swagger.json from
+OPENAPI_REF=v1.10.7 # dev-1.10
+OPENAPI_REF=v1.9.9 # dev-1.9
+OPENAPI_REF=4d9bb04 # dev-1.12
+OPENAPI_REF=v1.11.2 # dev-1.11
+# The name of the 
+K8S_SRC_REF=dev-1.11
+AUDIT_LOG=./logs/$K8S_SRC_REF.log
+AUDIT_CSV=/home/apisnoop/www/dist/$K8S_SRC_REF.csv
+#+end_src
+
+#+name: load-audit master logs
+#+begin_src tmux :session k8s:apisnoop
+python logreview.py load-audit $AUDIT_LOG $OPENAPI_REF $K8S_SRC_REF
+#+END_SRC
+
+you can find all the options for exporting as a csv here: https://github.com/cncf/apisnoop#exporting-data
+
+#+NAME: export csv
+#+BEGIN_SRC tmux :session k8s:apisnoop
+python logreview.py export-data  app-usage-endpoints $AUDIT_CSV $K8S_SRC_REF
+#+END_SRC
+
+* How to make per e2e test user-agent + audit logs
+** Get the Source
+#+NAME: get the source
+#+BEGIN_SRC tmux :session k8s:src
+git clone https://github.com/ii/kubernetes.git ~/k8s
+#+END_SRC
+** Check out the correct apisnoop backport
+#+NAME: check out the correct backport
+#+BEGIN_SRC tmux :session k8s:src
+BACKPORT=v1.9.9-apisnoop
+BACKPORT=v1.10.7-apisnoop
+BACKPORT=v1.11.2-apisnoop
+cd ~/k8s
+git checkout $BACKPORT
+#+END_SRC
+** Build and deploy the cluster
+*** DIND
+*** GCE deploys
+The kubetest gce process is very slow, particularly the teardown process needed before each deploy.
+
+#+NAME: build and deploy cluster
+#+BEGIN_SRC tmux :session k8s:src
+kubetest --build=bazel --up --provider=gce --gcp-project=ii-coop
+#+END_SRC
+** Run the e2e test suite (directly)
+
+This is the most direct way to run the tests, but it can still be very slow.
+
+#+NAME: build and run e2e.test
+#+BEGIN_SRC tmux :session k8s:src
+time bazel build //test/e2e:e2e.test
+PREFIX=./bazel-bin/test/e2e
+export GINKO_PARALLEL=y
+# Will run 179 of 1032 specs
+export KUBECONFIG=~/.kube/config
+time $PREFIX/e2e.test \
+  --v=2 \
+  --provider=skeleton \
+  --ginkgo.seed=1436380640 \
+  --ginkgo.parallel.total=48 \
+  --ginkgo.focus='\[Conformance\]' \
+  --ginkgo.skip='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]'
+#+END_SRC
+
+** Retrieve the audit logs from the API Server
+*** Varies per provider
 
 * Backporting apisnoop work for 1.9,1.10,1.11
+
 Kubernetes 1.12 includes both the e2e test-as-userAgent and userAgent-auditLogging patches.
 
 Version 1.11 and prior will need them applied in order to work.
+
 ** 1.12: this is fine
 #+NAME: kubernetes 1.12 branch
 #+BEGIN_SRC tmux :session k8s:src
@@ -85,6 +247,8 @@ time $PREFIX/e2e.test \
   --v=2 \
   --provider=skeleton
 #+END_SRC
+
+
 
 * Footnotes
 
