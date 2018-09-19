@@ -1,0 +1,143 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Google Code Review Tool Setup
+#+AUTHOR: Ofer Bartal
+#+EMAIL: oferb@gmail.com
+#+CREATOR: ii.coop + google.com
+#+DATE: September 19th, 2018
+* Installing
+** Who curates the code?
+   
+Google maintains a StartupOS which hash a subfolder containing the crt.
+
+https://github.com/google/startup-os
+
+** DONE How do I get it? 
+   CLOSED: [2018-09-18 Tue 21:53]
+
+#+NAME: OpenFisca source checkout
+#+BEGIN_SRC tmux :session crt:src
+cd ~/
+git clone git@github.com:google/startup-os
+#+END_SRC
+
+** TODO Now what do I do?
+*** DONE Install Bazel
+    CLOSED: [2018-09-18 Tue 22:50]
+
+StartupOS needs a specific version of bazel installed from documentation available at docs.bazel.build
+
+The Ubuntu way is https://docs.bazel.build/versions/master/install-ubuntu.html#install-with-installer-ubuntu
+
+#+NAME: Install OpenJDK
+#+BEGIN_SRC tmux :session crt:src 
+apt-get install openjdk-8-jdk
+#+END_SRC
+
+#+NAME: Add upstream google apt repo
+#+BEGIN_SRC tmux :session crt:src 
+echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" \
+  | tee /etc/apt/sources.list.d/bazel.list
+#+END_SRC
+
+#+NAME: Add google gpg key for apt repo
+#+BEGIN_SRC tmux :session crt:src 
+curl https://bazel.build/bazel-release.pub.gpg | apt-key add -
+#+END_SRC
+
+#+NAME: Install Bazel
+#+BEGIN_SRC tmux :session crt:src 
+apt-get update -y
+apt-get install -y bazel
+#+END_SRC
+
+*** TODO Install Socat (for forwarding)
+
+#+NAME: Install Socat
+#+BEGIN_SRC tmux :session crt:src 
+apt-get install -y socat
+#+END_SRC
+
+*** DONE Build and test
+    CLOSED: [2018-09-18 Tue 21:59]
+
+#+NAME: Build and test
+#+BEGIN_SRC tmux :session crt:src 
+cd ~/startup-os/
+./test.sh
+#+END_SRC
+
+*** DONE Installing cli tool
+    CLOSED: [2018-09-18 Tue 22:07]
+
+#+NAME: Installing the cli tool
+#+BEGIN_SRC tmux :session crt:src 
+bazel run //tools/reviewer/aa:aa_tool -- init ~/base
+#+END_SRC
+
+#+NAME: Ensuring tool is available in the path
+#+BEGIN_SRC tmux :session crt:src 
+cd ~/base/head/
+echo "source `pwd`/startup-os/tools/reviewer/aa/aa_tool.sh" >> ~/.bashrc
+echo "source `pwd`/startup-os/tools/completion.sh" >> ~/.bashrc
+#+END_SRC
+
+*** TODO run server
+
+#+NAME: run server
+#+BEGIN_SRC tmux :session crt:server
+cd ~/base/head/
+source `pwd`/startup-os/tools/reviewer/aa/aa_tool.sh
+source `pwd`/startup-os/tools/completion.sh
+aa
+#+END_SRC
+
+*** TODO debug server
+
+#+NAME: debug server
+#+BEGIN_SRC tmux :session crt:redirect
+socat TCP-LISTEN:8888,reuseaddr,fork,su=nobody TCP:localhost:8000
+#+END_SRC
+
+Now connect to your server:
+
+http://apisnoop.cncf.io:8888/
+
+*** DONE get a firebase
+**** Must auth through browser
+For now, manually follow the direction here:
+Get token file from ~/aa_token, and place on the box.
+And put your token here:
+**** No non-browesr alternatives???????
+
+*** DONE Understanding Firebase (token et all)
+
+**** Three things from firbase
+***** noSQL storage
+***** Auth
+***** Rules for enforcing auth on data read & write (i.e user X can write to location Y)
+   
+#+NAME: Pip Version
+#+BEGIN_SRC shell
+pip --version
+#+END_SRC
+
+#+RESULTS: Pip Version
+: pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
+
+** Now what do I do?
+
+*** Creating a PR
+
+* Footnotes
+
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# org-confirm-babel-evaluate: nil
+# End:
+
+
+
