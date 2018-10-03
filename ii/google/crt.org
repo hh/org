@@ -102,13 +102,14 @@ Now connect to your server:
 
 http://apisnoop.cncf.io:8888/
 
-*** DONE get a firebase
+*** DONE get a firebase token
 **** Must auth through browser
 For now, manually follow the direction here:
 Get token file from ~/aa_token, and place on the box.
 And put your token here:
 **** No non-browesr alternatives???????
 
+Will research these
 *** DONE Understanding Firebase (token et all)
 
 **** Three things from firbase
@@ -124,9 +125,281 @@ pip --version
 #+RESULTS: Pip Version
 : pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
 
-** Now what do I do?
+*** TODO create a PR
 
-*** Creating a PR
+#+NAME: create a PR
+#+BEGIN_SRC tmux :session crt:PR
+cd ~/base/head/
+source `pwd`/startup-os/tools/reviewer/aa/aa_tool.sh
+source `pwd`/startup-os/tools/completion.sh
+aaw -f our_cool_feature
+#+END_SRC
+
+** Now what do I do?
+*** Debugging
+Logs are located ~/base/logs/server.log
+
+#+NAME: Logging Window
+#+BEGIN_SRC tmux :session crt:logging
+tail -F ~/base/logs/server.log
+#+END_SRC
+ 
+* Setting up Let's Encrypt Certificate
+** Frontend setup -> push -> configure backend URL
+** Document how to set backend URL
+** Install certbot / nginx
+** Run certbot bits to get nginx serving up the app
+
+* Background Setup Tasks
+
+We initially tried to create a seprate dnsimple account, but it's too complex.
+I went ahead and created a user access token for my own account.
+
+https://dnsimple.com/user/access_tokens/new
+
+We put that token into secrets.env
+** Configure separate cncf.ci dnsimple account
+
+I want to grant access only to the domain / (subdomains), in an my dnsimple account.
+In order to isolate the credentials used to manage the *.cncf.ci domain.
+
+*** Create sub - something
+*** Create invitation to manage domain for cncf-hostmaster@ii.coop
+*** Create account / login as hostmaster and accept invitation
+*** Create New access token
+
+** DONE Configure *.crt.ii.nz to point to apisnoop.cncf.ci
+   CLOSED: [2018-10-02 Tue 17:19]
+
+#+NAME: dig checks for foo.crt.cncf.ci
+#+BEGIN_SRC shell :results verbatim
+dig foo.crt.cncf.ci | grep cncf.ci
+dig bar.crt.cncf.ci | grep cncf.ci
+#+END_SRC
+
+#+RESULTS: dig checks for foo.crt.cncf.ci
+: ; <<>> DiG 9.10.3-P4-Debian <<>> foo.crt.cncf.ci
+: ;foo.crt.cncf.ci.		IN	A
+: foo.crt.cncf.ci.	60	IN	CNAME	apisnoop.cncf.ci.
+: apisnoop.cncf.ci.	600	IN	A	147.75.109.157
+: ; <<>> DiG 9.10.3-P4-Debian <<>> bar.crt.cncf.ci
+: ;bar.crt.cncf.ci.		IN	A
+: bar.crt.cncf.ci.	60	IN	CNAME	apisnoop.cncf.ci.
+: apisnoop.cncf.ci.	600	IN	A	147.75.109.157
+
+** DONE Figure out what is listening on port 443 / providing SSL
+   CLOSED: [2018-10-02 Tue 17:19]
+
+lsof is a command that lists open files, and since everything on *nix is a file, we can loop for listening ports.
+Because the port is lower than 1024 it will also be listening as the root user.
+
+#+NAME: find process listening on port 443
+#+BEGIN_SRC shell :results verbatim
+lsof -i -n -P | grep root.*:443.*LISTEN
+#+END_SRC
+
+#+RESULTS: find process listening on port 443
+: nginx     43268     root    6u  IPv6  65292850      0t0  TCP *:443 (LISTEN)
+: nginx     43268     root    7u  IPv4  65292851      0t0  TCP *:443 (LISTEN)
+
+** DONE Figure out what distribution we are running
+   CLOSED: [2018-10-02 Tue 18:44]
+
+#+NAME: what kind of box is this?
+#+BEGIN_SRC shell :results raw
+lsb_release  -a
+#+END_SRC
+
+#+RESULTS: what kind of box is this?
+Distributor ID:	Debian
+Description:	Debian GNU/Linux 9.5 (stretch)
+Release:	9.5
+Codename:	stretch
+
+** DONE Configure certbot-dns-dnsimple authentication
+   CLOSED: [2018-10-03 Wed 21:40]
+
+https://certbot-dns-dnsimple.readthedocs.io/en/latest/#credentials
+
+We put our secrets in a secrets.env file, and want to load them into emacs for
+interpolation into a credentials file.
+
+#+NAME: dnsimple_token
+#+BEGIN_SRC shell :results output silent
+. secrets.env ; echo -n $DNSIMPLE_TOKEN
+#+END_SRC
+
+This code block creates our dnsimple.ini file, with the output of the block above.
+
+#+NAME: template out our dns-simple-credentials
+#+BEGIN_SRC text :tangle dnsimple.ini :tangle-mode (identity #o600) :noweb yes
+# DNSimple API credentials used by Certbot
+dns_dnsimple_token = <<dnsimple_token()>>
+#+END_SRC
+
+** TODO Configure certbot to support wildcard dns on dnsimple
+
+Letsencrypt provides certbot, which now supports wildcard certificates.
+https://certbot.eff.org/
+
+Setting up certbot for Nginx on Debian 9 stretch is documented at https://certbot.eff.org/lets-encrypt/debianstretch-nginx
+
+In order to retrieve a wildcard DNS, we'll need to configure certbot-dns-*
+
+  If you want to obtain a wildcard certificate using Let's Encrypt's new ACMEv2
+  server, you'll also need to use one of Certbot's DNS plugins. To do this, make
+  sure the plugin for your DNS provider is installed...
+
+We are using dnsimple, and have created our dnsimple.ini with our token.
+
+Now comes the fun parts.
+
+*** certbot installed for debian 9 / stretch using the instructions does not support dnsimple
+
+I'm going to try and install it using Certbot-auto, which seems like it should work for everyone.
+This approach downloads the GPG key, and at the end you should see:
+
+gpg: Good signature from "Let's Encrypt Client Team <letsencrypt-client@eff.org>" [ultimate]
+
+#+NAME Install certbot using Certbot-auto
+#+BEGIN_SRC tmux :session crt:cert
+wget -N https://dl.eff.org/certbot-auto.asc
+gpg2 --recv-key A2CFB51FA275A7286234E7B24D17C995CD9775F2
+wget https://dl.eff.org/certbot-auto
+chmod a+x ./certbot-auto
+#+END_SRC
+
+#+NAME Verify Signature
+#+BEGIN_SRC shell :dir ~/org/ii/google/ :results raw code
+gpg2 --trusted-key 4D17C995CD9775F2 --verify certbot-auto.asc certbot-auto 2>&1
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+gpg: Signature made Thu 06 Sep 2018 11:23:17 PM UTC
+gpg:                using RSA key A2CFB51FA275A7286234E7B24D17C995CD9775F2
+gpg: Good signature from "Let's Encrypt Client Team <letsencrypt-client@eff.org>" [ultimate]
+#+END_SRC
+
+#+NAME Verify Signature and display help
+#+BEGIN_SRC shell :dir ~/org/ii/google/ :output raw :results raw
+./certbot-auto --help all
+#+END_SRC
+
+#+RESULTS:
+Usage: certbot-auto [OPTIONS]
+A self-updating wrapper script for the Certbot ACME client. When run, updates
+to both this script and certbot will be downloaded and installed. After
+ensuring you have the latest versions installed, certbot will be invoked with
+all arguments you have provided.
+
+Help for certbot itself cannot be provided until it is installed.
+
+  --debug                                   attempt experimental installation
+  -h, --help                                print this help
+  -n, --non-interactive, --noninteractive   run without asking for user input
+  --no-bootstrap                            do not install OS dependencies
+  --no-self-upgrade                         do not download updates
+  --os-packages-only                        install OS dependencies and exit
+  --install-only                            install certbot, upgrade if needed, and exit
+  -v, --verbose                             provide more output
+  -q, --quiet                               provide only update/error output;
+                                            implies --non-interactive
+
+All arguments are accepted and forwarded to the Certbot client when run.
+
+#+NAME Use certbot-auto
+#+BEGIN_SRC tmux :session crt:cert
+./certbot-auto --install-only --non-interactive
+#+END_SRC
+
+#+NAME Within certbot-auto pyenv install certbot-dns-dnsimple
+#+BEGIN_SRC tmux :session crt:cert
+/opt/eff.org/certbot/venv/bin/pip install certbot-dns-dnsimple
+#+END_SRC
+
+However at this point certbot-dns-dnsimple is still not installed.
+
+Seems like it's an ongoing issue with certbot packaging, including certbot-auto
+
+https://github.com/certbot/certbot/issues/4767
+
+#+NAME certbot request for *.crt.cncf.ci which fails
+#+BEGIN_SRC shell :dir ~/org/ii/google/ :results raw code
+./certbot-auto -a dns-dnsimple \
+        --dns-dnsimple-credentials=dnsimple.ini \
+        -i nginx \
+        -d "*.crt.cncf.ci" \
+        --server https://acme-v02.api.letsencrypt.org/directory \
+2>&1 #include stderr
+echo #which no stdout, we need something
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Plugins selected: Authenticator dns-dnsimple, Installer nginx
+Obtaining a new certificate
+Performing the following challenges:
+dns-01 challenge for crt.cncf.ci
+Cleaning up challenges
+Unable to determine zone identifier for crt.cncf.ci using zone names: [u'crt.cncf.ci', u'cncf.ci', u'ci']
+#+END_SRC
+
+It looks like we are unable to look up the domain id.
+[[file:/opt/eff.org/certbot/venv/lib/python2.7/site-packages/certbot/plugins/dns_common_lexicon.py::def%20_find_domain_id(self,%20domain):]]
+
+If I look closer at the code, what's it's really saying is I couldn't authenticate.
+Let's drop a debugger and look closer.
+
+#+NAME dns_common_lexicon.py#LexiconClient._find_domain_id()
+#+BEGIN_SRC python
+        for domain_name in domain_name_guesses:
+            try:
+            #Insert a debugger here
+            # import ipdb ; ipdb.set_trace(context=10            
+                self.provider.options['domain'] = domain_name
+
+                self.provider.authenticate()
+
+                return  # If `authenticate` doesn't throw an exception, we've found the right name
+#+END_SRC
+
+Let's install ipdb so we can inspect at runtime what's going on.
+
+#+NAME Within certbot-auto pyenv install ipdb
+#+BEGIN_SRC tmux :session crt:cert
+/opt/eff.org/certbot/venv/bin/pip install ipdb
+#+END_SRC
+
+#+NAME certbot request for *.crt.cncf.ci
+#+BEGIN_SRC tmux :session crt:cert
+cd ~/org/ii/google
+./certbot-auto -a dns-dnsimple \
+        --dns-dnsimple-credentials=dnsimple.ini \
+        -i nginx \
+        -d "*.crt.cncf.ci" \
+        --server https://acme-v02.api.letsencrypt.org/directory
+#+END_SRC
+
+
+** Configure wildcard cert for *.crt.cncf.ci
+** Document how to configure nginx to host crt.cncf.ci static files.
+** TODO Document how create the files to host via nginx
+** TODO Document how to create a new firebase storage instance and connect it to our static files
+
+crt.cncf.ci => crt-hh+ii-branchX-ideaY.firebase.com
+crt.cncf.ci => crt-hh+ii-branchA-ideaB.firebase.com
+
+Javascript angular part...
+** TODO Document how to configure the static site to point to a particular backend url (https)
+http://localhost:7000 hardcoded into your app
+
+https://frontend.crt.cncf.ci uses ENV to point to the backend
+https://backend.crt.cncf.ci
+
+https://hh-frontend.crt.cncf.ci uses ENV to point to the backend
+https://hh-backend.crt.cncf.ci
 
 * Footnotes
 
@@ -136,6 +409,7 @@ pip --version
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
+# eval: (setenv "DNSIMPLE_TOKEN" (shell-command-to-string ". secrets.env ; echo -n $DNSIMPLE_TOKEN")
 # org-confirm-babel-evaluate: nil
 # End:
 
