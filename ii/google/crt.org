@@ -282,11 +282,12 @@ gpg: Good signature from "Let's Encrypt Client Team <letsencrypt-client@eff.org>
 #+END_SRC
 
 #+NAME: Display help
-#+BEGIN_SRC shell :dir ~/org/ii/google/ :output raw :results raw
+#+BEGIN_SRC shell :dir ~/org/ii/google/ :output raw :results raw code :wrap "SRC text"
 ./certbot-auto --help all
 #+END_SRC
 
 #+RESULTS: Display help
+#+BEGIN_SRC text
 usage: 
   certbot-auto [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
 
