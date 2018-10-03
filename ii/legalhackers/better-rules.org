@@ -19,7 +19,8 @@ OpenAPI interaction with OpenFisca focused on education entitlement.
 
 https://github.com/jmhbnz/openfisca-aotearoa
 
-** How do I get it? 
+** DONE How do I get it? 
+   CLOSED: [2018-09-18 Tue 21:41]
 
 #+NAME: OpenFisca source checkout
 #+BEGIN_SRC tmux :session br:src 
@@ -38,7 +39,7 @@ apt-get install -y python-pip
 #+END_SRC
 
 *** DONE Verify that you have python2.7 and a recent version of pip
-    CLOSED: [2018-09-01 Sat 03:02]
+    CLOSED: [2018-09-18 Tue 21:46]
 #+NAME: Pip Version
 #+BEGIN_SRC shell
 pip --version
@@ -48,14 +49,13 @@ pip --version
 : pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
 
 *** DONE Install Pew
-    CLOSED: [2018-09-01 Sat 03:02]
+    CLOSED: [2018-09-18 Tue 21:46]
 #+NAME: Install Pew
 #+BEGIN_SRC tmux :session br:src 
 pip install pew
 #+END_SRC
 
-*** DONE Setup Virtual Environment for Open Fisca
-    CLOSED: [2018-09-01 Sat 03:02]
+*** TODO Setup Virtual Environment for Open Fisca
 
     We added echo because we were unsure how to avoid the bashrc modification
     prompt.
@@ -72,8 +72,7 @@ echo | pew new openfisca --python=python2.7
 # pew workon 
 openfisca
 #+END_EXAMPLE
-*** DONE Verify Versions of Everything
-    CLOSED: [2018-09-01 Sat 03:03]
+*** TODO Verify Versions of Everything
 
 #+NAME: Verify Versions of Everything
 #+BEGIN_SRC shell :results output verbatim drawer replace
@@ -91,8 +90,7 @@ pip 9.0.1 from /usr/lib/python2.7/dist-packages (python 2.7)
 openfisca
 :END:
 
-*** DONE Installing OpenFISCA dependences
-    CLOSED: [2018-09-01 Sat 03:04]
+*** TODO Installing OpenFISCA dependences
 #+NAME: Installing OpenFISCA and run tests
 #+BEGIN_SRC shell :results output verbatim drawer replace 
 cd ~/openfisca-aotearoa
