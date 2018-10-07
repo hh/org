@@ -159,8 +159,6 @@ cd ~/openfisca-aotearoa
 apt-get install -y python-pip
 #+END_SRC
 
-
-
 * Apache First
 ** Who curates the code?
    
