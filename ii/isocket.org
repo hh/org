@@ -1,0 +1,179 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Howto Setup a remote ii socket / pair session
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: October 8th, 2018
+#+PROPERTY: header-args :dir (file-name-directory buffer-file-name)
+#+PROPERTY: header-args:shell :results silent
+#+PROPERTY: header-args:shell :exports code
+#+PROPERTY: header-args:shell :wrap "SRC text"
+#+PROPERTY: header-args:tmux :socket "/tmp/crt-tmate.socket"
+#+PROPERTY: header-args:tmux :session crt:main
+
+* Creation of emacs driven pair session
+
+** ORG Mode Properties
+
+Some of this relies on setting the :dir to the same path as the org file.
+
+#+NAME: How your org file might be setup
+#+BEGIN_SRC org
+This should set the default direction for source blocks to be the same as the org file containing it.
+#+PROPERTY: header-args :dir (file-name-directory buffer-file-name)
+This would set the target tmate socket.
+#+PROPERTY: header-args:tmux :socket (concat (file-name-directory buffer-file-name) ".ii-crt.right.isocket")
+This would set the target tmate session. (there can be only one per socket)
+#+PROPERTY: header-args:tmux :session crt:main
+#+END_SRC
+
+** ORG Mode Babel tmux blocks
+
+#+NAME: run this on the socket + session from above
+
+#+BEGIN_SRC tmux 
+echo "Hii World"
+#+END_SRC
+
+** Connecting the left pair / isocket
+
+ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
+_even_ when we don't have have local one (within emacs)
+ 
+#+NAME: left_session_create
+#+BEGIN_SRC shell :results silent
+export WORKDIR=~/org/
+export XTERM_EXEC="roxterm -e"
+export SESSION=em-left
+echo $WORKDIR
+$XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+ cd $WORKDIR \; \
+ tmate -S .$SESSION.left.isocket \
+  new-session \
+  -A -c $WORKDIR -s $SESSION -n emacs \
+    emacs --fg-daemon=$SESSION &
+#+END_SRC
+
+#+NAME: left_session_setup
+#+BEGIN_SRC shell :cache yes
+export SESSION=em-left
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.left.isocket \
+   new-window -n client \
+     emacsclient --socket-name $SESSION ~/
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.right.isocket \
+   new-window -n session \
+     tmate show-messages
+#+END_SRC
+
+#+NAME: left_session
+#+BEGIN_SRC shell :cache yes
+export SESSION=em-left
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.left.isocket wait tmate-ready &&
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.left.isocket display -p \'#{tmate_ssh}\'
+#+END_SRC
+
+#+RESULTS[02ec75836bf7f71f3d4b07394d00afc0fac4e18f]: left_session
+#+BEGIN_SRC text
+ssh oTSMfaTNuakhj73XAtYrBMhe9@sf2.tmate.io
+#+END_SRC
+
+*** Connecting to emacs daemon
+
+#+NAME: alse run emacsclient
+#+BEGIN_SRC tmate
+export SESSION=em-crt
+emacsclient --socket-name $SESSION
+#+END_SRC
+
+** Connecting the right pair / isocket
+
+#+NAME: right_session_create
+#+BEGIN_SRC shell :results silent
+export WORKDIR=~/org/
+export XTERM_EXEC="roxterm -e"
+export SESSION=crt-right
+echo $WORKDIR
+$XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+ cd $WORKDIR \; \
+ tmate -S .$SESSION.right.isocket \
+  new-session \
+  -A -c $WORKDIR -s $SESSION -n main
+#+END_SRC
+
+#+NAME: right_session_setup
+#+BEGIN_SRC shell :results silent
+export SESSION=crt-right
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.right.isocket \
+   new-window -n session \
+    bash 
+#+END_SRC
+
+#+NAME: right_session
+#+BEGIN_SRC shell :cache yes
+export SESSION=crt-right
+ssh -tt root@apisnoop.cncf.io \
+ tmate -S .$SESSION.right.isocket display -p \'#{tmate_ssh}\'
+#+END_SRC
+
+#+RESULTS[359ee8c78e158847acd377c41786a542eabcb4e8]: right_session
+#+BEGIN_SRC text
+ssh fweHCtSiMpYDygCeXwvB8sQ5Y@sf2.tmate.io
+#+END_SRC
+
+#+NAME: give this to your pair
+#+BEGIN_SRC elisp :noweb yes
+(princ "ii pair session ready
+left: <<left_session()>>
+right: <<right_session()>>
+"
+)
+#+END_SRC
+
+#+RESULTS: give this to your pair
+: ii pair session ready
+: left: nil
+: right: nil
+
+
+* Connecting a local emacs org mode to remote tmux/tmate sockets
+
+** Use ssh to forward local socket to remote
+
+#+NAME: left_session_local_forward
+#+BEGIN_SRC shell :results silent
+export WORKDIR=~/org/
+export XTERM_EXEC="roxterm -e"
+export SESSION=em-left
+echo $WORKDIR
+$XTERM_EXEC ssh -Af root@apisnoop.cncf.io \
+ -L ~.$SESSION.left.isocket:~.$SESSION.left.isocket 
+#+END_SRC
+
+** Configure args to use local socket
+
+:PROPERTIES:
+:header-args:tmux: :socket "~/.em-left.left.isocket"
+:header-args:tmux: :session "em-left:testing"
+:END:
+
+#+NAME: test local socket
+#+BEGIN_SRC tmux
+ls
+#+END_SRC
+
+* Footnotes
+
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# eval: (require (quote ob-tmux))
+# org-confirm-babel-evaluate: nil
+# End:
