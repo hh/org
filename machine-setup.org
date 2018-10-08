@@ -26,14 +26,20 @@ apt-get install -y \
  git \
  gnupg2 \
  jq \
+ libgif-dev \
  libgnutls28-dev \
  libncurses5-dev \
+ libtiff5-dev \
+ libjpeg-dev \
+ libpng-dev \
  libtinfo-dev \
  libxml2-dev \
+ libxpm-dev \
  liblz4-tool \
  make \
+ mailutils \
  mtr \
- openjdk-8-jdk \
+ pkg-config \
  python3-dev \
  silversearcher-ag \
  software-properties-common \
@@ -46,6 +52,7 @@ apt-get install -y \
  whowatch \
  zip
 #+END_SRC
+ # openjdk-8-jdk \
 ** Install Docker
 
 #+NAME: install docker
@@ -75,7 +82,7 @@ apt-get install -y kubelet kubeadm kubectl
 #+NAME: Install Google Cloud SDK
 #+BEGIN_SRC tmux :session k8s:boxsetup
 export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
-echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 sudo apt-get update && sudo apt-get install -y google-cloud-sdk
 #rsync -av .config/gcloud root@147.75.109.157:.config/gcloud
@@ -134,11 +141,12 @@ chmod +x /usr/local/bin/bazel
 #+NAME: install emacs
 #+BEGIN_SRC tmux :session k8s:packet
 # possibly look into shallow or specific tag clone
-#git clone git clone https://git.savannah.gnu.org/git/emacs.git /usr/local/src/emacs
+git clone https://git.savannah.gnu.org/git/emacs.git /usr/local/src/emacs
 # https://golang.org/doc/install#install
 cd /usr/local/src/emacs
 ./autogen
-./configure --with-x-toolkit=no --with-xpm=no --with-jpeg=no --with-png=no --with-gif=no --with-tiff=no
+./configure --with-x-toolkit=no
+# --with-xpm=no --with-jpeg=no --with-png=no --with-gif=no --with-tiff=no
 # find the command to use correct number of jobs... should equal number of (virtual) cores
 make -j 48 install
 #+END_SRC
