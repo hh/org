@@ -210,6 +210,8 @@ sys     0m11.520s
 
 #+NAME: run e2e.test binary directly
 #+BEGIN_SRC tmux :session k8s:kubetest
+make -j 8 GOGCFLAGS="-N -l -v" WHAT=test/e2e/e2e.test
+export KUBECONFIG=~/.kube/config
 ./_output/local/bin/linux/amd64/e2e.test --ginkgo.focus='\[Conformance\]' --ginkgo.seed=1436380640 --v=2 --provider=skeleton
 #+END_SRC
  

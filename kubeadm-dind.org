@@ -4,6 +4,9 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: August 22nd, 2018
+#+PROPERTY: header-args:tmux :socket "/tmp/hh-tmate.socket"
+#+PROPERTY: header-args:tmux :session "main"
+#+PROPERTY: header-args:tmux :results "silent"
 
 * Branch Setup
 
@@ -11,7 +14,7 @@ https://github.com/ii/kubeadm-dind-cluster/tree/audit-policy
 
 https://github.com/kubernetes-sigs/kubeadm-dind-cluster/pull/204
 
-#+NAME: kubeadm source checkout
+#+NAME: kubeadm-dind-cluster checkout
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
 #git clone git@github.com:kubernetes-sigs/kubeadm-dind-cluster.git ~/dind
 git clone git@github.com:ii/kubeadm-dind-cluster.git ~/dind
@@ -23,18 +26,19 @@ git checkout -b audit-policy origin/audit-policy
 https://github.com/kubernetes-sigs/kubeadm-dind-cluster#using-with-kubernetes-source  
 
 #+NAME: DOCKER DEATH
-#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+#+BEGIN_SRC tmux :session k8s:docker-death
 docker rm -f $(docker ps -a -q)
 docker rmi $(docker images -q)
 #+END_SRC
 
 #+NAME: kubeadm Build kubeadm-dind-cluster
-#+BEGIN_SRC tmux :session k8s:kubeadm-dind
+#+BEGIN_SRC tmux :session k8s:dind-cluster
   cd ~/go/src/k8s.io/kubernetes
   time ~/dind/dind-cluster.sh clean
   cd ~/dind/
   time ./build/build-local.sh
 #+END_SRC
+
 
 #+NAME: kubeadm deploy
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
@@ -47,166 +51,23 @@ docker rmi $(docker images -q)
   time ~/dind/dind-cluster.sh up
 #+END_SRC
 
-
 * Testing
 
 #+NAME: kubeadm deploy
 #+BEGIN_SRC tmux :session k8s:kubeadm-dind
 cd ~/go/src/k8s.io/kubernetes
-time ~/dind/dind-cluster.sh e2e
- #'[Conformance]'
+time ~/dind/dind-cluster.sh e2e '[Conformance]'
+docker cp kube-master:/audit/logdir/ /tmp/audit-1.9/
 # '[Slow]|[Serial]|[Disruptive]|[Flaky]|[Feature:.+]'
 #+END_SRC
-
-https://kubernetes.io/docs/reference/access-authn-authz/rbac/#permissive-rbac-permissions
-
-#+NAME: seem to be setup with configured RBAC rules for our tokens
-#+BEGIN_EXAMPLE
-[init] using Kubernetes version: v1.13.0
-[preflight] running pre-flight checks
-        [WARNING KubernetesVersion]: kubernetes version is greater than kubeadm version. Please consider to upgrade kubeadm. kubernetes version: 1.13.0. Kubeadm version: 1.12.x
-        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
-I0822 07:25:44.908039     669 kernel_validator.go:81] Validating kernel version
-I0822 07:25:44.908172     669 kernel_validator.go:96] Validating kernel config
-[preflight/images] Pulling images required for setting up a Kubernetes cluster
-[preflight/images] This might take a minute or two, depending on the speed of your internet connection
-[preflight/images] You can also perform this action in beforehand using 'kubeadm config images pull'
-[kubelet] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
-[kubelet] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
-[preflight] Activating the kubelet service
-[certificates] Generated ca certificate and key.
-[certificates] Generated apiserver certificate and key.
-[certificates] apiserver serving cert is signed for DNS names [kube-master kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 172.18.0.2]
-[certificates] Generated apiserver-kubelet-client certificate and key.
-[certificates] Generated sa key and public key.
-[certificates] Generated front-proxy-ca certificate and key.
-[certificates] Generated front-proxy-client certificate and key.
-[certificates] Generated etcd/ca certificate and key.
-[certificates] Generated etcd/server certificate and key.
-[certificates] etcd/server serving cert is signed for DNS names [kube-master localhost] and IPs [127.0.0.1 ::1]
-[certificates] Generated etcd/peer certificate and key.
-[certificates] etcd/peer serving cert is signed for DNS names [kube-master localhost] and IPs [172.18.0.2 127.0.0.1 ::1]
-[certificates] Generated etcd/healthcheck-client certificate and key.
-[certificates] Generated apiserver-etcd-client certificate and key.
-[certificates] valid certificates and keys now exist in "/etc/kubernetes/pki"
-[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/admin.conf"
-[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/kubelet.conf"
-[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/controller-manager.conf"
-[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/scheduler.conf"
-[controlplane] Adding extra host path mount "audit-mount" to "kube-apiserver"
-[controlplane] wrote Static Pod manifest for component kube-apiserver to "/etc/kubernetes/manifests/kube-apiserver.yaml"
-[controlplane] wrote Static Pod manifest for component kube-controller-manager to "/etc/kubernetes/manifests/kube-controller-manager.yaml"
-[controlplane] wrote Static Pod manifest for component kube-scheduler to "/etc/kubernetes/manifests/kube-scheduler.yaml"
-[etcd] Wrote Static Pod manifest for a local etcd instance to "/etc/kubernetes/manifests/etcd.yaml"
-[init] waiting for the kubelet to boot up the control plane as Static Pods from directory "/etc/kubernetes/manifests" 
-[init] this might take a minute or longer if the control plane images have to be pulled
-[apiclient] All control plane components are healthy after 20.002864 seconds
-[uploadconfig] storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
-[kubelet] Creating a ConfigMap "kubelet-config-1.13" in namespace kube-system with the configuration for the kubelets in the cluster
-[markmaster] Marking the node kube-master as master by adding the label "node-role.kubernetes.io/master=''"
-[markmaster] Marking the node kube-master as master by adding the taints [node-role.kubernetes.io/master:NoSchedule]
-[patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "kube-master" as an annotation
-[bootstraptoken] using token: bz9yiz.0s2ofw0d6zhg00yq
-[bootstraptoken] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
-[bootstraptoken] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
-[bootstraptoken] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
-#+END_EXAMPLE
-
-#+NAME: kubeadm reset complains about RBAC
-#+BEGIN_EXAMPLE
-*** 'kubeadm join --ignore-preflight-errors=all 172.18.0.2:6443 --token bz9yiz.0s2ofw0d6zhg00yq --discovery-token-ca-cert-hash sha256:608746551b2863ebfb865a4bc55d0305a99d3c614fbdf36fb81592242ff274a3' f
-ailed, doing kubeadm reset ***
-'/etc/cni' -> '/etc/cni.bak'
-'/etc/cni/net.d' -> '/etc/cni.bak/net.d'
-'/etc/cni/net.d/cni.conf' -> '/etc/cni.bak/net.d/cni.conf'
-[preflight] running pre-flight checks
-[reset] stopping the kubelet service
-[reset] unmounting mounted directories in "/var/lib/kubelet"
-[preflight] running pre-flight checks
-[reset] stopping the kubelet service
-[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
-[reset] please manually reset etcd to prevent further issues
-[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
-[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
-[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
-[reset] unmounting mounted directories in "/var/lib/kubelet"
-[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
-[reset] please manually reset etcd to prevent further issues
-[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
-[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
-[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
-[preflight] running pre-flight checks
-[preflight] running pre-flight checks
-        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
-I0822 07:28:20.286245    2856 kernel_validator.go:81] Validating kernel version
-I0822 07:28:20.286365    2856 kernel_validator.go:96] Validating kernel config
-        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
-I0822 07:28:20.292405    2847 kernel_validator.go:81] Validating kernel version
-I0822 07:28:20.292559    2847 kernel_validator.go:96] Validating kernel config
-[discovery] Trying to connect to API Server "172.18.0.2:6443"
-[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
-[discovery] Trying to connect to API Server "172.18.0.2:6443"
-[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
-[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
-[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
-[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
-[discovery] Successfully established connection with API Server "172.18.0.2:6443"
-[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
-[discovery] Successfully established connection with API Server "172.18.0.2:6443"
-[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.12" ConfigMap in the kube-system namespace
-configmaps "kubelet-config-1.12" is forbidden: User "system:bootstrap:bz9yiz" cannot get resource "configmaps" in API group "" in the namespace "kube-system": no RBAC policy matched
-#+END_EXAMPLE
-
-Why does running e2e test with a focus on Conformance and skipping all the slow disruptive bits still run all 1032 specs?
-#+NAME: It says 'Will run 1032 specs' but in the end it only run 177
-#+BEGIN_EXAMPLE
-*** Running e2e tests with args: --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
-+++ [0822 06:12:49] Verifying Prerequisites....
-Cluster "dind" set.
-Context "dind" created.
-Switched to context "dind".
-2018/08/22 06:12:51 e2e.go:158: Updating kubetest binary...
-2018/08/22 06:13:27 e2e.go:79: Calling kubetest --verbose-commands=true --v 6 --test --check-version-skew=false --test_args=--ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive
-\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882...
-2018/08/22 06:13:27 util.go:132: Please use kubetest --provider=dind (instead of deprecated KUBERNETES_PROVIDER=dind)
-2018/08/22 06:13:27 main.go:1041: Please use kubetest --ginkgo-parallel (instead of deprecated GINKGO_PARALLEL=y)
-2018/08/22 06:13:27 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
-Skeleton Provider: prepare-e2e not implemented
-Client Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
-6:12:15Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
-Server Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
-5:56:34Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
-2018/08/22 06:13:27 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 147.661919ms
-2018/08/22 06:13:27 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
-2018/08/22 06:13:27 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 134.763439ms
-2018/08/22 06:13:27 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
-Conformance test: not doing test setup.
-Running Suite: Kubernetes e2e suite
-===================================
-Random Seed: 1534918408 - Will randomize all specs
-Will run 1032 specs
-
-Running in parallel across 25 nodes
-
-Ran 177 of 1032 Specs in 450.760 seconds
-SUCCESS! -- 177 Passed | 0 Failed | 0 Pending | 855 Skipped 
-
-Ginkgo ran 1 suite in 7m31.369138928s
-Test Suite Passed
-2018/08/22 06:20:59 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882' finished in 7m31.859376975s
-
-
-#+END_EXAMPLE
-#+END_EXAMPLE
-
 * Debugging
+
 :PROPERTIES:
 :header-args:shell: :wrap SRC yaml :results output verbatim code
 :END:
 ** clean all docker containers and images
 #+BEGIN_SRC 
 docker rm $(docker ps -a -q) ; docker rmi $(docker images)
-
 #+END_SRC
 ** tight loop
 
@@ -739,9 +600,145 @@ logging some fixes:
 note:
 kubeadm config does not properly validate volume names -- we should fix this
 
-* Footnotes
-** tmate debugging
+* Issues Debugging
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/#permissive-rbac-permissions
 
+#+NAME: seem to be setup with configured RBAC rules for our tokens
+#+BEGIN_EXAMPLE
+[init] using Kubernetes version: v1.13.0
+[preflight] running pre-flight checks
+        [WARNING KubernetesVersion]: kubernetes version is greater than kubeadm version. Please consider to upgrade kubeadm. kubernetes version: 1.13.0. Kubeadm version: 1.12.x
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:25:44.908039     669 kernel_validator.go:81] Validating kernel version
+I0822 07:25:44.908172     669 kernel_validator.go:96] Validating kernel config
+[preflight/images] Pulling images required for setting up a Kubernetes cluster
+[preflight/images] This might take a minute or two, depending on the speed of your internet connection
+[preflight/images] You can also perform this action in beforehand using 'kubeadm config images pull'
+[kubelet] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[preflight] Activating the kubelet service
+[certificates] Generated ca certificate and key.
+[certificates] Generated apiserver certificate and key.
+[certificates] apiserver serving cert is signed for DNS names [kube-master kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 172.18.0.2]
+[certificates] Generated apiserver-kubelet-client certificate and key.
+[certificates] Generated sa key and public key.
+[certificates] Generated front-proxy-ca certificate and key.
+[certificates] Generated front-proxy-client certificate and key.
+[certificates] Generated etcd/ca certificate and key.
+[certificates] Generated etcd/server certificate and key.
+[certificates] etcd/server serving cert is signed for DNS names [kube-master localhost] and IPs [127.0.0.1 ::1]
+[certificates] Generated etcd/peer certificate and key.
+[certificates] etcd/peer serving cert is signed for DNS names [kube-master localhost] and IPs [172.18.0.2 127.0.0.1 ::1]
+[certificates] Generated etcd/healthcheck-client certificate and key.
+[certificates] Generated apiserver-etcd-client certificate and key.
+[certificates] valid certificates and keys now exist in "/etc/kubernetes/pki"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/admin.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/kubelet.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/controller-manager.conf"
+[kubeconfig] Wrote KubeConfig file to disk: "/etc/kubernetes/scheduler.conf"
+[controlplane] Adding extra host path mount "audit-mount" to "kube-apiserver"
+[controlplane] wrote Static Pod manifest for component kube-apiserver to "/etc/kubernetes/manifests/kube-apiserver.yaml"
+[controlplane] wrote Static Pod manifest for component kube-controller-manager to "/etc/kubernetes/manifests/kube-controller-manager.yaml"
+[controlplane] wrote Static Pod manifest for component kube-scheduler to "/etc/kubernetes/manifests/kube-scheduler.yaml"
+[etcd] Wrote Static Pod manifest for a local etcd instance to "/etc/kubernetes/manifests/etcd.yaml"
+[init] waiting for the kubelet to boot up the control plane as Static Pods from directory "/etc/kubernetes/manifests" 
+[init] this might take a minute or longer if the control plane images have to be pulled
+[apiclient] All control plane components are healthy after 20.002864 seconds
+[uploadconfig] storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+[kubelet] Creating a ConfigMap "kubelet-config-1.13" in namespace kube-system with the configuration for the kubelets in the cluster
+[markmaster] Marking the node kube-master as master by adding the label "node-role.kubernetes.io/master=''"
+[markmaster] Marking the node kube-master as master by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+[patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "kube-master" as an annotation
+[bootstraptoken] using token: bz9yiz.0s2ofw0d6zhg00yq
+[bootstraptoken] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstraptoken] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstraptoken] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+#+END_EXAMPLE
+
+#+NAME: more
+#+BEGIN_EXAMPLE
+'kubeadm join --ignore-preflight-errors=all 172.18.0.2:6443 --token bz9yiz.0s2ofw0d6zhg00yq --discovery-token-ca-cert-hash sha256:608746551b2863ebfb865a4bc55d0305a99d3c614fbdf36fb81592242ff274a3' failed, doing kubeadm reset ***
+'/etc/cni' -> '/etc/cni.bak'
+'/etc/cni/net.d' -> '/etc/cni.bak/net.d'
+'/etc/cni/net.d/cni.conf' -> '/etc/cni.bak/net.d/cni.conf'
+[preflight] running pre-flight checks
+[reset] stopping the kubelet service
+[reset] unmounting mounted directories in "/var/lib/kubelet"
+[preflight] running pre-flight checks
+[reset] stopping the kubelet service
+[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
+[reset] please manually reset etcd to prevent further issues
+[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
+[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
+[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
+[reset] unmounting mounted directories in "/var/lib/kubelet"
+[reset] no etcd manifest found in "/etc/kubernetes/manifests/etcd.yaml". Assuming external etcd
+[reset] please manually reset etcd to prevent further issues
+[reset] deleting contents of stateful directories: [/var/lib/kubelet /etc/cni/net.d /var/lib/dockershim /var/run/kubernetes]
+[reset] deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
+[reset] deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
+[preflight] running pre-flight checks
+[preflight] running pre-flight checks
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:28:20.286245    2856 kernel_validator.go:81] Validating kernel version
+I0822 07:28:20.286365    2856 kernel_validator.go:96] Validating kernel config
+        [WARNING FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables does not exist
+I0822 07:28:20.292405    2847 kernel_validator.go:81] Validating kernel version
+I0822 07:28:20.292559    2847 kernel_validator.go:96] Validating kernel config
+[discovery] Trying to connect to API Server "172.18.0.2:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Trying to connect to API Server "172.18.0.2:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://172.18.0.2:6443"
+[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
+[discovery] Requesting info from "https://172.18.0.2:6443" again to validate TLS against the pinned public key
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
+[discovery] Successfully established connection with API Server "172.18.0.2:6443"
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "172.18.0.2:6443"
+[discovery] Successfully established connection with API Server "172.18.0.2:6443"
+[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.12" ConfigMap in the kube-system namespace
+configmaps "kubelet-config-1.12" is forbidden: User "system:bootstrap:bz9yiz" cannot get resource "configmaps" in API group "" in the namespace "kube-system": no RBAC policy matched
+#+END_EXAMPLE
+
+Why does running e2e test with a focus on Conformance and skipping all the slow disruptive bits still run all 1032 specs?
+#+NAME: It says 'Will run 1032 specs' but in the end it only run 177
+#+BEGIN_EXAMPLE
+ Running  e2e tests with args: --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
++++ [0822 06:12:49] Verifying Prerequisites....
+Cluster "dind" set.
+Context "dind" created.
+Switched to context "dind".
+2018/08/22 06:12:51 e2e.go:158: Updating kubetest binary...
+2018/08/22 06:13:27 e2e.go:79: Calling kubetest --verbose-commands=true --v 6 --test --check-version-skew=false --test_args=--ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive
+\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882...
+2018/08/22 06:13:27 util.go:132: Please use kubetest --provider=dind (instead of deprecated KUBERNETES_PROVIDER=dind)
+2018/08/22 06:13:27 main.go:1041: Please use kubetest --ginkgo-parallel (instead of deprecated GINKGO_PARALLEL=y)
+2018/08/22 06:13:27 process.go:153: Running: ./hack/e2e-internal/e2e-status.sh
+Skeleton Provider: prepare-e2e not implemented
+Client Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
+6:12:15Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"13+", GitVersion:"v1.13.0-alpha.0.383+229ecedac5084e", GitCommit:"229ecedac5084eba6e93973095cc7846893288da", GitTreeState:"clean", BuildDate:"2018-08-22T0
+5:56:34Z", GoVersion:"go1.10.3", Compiler:"gc", Platform:"linux/amd64"}
+2018/08/22 06:13:27 process.go:155: Step './hack/e2e-internal/e2e-status.sh' finished in 147.661919ms
+2018/08/22 06:13:27 process.go:153: Running: ./cluster/kubectl.sh --match-server-version=false version
+2018/08/22 06:13:27 process.go:155: Step './cluster/kubectl.sh --match-server-version=false version' finished in 134.763439ms
+2018/08/22 06:13:27 process.go:153: Running: ./hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882
+Conformance test: not doing test setup.
+Running Suite: Kubernetes e2e suite
+===================================
+Random Seed: 1534918408 - Will randomize all specs
+Will run 1032 specs
+
+Running in parallel across 25 nodes
+
+Ran 177 of 1032 Specs in 450.760 seconds
+SUCCESS! -- 177 Passed | 0 Failed | 0 Pending | 855 Skipped 
+
+Ginkgo ran 1 suite in 7m31.369138928s
+Test Suite Passed
+2018/08/22 06:20:59 process.go:155: Step './hack/ginkgo-e2e.sh --ginkgo.noColor --num-nodes=2 --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:\.+\] --ginkgo.focus=\[Conformance\] --host=http://127.0.0.1:32882' finished in 7m31.859376975s
+#+END_EXAMPLE
+
+* tmate debugging
 #+NAME: create master shell
 #+BEGIN_SRC tmux :session k8s:kubeadm-master
 docker exec -ti kube-master /bin/bash
@@ -782,6 +779,13 @@ ps axuwww | grep apiserver
 invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" flag: unrecognized key: Auditing
 #+END_EXAMPLE
 
+#+NAME: foo echo
+#+BEGIN_SRC tmux :session k8s:foo :results replace
+echo foo
+#+END_SRC
+
+* Footnotes
+
 
 # Local Variables:
 # eval: (require (quote ob-shell))
@@ -790,5 +794,6 @@ invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" fla
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
 # org-confirm-babel-evaluate: nil
+# org-babel-tmux-session-prefix: "hh-"
 # End:
 

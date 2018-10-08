@@ -5,31 +5,287 @@
 #+ISSUE: https://github.com/cncf/apisnoop/issues/35
 #+CREATOR: ii.coop
 #+DATE: August 29nd, 2018
+#+PROPERTY: header-args:tmux :session k8s:default
 
 #+NAME: Start Shell
 #+BEGIN_SRC shell :async
-xterm -e \
+echo xterm -e \
  "ssh -At root@apisnoop.cncf.ci tmate -S /tmp/ii-emacs.socket new-session -A -c /root -s ii -n emacs"
+sleep 5
 #+END_SRC
-
+./api/openapi-spec/swagger.json
 #+RESULTS: Start Shell
-: b6d5183a2af4b9086ac14435c09db04b
+: xterm -e ssh -At root@apisnoop.cncf.ci tmate -S /tmp/ii-emacs.socket new-session -A -c /root -s ii -n emacs
 
-
-#+NAME: start gui
-#+BEGIN_SRC shell :async
-echo hello
+#+NAME: go into k8s sourc
+#+BEGIN_SRC tmux
+cd ~/go/src/k8s.io/kubernetes
 #+END_SRC
 
-#+RESULTS: start gui
-: 009bb7d64c8d85a30a17040afb98b65e
+As I was trying to get the cat|jq|gron|sort|cat pipeline below execute, I found
+that org-babel-eval wasn't displaying/capturing stderr.
+
+With a quick search I found these options.
+https://necromuralist.github.io/posts/org-babel-stderr-results/
+http://kitchingroup.cheme.cmu.edu/blog/2015/01/04/Redirecting-stderr-in-org-mode-shell-blocks/
+https://emacs.stackexchange.com/questions/2952/display-errors-and-warnings-in-an-org-mode-code-block
+
+The shortest path is to just add an 'echo' at the end.
+Longer term, it would be nice to have org-babel optionally pull back stderr into another block.
+
+The openAPI definition for kubernetes:
+https://github.com/kubernetes/kubernetes/blob/master/api/openapi-spec/swagger.json
+
+
+#+NAME: Deprecated OpenAPI research
+#+BEGIN_SRC tmux
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .paths \
+  | gron | grep DEPRECATED\\\|deprecated: | gron --ungron 
+  # | jq '.[].get.description' -r \
+  # |
+#  sort -r | uniq | cat
+  echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
+#+END_SRC
+
+
+At this point I was unsure how to get at the keys you see here:
+
+#+NAME: Deprecated OpenAPI research
+#+BEGIN_SRC shell :results verbatim :wrap SRC json
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .paths \
+  | gron | grep DEPRECATED\\\|deprecated: | gron --ungron \
+  | jq 'keys[]' -r \
+  | sort -r | cat
+  echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
+#+END_SRC
+
+#+RESULTS: Deprecated OpenAPI research
+#+BEGIN_SRC json
+/api/v1/watch/services
+/api/v1/watch/serviceaccounts
+/api/v1/watch/secrets
+/api/v1/watch/resourcequotas
+/api/v1/watch/replicationcontrollers
+/api/v1/watch/podtemplates
+/api/v1/watch/pods
+/api/v1/watch/persistentvolumes/{name}
+/api/v1/watch/persistentvolumes
+/api/v1/watch/persistentvolumeclaims
+/api/v1/watch/nodes/{name}
+/api/v1/watch/nodes
+/api/v1/watch/namespaces/{namespace}/services/{name}
+/api/v1/watch/namespaces/{namespace}/services
+/api/v1/watch/namespaces/{namespace}/serviceaccounts/{name}
+/api/v1/watch/namespaces/{namespace}/serviceaccounts
+/api/v1/watch/namespaces/{namespace}/secrets/{name}
+/api/v1/watch/namespaces/{namespace}/secrets
+/api/v1/watch/namespaces/{namespace}/resourcequotas/{name}
+/api/v1/watch/namespaces/{namespace}/resourcequotas
+/api/v1/watch/namespaces/{namespace}/replicationcontrollers/{name}
+/api/v1/watch/namespaces/{namespace}/replicationcontrollers
+/api/v1/watch/namespaces/{namespace}/podtemplates/{name}
+/api/v1/watch/namespaces/{namespace}/podtemplates
+/api/v1/watch/namespaces/{namespace}/pods/{name}
+/api/v1/watch/namespaces/{namespace}/pods
+/api/v1/watch/namespaces/{namespace}/persistentvolumeclaims/{name}
+/api/v1/watch/namespaces/{namespace}/persistentvolumeclaims
+/api/v1/watch/namespaces/{namespace}/limitranges/{name}
+/api/v1/watch/namespaces/{namespace}/limitranges
+/api/v1/watch/namespaces/{namespace}/events/{name}
+/api/v1/watch/namespaces/{namespace}/events
+/api/v1/watch/namespaces/{namespace}/endpoints/{name}
+/api/v1/watch/namespaces/{namespace}/endpoints
+/api/v1/watch/namespaces/{namespace}/configmaps/{name}
+/api/v1/watch/namespaces/{namespace}/configmaps
+/api/v1/watch/namespaces/{name}
+/api/v1/watch/namespaces
+/api/v1/watch/limitranges
+/api/v1/watch/events
+/api/v1/watch/endpoints
+/api/v1/watch/configmaps
+/apis/storage.k8s.io/v1/watch/storageclasses/{name}
+/apis/storage.k8s.io/v1/watch/storageclasses
+/apis/storage.k8s.io/v1beta1/watch/volumeattachments/{name}
+/apis/storage.k8s.io/v1beta1/watch/volumeattachments
+/apis/storage.k8s.io/v1beta1/watch/storageclasses/{name}
+/apis/storage.k8s.io/v1beta1/watch/storageclasses
+/apis/storage.k8s.io/v1alpha1/watch/volumeattachments/{name}
+/apis/storage.k8s.io/v1alpha1/watch/volumeattachments
+/apis/settings.k8s.io/v1alpha1/watch/podpresets
+/apis/settings.k8s.io/v1alpha1/watch/namespaces/{namespace}/podpresets/{name}
+/apis/settings.k8s.io/v1alpha1/watch/namespaces/{namespace}/podpresets
+/apis/scheduling.k8s.io/v1beta1/watch/priorityclasses/{name}
+/apis/scheduling.k8s.io/v1beta1/watch/priorityclasses
+/apis/scheduling.k8s.io/v1alpha1/watch/priorityclasses/{name}
+/apis/scheduling.k8s.io/v1alpha1/watch/priorityclasses
+/apis/rbac.authorization.k8s.io/v1/watch/roles
+/apis/rbac.authorization.k8s.io/v1/watch/rolebindings
+/apis/rbac.authorization.k8s.io/v1/watch/namespaces/{namespace}/roles/{name}
+/apis/rbac.authorization.k8s.io/v1/watch/namespaces/{namespace}/roles
+/apis/rbac.authorization.k8s.io/v1/watch/namespaces/{namespace}/rolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1/watch/namespaces/{namespace}/rolebindings
+/apis/rbac.authorization.k8s.io/v1/watch/clusterroles/{name}
+/apis/rbac.authorization.k8s.io/v1/watch/clusterroles
+/apis/rbac.authorization.k8s.io/v1/watch/clusterrolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1/watch/clusterrolebindings
+/apis/rbac.authorization.k8s.io/v1beta1/watch/roles
+/apis/rbac.authorization.k8s.io/v1beta1/watch/rolebindings
+/apis/rbac.authorization.k8s.io/v1beta1/watch/namespaces/{namespace}/roles/{name}
+/apis/rbac.authorization.k8s.io/v1beta1/watch/namespaces/{namespace}/roles
+/apis/rbac.authorization.k8s.io/v1beta1/watch/namespaces/{namespace}/rolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1beta1/watch/namespaces/{namespace}/rolebindings
+/apis/rbac.authorization.k8s.io/v1beta1/watch/clusterroles/{name}
+/apis/rbac.authorization.k8s.io/v1beta1/watch/clusterroles
+/apis/rbac.authorization.k8s.io/v1beta1/watch/clusterrolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1beta1/watch/clusterrolebindings
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/roles
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/rolebindings
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/namespaces/{namespace}/roles/{name}
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/namespaces/{namespace}/roles
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/namespaces/{namespace}/rolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/namespaces/{namespace}/rolebindings
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/clusterroles/{name}
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/clusterroles
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/clusterrolebindings/{name}
+/apis/rbac.authorization.k8s.io/v1alpha1/watch/clusterrolebindings
+/apis/policy/v1beta1/watch/podsecuritypolicies/{name}
+/apis/policy/v1beta1/watch/podsecuritypolicies
+/apis/policy/v1beta1/watch/poddisruptionbudgets
+/apis/policy/v1beta1/watch/namespaces/{namespace}/poddisruptionbudgets/{name}
+/apis/policy/v1beta1/watch/namespaces/{namespace}/poddisruptionbudgets
+/apis/networking.k8s.io/v1/watch/networkpolicies
+/apis/networking.k8s.io/v1/watch/namespaces/{namespace}/networkpolicies/{name}
+/apis/networking.k8s.io/v1/watch/namespaces/{namespace}/networkpolicies
+/apis/extensions/v1beta1/watch/replicasets
+/apis/extensions/v1beta1/watch/podsecuritypolicies/{name}
+/apis/extensions/v1beta1/watch/podsecuritypolicies
+/apis/extensions/v1beta1/watch/networkpolicies
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/replicasets/{name}
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/replicasets
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/networkpolicies/{name}
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/networkpolicies
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/ingresses/{name}
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/ingresses
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/deployments/{name}
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/deployments
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/daemonsets/{name}
+/apis/extensions/v1beta1/watch/namespaces/{namespace}/daemonsets
+/apis/extensions/v1beta1/watch/ingresses
+/apis/extensions/v1beta1/watch/deployments
+/apis/extensions/v1beta1/watch/daemonsets
+/apis/events.k8s.io/v1beta1/watch/namespaces/{namespace}/events/{name}
+/apis/events.k8s.io/v1beta1/watch/namespaces/{namespace}/events
+/apis/events.k8s.io/v1beta1/watch/events
+/apis/coordination.k8s.io/v1beta1/watch/namespaces/{namespace}/leases/{name}
+/apis/coordination.k8s.io/v1beta1/watch/namespaces/{namespace}/leases
+/apis/coordination.k8s.io/v1beta1/watch/leases
+/apis/certificates.k8s.io/v1beta1/watch/certificatesigningrequests/{name}
+/apis/certificates.k8s.io/v1beta1/watch/certificatesigningrequests
+/apis/batch/v2alpha1/watch/namespaces/{namespace}/cronjobs/{name}
+/apis/batch/v2alpha1/watch/namespaces/{namespace}/cronjobs
+/apis/batch/v2alpha1/watch/cronjobs
+/apis/batch/v1/watch/namespaces/{namespace}/jobs/{name}
+/apis/batch/v1/watch/namespaces/{namespace}/jobs
+/apis/batch/v1/watch/jobs
+/apis/batch/v1beta1/watch/namespaces/{namespace}/cronjobs/{name}
+/apis/batch/v1beta1/watch/namespaces/{namespace}/cronjobs
+/apis/batch/v1beta1/watch/cronjobs
+/apis/autoscaling/v2beta2/watch/namespaces/{namespace}/horizontalpodautoscalers/{name}
+/apis/autoscaling/v2beta2/watch/namespaces/{namespace}/horizontalpodautoscalers
+/apis/autoscaling/v2beta2/watch/horizontalpodautoscalers
+/apis/autoscaling/v2beta1/watch/namespaces/{namespace}/horizontalpodautoscalers/{name}
+/apis/autoscaling/v2beta1/watch/namespaces/{namespace}/horizontalpodautoscalers
+/apis/autoscaling/v2beta1/watch/horizontalpodautoscalers
+/apis/autoscaling/v1/watch/namespaces/{namespace}/horizontalpodautoscalers/{name}
+/apis/autoscaling/v1/watch/namespaces/{namespace}/horizontalpodautoscalers
+/apis/autoscaling/v1/watch/horizontalpodautoscalers
+/apis/apps/v1/watch/statefulsets
+/apis/apps/v1/watch/replicasets
+/apis/apps/v1/watch/namespaces/{namespace}/statefulsets/{name}
+/apis/apps/v1/watch/namespaces/{namespace}/statefulsets
+/apis/apps/v1/watch/namespaces/{namespace}/replicasets/{name}
+/apis/apps/v1/watch/namespaces/{namespace}/replicasets
+/apis/apps/v1/watch/namespaces/{namespace}/deployments/{name}
+/apis/apps/v1/watch/namespaces/{namespace}/deployments
+/apis/apps/v1/watch/namespaces/{namespace}/daemonsets/{name}
+/apis/apps/v1/watch/namespaces/{namespace}/daemonsets
+/apis/apps/v1/watch/namespaces/{namespace}/controllerrevisions/{name}
+/apis/apps/v1/watch/namespaces/{namespace}/controllerrevisions
+/apis/apps/v1/watch/deployments
+/apis/apps/v1/watch/daemonsets
+/apis/apps/v1/watch/controllerrevisions
+/apis/apps/v1beta2/watch/statefulsets
+/apis/apps/v1beta2/watch/replicasets
+/apis/apps/v1beta2/watch/namespaces/{namespace}/statefulsets/{name}
+/apis/apps/v1beta2/watch/namespaces/{namespace}/statefulsets
+/apis/apps/v1beta2/watch/namespaces/{namespace}/replicasets/{name}
+/apis/apps/v1beta2/watch/namespaces/{namespace}/replicasets
+/apis/apps/v1beta2/watch/namespaces/{namespace}/deployments/{name}
+/apis/apps/v1beta2/watch/namespaces/{namespace}/deployments
+/apis/apps/v1beta2/watch/namespaces/{namespace}/daemonsets/{name}
+/apis/apps/v1beta2/watch/namespaces/{namespace}/daemonsets
+/apis/apps/v1beta2/watch/namespaces/{namespace}/controllerrevisions/{name}
+/apis/apps/v1beta2/watch/namespaces/{namespace}/controllerrevisions
+/apis/apps/v1beta2/watch/deployments
+/apis/apps/v1beta2/watch/daemonsets
+/apis/apps/v1beta2/watch/controllerrevisions
+/apis/apps/v1beta1/watch/statefulsets
+/apis/apps/v1beta1/watch/namespaces/{namespace}/statefulsets/{name}
+/apis/apps/v1beta1/watch/namespaces/{namespace}/statefulsets
+/apis/apps/v1beta1/watch/namespaces/{namespace}/deployments/{name}
+/apis/apps/v1beta1/watch/namespaces/{namespace}/deployments
+/apis/apps/v1beta1/watch/namespaces/{namespace}/controllerrevisions/{name}
+/apis/apps/v1beta1/watch/namespaces/{namespace}/controllerrevisions
+/apis/apps/v1beta1/watch/deployments
+/apis/apps/v1beta1/watch/controllerrevisions
+/apis/apiregistration.k8s.io/v1/watch/apiservices/{name}
+/apis/apiregistration.k8s.io/v1/watch/apiservices
+/apis/apiregistration.k8s.io/v1beta1/watch/apiservices/{name}
+/apis/apiregistration.k8s.io/v1beta1/watch/apiservices
+/apis/apiextensions.k8s.io/v1beta1/watch/customresourcedefinitions/{name}
+/apis/apiextensions.k8s.io/v1beta1/watch/customresourcedefinitions
+/apis/admissionregistration.k8s.io/v1beta1/watch/validatingwebhookconfigurations/{name}
+/apis/admissionregistration.k8s.io/v1beta1/watch/validatingwebhookconfigurations
+/apis/admissionregistration.k8s.io/v1beta1/watch/mutatingwebhookconfigurations/{name}
+/apis/admissionregistration.k8s.io/v1beta1/watch/mutatingwebhookconfigurations
+/apis/admissionregistration.k8s.io/v1alpha1/watch/initializerconfigurations/{name}
+/apis/admissionregistration.k8s.io/v1alpha1/watch/initializerconfigurations
+
+#+END_SRC
+
+#+NAME: Deprecated OpenAPI Paths
+#+BEGIN_SRC shell :results verbatim
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .paths \
+  | gron | grep DEPRECATED\\\|deprecated: | gron --ungron \
+  | jq '.[].get.description' -r \
+  | sort -r | uniq | cat
+  echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
+#+END_SRC
+
+#+NAME: testDeprecated OpenAPI Paths
+#+BEGIN_SRC shell :results verbatim
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .paths \
+  | gron | grep deprecated: | gron --ungron \
+  | jq '.[].get.description' -r \
+  | sort -r | uniq | cat
+  echo
+#+END_SRC
 
 * Footnotes
 
+# eval: (require (quote ob-async))
 # Local Variables:
+# eval: (require 'ox-md)
 # eval: (require (quote ob-tmux))
 # eval: (require (quote ob-shell))
-# eval: (require (quote ob-async))
 # eval: (require (quote ob-lisp))
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
