@@ -1,0 +1,215 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: APISnoop Architecture
+#+AUTHOR: Hippie Hacker / Zach Mandeville
+#+EMAIL: hh@ii.coop / zz@ii.coop
+#+CREATOR: ii.coop / CNCF
+#+DATE: October 11th, 2018
+#+PROPERTY: header-args :dir (file-name-directory buffer-file-name)
+#+PROPERTY: header-args:shell :results silent
+#+PROPERTY: header-args:shell :exports code
+#+PROPERTY: header-args:shell :wrap "SRC text"
+#+PROPERTY: header-args:tmux :socket "/tmp/crt-tmate.socket"
+#+PROPERTY: header-args:tmux :session crt:main
+
+* Objective 
+
+
+In order to provide conformance metrics and and actionable data to the CNCF
+Conformance WG, we want to continuously utilize the output from our conformance
+related prow-jobs.
+
+Starting with the jobs displayed via test-grid/conformance-gce, we want to
+create analysis and visualization tools to understand:
+
+- what tests hit which endpoints
+- what percentage of endpoints are hit (over time)
+- how our community using the k8s api
+ 
+Afterwards, we will combine Kubernetes application tests from across the CNCF
+and beyond, to analyze real world usage patterns. This data will be used to see
+patterns of usage and suggest new tests.
+
+* Design
+
+Using various methods to create more context around the communications, we will
+ensure that the artifacts pushed by prow jobs contain the information necessary
+to drive deeper analysis.
+
+Conformance related jobs (and their artifacts) will be pulled for analysis and
+visualization. Anyone should be able to fork and bring up their own analysis.
+
+* Goals 
+
+- Build a simple api to provide access, analysis of prow job output/data
+- Create a process to quickly iterate on creation of new jobs (eventually for prow.k8s.io)
+- Add features to visualize output across multiple jobs and buckets
+- Generate actionable conformance coverage reports / test suggestions
+
+
+* Conformance Jobs
+
+** Prow Job Definitions
+
+Prow jobs are defined in subfolders of [[https://github.com/kubernetes/test-infra/tree/master/config/jobs][k8s/test-infra/config/jobs]] though most of
+the conformance-gce jobs seem to be part of [[https://github.com/kubernetes/community/tree/master/sig-gcp][sig-gcp]] as they are under
+[[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/][config/jobs/kubernetes/sig-gcp]] in [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][gce-conformance.yaml]]
+
+So far the conforance-gce jobs seem to be configured to run every 6 hours and
+take about 2 hours to run.
+
+** Results Uploaded to [[https://cloud.google.com/storage/docs/json_api/v1/buckets][GCS Buckets]]
+
+I'm unsure where it's configured, but ~kubernetes-jenkins/logs~ is prepended to
+~<job name>~ for all prow.k8s.io jobs.
+
+[[https://github.com/kubernetes/test-infra/blob/master/prow/cmd/gcsupload/README.md][gcsupload]] or [[https://github.com/kubernetes/test-infra/blob/master/jenkins/bootstrap.py#L397][jenkins/bootstrap.py#upload_artifacts()]] is likely responsible for this work.
+
+
+* Conformance Results
+
+
+* Existing Conformance Dashboards (test-grid)
+
+We focused on the [[https://k8s-testgrid.appspot.com/conformance-gce][k8s-testgrid/conformance-gce]] and it's tabs.
+
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520master%2520(dev)][GCE, master (dev)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.12%2520(dev)][GCE, v1.12 (dev)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.11%2520(dev)][GCE, v1.11 (dev)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.10%2520(dev)][GCE, v1.10 (dev)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.9%2520(dev)][GCE, v1.9  (dev)]]
+
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.12%2520(release)][GCE, v1.12 (release)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.11%2520(release)][GCE, v1.11 (release)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.10%2520(release)][GCE, v1.10 (release)]]
+- [[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520v1.9%2520(release)][GCE, v1.9  (release)]]
+ 
+** Dashboard Definitions
+
+Dashboards are configured via [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][k8s/test-infra/testgrid/config.yaml#Prow hosted
+conformance tests]] and are configured in a bit of a higherarchy.
+
+*** dashboard_groups: [[https://github.com/kubernetes/test-infra/blob/f3b96c7fcf9ef6b0411dc126e42a1618c1524187/testgrid/config.yaml#L7430][conformance]] 
+
+#+NAME: conformance dashboard_group
+#+BEGIN_SRC yaml
+- name: conformance
+  dashboard_names:
+  - conformance-all
+  - conformance-gce
+#+END_SRC
+
+*** dashboards: [[https://github.com/kubernetes/test-infra/blob/f3b96c7fcf9ef6b0411dc126e42a1618c1524187/testgrid/config.yaml#L3373][conformance-gce]]
+
+#+NAME: conformance-gce dashboard
+#+BEGIN_SRC yaml
+- name: conformance-gce
+  dashboard_tab:
+  - name: GCE, master (dev)
+    description: Runs conformance tests using kubetest against latest kubernetes master CI build on GCE
+    test_group_name: ci-kubernetes-gce-conformance
+  - name: GCE, v1.12 (release)
+    description: Runs conformance tests using kubetest against kubernetes release 1.12 stable tag on GCE
+    test_group_name: ci-kubernetes-gce-conformance-stable-1-12
+    # TODO(bentheelder): there's probably a more appropriate alias to alert this to
+    alert_options:
+      alert_mail_to_addresses: gke-kubernetes-engprod+alerts@google.com
+  - name: GCE, v1.12 (dev)
+    description: Runs conformance tests using kubetest against kubernetes release 1.12 branch on GCE
+    test_group_name: ci-kubernetes-gce-conformance-latest-1-12
+#+END_SRC
+     
+*** test_groups: [[https://github.com/kubernetes/test-infra/blob/f3b96c7fcf9ef6b0411dc126e42a1618c1524187/testgrid/config.yaml#L3014][ci-kubernetes-gce-conformance-*]]
+
+#+NAME: ci-kubernetes-gce-conformance-* 
+#+BEGIN_SRC yaml
+  # Prow hosted conformance tests
+  - name: ci-kubernetes-gce-conformance
+    gcs_prefix: kubernetes-jenkins/logs/ci-kubernetes-gce-conformance
+    num_columns_recent: 3
+    alert_stale_results_hours: 24
+    num_failures_to_alert: 1
+  - name: ci-kubernetes-gce-conformance-stable-1-12
+    gcs_prefix: kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-stable-1-12
+    num_columns_recent: 3
+    alert_stale_results_hours: 24
+    num_failures_to_alert: 1
+  - name: ci-kubernetes-gce-conformance-latest-1-12
+    gcs_prefix: kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest-1-12
+#+END_SRC
+     
+
+Testgrid provides a webui around job results stored in gubernator / gcsweb.
+
+We don't directly interact with testgrid, but we use the [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][config]] to find the
+correct gcs_prefixes. 
+
+
+
+Testgrid provides a webui around job results stored in gubernator / gcsweb.
+
+We don't directly interact with testgrid, but we use the [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][config]] to find the
+correct gcs_prefixes. 
+
+
+
+* K8s e2e Conformance Jobs
+
+Our focus in to take 
+
+They are configured via
+[[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#3014][k8s/test-infra/testgrid/config.yaml#Prow hosted conformance tests]] and all have  
+
+testgrid provides a webui around job results stored in gubernator / gcsweb.
+
+We don't directly interact with testgrid, but we use the [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][config]] to find the
+correct gcs_prefixes. Currently we filter on testgroup 
+
+We iterate over
+
+dashboards[conformance-gce].dashboard_tab[x].test_group_name
+test_groups[Z].gcs_prefix
+
+Then we prepend gcsweb.k8s.io/gcs
+
+Each test_group pulls from a specific gcs_prefix.
+
+
+Jobs are defined at [[https://github.com/kubernetes/test-infra/tree/master/config/jobs][k8s/test-infra/jobs]] though most of the conformance dashboard are at
+[[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][config/jobs/kubernetes/sig-gcp/gce-conformance.yaml]]
+
+ most of our conformance jobs
+have a periodic run of about 6 hours. It takes usually takes 2 hours for them to
+run.
+
+
+
+
+
+** Where does kubetest download like ci-latest
+** kubekins
+
+Everything runs under kubekins
+
+https://github.com/kubernetes/test-infra/tree/master/images/kubekins-e2e
+https://github.com/kubernetes/test-infra/tree/master/images/kubekins-test
+
+gcr.io/k8s-testimages/kubekins-e2e-prow
+
+[[https://console.cloud.google.com/gcr/images/k8s-testimages/GLOBAL/kubekins-e2e-prow?pli=1][gcr/images/k8s-testimages/GLOBAL/kubekins-e2e-prow]]
+
+
+
+* Footnotes
+
+# Local Variables:
+# org-babel-tmux-session-prefix: ""
+# org-babel-tmate-session-prefix: "rt-"
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# #eval: (require (quote ob-tmux))
+# #eval: (require (quote ob-tmate))
+# org-confirm-babel-evaluate: nil
+# End:
