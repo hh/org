@@ -1,0 +1,73 @@
+* Components
+
+Github Events fire (/retest or on new PR) -> /hook
+
+** Hook will make a prow-job
+
+A CRD with metadata and a podspec.
+
+A few controllers.
+
+** Sinker
+
+Garbage collection / prow jobs etc
+
+** Plank (operator)
+
+Loops through current prow jobs
+and create a pod based on definition
+
+(any podspec will do)
+
+Plank will also communicate back to github.
+
+** horologlum
+
+Periodic prow jobs
+
+* Merge automation
+** Tide
+** Slide
+* Deck (UI)
+Yellow / Red / Green
+* Tide (batch merge as much as we can)
+** can be configured to not allow merged based on label
+Zero configuration for batch merging!
+Uses less API Tokens (One Github token for everything!)
+(access to Prow Job Data)
+** dashboard
+* plugins (automation)
+Regex / event type matches a plugin
+
+https://prow.k8s.io/command-help
+
+
+Code Ownership Process is in Prow vs GitHubs limited approach
+* Test-infra Roadmap
+Switched from submit-queue to tide
+** Conformance Drive
+sonobouy, kubetest, and test-grid
+** Testgrid (open source us please!)
+Gubernator get's artifacts from linked to prow
+** Bundle prow + testgrid 
+
+* Testing prow w/ phony
+provide a webhook payload, that will send it to hook.
+Instructions for phony in readme for prow.
+
+** Owners Files
+** go.k8s.io/github-labels
+git.k8s.io/community/contributors/guide/owners.md
+** Labels
+git.k8s.io/test-infra/label_sync
+170 labels
+
+http://not.oktotest.com
+
+** fejta-bot - comments which trigger prow
+
+
+Devstats issues has nice graphs
+
+
+/retest
