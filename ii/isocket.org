@@ -30,7 +30,6 @@ This would set the target tmate session. (there can be only one per socket)
 ** ORG Mode Babel tmux blocks
 
 #+NAME: run this on the socket + session from above
-
 #+BEGIN_SRC tmux 
 echo "Hii World"
 #+END_SRC
@@ -39,53 +38,49 @@ echo "Hii World"
 
 ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
 _even_ when we don't have have local one (within emacs)
- 
+
 #+NAME: left_session_create
 #+BEGIN_SRC shell :results silent
 export WORKDIR=~/org/
 export XTERM_EXEC="roxterm -e"
-export SESSION=em-left
-echo $WORKDIR
+export SESSION=lt-emacs
 $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
  cd $WORKDIR \; \
- tmate -S .$SESSION.left.isocket \
+ tmate -S /tmp/.$SESSION.isocket \
   new-session \
   -A -c $WORKDIR -s $SESSION -n emacs \
     emacs --fg-daemon=$SESSION &
 #+END_SRC
 
 #+NAME: left_session_setup
-#+BEGIN_SRC shell :cache yes
-export SESSION=em-left
+#+BEGIN_SRC shell :results silent
+export SESSION=lt-emacs
 ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.left.isocket \
+ tmate -S /tmp/.$SESSION.isocket \
    new-window -n client \
-     emacsclient --socket-name $SESSION ~/
-ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.right.isocket \
-   new-window -n session \
-     tmate show-messages
+     emacsclient -nw --socket-name $SESSION /root/org/ii/legalhackers/gitlab.org
 #+END_SRC
 
 #+NAME: left_session
 #+BEGIN_SRC shell :cache yes
-export SESSION=em-left
+export SESSION=lt-emacs
 ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.left.isocket wait tmate-ready &&
+ tmate -S /tmp/.$SESSION.isocket wait tmate-ready &&
 ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.left.isocket display -p \'#{tmate_ssh}\'
+ tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
 #+END_SRC
 
-#+RESULTS[02ec75836bf7f71f3d4b07394d00afc0fac4e18f]: left_session
+#+RESULTS[3e25346e62021160649ca106707bf87a48c70f33]: left_session
 #+BEGIN_SRC text
-ssh oTSMfaTNuakhj73XAtYrBMhe9@sf2.tmate.io
+ssh AJsZALXBxlmLgmZDJoPrdRptv@sf2.tmate.io
 #+END_SRC
+
 
 *** Connecting to emacs daemon
 
 #+NAME: alse run emacsclient
 #+BEGIN_SRC tmate
-export SESSION=em-crt
+export SESSION=lt-emacs
 emacsclient --socket-name $SESSION
 #+END_SRC
 
@@ -95,50 +90,72 @@ emacsclient --socket-name $SESSION
 #+BEGIN_SRC shell :results silent
 export WORKDIR=~/org/
 export XTERM_EXEC="roxterm -e"
-export SESSION=crt-right
+export SESSION_PREFIX=rt-
+export SESSION=hack
+export SESSION_WITH_PREFIX=${SESSION_PREFIX}${SESSION}
 echo $WORKDIR
 $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
  cd $WORKDIR \; \
- tmate -S .$SESSION.right.isocket \
+ tmate -S /tmp/.$SESSION_WITH_PREFIX.isocket \
   new-session \
-  -A -c $WORKDIR -s $SESSION -n main
+  -A -c $WORKDIR -s $SESSION_WITH_PREFIX -n main
+#+END_SRC
+
+#+NAME: right_session_join
+#+BEGIN_SRC shell :results silent
+export WORKDIR=~/org/
+export XTERM_EXEC="roxterm -e"
+export SESSION_PREFIX=rt-
+export SESSION=hack
+export SESSION_WITH_PREFIX=${SESSION_PREFIX}${SESSION}
+$XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+ tmate -S /tmp/.$SESSION_WITH_PREFIX.isocket \
+  at \; sleep 9999
 #+END_SRC
 
 #+NAME: right_session_setup
-#+BEGIN_SRC shell :results silent
-export SESSION=crt-right
-ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.right.isocket \
+#+BEGIN_SRC shell :results verbatim
+export SESSION_PREFIX=rt-
+export SESSION=hack
+export SESSION_WITH_PREFIX=${SESSION_PREFIX}${SESSION}
+echo ssh -tt root@apisnoop.cncf.io \
+ tmate -S /tmp/.$SESSION_WITH_PREFIX.isocket \
    new-window -n session \
     bash 
 #+END_SRC
 
+#+RESULTS: right_session_setup
+#+BEGIN_SRC text
+ssh -tt root@apisnoop.cncf.io tmate -S /tmp/.rt-hack.isocket new-window -n session bash
+#+END_SRC
+
 #+NAME: right_session
 #+BEGIN_SRC shell :cache yes
-export SESSION=crt-right
+export SESSION=rt-hack
 ssh -tt root@apisnoop.cncf.io \
- tmate -S .$SESSION.right.isocket display -p \'#{tmate_ssh}\'
+ tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
 #+END_SRC
 
-#+RESULTS[359ee8c78e158847acd377c41786a542eabcb4e8]: right_session
+#+RESULTS[161f53350123bd9d246fde4c6271404629c9499d]: right_session
 #+BEGIN_SRC text
-ssh fweHCtSiMpYDygCeXwvB8sQ5Y@sf2.tmate.io
+ssh vVDZubujOONeweLJVWwv449nA@sf2.tmate.io
 #+END_SRC
+
+
 
 #+NAME: give this to your pair
-#+BEGIN_SRC elisp :noweb yes
-(princ "ii pair session ready
-left: <<left_session()>>
-right: <<right_session()>>
+#+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session() 
+echo "ii pair session ready
+left: $left_session
+right: $right_session
 "
-)
 #+END_SRC
 
 #+RESULTS: give this to your pair
-: ii pair session ready
-: left: nil
-: right: nil
-
+| ii     | pair | session | ready |
+| left:  | nil  |         |       |
+| right: | nil  |         |       |
+|        |      |         |       |
 
 * Connecting a local emacs org mode to remote tmux/tmate sockets
 
@@ -168,12 +185,19 @@ ls
 
 * Footnotes
 
+We set tmate-session-prefix to ~rt-~ because the target session is usually on the right.
+
+This means your target session names above should start with rt-
+
 # Local Variables:
+# org-babel-tmux-session-prefix: ""
+# org-babel-tmate-session-prefix: "rt-"
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# eval: (require (quote ob-tmux))
+# #eval: (require (quote ob-tmux))
+# #eval: (require (quote ob-tmate))
 # org-confirm-babel-evaluate: nil
 # End:
