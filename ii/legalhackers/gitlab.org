@@ -4,19 +4,29 @@
 #+EMAIL: hh@ii.coop and mail@jamesblair.net
 #+CREATOR: ii.coop + Inland Revenue
 #+DATE: 5th of October, 2018
+#+PROPERTY: header-args:tmate :socket /tmp/br-right.isocket
+#+PROPERTY: header-args:tmate :session br-right:misc
+#+PROPERTY: header-args:tmux :socket /tmp/br-right.isocket
+#+PROPERTY: header-args:tmux :session br-right:misc
 
 * Preparing to use the Gitlab Chart
-  
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.br-right.isocket"
+:header-args:tmate: :session br-right:misc
+:END:
+
 Gitlab provides [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/README.md][some decent documentation]] including a [[https://gitlab.com/charts/gitlab/blob/master/doc/cloud/gke.md#scripted-cluster-creation-on-gke][script to spin up a cluster on gke]].
 
-This section mostly follows that guide.
+This section mostly follows that guide for the google portion, but we branch out
+to try Catalyst cloud.
 
 ** Install Helm
 
 There are other ways, but this is the most succinct.
+ :session br-right:misc
 
 #+NAME: Install Helm
-#+BEGIN_SRC tmux :session br:gitlab
+#+BEGIN_SRC tmate :session br-right:misc
 curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz \
   | tar xvz -f - --strip-components 1 -C /usr/local/bin
 #+END_SRC
@@ -26,144 +36,154 @@ curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.
 We mainly need this for the GKE Setup Script for now.
 
 #+NAME: Go get gitlab chart
-#+BEGIN_SRC tmux :session br:gitlab
-git clone git@gitlab.com:charts/gitlab.git ~/gitlab
+#+BEGIN_SRC tmate :session br-right:misc
+git clone https://gitlab.com/charts/gitlab.git ~/gitlab
 #+END_SRC
 
-** GKE Setup Script
+*** GKE
+**** GKE Setup Script
 
-You'll need to customize this with an project of your own.
+  You'll need to customize this with an project of your own.
 
-*** Verify your gcloud credentials 
+***** Verify your gcloud credentials 
 
-   There are various ways to authenticate, we will just ensure the correct
-   account is active.
+     There are various ways to authenticate, we will just ensure the correct
+     account is active.
 
-   #+NAME: Verify your gcloud credentials
-   #+BEGIN_SRC shell :exports both :results code
-   gcloud auth list
-   #+END_SRC
+     #+NAME: Verify your gcloud credentials
+     #+BEGIN_SRC shell :exports both :results code
+     gcloud auth list
+     #+END_SRC
 
-   #+RESULTS: Verify your gcloud credentials
-   #+BEGIN_SRC shell
-            Credentialed Accounts
-   ACTIVE             ACCOUNT
-   ,*                  hh@ii.coop
-   #+END_SRC
+     #+RESULTS: Verify your gcloud credentials
+     #+BEGIN_SRC shell
+              Credentialed Accounts
+     ACTIVE             ACCOUNT
+     ,*                  hh@ii.coop
+     #+END_SRC
 
-*** Choose a gcloud project
+***** Choose a gcloud project
 
-Choose an account from your available ones.
+  Choose an account from your available ones.
 
-#+NAME: List your gcloud projects
-#+BEGIN_SRC shell :exports both :results code
-gcloud projects list
-#+END_SRC
+  #+NAME: List your gcloud projects
+  #+BEGIN_SRC shell :exports both :results code
+  gcloud projects list
+  #+END_SRC
 
-#+RESULTS: List your gcloud projects
-#+BEGIN_SRC shell
-PROJECT_ID         NAME               PROJECT_NUMBER
-cncf-gitlab        cncf-gitlab        368775700279
-gitlab-ii-coop     GitLab-ii-coop     916237797088
-ii-coop            ii-coop            46173955477
-ii-enspiral        ii-enspiral        135963852157
-kubernetes-public  kubernetes-public  127754664067
-openci-io          openci             434061009048
-recode-215103      recode             334208224319
-recodenz           recodenz           754872138011
-#+END_SRC
+  #+RESULTS: List your gcloud projects
+  #+BEGIN_SRC shell
+  PROJECT_ID         NAME               PROJECT_NUMBER
+  cncf-gitlab        cncf-gitlab        368775700279
+  gitlab-br-coop     GitLab-br-coop     916237797088
+  br-coop            br-coop            46173955477
+  br-enspiral        br-enspiral        135963852157
+  kubernetes-public  kubernetes-public  127754664067
+  openci-io          openci             434061009048
+  recode-215103      recode             334208224319
+  recodenz           recodenz           754872138011
+  #+END_SRC
 
-*** Up the cluster using the gitlab gke script
+***** Up the cluster using the gitlab gke script
 
-You'll need to set the 'PROJECT' environment variable to the name of your chosen
-gke project, then run the script with the 'up' parameter.
+  You'll need to set the 'PROJECT' environment variable to the name of your chosen
+  gke project, then run the script with the 'up' parameter.
 
-#+NAME: Use gitlab gke script
-#+BEGIN_SRC tmux :session br:gitlab
-cd ~/gitlab
-export PROJECT=recodenz
-./scripts/gke_bootstrap_script.sh up
-#+END_SRC
+  #+NAME: Use gitlab gke script
+  #+BEGIN_SRC tmux :session br-right:misc
+  cd ~/gitlab
+  export PROJECT=recodenz
+  ./scripts/gke_bootstrap_script.sh up
+  #+END_SRC
 
-*** Verify that the external-dns has started
+***** Verify that the external-dns has started
 
-#+NAME: Verify that external-dns has started, run:
-#+BEGIN_SRC shell :results code
-kubectl --namespace=kube-system get pods -l "app=external-dns,release=dns"
-#+END_SRC
+  #+NAME: Verify that external-dns has started, run:
+  #+BEGIN_SRC shell :results code
+  kubectl --namespace=kube-system get pods -l "app=external-dns,release=dns"
+  #+END_SRC
 
-#+RESULTS: Verify that external-dns has started, run:
-#+BEGIN_SRC shell
-NAME                               READY   STATUS    RESTARTS   AGE
-dns-external-dns-fb98777fb-xl276   1/1     Running   0          8m46s
-#+END_SRC
+  #+RESULTS: Verify that external-dns has started, run:
+  #+BEGIN_SRC shell
+  NAME                               READY   STATUS    RESTARTS   AGE
+  dns-external-dns-fb98777fb-xl276   1/1     Running   0          8m46s
+  #+END_SRC
 
-** Create an external IP
+**** Create an external IP
 
-We will need the external IP to point our DNS subdomain DNS to. Additionally we
-will use that ip within the gitlab chart.
+  We will need the external IP to point our DNS subdomain DNS to. Additionally we
+  will use that ip within the gitlab chart.
 
-We first create an external-ip
+  We first create an external-ip
 
-#+NAME: Create the external IP
-#+BEGIN_SRC tmux :session br:gitlab
-export PROJECT=recodenz
-export CLUSTER_NAME=gitlab-cluster
-export REGION=us-central1
-gcloud compute addresses create ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT
-#+END_SRC
+  #+NAME: Create the external IP
+  #+BEGIN_SRC tmux :session br-right:misc
+  export PROJECT=recodenz
+  export CLUSTER_NAME=gitlab-cluster
+  export REGION=us-central1
+  gcloud compute addresses create ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT
+  #+END_SRC
 
-#+NAME: Retrieve ingress IP
-#+BEGIN_SRC tmux :session br:gitlab
-export PROJECT=recodenz
-export CLUSTER_NAME=gitlab-cluster
-export REGION=us-central1
-gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
-#+END_SRC
+  #+NAME: Retrieve ingress IP
+  #+BEGIN_SRC tmux :session br-right:misc
+  export PROJECT=recodenz
+  export CLUSTER_NAME=gitlab-cluster
+  export REGION=us-central1
+  gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+  #+END_SRC
 
-#+NAME: ingress_ip
-#+BEGIN_SRC shell 
-export PROJECT=recodenz
-export CLUSTER_NAME=gitlab-cluster
-export REGION=us-central1
-gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
-#+END_SRC
+  #+NAME: ingress_ip
+  #+BEGIN_SRC shell 
+  export PROJECT=recodenz
+  export CLUSTER_NAME=gitlab-cluster
+  export REGION=us-central1
+  gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+  #+END_SRC
 
-#+RESULTS: ingress_ip
-: 35.193.219.220
+  #+RESULTS: ingress_ip
+  : 35.193.219.220
 
-** Setup / Verify wildcard DNS for *.recode.ii.nz
+**** Setup / Verify wildcard DNS for *.recode.ii.nz
 
-Until we self host in NZ on ii infra, we are using dnsimple, though you could use anything.
+  Until we self host in NZ on ii infra, we are using dnsimple, though you could use anything.
 
-This is just to verify that we have wildcard DNS setup.
+  This is just to verify that we have wildcard DNS setup.
 
-Ensure this matches our IP
+  Ensure this matches our IP
 
-#+NAME: dig checks for *.recode.ii.nz
-#+BEGIN_SRC shell :results verbatim code :var INGRESS=ingress_ip
-dig foo.recode.ii.nz | grep ii.nz
-dig bar.recode.ii.nz | grep ii.nz
-echo "*****This should point to _${INGRESS}_*****"
-#+END_SRC
+  #+NAME: dig checks for *.recode.ii.nz
+  #+BEGIN_SRC shell :results verbatim code :var INGRESS=ingress_ip
+  dig foo.recode.ii.nz | grep ii.nz
+  dig bar.recode.ii.nz | grep ii.nz
+  echo "*****This should point to _${INGRESS}_*****"
+  #+END_SRC
 
-#+RESULTS: dig checks for *.recode.ii.nz
-#+BEGIN_SRC shell
-; <<>> DiG 9.10.3-P4-Debian <<>> foo.recode.ii.nz
-;foo.recode.ii.nz.		IN	A
-foo.recode.ii.nz.	35	IN	A	35.193.219.220
-; <<>> DiG 9.10.3-P4-Debian <<>> bar.recode.ii.nz
-;bar.recode.ii.nz.		IN	A
-bar.recode.ii.nz.	35	IN	A	35.193.219.220
-,*****This should point to _35.193.219.220_*****
-#+END_SRC
+  #+RESULTS: dig checks for *.recode.ii.nz
+  #+BEGIN_SRC shell
+  ; <<>> DiG 9.10.3-P4-Debian <<>> foo.recode.ii.nz
+  ;foo.recode.ii.nz.		IN	A
+  foo.recode.ii.nz.	35	IN	A	35.193.219.220
+  ; <<>> DiG 9.10.3-P4-Debian <<>> bar.recode.ii.nz
+  ;bar.recode.ii.nz.		IN	A
+  bar.recode.ii.nz.	35	IN	A	35.193.219.220
+  ,*****This should point to _35.193.219.220_*****
+  #+END_SRC
+
+*** Catalyst Cloud
+
+Login to [[https://dashboard.cloud.catalyst.net.nz][Catalyst Cloud Dashboard]] and ensure your user has the [[https://dashboard.cloud.catalyst.net.nz/management/project_users/][Heat Stack Owner]]
+ role.
+
+[[https://dashboard.cloud.catalyst.net.nz/project/clusters][Create a new cluster]]
+
+Ensure you have a valid keypair to ssh in.
 
 * Deploy Using the Gitlab Chart
 
 ** Configure helm to use charts.gitlab.io
 
 #+NAME: Get Chart for gitlab
-#+BEGIN_SRC tmux :session br:gitlab
+#+BEGIN_SRC tmux :session br-right:misc
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 #+END_SRC
@@ -371,14 +391,14 @@ export PROJECT=recodenz
 ** See how they run
 
 #+NAME: see how the run
-#+BEGIN_SRC tmux :session br:gitlab
+#+BEGIN_SRC tmux :session br-right:misc
 helm status gitlab
 #+END_SRC
 
 ** Get root password
 
 #+NAME: get root password
-#+BEGIN_SRC tmux :session br:gitlab
+#+BEGIN_SRC tmux :session br-right:misc
 kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.password} | base64 --decode ; echo
 #+END_SRC
 
@@ -394,5 +414,9 @@ kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.passwor
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
+# eval: (setq org-babel-tmate-session-prefix "rt-")
+# eval: (setq org-babel-tmux-session-prefix "rt-")
 # org-confirm-babel-evaluate: nil
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmux-session-prefix: "rt-"
 # End:
