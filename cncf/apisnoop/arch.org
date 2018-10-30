@@ -48,7 +48,7 @@ This map would help chart our course of development, testing, and conformance ba
 Provide a set of community insights based on publically available data, easily allowing others to create new data or insight.
 
 **** Cross Community - Source code / line level next insights
-     
+
 As a specific line of code (LoC) hits the API server, we will record the LoC
 (callstack) that brought it here to articulate that LoC's whakapapa. Combined
 with other API requests, we can infer which other LoC utilize and depend on it,
