@@ -11,7 +11,7 @@
 
 * Preparing to use the Gitlab Chart
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.br-right.isocket"
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
 :header-args:tmate: :session br-right:misc
 :END:
 
@@ -36,6 +36,7 @@ curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.
 We mainly need this for the GKE Setup Script for now.
 
 #+NAME: Go get gitlab chart
+<<<<<<< Updated upstream
 #+BEGIN_SRC tmate :session br-right:misc
 git clone https://gitlab.com/charts/gitlab.git ~/gitlab
 #+END_SRC
@@ -110,6 +111,260 @@ git clone https://gitlab.com/charts/gitlab.git ~/gitlab
   #+END_SRC
 
 **** Create an external IP
+=======
+#+BEGIN_SRC tmux :session br:gitlab
+git clone git@gitlab.com:charts/gitlab.git ~/gitlab
+#+END_SRC
+
+** Using GKE
+*** GKE Setup Script
+
+ You'll need to customize this with an project of your own.
+
+**** Verify your gcloud credentials 
+
+    There are various ways to authenticate, we will just ensure the correct
+    account is active.
+
+    #+NAME: Verify your gcloud credentials
+    #+BEGIN_SRC shell :exports both :results code
+    gcloud auth list
+    #+END_SRC
+
+    #+RESULTS: Verify your gcloud credentials
+    #+BEGIN_SRC shell
+             Credentialed Accounts
+    ACTIVE             ACCOUNT
+    ,*                  hh@ii.coop
+    #+END_SRC
+
+**** Choose a gcloud project
+
+ Choose an account from your available ones.
+
+ #+NAME: List your gcloud projects
+ #+BEGIN_SRC shell :exports both :results code
+ gcloud projects list
+ #+END_SRC
+
+ #+RESULTS: List your gcloud projects
+ #+BEGIN_SRC shell
+ PROJECT_ID         NAME               PROJECT_NUMBER
+ cncf-gitlab        cncf-gitlab        368775700279
+ gitlab-ii-coop     GitLab-ii-coop     916237797088
+ ii-coop            ii-coop            46173955477
+ ii-enspiral        ii-enspiral        135963852157
+ kubernetes-public  kubernetes-public  127754664067
+ openci-io          openci             434061009048
+ recode-215103      recode             334208224319
+ recodenz           recodenz           754872138011
+ #+END_SRC
+
+**** Up the cluster using the gitlab gke script
+
+ You'll need to set the 'PROJECT' environment variable to the name of your chosen
+ gke project, then run the script with the 'up' parameter.
+
+ #+NAME: Use gitlab gke script
+ #+BEGIN_SRC tmux :session br:gitlab
+ cd ~/gitlab
+ export PROJECT=recodenz
+ ./scripts/gke_bootstrap_script.sh up
+ #+END_SRC
+
+**** Verify that the external-dns has started
+
+ #+NAME: Verify that external-dns has started, run:
+ #+BEGIN_SRC shell :results code
+ kubectl --namespace=kube-system get pods -l "app=external-dns,release=dns"
+ #+END_SRC
+
+ #+RESULTS: Verify that external-dns has started, run:
+ #+BEGIN_SRC shell
+ NAME                               READY   STATUS    RESTARTS   AGE
+ dns-external-dns-fb98777fb-xl276   1/1     Running   0          8m46s
+ #+END_SRC
+
+*** Create an external IP
+
+ We will need the external IP to point our DNS subdomain DNS to. Additionally we
+ will use that ip within the gitlab chart.
+
+ We first create an external-ip
+
+ #+NAME: Create the external IP
+ #+BEGIN_SRC tmux :session br:gitlab
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses create ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT
+ #+END_SRC
+
+ #+NAME: Retrieve ingress IP
+ #+BEGIN_SRC tmux :session br:gitlab
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+ #+END_SRC
+
+ #+NAME: ingress_ip
+ #+BEGIN_SRC shell 
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+ #+END_SRC
+
+ #+RESULTS: ingress_ip
+ : 35.193.219.220
+
+** Using Catalyst (Openstack+Magnum)
+
+You can launch a cluster manually, but to use the API you'll need to [[http://docs.catalystcloud.io/key-concepts/access.html?highlight=white%2520list][create a ticket to whitelist your IP.]]
+
+Visit  [[https://dashboard.cloud.catalyst.net.nz/management/tickets/create/][the dashboard ticket system]] and ask for your IP to be added to the whitelist. 
+
+#+NAME: os_auth_url
+#+BEGIN_SRC tmate :session hh-right:foo
+  (
+    . ~/Downloads/iicoop-openrc.sh
+    TIMEOUT=1
+    OS_HOST=$(echo $OS_AUTH_URL | awk -F/ '{print $3}' | awk -F: '{print $1}')
+    OS_PORT=$(echo $OS_AUTH_URL | awk -F/ '{print $3}' | awk -F: '{print $2}')
+    echo $OS_AUTH_URL
+  ) 2>&1
+#+END_SRC
+#+NAME: os_auth_url
+#+BEGIN_SRC shell :exports both :results code
+  (
+    . ~/Downloads/iicoop-openrc.sh
+    TIMEOUT=1
+    curl -s -S -m $TIMEOUT $OS_AUTH_URL
+    OS_HOST=$(echo $OS_AUTH_URL | awk -F/ '{print $3}' | awk -F: '{print $1}')
+    OS_PORT=$(echo $OS_AUTH_URL | awk -F/ '{print $3}' | awk -F: '{print $2}')
+    nc -vvv -w $TIMEOUT $OS_HOST $OS_PORT
+    
+    echo $OS_AUTH_URL
+  ) 2>&1
+#+END_SRC
+
+#+RESULTS: os_auth_url
+| curl:                                         | (28)    | Connection | timed                         | out  | after |  5001 | milliseconds |      |           |     |    |          |
+| nc:                                           | connect | to         | api.nz-hlz-1.catalystcloud.io | port |  5000 | (tcp) | timed        | out: | Operation | now | in | progress |
+| https://api.nz-hlz-1.catalystcloud.io:5000/v3 |         |            |                               |      |       |       |              |      |           |     |    |          |
+
+
+#+NAME: my_ip
+#+BEGIN_SRC shell
+curl https://ifconfig.co
+#+END_SRC
+
+#+RESULTS: my_ip
+: 103.26.16.43
+
+*** 
+
+ You'll need to customize this with an project of your own.
+
+**** Verify your gcloud credentials 
+
+    There are various ways to authenticate, we will just ensure the correct
+    account is active.
+
+    #+NAME: Verify your gcloud credentials
+    #+BEGIN_SRC shell :exports both :results code
+    gcloud auth list
+    #+END_SRC
+
+    #+RESULTS: Verify your gcloud credentials
+    #+BEGIN_SRC shell
+             Credentialed Accounts
+    ACTIVE             ACCOUNT
+    ,*                  hh@ii.coop
+    #+END_SRC
+
+**** Choose a gcloud project
+
+ Choose an account from your available ones.
+
+ #+NAME: List your gcloud projects
+ #+BEGIN_SRC shell :exports both :results code
+ gcloud projects list
+ #+END_SRC
+
+ #+RESULTS: List your gcloud projects
+ #+BEGIN_SRC shell
+ PROJECT_ID         NAME               PROJECT_NUMBER
+ cncf-gitlab        cncf-gitlab        368775700279
+ gitlab-ii-coop     GitLab-ii-coop     916237797088
+ ii-coop            ii-coop            46173955477
+ ii-enspiral        ii-enspiral        135963852157
+ kubernetes-public  kubernetes-public  127754664067
+ openci-io          openci             434061009048
+ recode-215103      recode             334208224319
+ recodenz           recodenz           754872138011
+ #+END_SRC
+
+**** Up the cluster using the gitlab gke script
+
+ You'll need to set the 'PROJECT' environment variable to the name of your chosen
+ gke project, then run the script with the 'up' parameter.
+
+ #+NAME: Use gitlab gke script
+ #+BEGIN_SRC tmux :session br:gitlab
+ cd ~/gitlab
+ export PROJECT=recodenz
+ ./scripts/gke_bootstrap_script.sh up
+ #+END_SRC
+
+**** Verify that the external-dns has started
+
+ #+NAME: Verify that external-dns has started, run:
+ #+BEGIN_SRC shell :results code
+ kubectl --namespace=kube-system get pods -l "app=external-dns,release=dns"
+ #+END_SRC
+
+ #+RESULTS: Verify that external-dns has started, run:
+ #+BEGIN_SRC shell
+ NAME                               READY   STATUS    RESTARTS   AGE
+ dns-external-dns-fb98777fb-xl276   1/1     Running   0          8m46s
+ #+END_SRC
+
+*** Create an external IP
+
+ We will need the external IP to point our DNS subdomain DNS to. Additionally we
+ will use that ip within the gitlab chart.
+
+ We first create an external-ip
+
+ #+NAME: Create the external IP
+ #+BEGIN_SRC tmux :session br:gitlab
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses create ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT
+ #+END_SRC
+
+ #+NAME: Retrieve ingress IP
+ #+BEGIN_SRC tmux :session br:gitlab
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+ #+END_SRC
+
+ #+NAME: ingress_ip
+ #+BEGIN_SRC shell 
+ export PROJECT=recodenz
+ export CLUSTER_NAME=gitlab-cluster
+ export REGION=us-central1
+ gcloud compute addresses describe ${CLUSTER_NAME}-external-ip --region $REGION --project $PROJECT --format='value(address)'
+ #+END_SRC
+
+ #+RESULTS: ingress_ip
+ : 35.193.219.220
+>>>>>>> Stashed changes
 
   We will need the external IP to point our DNS subdomain DNS to. Additionally we
   will use that ip within the gitlab chart.
@@ -408,6 +663,123 @@ kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.passwor
 *** Configure GitLab to retrieve
 
 * Footnotes
+  
+** isocket
+*** Connecting the left pair / isocket
+
+ ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
+ _even_ when we don't have have local one (within emacs)
+
+#+NAME: left_session_create
+#+BEGIN_SRC shell :var session="ii-left" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n emacs \
+      emacs --fg-daemon=$session" \
+  &
+#+END_SRC
+
+#+NAME: left_session_setup
+#+BEGIN_SRC shell :var session="ii-left" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  ssh -att $user@$host \
+  "tmate -S /tmp/.$session.isocket \
+        new-window \
+        -n editor" \
+   "emacsclient -nw \
+              --socket-name $session \
+              ~/org/ii/legalhackers/gitlab.org"
+#+END_SRC
+
+**** Connecting to emacs daemon
+
+ #+NAME: alse run emacsclient
+ #+BEGIN_SRC tmate :noeval
+ export SESSION=lt-emacs
+ emacsclient --socket-name $SESSION
+ #+END_SRC
+
+*** Connecting the right pair / isocket
+
+#+NAME: right_session_create
+#+BEGIN_SRC shell :var session="ii-right" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n misc" \
+  &
+#+END_SRC
+
+
+ #+NAME: right_session_join
+ #+BEGIN_SRC shell :results silent
+ export SESSION=api-snoop
+ export XTERM_EXEC="roxterm -e"
+ $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+   at \; sleep 9999
+ #+END_SRC
+
+ #+NAME: right_session_setup
+ #+BEGIN_SRC shell :results verbatim
+ export SESSION=api-snoop
+ echo ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+    new-window -n session \
+     bash
+ #+END_SRC
+
+ #+NAME: right_session
+ #+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
+ export SESSION=api-snoop
+ ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
+ #+END_SRC
+
+ #+RESULTS[dd96525b42bbbe741e292e99ad5f3592a7163025]: right_session
+ #+BEGIN_SRC text :noeval
+ ssh mJrsCgvGTOTOFagYpBKvRf7EE@sf2.tmate.io
+ #+END_SRC
+
+
+
+
+
+ #+NAME: give this to your pair
+ #+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session()
+ echo "ii pair session ready
+ left: $left_session
+ right: $right_session
+ "
+ #+END_SRC
+
+ #+RESULTS: give this to your pair
+ | ii     | pair | session | ready |
+ | left:  | nil  |         |       |
+ | right: | nil  |         |       |
+ |        |      |         |       |
+
+*** TODO Sharing your eyes
+
+#+NAME: give this to your pair
+#+BEGIN_SRC bash :noweb yes :var left_session=left_session() :var right_session=right_session()
+echo "ii pair session ready
+left: $left_session
+right: $right_session
+"
+#+END_SRC
 # Local Variables:
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
