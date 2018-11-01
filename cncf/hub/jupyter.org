@@ -1,0 +1,780 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Setting up JupyterHub & BinderHub
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop for the CNCF
+#+DATE: 5th of October, 2018
+#+PROPERTY: header-args:tmate :socket /tmp/hh-right.isocket
+#+PROPERTY: header-args:tmate :session hh-right:misc
+
+JypyterHub provides [[https://github.com/jupyterhub/zero-to-jupyterhub-k8s][some zero-to-jupyterhub on k8s]] documentation that we'll loosely follow.
+
+The rendered version is at https://z2jh.jupyter.org/en/stable/
+
+* Step Zero: Kubernetes on Google Cloud (GKE)
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:misc
+:END:
+
+ You'll need to customize this with an project of your own.
+
+** Verify your gcloud credentials 
+
+    There are various ways to authenticate, we will just ensure the correct
+    account is active.
+
+    #+NAME: Verify your gcloud credentials
+    #+BEGIN_SRC shell :exports both :results code
+    gcloud auth list
+    #+END_SRC
+
+    #+RESULTS: Verify your gcloud credentials
+    #+BEGIN_SRC shell
+             Credentialed Accounts
+    ACTIVE             ACCOUNT
+    ,*                  hh@ii.coop
+    #+END_SRC
+
+** Choose a gcloud project
+
+ Choose an account from your available ones.
+
+ #+NAME: List your gcloud projects
+ #+BEGIN_SRC shell :exports both :results code
+ gcloud projects list
+ #+END_SRC
+
+ #+RESULTS: List your gcloud projects
+ #+BEGIN_SRC shell
+ PROJECT_ID         NAME               PROJECT_NUMBER
+ cncf-gitlab        cncf-gitlab        368775700279
+ gitlab-ii-coop     GitLab-ii-coop     916237797088
+ ii-coop            ii-coop            46173955477
+ ii-enspiral        ii-enspiral        135963852157
+ kubernetes-public  kubernetes-public  127754664067
+ openci-io          openci             434061009048
+ recode-215103      recode             334208224319
+ recodenz           recodenz           754872138011
+ #+END_SRC
+** Create a gcloud configuration for this project
+ You'll need to set the 'PROJECT' environment variable to the name of your chosen
+ gke project, then run the script with the 'up' parameter.
+*** create project & configuration
+ #+NAME: create project & configuration
+ #+BEGIN_SRC tmate
+   export PROJECT=apisnoop
+   export EMAIL=hh@ii.coop
+
+   gcloud config configurations create $PROJECT --activate \
+     || gcloud config configurations activate $PROJECT
+   gcloud config set account $EMAIL
+   gcloud config set project $PROJECT
+ #+END_SRC
+
+ #+NAME: Verify config
+ #+BEGIN_SRC shell :exports both :results code
+   gcloud config list
+ #+END_SRC
+
+ #+RESULTS: Verify config
+ #+BEGIN_SRC shell
+ [core]
+ account = hh@ii.coop
+ disable_usage_reporting = True
+ project = apisnoop
+ #+END_SRC
+*** ensure Kubernetes Engine API is Enabled 
+ #+NAME: ensure Kubernetes Engine API is enabled
+ #+BEGIN_SRC tmate
+  gcloud services enable container.googleapis.com
+ #+END_SRC
+
+ #+NAME: ensure Kubernetes Engine API is enabled
+ #+BEGIN_SRC shell :exports both :results code :wrap SRC_text
+  gcloud services list --enabled | grep Kubernetes
+ #+END_SRC
+
+ #+RESULTS: ensure Kubernetes Engine API is enabled
+ #+BEGIN_SRC_text
+ container.googleapis.com          Kubernetes Engine API
+ #+END_SRC_text
+
+*** ensure kubectl is installed
+
+ #+NAME: Ensure kubectl is installed
+ #+BEGIN_SRC tmate
+  gcloud components install kubectl \
+    || sudo apt-get install kubectl
+ #+END_SRC
+ 
+*** Decide and configure a specific data center
+
+#+NAME: Decide on a specific data center
+#+BEGIN_SRC shell :exports both :results code :wrap SRC_text
+gcloud compute zones list | grep australia
+#+END_SRC
+
+#+RESULTS: Decide on a specific data center
+#+BEGIN_SRC_text
+australia-southeast1-b     australia-southeast1     UP
+australia-southeast1-c     australia-southeast1     UP
+australia-southeast1-a     australia-southeast1     UP
+#+END_SRC_text
+
+#+NAME: Configure to use a specific data center
+#+BEGIN_SRC shell :exports code :results silent
+  ZONE=australia-southeast1-c
+  gcloud config set compute/zone $ZONE
+#+END_SRC
+** Create a managed Kubernetes cluster and set admin binding
+#+NAME: Create a managed Kubernetes cluster and a default node pool
+#+BEGIN_SRC tmate
+# Enter a name for your cluster
+CLUSTERNAME=apisnoop-jupyterhub
+
+gcloud beta container clusters create $CLUSTERNAME \
+  --machine-type n1-standard-4 \
+  --num-nodes 2 \
+  --cluster-version latest \
+  --node-labels hub.jupyter.org/node-purpose=core
+#+END_SRC
+
+#+NAME: verify lcuster and allow account to perform all admin actions
+#+BEGIN_SRC tmate
+kubectl get node
+# Enter your email
+kubectl create clusterrolebinding cluster-admin-binding \
+  --clusterrole=cluster-admin \
+  --user=$EMAIL
+#+END_SRC
+
+#+NAME: verify clusterrolebinding
+#+BEGIN_SRC shell :exports both :results code :wrap SRC_text
+ kubectl describe clusterrolebinding cluster-admin-binding
+#+END_SRC
+
+#+RESULTS: verify clusterrolebinding
+#+BEGIN_SRC_text
+Name:         cluster-admin-binding
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  ClusterRole
+  Name:  cluster-admin
+Subjects:
+  Kind  Name        Namespace
+  ----  ----        ---------
+  User  hh@ii.coop  
+#+END_SRC_text
+
+* Setting up Helm
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:misc
+:END:
+
+** Installation
+#+NAME: Install Helm
+#+BEGIN_SRC tmate
+curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash
+#+END_SRC
+** Initialization
+**** Setup a Service Account and initialize tiller
+#+NAME: Setup a Service Account
+#+BEGIN_SRC tmate
+  kubectl --namespace kube-system create serviceaccount tiller
+  kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+#+END_SRC
+#+NAME: Initialize tiller
+#+BEGIN_SRC tmate
+  helm init --service-account tiller
+#+END_SRC
+  
+** Verify
+    
+#+NAME: Verify Helm Version
+#+BEGIN_SRC tmate
+  helm version
+#+END_SRC
+  
+** Secure Helm
+#+NAME: Secure Helm
+#+BEGIN_SRC tmate
+kubectl patch deployment tiller-deploy --namespace=kube-system --type=json --patch='[{"op": "add", "path": "/spec/template/spec/containers/0/command", "value": ["/tiller", "--listen=localhost:44134"]}]'
+#+END_SRC
+  
+** Make helm aware of the JupyterHub/BinderHub Helm chart repo
+
+#+NAME: Get Chart for jupyterhub
+#+BEGIN_SRC tmate
+helm repo add jupyterhub https://jupyterhub.github.io/helm-chart
+helm repo update
+#+END_SRC
+
+* Setup JupyterHub
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:misc
+:END:
+** Secrets / ENV Setup
+*** Tokens
+ #+NAME: generate_proxy_secretToken
+ #+BEGIN_SRC shell :exports code :results output code verbatim :cache yes
+   mkdir -p ./jupyterhub
+   openssl rand -hex 32 > ./jupyterhub/proxy_secretToken
+   md5sum ./jupyterhub/proxy_secretToken
+ #+END_SRC
+
+ #+RESULTS[f095e1c3b52fe39b318d8481ce516be6d744db95]: generate_proxy_secretToken
+ #+BEGIN_SRC shell
+ 7f36e23bb29f707219a6227262806b2c  ./jupyterhub/proxy_secretToken
+ #+END_SRC
+
+ #+NAME: proxy_secretToken
+ #+BEGIN_SRC shell :exports code :results silent
+ cat ./jupyterhub/proxy_secretToken
+ #+END_SRC
+ 
+*** ENV
+ IN this section, we setup a secrets/env that looks similar to this:
+
+ #+NAME: secrets.env
+ #+BEGIN_SRC shell :noeval
+ GITHUB_CLIENT_ID=dexxxxxxxxxxxxxxxx888a
+ GITHUB_CLIENT_SECRET=27exxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx814
+ #+END_SRC
+
+**** Github Authentication
+
+ #+NAME: github_client_id
+ #+BEGIN_SRC shell :results output silent
+ . secrets/env ; echo -n $GITHUB_CLIENT_ID
+ #+END_SRC
+
+ #+NAME: github_client_secret
+ #+BEGIN_SRC shell :results output silent
+ . secrets/env ; echo -n $GITHUB_CLIENT_SECRET
+ #+END_SRC
+
+** Configuration file
+
+https://z2jh.jupyter.org/en/stable/advanced.html
+#+NAME: jupyterhub/config.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./jupyterhub/config.yaml
+  auth:
+    admin:
+      users:
+        - hh
+        - ii-dev
+    type: github
+    github:
+      clientId: "<<github_client_id()>>"
+      clientSecret: "<<github_client_secret()>>"
+      callbackUrl: "https://jhub.cncf.ci/hub/oauth_callback"
+      org_whitelist:
+        - ii
+        - cncf
+        - kubernetes
+      scopes:
+        - "read:user"
+  singleuser:
+    defaultUrl: "/lab"
+  proxy:
+    secretToken: "<<proxy_secretToken()>>"
+    https:
+      hosts:
+        - jhub.cncf.ci
+      letsencrypt:
+        contactEmail: hh@ii.coop
+  prePuller:
+    hook:
+      enabled: false
+    continuous:
+      enabled: true
+    extraImages:
+      ubuntu-xenial:
+        name: ubuntu
+        tag: 16.04
+        policy: IfNotPresent
+  hub:
+    extraConfig:
+      00-first-config: |
+        import z2jh
+        #z2jh.get_config('custom.FOO') 
+      10-spawner-cmd: |
+        c.Spawner.cmd = ['jupyter-labhub']
+#+END_SRC
+
+** Install JupyterHub
+*** Install the chart using the config above
+#+NAME: Install the chart using the config above
+#+BEGIN_SRC tmate
+# Suggested values: advanced users of Kubernetes and Helm should feel
+# free to use different values.
+RELEASE=jhub
+NAMESPACE=jhub
+
+helm upgrade --install $RELEASE jupyterhub/jupyterhub \
+  --namespace $NAMESPACE  \
+  --version 0.7.0 \
+  --values ./jupyterhub/config.yaml
+#+END_SRC
+
+*** Monitor health of the pods
+     
+#+NAME: Wait for two running pods
+#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
+  kubectl get pod
+#+END_SRC
+
+#+RESULTS: Wait for two running pods
+#+BEGIN_SRC text
+Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
+NAME                            READY   STATUS    RESTARTS   AGE
+autohttps-85cf9d6698-qkvxl      2/2     Running   0          1m
+continuous-image-puller-2bb6n   1/1     Running   0          1m
+continuous-image-puller-mwpjv   1/1     Running   0          1m
+hub-54767f66df-9t5mc            1/1     Running   0          1m
+proxy-8444c9ddf7-vpssz          1/1     Running   0          1m
+#+END_SRC
+
+*** Find the IP we can use to access the JupyterHub
+
+When the IP Address of the LoadBalancer is available, update DNS for jhub.your.domain to point there.
+     
+#+NAME: Find the IP we can use to access the JupyterHub
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
+kubectl get service proxy-public
+#+END_SRC
+
+#+RESULTS: Find the IP we can use to access the JupyterHub
+#+BEGIN_SRC text
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
+proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:32422/TCP   2m
+#+END_SRC
+
+* Setup GCR
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:misc
+:END:
+** Create Service Account / JSON Creds
+
+#+NAME: gcloud sa create
+#+BEGIN_SRC tmate :results silent
+gcloud iam service-accounts create  binderhub-builder --display-name="BinderHubBuilder"
+#+END_SRC
+
+#+NAME: binder_hub_sa
+#+BEGIN_SRC tmate
+  SERVICE_ACCOUNT=$(gcloud iam service-accounts list | grep BinderHub | awk '{print $2}')
+  echo $SERVICE_ACCOUNT
+#+END_SRC
+
+#+RESULTS: add to storageAdmin role
+#+BEGIN_SRC tmate
+  gcloud projects add-iam-policy-binding apisnoop --member serviceAccount:${SERVICE_ACCOUNT} --role=roles/storage.admin
+#+END_SRC
+
+#+RESULTS: create authentication json
+#+BEGIN_SRC tmate
+  gcloud iam service-accounts keys create ./secrets/service-account.json --iam-account=$SERVICE_ACCOUNT --key-file-type=json
+#+END_SRC
+ 
+[[file:secrets/service-account.json][file:secrets/service-account.json]] 
+
+** Create a bucket for the project
+#+RESULTS: create authentication json
+#+BEGIN_SRC tmate :variable SA_ID=binder_hub_sa()
+  gsutil mb -p apisnoop -c multi_regional gs://apisnoop
+#+END_SRC
+
+#+RESULTS: create authentication json
+#+BEGIN_SRC tmate :variable SA_ID=binder_hub_sa()
+  gsutil mb -p apisnoop -c multi_regional gs://apisnoop
+#+END_SRC
+
+* Setup BinderHub
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:binderhub
+:END:
+** Secrets / ENV Setup
+*** Tokens
+**** generate_binderhub_apitoken
+     
+ #+NAME: generate_binderhub_apiToken
+ #+BEGIN_SRC shell :exports code :results output code verbatim :cache yes
+   mkdir -p ./binderhub
+   openssl rand -hex 32 > ./binderhub/apiToken
+   md5sum ./binderhub/apiToken
+ #+END_SRC
+
+ #+RESULTS[6a4cb324040b57b59c69da4b592b858ccfaa43c3]: generate_binderhub_apiToken
+ #+BEGIN_SRC shell
+ e3fab6d93aabaf7d1c1bdbf12b2f0df3  ./binderhub/apiToken
+ #+END_SRC
+
+ #+NAME: binderhub_apiToken
+ #+BEGIN_SRC shell :exports code :results silent
+ cat ./binderhub/apiToken
+ #+END_SRC
+ 
+**** generate_binderhub_secrettoken
+ #+NAME: generate_binderhub_secrettoken
+ #+BEGIN_SRC shell :exports code :results output code verbatim :cache yes
+   openssl rand -hex 32 > ./binderhub/secretToken
+   md5sum ./binderhub/secretToken
+ #+END_SRC
+
+ #+RESULTS[b41c9a75ff07ffd2dc9cd5d63d23d2dedb0d59ce]: generate_binderhub_secrettoken
+ #+BEGIN_SRC shell
+ 46c4eb867138ada44cd001570ce11b47  ./binderhub/secretToken
+ #+END_SRC
+
+
+ #+NAME: binderhub_secretToken
+ #+BEGIN_SRC shell :exports code :results silent
+ cat ./binderhub/secretToken
+ #+END_SRC
+ 
+*** Docker creds
+    
+ IN this section, we setup a secrets/env that looks similar to this:
+
+ #+NAME: secrets/env
+ #+BEGIN_SRC shell :noeval
+ DOCKER_ID=dexxxxxxxxxxxxxxxx888a
+ DOCKER_PASSWORD=aoxxxxxxxxxxeu
+ #+END_SRC
+
+**** Docker Hub Authentication
+
+ #+NAME: docker_id
+ #+BEGIN_SRC shell :results output silent
+ . secrets/env ; echo -n $DOCKER_ID
+ #+END_SRC
+
+ #+NAME: docker_password
+ #+BEGIN_SRC shell :results output silent
+ . secrets/env ; echo -n $DOCKER_PASSWORD
+ #+END_SRC
+
+*** Google Container Registry
+    
+ IN this section, we setup a secrets.env that looks similar to this:
+
+ #+NAME: gcr_creds
+ #+BEGIN_SRC shell :results output silent
+cat ./secrets/service-account.json 
+ #+END_SRC
+
+** Prepare secret.yaml file
+
+https://binderhub.readthedocs.io/en/latest/setup-binderhub.html
+
+#+NAME: ./binderhub/secret.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/secret.yaml
+  jupyterhub:
+    hub:
+      services:
+        binder:
+          apiToken: "<<binderhub_apiToken()>>"
+    proxy:
+      secretToken: "<<binderhub_secretToken()>>"
+  registry:
+    username: "<<docker_id()>>" 
+    password: "<<docker_password()>>" 
+#+END_SRC
+*** Backup ALT_CREDS
+#+NAME: ./binderhub/google-secret.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/backup-secret.yaml
+  registry:
+    username: "<<docker_id()>>" 
+    password: "<<docker_password()>>" 
+    password: |
+      <<gcr_creds()>>
+#+END_SRC
+** Prepare config.yaml
+   
+The hub.url seems to need to be there, and then updated after the deployment.
+
+It should match proxy-
+
+#+NAME: ./binderhub/config.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/config.yaml
+  hub:
+    url: https://jhub.cncf.ci/
+  registry:
+    prefix: "this/hub"
+    enabled: true
+#+END_SRC
+    prefix: "gcr.io/apisnoop/binder"
+
+** Install BinderHub
+*** Install the chart using the config above
+    
+#+NAME: Install the chart using the config above
+#+BEGIN_SRC tmate
+  NAME=binder2
+  NAMESPACE=binder2
+  helm install jupyterhub/binderhub \
+    --version=0.1.0-6e91396 \
+    --name=$NAME \
+    --namespace=$NAME \
+    -f ./binderhub/secret.yaml \
+    -f ./binderhub/config.yaml
+#+END_SRC
+
+*** Monitor health of the pods
+     
+#+NAME: Wait for binder
+#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+  kubectl get pod 
+#+END_SRC
+
+#+RESULTS: Wait for binder
+#+BEGIN_SRC text
+Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
+NAME                          READY   STATUS    RESTARTS   AGE
+binder-7bb99ff8d4-754dh       1/1     Running   0          1h
+binder2-image-cleaner-dql9f   1/1     Running   0          1h
+binder2-image-cleaner-mmkvh   1/1     Running   0          1h
+hub-857c754f9-zm97r           1/1     Running   0          1h
+proxy-cb664c65c-577q8         1/1     Running   0          1h
+#+END_SRC
+
+
+*** Find the IP we can use to access the JupyterHub
+     
+#+NAME: Find the IP we can use to access Binder
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
+kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+kubectl get service # proxy-public
+#+END_SRC
+
+#+RESULTS: Find the IP we can use to access Binder
+#+BEGIN_SRC text
+Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
+binder         LoadBalancer   10.3.243.24    35.189.32.76   80:32138/TCP                 1h
+hub            ClusterIP      10.3.251.163   <none>         8081/TCP                     1h
+proxy-api      ClusterIP      10.3.242.242   <none>         8001/TCP                     1h
+proxy-public   LoadBalancer   10.3.243.141   35.189.36.7    80:30392/TCP,443:30135/TCP   1h
+#+END_SRC
+
+* Error Debugging
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:binderhub
+:END:
+
+** debugging binder
+#+NAME: Find the IP we can use to access Binder
+#+BEGIN_SRC tmate hh-right:binder-logs
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+  kubectl logs -f  $(kubectl get pod -l component=binder | grep Running | awk '{print $1}')
+#+END_SRC
+
+
+** Push permissions to gcr
+
+Visit http://binder.cncf.ci and launch cncf/apisnoop.
+You'll eventually get the following error:
+
+#+NAME: Caller permission error:
+#+BEGIN_SRC text
+Removing intermediate container 148ef8d0bf9f
+[Warning] One or more build-args [NB_USER NB_UID] were not consumed
+Successfully built ca418bd998d7
+denied: Token exchange failed for project 'apisnoop'. \
+Caller does not have permission 'storage.buckets.create'. \
+To configure permissions, follow instructions at: \
+https://cloud.google.com/container-registry/docs/access-control
+#+END_SRC
+
+I decided to look directly at the authentication, and found that the content is
+prefixed with _json_key:... which may cause the issue.
+
+~After checking further, the bucket did not exist~
+
+However, after confirming that the bucket does exist, and our user has perms.
+I think we still need to verify that the service account is indeed authenticating.
+
+#+NAME: debugging gcr.io push authentication
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC json"
+  kubectl get secrets binder-secret -o json \
+    | jq '.data["config.json"]' -r | base64 --decode \
+    | jq '.auths["https://gcr.io"].auth' -r | base64 --decode | cat
+#+END_SRC
+
+#+RESULTS: debugging gcr.io push authentication
+#+BEGIN_SRC json
+_json_key:{
+  "type": "service_account",
+  "project_id": "apisnoop",
+  "private_key_id": "1519",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n",
+  "client_email": "binderhub-builder@apisnoop.iam.gserviceaccount.com",
+  "client_id": "100194936643976153433",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/binderhub-builder%40apisnoop.iam.gserviceaccount.com"
+}
+#+END_SRC
+
+* Monitor the Progress of your gitlab installation
+
+** See how they run
+
+#+NAME: see how the run
+#+BEGIN_SRC tmux :session br-right:misc
+helm status gitlab
+#+END_SRC
+
+** Get root password
+
+#+NAME: get root password
+#+BEGIN_SRC tmux :session br-right:misc
+kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.password} | base64 --decode ; echo
+#+END_SRC
+
+** TODO SMTP OUTGOING
+** TODO Setup Inbound Email
+*** Setup SMTP Server
+*** Configure GitLab to retrieve
+
+* Footnotes
+  
+** isocket
+*** Connecting the left pair / isocket
+
+ ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
+ _even_ when we don't have have local one (within emacs)
+
+#+NAME: left_session_create
+#+BEGIN_SRC shell :var session="ii-left" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n emacs \
+      emacs --fg-daemon=$session" \
+  &
+#+END_SRC
+
+#+NAME: left_session_setup
+#+BEGIN_SRC shell :var session="ii-left" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  ssh -att $user@$host \
+  "tmate -S /tmp/.$session.isocket \
+        new-window \
+        -n editor" \
+   "emacsclient -nw \
+              --socket-name $session \
+              ~/org/ii/legalhackers/gitlab.org"
+#+END_SRC
+
+**** Connecting to emacs daemon
+
+ #+NAME: alse run emacsclient
+ #+BEGIN_SRC tmate :noeval
+ export SESSION=lt-emacs
+ emacsclient --socket-name $SESSION
+ #+END_SRC
+
+*** Connecting the right pair / isocket
+
+#+NAME: right_session_create
+#+BEGIN_SRC shell :var session="ii-right" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n misc" \
+  &
+#+END_SRC
+
+
+ #+NAME: right_session_join
+ #+BEGIN_SRC shell :results silent
+ export SESSION=api-snoop
+ export XTERM_EXEC="roxterm -e"
+ $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+   at \; sleep 9999
+ #+END_SRC
+
+ #+NAME: right_session_setup
+ #+BEGIN_SRC shell :results verbatim
+ export SESSION=api-snoop
+ echo ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+    new-window -n session \
+     bash
+ #+END_SRC
+
+ #+NAME: right_session
+ #+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
+ export SESSION=api-snoop
+ ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
+ #+END_SRC
+
+ #+RESULTS[dd96525b42bbbe741e292e99ad5f3592a7163025]: right_session
+ #+BEGIN_SRC text :noeval
+ ssh mJrsCgvGTOTOFagYpBKvRf7EE@sf2.tmate.io
+ #+END_SRC
+
+
+
+
+
+ #+NAME: give this to your pair
+ #+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session()
+ echo "ii pair session ready
+ left: $left_session
+ right: $right_session
+ "
+ #+END_SRC
+
+ #+RESULTS: give this to your pair
+ | ii     | pair | session | ready |
+ | left:  | nil  |         |       |
+ | right: | nil  |         |       |
+ |        |      |         |       |
+
+*** TODO Sharing your eyes
+
+#+NAME: give this to your pair
+#+BEGIN_SRC bash :noweb yes :var left_session=left_session() :var right_session=right_session()
+echo "ii pair session ready
+left: $left_session
+right: $right_session
+"
+#+END_SRC
+# Local Variables:
+# eval: (require (quote ob-shell))
+# eval: (require (quote ob-lisp))
+# eval: (require (quote ob-emacs-lisp))
+# eval: (require (quote ob-js))
+# eval: (require (quote ob-go))
+# eval: (setq org-babel-tmate-session-prefix "rt-")
+# eval: (setq org-babel-tmux-session-prefix "rt-")
+# org-confirm-babel-evaluate: nil
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmux-session-prefix: "rt-"
+# End:
