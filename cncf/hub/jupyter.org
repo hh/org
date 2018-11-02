@@ -465,10 +465,10 @@ gcloud iam service-accounts create  binderhub-builder --display-name="BinderHubB
 *** Google Container Registry
     
  IN this section, we setup a secrets.env that looks similar to this:
-
+[[file:secrets/service-account.json][./secrets/service-account.json]]
  #+NAME: gcr_creds
  #+BEGIN_SRC shell :results output silent
-cat ./secrets/service-account.json 
+   cat ./secrets/service-account.json | jq . -c
  #+END_SRC
 
 ** Prepare secret.yaml file
@@ -485,8 +485,8 @@ https://binderhub.readthedocs.io/en/latest/setup-binderhub.html
     proxy:
       secretToken: "<<binderhub_secretToken()>>"
   registry:
-    username: "<<docker_id()>>" 
-    password: "<<docker_password()>>" 
+    password: |
+      <<gcr_creds()>>
 #+END_SRC
 *** Backup ALT_CREDS
 #+NAME: ./binderhub/google-secret.yaml
@@ -508,18 +508,18 @@ It should match proxy-
   hub:
     url: https://jhub.cncf.ci/
   registry:
-    prefix: "this/hub"
+    prefix: "gcr.io/apisnoop/binder"
     enabled: true
 #+END_SRC
-    prefix: "gcr.io/apisnoop/binder"
+    prefix: "this/hub"
 
 ** Install BinderHub
 *** Install the chart using the config above
     
 #+NAME: Install the chart using the config above
 #+BEGIN_SRC tmate
-  NAME=binder2
-  NAMESPACE=binder2
+  NAME=binder3
+  NAMESPACE=binder3
   helm install jupyterhub/binderhub \
     --version=0.1.0-6e91396 \
     --name=$NAME \
@@ -532,7 +532,7 @@ It should match proxy-
      
 #+NAME: Wait for binder
 #+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
-  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder3}
   kubectl get pod 
 #+END_SRC
 
@@ -540,11 +540,11 @@ It should match proxy-
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
 NAME                          READY   STATUS    RESTARTS   AGE
-binder-7bb99ff8d4-754dh       1/1     Running   0          1h
-binder2-image-cleaner-dql9f   1/1     Running   0          1h
-binder2-image-cleaner-mmkvh   1/1     Running   0          1h
-hub-857c754f9-zm97r           1/1     Running   0          1h
-proxy-cb664c65c-577q8         1/1     Running   0          1h
+binder-74f9695f86-gzvqc       1/1     Running   0          39s
+binder3-image-cleaner-gd9mj   1/1     Running   0          39s
+binder3-image-cleaner-x57qt   1/1     Running   0          39s
+hub-6474c5c798-vdfb8          1/1     Running   0          39s
+proxy-7c66945f8f-bprtv        1/1     Running   0          39s
 #+END_SRC
 
 
@@ -552,18 +552,18 @@ proxy-cb664c65c-577q8         1/1     Running   0          1h
      
 #+NAME: Find the IP we can use to access Binder
 #+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
-kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder3}
 kubectl get service # proxy-public
 #+END_SRC
 
 #+RESULTS: Find the IP we can use to access Binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
-binder         LoadBalancer   10.3.243.24    35.189.32.76   80:32138/TCP                 1h
-hub            ClusterIP      10.3.251.163   <none>         8081/TCP                     1h
-proxy-api      ClusterIP      10.3.242.242   <none>         8001/TCP                     1h
-proxy-public   LoadBalancer   10.3.243.141   35.189.36.7    80:30392/TCP,443:30135/TCP   1h
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)                      AGE
+binder         LoadBalancer   10.3.241.157   35.197.184.110   80:30497/TCP                 1m
+hub            ClusterIP      10.3.249.98    <none>           8081/TCP                     1m
+proxy-api      ClusterIP      10.3.251.185   <none>           8001/TCP                     1m
+proxy-public   LoadBalancer   10.3.246.255   35.189.13.8      80:30784/TCP,443:32438/TCP   1m
 #+END_SRC
 
 * Error Debugging
@@ -571,14 +571,65 @@ proxy-public   LoadBalancer   10.3.243.141   35.189.36.7    80:30392/TCP,443:301
 :header-args:tmate: :socket "/tmp/.hh-right.isocket"
 :header-args:tmate: :session hh-right:binderhub
 :END:
-
 ** debugging binder
-#+NAME: Find the IP we can use to access Binder
+#+NAME: Find issue
 #+BEGIN_SRC tmate hh-right:binder-logs
-  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder2}
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder3}
   kubectl logs -f  $(kubectl get pod -l component=binder | grep Running | awk '{print $1}')
 #+END_SRC
 
+You need to actiave a long term build,
+
+http://35.197.184.110/v2/gh/kubernetes/kubernetes/release-1.12
+
+Once you do that, you can get a term and explore:
+#+NAME: debug binderhub-build
+#+BEGIN_SRC tmate hh-right:binder-logs
+  POD=$(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
+  kubectl exec -ti $POD /bin/bash
+  pip install ipython
+  pip install ipdb
+  cd  /tmp/src
+  cat <<EOPATCH | patch -p 1
+  diff --git a/repo2docker/app.py b/repo2docker/app.py
+  index 17f1b39..a437cfb 100644
+  --- a/repo2docker/app.py
+  +++ b/repo2docker/app.py
+  @@ -546,6 +546,7 @@ class Repo2Docker(Application):
+           # info every 1.5s
+           layers = {}
+           last_emit_time = time.time()
+  +        import ipdb; ipdb.set_trace(context=60)
+           for line in client.push(self.output_image_spec, stream=True):
+               progress = json.loads(line.decode('utf-8'))
+               if 'error' in progress:
+  EOPATCH
+#+END_SRC
+
+Once inside, let's try building something small to inspect how it pushes.
+
+#+NAME: sample build+push
+#+BEGIN_SRC tmate
+python /usr/local/bin/jupyter-repo2docker \
+  --no-clean --no-run --json-logs --user-name jovyan --user-id 1000 \
+  --push \
+  --image gcr.io/apisnoop/binderkubernetes-foo \
+  https://github.com/cncf/apisnoop
+#+END_SRC
+#
+  --ref bce51cc574d27697f76218afee993e9e5eba5fc9 \
+
+kubectl logs -f  $(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
+
+Build me an image
+#+BEGIN_SRC 
+python /usr/local/bin/jupyter-repo2docker \
+  --no-clean --no-run --json-logs --user-name jovyan --user-id 1000 \
+  --push \
+  --image gcr.io/apisnoop/binderkubernetes-2dkubernetes-9e11c4:bce51cc574d27697f76218afee993e9e5eba5fc9 \
+  --ref bce51cc574d27697f76218afee993e9e5eba5fc9 \
+  https://github.com/kubernetes/kubernetes
+#+END_SRC
 
 ** Push permissions to gcr
 
@@ -626,6 +677,40 @@ _json_key:{
   "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/binderhub-builder%40apisnoop.iam.gserviceaccount.com"
 }
 #+END_SRC
+
+* Adding new person to project
+:PROPERTIES:
+:header-args:tmate: :socket "/tmp/.hh-right.isocket"
+:header-args:tmate: :session hh-right:binderhub
+:END:
+
+#+NAME: list admin roles
+#+BEGIN_SRC shell
+gcloud iam list-grantable-roles //cloudresourcemanager.googleapis.com/projects/apisnoop | grep name: | grep -i 
+#+END_SRC
+
+#+RESULTS: list admin roles
+| name: | roles/iam.roleAdmin                   |
+| name: | roles/iam.roleViewer                  |
+| name: | roles/iam.securityReviewer            |
+| name: | roles/iam.serviceAccountAdmin         |
+| name: | roles/iam.serviceAccountDeleter       |
+| name: | roles/iam.serviceAccountKeyAdmin      |
+| name: | roles/iam.serviceAccountTokenCreator  |
+| name: | roles/iam.serviceAccountUser          |
+| name: | roles/resourcemanager.projectIamAdmin |
+
+#+RESULTS: add user to admin role
+#+BEGIN_SRC tmate
+  gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/owner
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/storage.admin
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/compute.admin
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/container.admin
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/iam.roleAdmin
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/iam.serviceAccountAdmin
+  #gcloud projects add-iam-policy-binding apisnoop --member user:devan@ii.coop --role=roles/iam.serviceAccountKeyAdmin
+#+END_SRC
+
 
 * Monitor the Progress of your gitlab installation
 
