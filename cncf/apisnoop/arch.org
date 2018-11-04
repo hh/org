@@ -17,23 +17,22 @@ The Cultural concepts of mihi and whakapapa are the foundation of this KEP. The
 application of these concepts within our community ecosystem deserves a shout
 out to the Māori of New Zealand Aotearoa (Land of the Long White Cloud).
 
-New Zealand hasn’t been populated for very long compared to the rest of the
+Western New Zealand is young compared to the rest of the
 world. The first people (Māori) arrived on waka (canoes) around the 15th
-century. For Maori people today, the name of the specific waka that their
-ancestors arrived on, combined with their own genealogical journey defines who
-they are (in a very meaningful specific way). When mihi (formal introductions)
-are made, they include their own parental lineage back to the name of the waka
-their ancestors arrived in. The knowledge and communication of this history
-often leads to newly introduced people becoming cognitive of familial historic
-connections between them. This concrete and relational definition of identity is
-called their whakapapa.
+Century. For Maori people today, the name of the specific waka that their
+ancestors arrived on, combined with their genealogical journey defines who
+they are (in a meaningful specific way). When mihi (formal introductions)
+are made, they present their parental lineage back to the name of the waka
+their ancestors arrived on. The knowledge and communication of this history
+often lead to becoming cognitive of historical, familial
+connections between them. This concrete and relational definition of identity are called their whakapapa.
 
 Te Reo/Māori: He mea nui ki a tātau ō tātau whakapapa (HP 1991:1). English: Our
-genealogies are important to us.
+genealogies are essential to us.
 
 ** Who are you? Why are you here?
 
-Let’s enable any application, using our official Kubernetes libraries and existing CI/Testing infrastructure, to provide data to answer these questions. We need to make room for recording the context for each interaction with the APIServer.
+Let’s enable any application, using our official Kubernetes libraries and existing CI/Testing infrastructure, to provide data to answer these questions. We need to make room for recording the context for each interaction with the API server.
 
 The aggregated clusterwide correlation of identity and user journey with each API request/response would provide the raw metadata necessary to explore the interwoven, but presently unseen, patterns of our user journeys within the Kubernetes community.
 
@@ -49,14 +48,14 @@ Provide a set of community insights based on publically available data, easily a
 
 **** Cross Community - Source code / line level next insights
 
-As a specific line of code (LoC) hits the API server, we will record the LoC
-(callstack) that brought it here to articulate that LoC's whakapapa. Combined
-with other API requests, we can infer which other LoC utilize and depend on it,
+As a specific line of code (LoC) hits the API server, we record the LoC
+(call stack) that brought it here to articulate that LoC's whakapapa. Combined
+with other API requests, we can infer which other LoC utilise and depend on it,
 as they hit each endpoint.
 
-Ideally this is across all repos and organizations, and for every binary in a
-cluster, eventually linking LoC (and the OWNERS that curate them) througout our
-community in a relational way.
+Ideally, this is across all repos and organisations, and for every binary in a
+cluster, eventually linking LoC (and the OWNERS that curate them) throughout our
+community with relational-structure.
 
 **** Kubernetes Endpoint coverage by e2e
 
@@ -66,19 +65,19 @@ involved (both server and client side).
 
 **** Common Endpoint journey patterns / suggested test
 
-Analyzing audit / whakapapa logs from multiple applications, suggesting skeleton
+Analysing audit/whakapapa logs from multiple applications, suggesting skeleton
 tests based on these patterns.
 
 ** Non-Goals
-*** Define new prow jobs for entire community
+*** Define new prow jobs for the entire community
 I'm hoping to help others write these.
 
 * Proposal
 
 To aggregate identity and purpose _*at the time of API interactions*_, we need:
 
-1. _*The who and why*_ : Define ‘identity’ and ‘purpose’
-2. _*App introspection*_ : generated at time of interaction:
+1. _*The who and why*_ : Define ‘identity’ and ‘purpose.’
+2. _*App introspection*_ : generated at the time of interaction:
 3. _*For all apps and the cluster itself*_ : allowing 'global' src, function, and API call mapping
 
 ** API interaction Identity (Who are you?)
@@ -96,7 +95,7 @@ kubelet/v1.12.0 (linux/amd64) kubernetes/b143093
 kube-scheduler/v1.12.0 (linux/amd64) kubernetes/b143093
 #+END_SRC
 
-Ideally our base ‘identity’ should at least miminally tie an application back to particular src commit,
+Ideally, our base ‘identity’ should at least minimally tie an application back to particular src commit,
 though some programs (like kernel info via uname) also show compile time info
 like timestamp or build user/machine:
 
@@ -120,12 +119,11 @@ simple to implement, but contextually significant, answer to the question:
 
 *Why are you here?*
 
-Its difficult to glean the purpose of an application interaction by external
+It's difficult to glean the purpose of an application interaction by external
 inspection without making room for this question.
 
-At the moment of making the API call, the application has access its own stack
-and history of source code location/lines and functions that brought it to make
-a request of an external API. Disabled by default, it could be enabled by
+At the moment of making the API call, the application has access its stack
+and history of source code location/lines and functions that brought it to request an external API. Disabled by default, it could be enabled by
 setting a variable such as `KUBE_CLIENT_SUBMIT_PURPOSE`.
 
 Allowing the application to supply this _‘mental snapshot of purpose’_ could be
@@ -173,50 +171,49 @@ It may help to provide an example introspection:
 
 ** How do we communicate these larger concepts of identity and purpose?
    
-Currently the freeform concept of identity is limited what can fit within the
+Currently, the freeform concept of identity is limited what can fit within the
 user-agent field.
 
 Support for recording the [user-agent field in our
 audit-events](https://github.com/kubernetes/kubernetes/pull/64812) was recently
 added, but our initial explorations depend on that field allowing up to 4k.
 
-For e2e tests, we've added support for sending the test string. However, for a
-community wide approach, we'll need to augment client-go to either send the
-whakapapa via the request in a optional whakapa field (which would simplify log
+For e2e tests, we've added support for sending the test string. However, for a community-wide approach, we'll need to augment client-go to either send the
+whakapapa via the request in an optional whakapapa field (which would simplify log
 collection long term).
 
 ** Tying it all together: (How do I turn this on?)
 
-If all applications are compiled against a client-go (or other supported library)
+If all applications are compiled against a client-go (or other supported libraries)
 and support the env var `KUBE_CLIENT_SUBMIT_PURPOSE`,
 then deploying kubernetes itself with it set should
 enable all kubernetes components to begin transmitting identity and purpose.
 
 Setting this variable on all pods could be accomplished with
-an admission or initialization controller allowing every binary
+an admission or initialisation controller allowing every binary
 run on and within the cluster to do the same.
 
-Currently this data is transmitted via user-agent,
+Currently, this data gets transmitted via user-agent,
 so configuring an audit-logging webhook,
-dynamic or otherwise, would allow centralized aggregation.
+dynamic or otherwise, would allow centralised aggregation.
 
 ** Enable communication of 'Who are you?' and 'Why are you here?'
 *** for any application using kubernetes API
 
-  Ideally we would like to provide instrumentation to any application talking to kubernetes, not just our e2e test suite.
+  Ideally, we would like to provide instrumentation to any application talking to kubernetes, not just our e2e test suite.
 
 *** via the official protocols and libraries and existing CI Infra
 
- Audit-logging provides a centralized logging mechanism, but we need to make room somewhere for the ~whakapapa~ style metadata.
+ Audit-logging provides a centralised logging mechanism, but we need to make room somewhere for the ~whakapapa~ style metadata.
 
  This data needs to be available via the job output / gcsweb buckets.
 
  Some options:
 
-***** Submit whakapapa via API calls params thet show up in the audit-logs
+***** Submit whakapapa via API calls params that show up in the audit-logs
 ***** Submit whakapapa hash of some sort via User-Agent (1k limit) => audit-logs
 
-*** Document creation of prow jobs and resulting artifacts buckets for inclusion.
+*** Document creation of prow jobs and resulting artefacts buckets for inclusion.
 
 Jobs need to be configured to generate at least audit logs, in a predefined location, and possible whakapapa audit/hash logs.
 
@@ -227,15 +224,15 @@ Jobs need to be configured to generate at least audit logs, in a predefined loca
 
 As a SIG member, who uses the components we curate and what are they doing with them?
 
-*** SIG informed test writing / conformance patterns
+*** SIG informed test writing/conformance patterns
 
-As a SIG member choosing test to write/upgrade to conformance tests,
-what patterns and endpoints occur within our community vs what we currently test for.
+As a SIG member choosing a test to write/upgrade to conformance tests,
+what patterns and endpoints occur within our community vs what we are currently testing.
 
 *** Developer with a relational / community view
 
 As a developer, I'd like to know the existing tests and applications
-that have similar patterns or hit the endpoints I'm interested in.
+that have similar patterns or hit the endpoints of interest.
 
 ** Implementation Details/Notes/Constraints
 
@@ -250,44 +247,44 @@ that have similar patterns or hit the endpoints I'm interested in.
  
 * Alternatives [optional]
 
-** Record the audit-id + whakapa and a file that gets uploaded to GCS
+** Record the audit-id + whakapapa and a file that gets uploaded to GCS
 
-If we instrument applications by having them write audit-id + whakapa to lags,
+If we instrument applications by having them write audit-id + whakapapa to lags,
 we would need to ensure they end of in the GCS bucket, and it would now allow
 dynamic audit configuration as a method.
  
-* Our own Context (scratch)
+* Our Context (scratch)
 
 
-  simple summary of purpose: 'With data that provides the context of usage of kubernetes api (who is using it, where are they coming from, why are they doing this?), we can begin to visualize patterns of usage for kubernetes that will help us chart our course of development, testing, and conformance that's based on actual Kubernetes usage.   Through this, the k8s community (and conformance group) can  prioritize what endpoints are being tested, or which ones need more attention.  It will also help the community better understand who among them are working on which things, and why."
+  Simple summary of purpose: 'With data that provides the context of usage of kubernetes API (who is using it, where are they coming from, why are they doing this?), we can begin to visualize patterns of usage for kubernetes that will help us chart our course of development, testing, and conformance based on actual Kubernetes usage.   Through this, the k8s community (and conformance group) can prioritise what endpoints get tested, or which ones need more attention.  It also helps the community better understand who among them are working on which things, and why."
 
-  This summary has some inherent stages: 
+  This summary has some primary stages: 
 
-  - data being provided to us
-  - that data having usage context
-  - us having a way to share this to the k8s community.
+  - Receiving data
+  - That data having usage context
+  - Us having a way to share this with the k8s community.
   - There is a feedback loop 
-  - Our sharing being presented in a meaningful and inviting way for the community.
+  - Present in a meaningful and inviting way for the community.
   
-it's not about just making moreo tests, what are we testing on?  We can make tests that pass, but they may not be 'meaningful tests'.  If conformance is k8s figuring itself out, what things conform to our definition of ourselves, then meaning comes from who /we/ are, what /we/ are doing that k8s is conforming to.
+It's not about just making more tests, what are we testing?  We can make tests that pass, but they may not be 'meaningful tests'.  If conformance is k8s figuring itself out, what things conform to our definition of ourselves, the meaning comes from who /we/ are, what /we/ are doing that k8s is conforming to.
 
 ** [100%] Questions for our discussion
   - [X] Is this summary correct for apisnoop?
   - [X] Are the stages accurate?
   - [X]  If this is true, then what stage are we in right now?
-    - Right now we are only running this for a single user, the e2e test suite.  And for this beginning version, that is enough.  And so we can say that we are having data provided to us, and so we are past stage 1.
-    - Even at this point, new questions emerged when we shared findings to sig-testing:  Can we filter based on test name?  IF we drop down into a sig, what does it mean to see a sig within a test.  It's based on labels.  Can we filter by labels then?
-    - This sharing of our initial interface was step 3, but the sharing engendered not only  new questions about how we are grabbing data and its context, but also questions for //how we are allowing for people to explore the data and ask questions of this data.//
+    - Right now we are only running this for a single user, the e2e test suite.  So, for this beginning version, that is enough.  So we can say that we are having data provided to us, and so we are past stage 1.
+    - Even at this point, new questions emerged when we shared findings to sig-testing:  Can we filter based on the test name?  IF we drop down into a sig, what does it mean to see a sig within a test?  Being label based,  can we then filter by labels?
+    - This sharing of our initial interface was step 3, but the sharing engendered not only new questions about how we are grabbing data and its context but also questions for //how we are allowing for people to explore the data and ask questions of this data.//
   - [X] Do we have step 1 and 2 accomplished?  Do we need to have them accomplished before we try to share step 3?
-    - These may be different steps, but they are not linear.  Work done on step 3 enables more questions to be asked about the data and what context it has.  In other words, step 3 feeds back into step 1 and 2 and the way it feeds back generates new demands for step 3.  It is a cycle.  A stronger base for 3 will create a stronger base for 1 and 2 which in turns will create an even STRONGER base for 3.
+    - These may be different steps, but they are not linear.  Work done on step 3 enables more questions to be asked about the data and what context it has.  In other words, step 3 feeds back into step 1, and 2 and the way it feeds back generates new demands for step 3.  It is a cycle.  A stronger base for 3 creates a stronger base for 1 and 2 which in turns Strengthens 3.
   - [X] If not, what have we done and what are we doing to accomplish this?
-    - We are refactoring the web interface to tighten our iteration loop, and be able to respond more quickly with the suggestions of the community for how they want to explore the data.
-    - We are strategizing for how the data comes in, and how we can combine existing information into a single source to draw from, a source that is now more meaningful for the context it brings in.  In other words, we can pull audit logs fro test grid, and these audit logs will name the SIG or test_group this job is a part of...but it won't give further context about either.  This further context can be found in yaml files distributed across our git repos, but it can take some sleuthing and heavy brain work to remember where to find them, and how they all interrelate.  We are building a backend that does that sleuthing and combining for us--so that we can start to do the higher-level patterns instead of just searching out and keeping track of the raw data.
+    - We are refactoring the web interface to tighten our iteration loop to respond more quickly with the suggestions of the community for how they want to explore the data.
+    - We are strategising for how the data comes in, and how we can combine existing information into a single source to draw from, a source that is now more meaningful for the context it brings in.  In other words, we can pull audit logs from the test grid, and these audit logs will name the SIG or test_group this job is a part of...but it won't give further context about either.  This further context is found in yaml files distributed across our git repos, but it can take some sleuthing and heavy brain work to remember where to find them, and how they all interrelate.  We are building a backend that does that sleuthing and combining for us--so that we can start to see the higher-level patterns instead of just searching out and keeping track of the raw data.
   - [X] How many of these stages are within the domain of apisnoop work, and how much is assumed to be handled by someone else?
-    - Auditing has to be configured and it's a pain in the butt right now.
-    - There's a new feature called 'dyanmic audit configuration' that made this easier.  We didn't ask them to do this, but it came within 4 hours of our KEP.  And so the vision we are bringing forward new features of kubernetes through the vision provided in our long-term strategies.  In other words, we are helping define what kubernetes  is--and so the 'soft work' is directly contributing to conformance.
-    - So this dynamic auditing is going to help us bring in the data that will inform our web interface.
-    - In other words, a dropdown filter asumes there is data to filter upon and context in which to build the dropdown options.  It also assumes that we can grab this data and context quickly.  We are doing work to make both of these assumptions trueo
+    - Auditing has to be configured, and it's a pain in the butt right now.
+    - There's a new feature called 'dynamic audit configuration' that made this easier.  We didn't ask them to do this, but it came within 4 hours of our KEP.  Moreover, we are helping define what kubernetes is--and so the 'soft work' is directly contributing to conformance.
+    - So this dynamic auditing is going to help us bring in the data that informs our web interface.
+    - In other words, a dropdown filter assumes there is data to filter upon and context in which to build the drop-down options.  It also assumes that we can grab this data and context quickly.  We are doing work to make both of these assumptions true.
 
 *** our architecture is made up of: 
 
@@ -295,50 +292,50 @@ it's not about just making moreo tests, what are we testing on?  We can make tes
   - We lean heavily on prow
   - job results 
   - the test grid config (mostly to find which buckets to pull from).
-- we are creating a workflow pipeline of prow => gcsbucket to quickly iterate over data creation
-- we are creating an extensible data-processing and visualization platform
+- we are creating a workflow pipeline of prow => gcsbucket to iterate over data creation quickly
+- we are creating an extensible data-processing and visualisation platform
   - made up of modular components
-  - Easier to respond to community requests and build out new visualizations and features
-  - data processing has a clear api to draw from to pull out consistent data for our visualizations.
-a stable and extensible.
-  - [ ] If there is no known handler, than do these tasks become a part of our work and architecture?
+  - More accessible to respond to community requests and build out new visualisations and features
+  - Data processing has an explicit API to draw from to pull out consistent data for our visualisations.
+A stable and extensible.
+  - [ ] If there is no known handler, then do these tasks become a part of our work and architecture?
 
-The feedback loop is an important part of our purpose, to share this with conformance and sig-testing and see what sort of patterns are meaningful to them.  With the earliest versions, we already had useful feedback for what it is they'd like to do.  They want to interact with real data, and they want to be able to filter the data on some dynamic points and take actions from these.  The actions would be 'suggest tests' and 'suggest areas that are critically untested, and so endpoints within that area to be tested', 'suggest existing tests that do meaningful things that promote conformance', 'suggest meaningful ways the community is using the api and emerging patterns.'
+The feedback loop is an integral part of our purpose, to share this with conformance and sig-testing and see what sort of patterns are meaningful to them.  With the earliest versions, we already had useful feedback for what it is they'd like to do.  They want to interact with real data, and they want to be able to filter the data on some dynamic points to take action.  The actions would be 'suggest tests' and 'suggest areas that are critically untested, and so endpoints within that area to be tested', 'suggest existing tests that do meaningful things that promote conformance', 'suggest meaningful ways the community is using the API and emerging patterns.'
 
-This made us realize that we'd need to tighten our own iteration loop for the web interface, to better respond to the feedback around filters and actions.  The first version was not easily extensible, and required extensive manual work to update the page and add in new features.  And so we are working to build a more exensible backend for our interface, to be able to provide the actionable filters and insights.  This is already known as a need, but we are saying this is also a primary strategy for how we work.  The refactoring to create a tighter iteration loop is crucial for how we bring in data, and how we add context to that data.  * Objective 
+We then realised that to we needed to tighten our iteration loop for the web interface, to better respond to the feedback around filters and actions.  The first version was not easily extensible and required extensive manual work to update the page and add in new features.  Moreover, so we are working to build a more extensible backend for our interface, to be able to provide the actionable filters and insights.  This is already a known need, but we are saying this is also a primary strategy for how we work.  The refactoring to create a tighter iteration loop is crucial for how we bring in data, and how we add context to that data.  * Objective 
 
-In order to provide conformance metrics and actionable data to the CNCF
-Conformance WG, we want to continuously utilize the output from our conformance
+To provide conformance metrics and actionable data to the CNCF
+Conformance WG, we want to utilise the output from our conformance continuously
 related prow-jobs.
 
 Starting with the jobs displayed via test-grid/conformance-gce, we want to
-create analysis and visualization tools to understand:
+create analysis and visualisation tools to understand:
 
 
 - what tests hit which endpoints
 - what percentage of endpoints are hit (over time)
-- how our community using the k8s api
+- how our community using the k8s API
 - ???
 
 Afterwards, we will combine Kubernetes application tests from across the CNCF
-and beyond, to analyze real world usage patterns. This data will be used to see
+and beyond, to analyse real-world usage patterns. This data will be used to see
 patterns of usage and suggest new tests.
 * Design
 
 Using various methods to create and capture more context around API communications,
-we will ensure that the artifacts pushed by prow jobs contain the information necessary
+we will ensure that the artefacts pushed by prow jobs contain the information necessary
 to drive deeper analysis.
 
-Conformance related jobs (and their artifacts) will be pulled for analysis and
-visualization. Anyone should be able to fork and bring up their own analysis and
+Conformance-related jobs (and their artefacts) will get pulled for analysis and
+visualisation. Anyone should be able to fork and bring up their analysis and
 contribute.
 
 * Goals 
 
-- Build a simple api to provide access, analysis of prow job output/data
-- Create a process to quickly iterate on development of new jobs (destined for prow.k8s.io)
-- Add features to combine and visualize output across multiple jobs and buckets
-- Generate actionable conformance coverage reports / test suggestions
+- Build a simple API to provide access, analysis of prow job output/data
+- Create a process to quickly iterate on the development of new jobs (destined for prow.k8s.io)
+- Add features to combine and visualise output across multiple jobs and buckets
+- Generate actionable conformance coverage reports/test suggestions
 
 * Conformance Jobs
 
@@ -348,7 +345,7 @@ Prow jobs are defined in subfolders of [[https://github.com/kubernetes/test-infr
 the conformance-gce jobs seem to be part of [[https://github.com/kubernetes/community/tree/master/sig-gcp][sig-gcp]] as they are under
 [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/][config/jobs/kubernetes/sig-gcp]] in [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][gce-conformance.yaml]]
 
-So far the conforance-gce jobs seem to be configured to run every 6 hours and
+So far the conformance-gce jobs seem to be configured to run every 6 hours and
 take about 2 hours to run.
 
 ** Results Uploaded to [[https://cloud.google.com/storage/docs/json_api/v1/buckets][GCS Buckets]]
@@ -379,7 +376,7 @@ We focused on the [[https://k8s-testgrid.appspot.com/conformance-gce][k8s-testgr
 ** Dashboard Definitions
 
 Dashboards are configured via [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][k8s/test-infra/testgrid/config.yaml#Prow hosted
-conformance tests]] and are configured in a bit of a higherarchy.
+conformance tests]] and are configured in a hierarchy.
 
 *** dashboard_groups: [[https://github.com/kubernetes/test-infra/blob/f3b96c7fcf9ef6b0411dc126e42a1618c1524187/testgrid/config.yaml#L7430][conformance]] 
 
@@ -455,7 +452,7 @@ They are configured via
 testgrid provides a webui around job results stored in gubernator / gcsweb.
 
 We don't directly interact with testgrid, but we use the [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L3014][config]] to find the
-correct gcs_prefixes. Currently we filter on testgroup 
+correct gcs_prefixes. Currently, we filter on testgroup 
 
 We iterate over
 
@@ -470,7 +467,7 @@ Each test_group pulls from a specific gcs_prefix.
 Jobs are defined at [[https://github.com/kubernetes/test-infra/tree/master/config/jobs][k8s/test-infra/jobs]] though most of the conformance dashboard are at
 [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][config/jobs/kubernetes/sig-gcp/gce-conformance.yaml]]
 
- most of our conformance jobs
+ Most of our conformance jobs
 have a periodic run of about 6 hours. It takes usually takes 2 hours for them to
 run.
 
