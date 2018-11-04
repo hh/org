@@ -13,9 +13,9 @@
 
 * Summary
 
-The cultural concepts of mihi and whakapapa are the foundation of this KEP. The
+The Cultural concepts of mihi and whakapapa are the foundation of this KEP. The
 application of these concepts within our community ecosystem deserves a shout
-out to the Māori of Aoteroa, Land of the Long White Cloud.
+out to the Māori of Aotearoa, Land of the Long White Cloud.
 
 New Zealand hasn’t been populated for very long compared to the rest of the
 world. The first people (Māori) arrived on waka (canoes) around the 15th
