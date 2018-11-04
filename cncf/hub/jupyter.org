@@ -20,7 +20,7 @@ The rendered version is at https://z2jh.jupyter.org/en/stable/
  You'll need to customize this with an project of your own.
 
 ** Verify your gcloud credentials 
-
+   
     There are various ways to authenticate, we will just ensure the correct
     account is active.
 
@@ -346,13 +346,15 @@ When the IP Address of the LoadBalancer is available, update DNS for jhub.your.d
      
 #+NAME: Find the IP we can use to access the JupyterHub
 #+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
-kubectl get service proxy-public
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
+  kubectl get service proxy-public
 #+END_SRC
 
 #+RESULTS: Find the IP we can use to access the JupyterHub
 #+BEGIN_SRC text
+Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
 NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
-proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:32422/TCP   2m
+proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:32422/TCP   3d
 #+END_SRC
 
 * Setup GCR
@@ -364,7 +366,7 @@ proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:324
 
 #+NAME: gcloud sa create
 #+BEGIN_SRC tmate :results silent
-gcloud iam service-accounts create  binderhub-builder --display-name="BinderHubBuilder"
+gcloud iam service-accounts create  binderhub --display-name="BinderHub"
 #+END_SRC
 
 #+NAME: binder_hub_sa
@@ -470,7 +472,14 @@ gcloud iam service-accounts create  binderhub-builder --display-name="BinderHubB
  #+BEGIN_SRC shell :results output silent
    cat ./secrets/service-account.json | jq . -c
  #+END_SRC
-
+Added 8404... probably the project id, to view
+ #+NAME: gcr_objectview
+ #+BEGIN_SRC shell :results output silent
+   gsutil iam ch serviceAccount:binderhub@apisnoop.iam.gserviceaccount.com:objectViewer gs://apisnoop
+   gsutil iam ch allUsers:objectViewer gs://apisnoop
+   gsutil ls  gs://artifacts.apisnoop.appspot.com/containers/images/
+ #+END_SRC
+  
 ** Prepare secret.yaml file
 
 https://binderhub.readthedocs.io/en/latest/setup-binderhub.html
@@ -484,9 +493,17 @@ https://binderhub.readthedocs.io/en/latest/setup-binderhub.html
           apiToken: "<<binderhub_apiToken()>>"
     proxy:
       secretToken: "<<binderhub_secretToken()>>"
+  hub:
+    services:
+      binder:
+        apiToken: "<<binderhub_apiToken()>>"
   registry:
     password: |
       <<gcr_creds()>>
+  auth:
+    github:
+      clientId: "<<github_client_id()>>"
+      clientSecret: "<<github_client_secret()>>"
 #+END_SRC
 *** Backup ALT_CREDS
 #+NAME: ./binderhub/google-secret.yaml
@@ -505,8 +522,50 @@ It should match proxy-
 
 #+NAME: ./binderhub/config.yaml
 #+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/config.yaml
+  jupyterhub:
+    hub:
+      rbac:
+        enabled: false
+  auth:
+    admin:
+      users:
+        - hh
+        - ii-dev
+    type: github
+    github:
+      callbackUrl: "https://jhub.cncf.ci/hub/oauth_callback"
+      org_whitelist:
+        - ii
+        - cncf
+        - kubernetes
+      scopes:
+        - "read:user"
+  singleuser:
+    defaultUrl: "/lab"
+  proxy:
+    https:
+      hosts:
+        - jhub.cncf.ci
+      letsencrypt:
+        contactEmail: hh@ii.coop
+  prePuller:
+    hook:
+      enabled: false
+    continuous:
+      enabled: true
+    extraImages:
+      ubuntu-xenial:
+        name: ubuntu
+        tag: 16.04
+        policy: IfNotPresent
   hub:
     url: https://jhub.cncf.ci/
+    extraConfig:
+      00-first-config: |
+        import z2jh
+        #z2jh.get_config('custom.FOO') 
+      10-spawner-cmd: |
+        c.Spawner.cmd = ['jupyter-labhub']
   registry:
     prefix: "gcr.io/apisnoop/binder"
     enabled: true
@@ -518,10 +577,10 @@ It should match proxy-
     
 #+NAME: Install the chart using the config above
 #+BEGIN_SRC tmate
-  NAME=binder3
-  NAMESPACE=binder3
+  NAME=jhub
+  NAMESPACE=jhub
   helm install jupyterhub/binderhub \
-    --version=0.1.0-6e91396 \
+    --version=0.1.0-75c0c6e \
     --name=$NAME \
     --namespace=$NAME \
     -f ./binderhub/secret.yaml \
@@ -532,45 +591,309 @@ It should match proxy-
      
 #+NAME: Wait for binder
 #+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
-  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder3}
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
   kubectl get pod 
 #+END_SRC
 
 #+RESULTS: Wait for binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME                          READY   STATUS    RESTARTS   AGE
-binder-74f9695f86-gzvqc       1/1     Running   0          39s
-binder3-image-cleaner-gd9mj   1/1     Running   0          39s
-binder3-image-cleaner-x57qt   1/1     Running   0          39s
-hub-6474c5c798-vdfb8          1/1     Running   0          39s
-proxy-7c66945f8f-bprtv        1/1     Running   0          39s
+NAME                       READY   STATUS    RESTARTS   AGE
+binder-84d755c7c6-k77mn    1/1     Running   0          3m
+hub-5c6b4df8f-jjwjz        1/1     Running   0          3m
+jhub-image-cleaner-bq8ks   1/1     Running   0          3m
+jhub-image-cleaner-nk7td   1/1     Running   0          3m
+proxy-586d5796cc-p2lwb     1/1     Running   0          3m
 #+END_SRC
 
 
-*** Find the IP we can use to access the JupyterHub
+*** Find the ip we can use to access the JupyterHub
      
 #+NAME: Find the IP we can use to access Binder
 #+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
-kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-binder3}
-kubectl get service # proxy-public
+kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
+kubectl get service #proxy-public
 #+END_SRC
 
 #+RESULTS: Find the IP we can use to access Binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME           TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)                      AGE
-binder         LoadBalancer   10.3.241.157   35.197.184.110   80:30497/TCP                 1m
-hub            ClusterIP      10.3.249.98    <none>           8081/TCP                     1m
-proxy-api      ClusterIP      10.3.251.185   <none>           8001/TCP                     1m
-proxy-public   LoadBalancer   10.3.246.255   35.189.13.8      80:30784/TCP,443:32438/TCP   1m
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
+binder         LoadBalancer   10.3.248.3     35.189.36.7    80:32007/TCP                 3m
+hub            ClusterIP      10.3.254.108   <none>         8081/TCP                     3m
+proxy-api      ClusterIP      10.3.246.22    <none>         8001/TCP                     3m
+proxy-public   LoadBalancer   10.3.248.28    35.201.23.72   80:32353/TCP,443:32428/TCP   3m
 #+END_SRC
+* 
+#+NAME: select
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC json"
+kubectl get service proxy-public -o json | jq .
+#spec.selector
+#+END_SRC
+
+#+RESULTS: select
+#+BEGIN_SRC json
+{
+  "apiVersion": "v1",
+  "kind": "Service",
+  "metadata": {
+    "creationTimestamp": "2018-11-04T22:14:00Z",
+    "labels": {
+      "app": "jupyterhub",
+      "chart": "jupyterhub-0.8-d462e1c",
+      "component": "proxy-public",
+      "heritage": "Tiller",
+      "release": "jhub"
+    },
+    "name": "proxy-public",
+    "namespace": "jhub",
+    "resourceVersion": "803695",
+    "selfLink": "/api/v1/namespaces/jhub/services/proxy-public",
+    "uid": "ee459d65-e07e-11e8-be28-42010a98004b"
+  },
+  "spec": {
+    "clusterIP": "10.3.248.28",
+    "externalTrafficPolicy": "Cluster",
+    "ports": [
+      {
+        "name": "http",
+        "nodePort": 32353,
+        "port": 80,
+        "protocol": "TCP",
+        "targetPort": 8000
+      },
+      {
+        "name": "https",
+        "nodePort": 32428,
+        "port": 443,
+        "protocol": "TCP",
+        "targetPort": 443
+      }
+    ],
+    "selector": {
+      "component": "proxy",
+      "release": "jhub"
+    },
+    "sessionAffinity": "None",
+    "type": "LoadBalancer"
+  },
+  "status": {
+    "loadBalancer": {
+      "ingress": [
+        {
+          "ip": "35.201.23.72"
+        }
+      ]
+    }
+  }
+}
+#+END_SRC
+
+#+NAME: find the pod
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC json"
+kubectl get pod -l component=proxy -o json | jq .items[0]
+#+END_SRC
+
+#+RESULTS: find the pod
+#+BEGIN_SRC json
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "annotations": {
+      "checksum/hub-secret": "0754c0a8da2618da90445515ad9031f18622c1fe2ba3c5b2205abbe07c5bfc56",
+      "checksum/proxy-secret": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "creationTimestamp": "2018-11-04T22:14:00Z",
+    "generateName": "proxy-586d5796cc-",
+    "labels": {
+      "app": "jupyterhub",
+      "component": "proxy",
+      "hub.jupyter.org/network-access-hub": "true",
+      "hub.jupyter.org/network-access-singleuser": "true",
+      "pod-template-hash": "1428135277",
+      "release": "jhub"
+    },
+    "name": "proxy-586d5796cc-p2lwb",
+    "namespace": "jhub",
+    "ownerReferences": [
+      {
+        "apiVersion": "extensions/v1beta1",
+        "blockOwnerDeletion": true,
+        "controller": true,
+        "kind": "ReplicaSet",
+        "name": "proxy-586d5796cc",
+        "uid": "ee50a5cd-e07e-11e8-be28-42010a98004b"
+      }
+    ],
+    "resourceVersion": "803581",
+    "selfLink": "/api/v1/namespaces/jhub/pods/proxy-586d5796cc-p2lwb",
+    "uid": "ee5c427e-e07e-11e8-be28-42010a98004b"
+  },
+  "spec": {
+    "affinity": {
+      "nodeAffinity": {
+        "preferredDuringSchedulingIgnoredDuringExecution": [
+          {
+            "preference": {
+              "matchExpressions": [
+                {
+                  "key": "hub.jupyter.org/node-purpose",
+                  "operator": "In",
+                  "values": [
+                    "core"
+                  ]
+                }
+              ]
+            },
+            "weight": 100
+          }
+        ]
+      }
+    },
+    "containers": [
+      {
+        "command": [
+          "configurable-http-proxy",
+          "--ip=0.0.0.0",
+          "--api-ip=0.0.0.0",
+          "--api-port=8001",
+          "--default-target=http://$(HUB_SERVICE_HOST):$(HUB_SERVICE_PORT)",
+          "--error-target=http://$(HUB_SERVICE_HOST):$(HUB_SERVICE_PORT)/hub/error",
+          "--port=8000"
+        ],
+        "env": [
+          {
+            "name": "CONFIGPROXY_AUTH_TOKEN",
+            "valueFrom": {
+              "secretKeyRef": {
+                "key": "proxy.token",
+                "name": "hub-secret"
+              }
+            }
+          }
+        ],
+        "image": "jupyterhub/configurable-http-proxy:3.0.0",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "chp",
+        "ports": [
+          {
+            "containerPort": 8000,
+            "name": "proxy-public",
+            "protocol": "TCP"
+          },
+          {
+            "containerPort": 8001,
+            "name": "api",
+            "protocol": "TCP"
+          }
+        ],
+        "resources": {
+          "requests": {
+            "cpu": "200m",
+            "memory": "512Mi"
+          }
+        },
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "volumeMounts": [
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "default-token-8t5sp",
+            "readOnly": true
+          }
+        ]
+      }
+    ],
+    "dnsPolicy": "ClusterFirst",
+    "nodeName": "gke-apisnoop-jupyterhub-default-pool-b3198ed6-tvmv",
+    "restartPolicy": "Always",
+    "schedulerName": "default-scheduler",
+    "securityContext": {},
+    "serviceAccount": "default",
+    "serviceAccountName": "default",
+    "terminationGracePeriodSeconds": 60,
+    "tolerations": [
+      {
+        "effect": "NoExecute",
+        "key": "node.kubernetes.io/not-ready",
+        "operator": "Exists",
+        "tolerationSeconds": 300
+      },
+      {
+        "effect": "NoExecute",
+        "key": "node.kubernetes.io/unreachable",
+        "operator": "Exists",
+        "tolerationSeconds": 300
+      }
+    ],
+    "volumes": [
+      {
+        "name": "default-token-8t5sp",
+        "secret": {
+          "defaultMode": 420,
+          "secretName": "default-token-8t5sp"
+        }
+      }
+    ]
+  },
+  "status": {
+    "conditions": [
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2018-11-04T22:14:00Z",
+        "status": "True",
+        "type": "Initialized"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2018-11-04T22:14:02Z",
+        "status": "True",
+        "type": "Ready"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2018-11-04T22:14:00Z",
+        "status": "True",
+        "type": "PodScheduled"
+      }
+    ],
+    "containerStatuses": [
+      {
+        "containerID": "docker://9cced2a7bebe6514977fb747c7d76874917a3c8a0b320e0a643a7922994ea635",
+        "image": "jupyterhub/configurable-http-proxy:3.0.0",
+        "imageID": "docker-pullable://jupyterhub/configurable-http-proxy@sha256:c36cf3cc1c99f59348a8d6f5f64752df3eb4d88df93a11bc4e00acf23dbecfba",
+        "lastState": {},
+        "name": "chp",
+        "ready": true,
+        "restartCount": 0,
+        "state": {
+          "running": {
+            "startedAt": "2018-11-04T22:14:02Z"
+          }
+        }
+      }
+    ],
+    "hostIP": "10.152.0.3",
+    "phase": "Running",
+    "podIP": "10.0.0.79",
+    "qosClass": "Burstable",
+    "startTime": "2018-11-04T22:14:00Z"
+  }
+}
+#+END_SRC
+
 
 * Error Debugging
 :PROPERTIES:
 :header-args:tmate: :socket "/tmp/.hh-right.isocket"
 :header-args:tmate: :session hh-right:binderhub
 :END:
+** reauth to gcloud
+#+NAME: Find issue
+#+BEGIN_SRC tmate hh-right:binder-logs
+   gcloud container clusters get-credentials apisnoop-jupyterhub
+#+END_SRC
 ** debugging binder
 #+NAME: Find issue
 #+BEGIN_SRC tmate hh-right:binder-logs
@@ -583,30 +906,62 @@ You need to actiave a long term build,
 http://35.197.184.110/v2/gh/kubernetes/kubernetes/release-1.12
 
 Once you do that, you can get a term and explore:
+#+NAME: Get into pod
+#+BEGIN_SRC tmate hh-right:binder-logs
+  BUILD_POD=$(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
+  kubectl exec -ti $POD /bin/bash
+  HUB_POD=$(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
+  kubectl exec -ti $POD /bin/bash
+#+END_SRC
 #+NAME: debug binderhub-build
 #+BEGIN_SRC tmate hh-right:binder-logs
-  POD=$(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
-  kubectl exec -ti $POD /bin/bash
+  apt-get update -y
+  echo | apt-get install vim jq lsb-release lsb-core -y
+  apt-get install -y \
+     apt-transport-https \
+     ca-certificates \
+     curl \
+     gnupg2 \
+     software-properties-common
+  add-apt-repository \
+     "deb [arch=amd64] https://download.docker.com/linux/debian \
+     $(lsb_release -cs) \
+     stable"
+  curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+  curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+  export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
+  echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+  apt-get update -y && apt-get install google-cloud-sdk docker-ce -y
   pip install ipython
   pip install ipdb
-  cd  /tmp/src
-  cat <<EOPATCH | patch -p 1
-  diff --git a/repo2docker/app.py b/repo2docker/app.py
-  index 17f1b39..a437cfb 100644
-  --- a/repo2docker/app.py
-  +++ b/repo2docker/app.py
-  @@ -546,6 +546,7 @@ class Repo2Docker(Application):
-           # info every 1.5s
-           layers = {}
-           last_emit_time = time.time()
-  +        import ipdb; ipdb.set_trace(context=60)
-           for line in client.push(self.output_image_spec, stream=True):
-               progress = json.loads(line.decode('utf-8'))
-               if 'error' in progress:
-  EOPATCH
+#+END_SRC
+
+#+NAME: debug binderhub-build
+#+BEGIN_SRC tmate hh-right:binder-logs
+  clear
+  cat ~/.docker/config.json | jq '.auths["https://gcr.io"]'.auth -r | base64  --decode 
+  cat ~/.docker/config.json | jq '.auths["https://gcr.io"]'.auth -r | base64  --decode | sed s/_json_key/{\"__json_key\"/ | sed 's/}$/}}/' | jq .
+  cat ~/.docker/config.json | jq '.auths["https://gcr.io"]'.auth -r | base64  --decode | sed s/_json_key:// | jq . > creds.jso                                                                                   
+  gcloud auth activate-service-account binderhub-bulider@apisnoop.iam.gserviceaccount.com --key-file creds.json
 #+END_SRC
 
 Once inside, let's try building something small to inspect how it pushes.
+#+NAME: debug binderhub-patch
+#+BEGIN_SRC tmate hh-right:binder-logs
+  cd  /
+  cat <<EOPATCH | patch -p 1
+  diff --git a/usr/local/lib/python3.6/site-packages/repo2docker/app.py b/usr/local/lib/python3.6/site-packages/repo2docker/repo2docker/app.py
+  index 17f1b39..2d8f714 100644
+  --- a/usr/local/lib/python3.6/site-packages/repo2docker/app.py
+  +++ b/usr/local/lib/python3.6/site-packages/repo2docker/app.py
+  @@ -549,4 +549,5 @@ class Repo2Docker(Application):
+           for line in client.push(self.output_image_spec, stream=True):
+               progress = json.loads(line.decode('utf-8'))
+  +            import ipdb; ipdb.set_trace(context=60)
+               if 'error' in progress:
+                   self.log.error(progress['error'], extra=dict(phase='failed'))
+  EOPATCH
+#+END_SRC
 
 #+NAME: sample build+push
 #+BEGIN_SRC tmate
