@@ -405,26 +405,27 @@ gcloud iam service-accounts create  binderhub --display-name="BinderHub"
 :END:
 ** Secrets / ENV Setup
 *** Tokens
-**** generate_binderhub_apitoken
+**** generate_binder_apitoken
      
- #+NAME: generate_binderhub_apiToken
+ #+NAME: generate_hub_services_binder_apitoken
  #+BEGIN_SRC shell :exports code :results output code verbatim :cache yes
    mkdir -p ./binderhub
    openssl rand -hex 32 > ./binderhub/apiToken
    md5sum ./binderhub/apiToken
  #+END_SRC
 
- #+RESULTS[6a4cb324040b57b59c69da4b592b858ccfaa43c3]: generate_binderhub_apiToken
+ #+RESULTS[6a4cb324040b57b59c69da4b592b858ccfaa43c3]: generate_hub_services_binder_apitoken
  #+BEGIN_SRC shell
- e3fab6d93aabaf7d1c1bdbf12b2f0df3  ./binderhub/apiToken
+ d47c3327a12ce184049c7a7739202de2  ./binderhub/apiToken
  #+END_SRC
+
 
  #+NAME: binderhub_apiToken
  #+BEGIN_SRC shell :exports code :results silent
  cat ./binderhub/apiToken
  #+END_SRC
  
-**** generate_binderhub_secrettoken
+**** generate_proxy_secrettoken
  #+NAME: generate_binderhub_secrettoken
  #+BEGIN_SRC shell :exports code :results output code verbatim :cache yes
    openssl rand -hex 32 > ./binderhub/secretToken
@@ -433,7 +434,7 @@ gcloud iam service-accounts create  binderhub --display-name="BinderHub"
 
  #+RESULTS[b41c9a75ff07ffd2dc9cd5d63d23d2dedb0d59ce]: generate_binderhub_secrettoken
  #+BEGIN_SRC shell
- 46c4eb867138ada44cd001570ce11b47  ./binderhub/secretToken
+ 89e4c6aa0dddaaa3da3b184adb8e27cc  ./binderhub/secretToken
  #+END_SRC
 
 
@@ -470,9 +471,11 @@ gcloud iam service-accounts create  binderhub --display-name="BinderHub"
 [[file:secrets/service-account.json][./secrets/service-account.json]]
  #+NAME: gcr_creds
  #+BEGIN_SRC shell :results output silent
-   cat ./secrets/service-account.json | jq . -c
+   cat ./secrets/service-account.json | jq .
  #+END_SRC
+ 
 Added 8404... probably the project id, to view
+
  #+NAME: gcr_objectview
  #+BEGIN_SRC shell :results output silent
    gsutil iam ch serviceAccount:binderhub@apisnoop.iam.gserviceaccount.com:objectViewer gs://apisnoop
@@ -493,21 +496,21 @@ https://binderhub.readthedocs.io/en/latest/setup-binderhub.html
           apiToken: "<<binderhub_apiToken()>>"
     proxy:
       secretToken: "<<binderhub_secretToken()>>"
-  hub:
-    services:
-      binder:
-        apiToken: "<<binderhub_apiToken()>>"
   registry:
     password: |
       <<gcr_creds()>>
+#+END_SRC
+*** Backup ALT_CREDS
+#+NAME: ./binderhub/other-secret.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/other-secret.yaml
   auth:
     github:
       clientId: "<<github_client_id()>>"
       clientSecret: "<<github_client_secret()>>"
-#+END_SRC
-*** Backup ALT_CREDS
-#+NAME: ./binderhub/google-secret.yaml
-#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/backup-secret.yaml
+  hub:
+    services:
+      binder:
+        apiToken: "<<binderhub_apiToken()>>"
   registry:
     username: "<<docker_id()>>" 
     password: "<<docker_password()>>" 
@@ -522,6 +525,17 @@ It should match proxy-
 
 #+NAME: ./binderhub/config.yaml
 #+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/config.yaml
+  registry:
+    prefix: "gcr.io/apisnoop/binder"
+    enabled: true
+
+  hub:
+    url: http://hub.cncf.ci/
+    # url: http://<<NAMESPACE()>>.cncf.ci/
+#+END_SRC
+
+#+NAME: ./binderhub/other-config.yaml
+#+BEGIN_SRC yaml :noweb yes :tangle ./binderhub/other-config.yaml
   jupyterhub:
     hub:
       rbac:
@@ -569,16 +583,16 @@ It should match proxy-
   registry:
     prefix: "gcr.io/apisnoop/binder"
     enabled: true
+    #prefix: "this/hub"
 #+END_SRC
-    prefix: "this/hub"
 
 ** Install BinderHub
 *** Install the chart using the config above
     
 #+NAME: Install the chart using the config above
 #+BEGIN_SRC tmate
-  NAME=jhub
-  NAMESPACE=jhub
+  NAME=apihub
+  NAMESPACE=$NAME
   helm install jupyterhub/binderhub \
     --version=0.1.0-75c0c6e \
     --name=$NAME \
@@ -587,10 +601,25 @@ It should match proxy-
     -f ./binderhub/config.yaml
 #+END_SRC
 
+#+NAME: Install the chart using the config above
+#+BEGIN_SRC tmate
+  NAME=apihub
+  NAMESPACE=$NAME
+  helm upgrade $NAME jupyterhub/binderhub \
+    --version=0.1.0-75c0c6e \
+    -f ./binderhub/secret.yaml \
+    -f ./binderhub/config.yaml
+#+END_SRC
+
+#+NAME: NAMESPACE
+#+BEGIN_SRC shell
+echo apihub
+#+END_SRC
+
 *** Monitor health of the pods
      
 #+NAME: Wait for binder
-#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
+#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text" :var NAMESPACE=NAMESPACE()
   kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
   kubectl get pod 
 #+END_SRC
@@ -598,19 +627,21 @@ It should match proxy-
 #+RESULTS: Wait for binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME                       READY   STATUS    RESTARTS   AGE
-binder-84d755c7c6-k77mn    1/1     Running   0          3m
-hub-5c6b4df8f-jjwjz        1/1     Running   0          3m
-jhub-image-cleaner-bq8ks   1/1     Running   0          3m
-jhub-image-cleaner-nk7td   1/1     Running   0          3m
-proxy-586d5796cc-p2lwb     1/1     Running   0          3m
+NAME                               READY   STATUS        RESTARTS   AGE
+apihub-image-cleaner-cm6m8         1/1     Running       0          9m
+apihub-image-cleaner-t6nvq         1/1     Running       0          9m
+binder-5dcd69fb57-cqq7q            1/1     Running       0          20s
+binder-69d45cb5b6-dxthk            1/1     Terminating   0          9m
+hub-7b9f789bc7-s7kl5               1/1     Running       0          9m
+jupyter-ii-2dapisnoop-2dfkx57i0d   1/1     Running       0          6m
+proxy-74d875fb89-wfrch             1/1     Running       0          9m
 #+END_SRC
 
 
 *** Find the ip we can use to access the JupyterHub
      
 #+NAME: Find the IP we can use to access Binder
-#+BEGIN_SRC shell :results output verbatim code :wrap "SRC text"
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC text" :var NAMESPACE=NAMESPACE()
 kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
 kubectl get service #proxy-public
 #+END_SRC
@@ -618,11 +649,11 @@ kubectl get service #proxy-public
 #+RESULTS: Find the IP we can use to access Binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                      AGE
-binder         LoadBalancer   10.3.248.3     35.189.36.7    80:32007/TCP                 3m
-hub            ClusterIP      10.3.254.108   <none>         8081/TCP                     3m
-proxy-api      ClusterIP      10.3.246.22    <none>         8001/TCP                     3m
-proxy-public   LoadBalancer   10.3.248.28    35.201.23.72   80:32353/TCP,443:32428/TCP   3m
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                      AGE
+binder         LoadBalancer   10.3.246.195   35.197.186.15   80:30446/TCP                 1m
+hub            ClusterIP      10.3.242.98    <none>          8081/TCP                     1m
+proxy-api      ClusterIP      10.3.241.164   <none>          8001/TCP                     1m
+proxy-public   LoadBalancer   10.3.251.114   35.189.62.106   80:31766/TCP,443:31315/TCP   1m
 #+END_SRC
 * 
 #+NAME: select
