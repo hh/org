@@ -34,26 +34,248 @@ This would set the target tmate session. (there can be only one per socket)
 echo "Hii World"
 #+END_SRC
 
+** isocket
+*** lispy way 
+#+NAME: local_user
+#+BEGIN_SRC elisp
+(user-real-login-name)
+#+END_SRC
+
+#+RESULTS: local_user
+: hh
+
+#+NAME: left_session :exports both
+#+BEGIN_SRC elisp
+(concat (user-real-login-name) "-left")
+#+END_SRC
+
+#+RESULTS: left_session :exports both
+: hh-left
+
+#+NAME: right_session :exports both
+#+BEGIN_SRC elisp
+(concat (user-real-login-name) "-right")
+#+END_SRC
+
+#+RESULTS: right_session :exports both
+: hh-right
+
+#+NAME: new_emacs_tmate_session
+#+BEGIN_SRC shell :var session :session nil :results silent
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n emacs \
+      emacs --fg-daemon=$session
+#+END_SRC
+
+*** bashy way
+    #+NAME vars
+    #+BEGIN_SRC shell :vars emacs_user=(user-real-login-name) ssh_user=(user-real-login-name)
+    export EMACS_USER=
+    #+END_SRC
+*** Connecting the left pair / isocket
+
+ ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
+ _even_ when we don't have have local one (within emacs)
+;local_user=(user-real-login-name) 
+
+#+NAME: left_session_create
+#+BEGIN_SRC shell :var local_terminal="xterm -e" ssh_user="ii" session=(concat (user-real-login-name) "-left") host="apisnoop.cncf.io" :session nil :results silentt
+  echo $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $ssh_user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n emacs \
+      emacs --fg-daemon=$session"
+  #&
+#+END_SRC
+
+#+NAME: left_session_setup
+#+BEGIN_SRC shell :var ssh_user=(user-real-login-name) session=(concat (user-real-login-name) "-left") host="apisnoop.cncf.io" :session nil :results silent
+#+BEGIN_SRC shell :var session="zz-left" user="zz" host="apisnoop.cncf.io" :session nil :results silent
+  ssh -att $user@$host \
+  "tmate -S /tmp/.$session.isocket \
+        new-window \
+        -n client" \
+   "emacsclient -nw \
+              --socket-name $session \
+              ~/org/ii/legalhackers/gitlab.org"
+#+END_SRC
+
+ #+NAME: left_session
+ #+BEGIN_SRC shell :wrap "SRC text :noeval" :results verbatim :var session="zz-left" user="zz" host="apisnoop.cncf.io" :results silen
+  ssh -att $user@$host \
+    tmate -S /tmp/.$SESSION.isocket wait tmate-ready > /dev/null &&
+  ssh -att $user@$host \
+    tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\' 2> /dev/null
+# ssh -tt root@apisnoop.cncf.io \
+#  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
+ #+END_SRC
+
+ #+RESULTS: left_session
+ : hh-left
+
+**** Connecting to emacs daemon
+
+ #+NAME: alse run emacsclient
+ #+BEGIN_SRC tmate :noeval
+ export SESSION=lt-emacs
+ emacsclient --socket-name $SESSION
+ #+END_SRC
+
+
+*** Connecting the left pair / isocket
+
+ ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
+ _even_ when we don't have have local one (within emacs)
+
+#+NAME: left_session_create
+#+BEGIN_SRC shell :var session="zz-left" terminal_exec="xterm -e" user="zz" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n emacs \
+      emacs --fg-daemon=$session" \
+  &
+#+END_SRC
+
+#+NAME: left_session_setup
+#+BEGIN_SRC shell :var session="zz-left" user="zz" host="apisnoop.cncf.io" :session nil :results silent
+  ssh -att $user@$host \
+  "tmate -S /tmp/.$session.isocket \
+        new-window \
+        -n client" \
+   "emacsclient -nw \
+              --socket-name $session \
+              ~/apisnoop/webui/web_ui.org"
+#+END_SRC
+
+ #+NAME: left_session
+ #+BEGIN_SRC shell :wrap "SRC text :noeval" :results verbatim :var session="zz-left" user="zz" host="apisnoop.cncf.io" :results silen
+  ssh -att $user@$host \
+    tmate -S /tmp/.$SESSION.isocket wait tmate-ready > /dev/null &&
+  ssh -att $user@$host \
+    tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\' 2> /dev/null
+# ssh -tt root@apisnoop.cncf.io \
+#  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
+ #+END_SRC
+
+ #+RESULTS: left_session
+ #+BEGIN_SRC text :noeval
+ #+END_SRC
+
+**** Connecting to emacs daemon
+
+ #+NAME: alse run emacsclient
+ #+BEGIN_SRC tmate :noeval
+ export SESSION=lt-emacs
+ emacsclient --socket-name $SESSION
+ #+END_SRC
+
+*** Connecting the right pair / isocket
+
+#+NAME: right_session_create
+#+BEGIN_SRC shell :var session="root-right" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
+  $terminal_exec \
+      "ssh -att \
+           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
+           -l $user \
+           $host \
+      tmate -S /tmp/.$session.isocket \
+            new-session \
+            -A \
+            -s $session \
+            -n misc" \
+  &
+#+END_SRC
+
+
+ #+NAME: right_session_join
+ #+BEGIN_SRC shell :results silent
+ export SESSION=api-snoop
+ export XTERM_EXEC="roxterm -e"
+ $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+   at \; sleep 9999
+ #+END_SRC
+
+ #+NAME: right_session_setup
+ #+BEGIN_SRC shell :results verbatim
+ export SESSION=api-snoop
+ echo ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket \
+    new-window -n session \
+     bash
+ #+END_SRC
+
+ #+NAME: right_session
+ #+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
+ export SESSION=api-snoop
+ ssh -tt root@apisnoop.cncf.io \
+  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
+ #+END_SRC
+
+ #+RESULTS[dd96525b42bbbe741e292e99ad5f3592a7163025]: right_session
+ #+BEGIN_SRC text :noeval
+ ssh mJrsCgvGTOTOFagYpBKvRf7EE@sf2.tmate.io
+ #+END_SRC
+
+
+
+
+
+ #+NAME: give this to your pair
+ #+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session()
+ echo "ii pair session ready
+ left: $left_session
+ right: $right_session
+ "
+ #+END_SRC
+
+ #+RESULTS: give this to your pair
+ | ii     | pair | session | ready |
+ | left:  | nil  |         |       |
+ | right: | nil  |         |       |
+ |        |      |         |       |
+
+*** TODO Sharing your eyes
 ** Connecting the left pair / isocket
 
 ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
 _even_ when we don't have have local one (within emacs)
 
 #+NAME: left_session_create
-#+BEGIN_SRC shell :results silent
-export WORKDIR=~/org/
-export XTERM_EXEC="roxterm -e"
+#+BEGIN_SRC shell :results silent :session emacs
+export XTERM_EXEC="xterm -e"
 export SESSION=lt-emacs
+#  -A \ create or reconnect
+#  -c "FOLDER" \ default to here for shells
+#  -s "SESSION NAME"
+#  -n "WINDOW NAME"
 $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
- cd $WORKDIR \; \
  tmate -S /tmp/.$SESSION.isocket \
   new-session \
-  -A -c $WORKDIR -s $SESSION -n emacs \
+  -A \
+  -s $SESSION \
+  -n emacs \
     emacs --fg-daemon=$SESSION &
 #+END_SRC
 
 #+NAME: left_session_setup
-#+BEGIN_SRC shell :results silent
+#+BEGIN_SRC shell :results silent :session emacs
 export SESSION=lt-emacs
 ssh -tt root@apisnoop.cncf.io \
  tmate -S /tmp/.$SESSION.isocket \
@@ -62,24 +284,28 @@ ssh -tt root@apisnoop.cncf.io \
 #+END_SRC
 
 #+NAME: left_session
-#+BEGIN_SRC shell :cache yes
+#+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
 export SESSION=lt-emacs
 ssh -tt root@apisnoop.cncf.io \
- tmate -S /tmp/.$SESSION.isocket wait tmate-ready &&
+ tmate -S /tmp/.$SESSION.isocket wait tmate-ready > /dev/null &&
 ssh -tt root@apisnoop.cncf.io \
  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
 #+END_SRC
 
-#+RESULTS[3e25346e62021160649ca106707bf87a48c70f33]: left_session
-#+BEGIN_SRC text
-ssh AJsZALXBxlmLgmZDJoPrdRptv@sf2.tmate.io
+#+RESULTS[a48b316486ad0dad7b9c180293ff34af8030e62b]: left_session
+#+BEGIN_SRC text :noeval
+ssh HVn5I9wEDgoBTPyE8IIDcz0Ee@sf2.tmate.io
 #+END_SRC
+
+
+
+
 
 
 *** Connecting to emacs daemon
 
 #+NAME: alse run emacsclient
-#+BEGIN_SRC tmate
+#+BEGIN_SRC tmate :noeval
 export SESSION=lt-emacs
 emacsclient --socket-name $SESSION
 #+END_SRC
@@ -89,7 +315,7 @@ emacsclient --socket-name $SESSION
 #+NAME: right_session_create
 #+BEGIN_SRC shell :results silent
 export WORKDIR=~/org/
-export XTERM_EXEC="roxterm -e"
+export XTERM_EXEC="xterm -e"
 export SESSION_PREFIX=rt-
 export SESSION=hack
 export SESSION_WITH_PREFIX=${SESSION_PREFIX}${SESSION}
@@ -98,13 +324,13 @@ $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
  cd $WORKDIR \; \
  tmate -S /tmp/.$SESSION_WITH_PREFIX.isocket \
   new-session \
-  -A -c $WORKDIR -s $SESSION_WITH_PREFIX -n main
+  -A -c $WORKDIR -s $SESSION_WITH_PREFIX -n main &
 #+END_SRC
 
 #+NAME: right_session_join
 #+BEGIN_SRC shell :results silent
 export WORKDIR=~/org/
-export XTERM_EXEC="roxterm -e"
+export XTERM_EXEC="xterm -e"
 export SESSION_PREFIX=rt-
 export SESSION=hack
 export SESSION_WITH_PREFIX=${SESSION_PREFIX}${SESSION}
@@ -157,6 +383,11 @@ right: $right_session
 | right: | nil  |         |       |
 |        |      |         |       |
 
+** socket info
+#+NAME: kill emacs
+#+BEGIN_SRC shell
+emacsclient --socket-name=as-emacs -e '(call-process "kill" nil nil nil "-9" (number-to-string (emacs-pid)))'
+#+END_SRC
 * Connecting a local emacs org mode to remote tmux/tmate sockets
 
 ** Use ssh to forward local socket to remote
@@ -191,7 +422,7 @@ This means your target session names above should start with rt-
 
 # Local Variables:
 # org-babel-tmux-session-prefix: ""
-# org-babel-tmate-session-prefix: "rt-"
+# org-babel-tmate-session-prefix: ""
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
 # eval: (require (quote ob-emacs-lisp))
