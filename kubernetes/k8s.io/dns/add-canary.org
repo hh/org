@@ -1,0 +1,374 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: WIP: DNS: add canary
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+ISSUE: https://github.com/kubernetes/k8s.io/pull/147
+#+CREATOR: ii.coop
+#+DATE: October 24th, 2018
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (file-name-base buffer-file-name)
+#+PROPERTY: header-args:shell  :var SOCKET=(symbol-value 'socket)
+#+PROPERTY: header-args:shell+ :results verbatim code
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE"
+
+
+octodns-compare does similar comparison type stuff,
+ though it works at the provider level
+octodns-report does actual DNS queries against servers
+using octoDNS to get the list of things to check.
+
+
+https://github.com/miekg/exdns
+
+https://www.knot-dns.cz GPL / Support RFC RFC2136
+https://stackoverflow.com/questions/46892178/google-cloud-dns-secondary-dns-supportt r
+
+https://gist.github.com/yzguy/e648209d332520956ecabe6e64db24cb
+
+#+BEGIN_SRC python
+#!/usr/bin/env python
+
+import sys
+import dns.query
+import dns.zone
+import dns.name
+
+from dns.exception import DNSException
+from dns.rdatatype import SOA
+
+config = {
+    'masters': {
+        'provider1': '10.10.10.10',
+        'provider2': '20.20.20.20'
+    },
+    'domains': [
+        'domain.com',
+        'domain.net'
+    ]
+}
+
+# Zone Transfer
+def get_zone(domain, master):
+    try:
+        zone = dns.zone.from_xfr(dns.query.xfr(master, domain, relativize=False), relativize=False)
+    except DNSException as e:
+        return None, e
+
+    return zone, None
+
+# Compare a zone against another, return data
+def compare_zones(z1, z2):
+    data = {
+        'totals': [
+            get_zone_total(z1),
+            get_zone_total(z2)
+        ],
+        'missing': {},
+        'matches': [],
+        'mismatches': {}
+    }
+
+    # Loop through all the name to rdataset pairs
+    for (name, z1_rdataset) in z1.iterate_rdatasets():
+
+        # Skip SOA records (different between providers)
+        if z1_rdataset.rdtype == SOA:
+            continue
+
+        # Find same record in second zone
+        try:
+            z2_node = z2.find_node(name)
+            z2_rdataset = z2_node.find_rdataset(z1_rdataset.rdclass, z1_rdataset.rdtype)
+        except KeyError:
+            data['missing'][name] = z1_rdataset
+            continue
+
+        # Compare rdatasets
+        if z1_rdataset == z2_rdataset:
+            if z1_rdataset.ttl == z2_rdataset.ttl:
+                data['matches'].append(name)
+            else:
+                data['mismatches'][name] = [z1_rdataset, z2_rdataset]
+        else:
+            data['mismatches'][name] = [z1_rdataset, z2_rdataset]
+
+    return data
+
+# Get Total Number of Records
+def get_zone_total(zone):
+    return sum([len(val) for val in zone.values()]) - 1
+
+if __name__ == '__main__':
+    error = False
+    for domain in config['domains']:
+        print '----------- {} -----------'.format(domain)
+
+        # Perform zone transfer against Provider1
+        p1, err = get_zone(domain=domain, master=config['masters']['provider1'])
+        if err is not None:
+            print 'ERROR: Unable to perform zone transfer against Provider1 for {} ({})'.format(domain, err)
+            error = True
+            continue
+
+        # Perform zone transfer against Provider2
+        p2, err = get_zone(domain=domain, master=config['masters']['provider2'])
+        if err is not None:
+            print 'ERROR: Unable to perform zone transfer against Provider1 for {} ({})'.format(domain, err)
+            error = True
+            continue
+
+        # Compare zones to each other
+        results = compare_zones(p1, p2)
+
+        p1_total = results['totals'][0]
+        p2_total = results['totals'][1]
+
+        # Provider1 total is more than Provider2
+        if p1_total > p2_total:
+            # Provider2 is missing records
+            print 'ERROR: Records missing from Provider2'
+            for name, rdataset in results['missing'].iteritems():
+                print '{} {}'.format(name, rdataset)
+            error = True
+
+        # Provider1 total is less than Provider2
+        elif p1_total < p2_total:
+
+            # Compare zones, switching order
+            results = compare_zones(p2, p1)
+
+            p2_total = results['totals'][0]
+            p1_total = results['totals'][1]
+
+            # Provider2 total is more, Provider1 is missing records
+            print 'ERROR: Records missing from Provider1'
+            for name, rdataset in results['missing'].iteritems():
+                print '{} {}'.format(name, rdataset)
+            error = True
+
+        # Provider1 and Provider2 totals are the same
+        else:
+            # Totals are the same, but records are mismatched
+            if len(results['mismatches']) != 0:
+                print 'ERROR: Records out of sync'
+                for name, rdataset_list in results['mismatches'].iteritems():
+                    print "Provider1:\t {} {}".format(name, rdataset_list[0])
+                    print "Provider2:\t {} {}".format(name, rdataset_list[1])
+                    print
+                error = True
+
+            # Totals match, but a record is missing
+            elif len(results['matches']) != p1_total:
+                print 'ERROR: Records missing from Provider2'
+                for name, rdataset in results['missing'].iteritems():
+                    print '{} {}'.format(name, rdataset)
+                error = True
+
+        # Print report
+        print "\nResults"
+        print "Provider1 Total:\t", p1_total
+        print "Provider2 Total:\t", p2_total
+        print "Missing:\t", len(results['missing'])
+        print "Matches:\t", len(results['matches'])
+        print "Mis-matches:\t", len(results['mismatches'])
+        print
+
+    # If any error raised, exit
+    if error:
+        sys.exit(1)
+#+END_SRC
+* create project & configuration
+** Secrets / ENV Setup
+ #+NAME: create project configuration
+ #+BEGIN_SRC tmate
+   export PROJECT=kubernetes-public
+   export EMAIL=hh@ii.coop
+
+   gcloud config configurations create $PROJECT --activate \
+     || gcloud config configurations activate $PROJECT
+   gcloud config set account $EMAIL
+   gcloud config set project $PROJECT
+ #+END_SRC
+ 
+#+NAME: create project configuration
+ #+BEGIN_SRC tmate
+   export PROJECT=kubernetes-public
+   export EMAIL=hh@ii.coop
+
+   gcloud config configurations create $PROJECT --activate \
+     || gcloud config configurations activate $PROJECT
+   gcloud config set account $EMAIL
+   gcloud config set project $PROJECT
+ #+END_SRC
+
+#+NAME: test canary
+#+BEGIN_SRC tmate
+  (
+    cd ~/kubernetes/k8s.io/dns
+    ~/kubernetes/k8s.io/dns/test.sh canary
+    echo exit=$?
+  ) 2>&1
+#+END_SRC
+
+#+NAME: test.sh canary
+#+BEGIN_SRC shell :results verbatim :path ~/kubernetes/k8s.io/dns
+  (
+    cd ~/kubernetes/k8s.io/dns
+    ~/kubernetes/k8s.io/dns/test.sh canary
+    echo exit=$?
+  ) 2>&1
+#+END_SRC
+
+#+RESULTS: test.sh canary
+#+begin_example
+canary
+Testing canary via ns-cloud-c1.googledomains.com. and ns-cloud-b1.googledomains.com.
+1 aspmx.l.google.com. 5 alt1.aspmx.l.google.com. 5 alt2.aspmx.l.google.com. 10 alt3.aspmx.l.google.com. 10 alt4.aspmx.l.google.com.
+FAIL: MX canary.k8s.io:
+  got:
+1 aspmx.l.google.com.
+5 alt1.aspmx.l.google.com.
+5 alt2.aspmx.l.google.com.
+10 alt3.aspmx.l.google.com.
+10 alt4.aspmx.l.google.com.
+--------------------
+exit=2
+#+end_example
+
+
+
+
+
+* DEPRECATED definitions
+
+There were quite a few definitions dropped, but again this shouldn't affect test coverage.
+
+#+NAME: DEPRECATED definitions
+#+BEGIN_SRC shell :results verbatim :wrap SRC json
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .definitions \
+  | gron | grep DEPRECATED | gron --ungron \
+  | jq . 
+#\
+#  | sort -r | uniq | cat
+#'.[].get.description' -r \
+  echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
+#+END_SRC
+
+#+RESULTS: DEPRECATED definitions
+#+BEGIN_SRC json
+{
+  "io.k8s.api.apps.v1beta1.ControllerRevision": {
+    "description": "DEPRECATED - This group version of ControllerRevision is deprecated by apps/v1beta2/ControllerRevision. See the release notes for more information. ControllerRevision implements an immutable snapshot of state data. Clients are responsible for serializing and deserializing the objects that contain their internal state. Once a ControllerRevision has been successfully created, it can not be updated. The API Server will fail validation of all requests that attempt to mutate the Data field. ControllerRevisions may, however, be deleted. Note that, due to its use by both the DaemonSet and StatefulSet controllers for update and rollback, this object is beta. However, it may be subject to name and representation changes in future releases, and clients should not depend on its stability. It is primarily for internal use by controllers."
+  },
+  "io.k8s.api.apps.v1beta1.Deployment": {
+    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1beta2/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
+  },
+  "io.k8s.api.apps.v1beta1.DeploymentRollback": {
+    "description": "DEPRECATED. DeploymentRollback stores the information required to rollback a deployment."
+  },
+  "io.k8s.api.apps.v1beta1.DeploymentSpec": {
+    "properties": {
+      "rollbackTo": {
+        "description": "DEPRECATED. The config this deployment is rolling back to. Will be cleared after rollback is done."
+      }
+    }
+  },
+  "io.k8s.api.apps.v1beta1.RollbackConfig": {
+    "description": "DEPRECATED."
+  },
+  "io.k8s.api.apps.v1beta1.StatefulSet": {
+    "description": "DEPRECATED - This group version of StatefulSet is deprecated by apps/v1beta2/StatefulSet. See the release notes for more information. StatefulSet represents a set of pods with consistent identities. Identities are defined as:\n - Network: A single stable DNS and hostname.\n - Storage: As many VolumeClaims as requested.\nThe StatefulSet guarantees that a given network identity will always map to the same storage identity."
+  },
+  "io.k8s.api.apps.v1beta2.ControllerRevision": {
+    "description": "DEPRECATED - This group version of ControllerRevision is deprecated by apps/v1/ControllerRevision. See the release notes for more information. ControllerRevision implements an immutable snapshot of state data. Clients are responsible for serializing and deserializing the objects that contain their internal state. Once a ControllerRevision has been successfully created, it can not be updated. The API Server will fail validation of all requests that attempt to mutate the Data field. ControllerRevisions may, however, be deleted. Note that, due to its use by both the DaemonSet and StatefulSet controllers for update and rollback, this object is beta. However, it may be subject to name and representation changes in future releases, and clients should not depend on its stability. It is primarily for internal use by controllers."
+  },
+  "io.k8s.api.apps.v1beta2.DaemonSet": {
+    "description": "DEPRECATED - This group version of DaemonSet is deprecated by apps/v1/DaemonSet. See the release notes for more information. DaemonSet represents the configuration of a daemon set."
+  },
+  "io.k8s.api.apps.v1beta2.Deployment": {
+    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
+  },
+  "io.k8s.api.apps.v1beta2.ReplicaSet": {
+    "description": "DEPRECATED - This group version of ReplicaSet is deprecated by apps/v1/ReplicaSet. See the release notes for more information. ReplicaSet ensures that a specified number of pod replicas are running at any given time."
+  },
+  "io.k8s.api.apps.v1beta2.StatefulSet": {
+    "description": "DEPRECATED - This group version of StatefulSet is deprecated by apps/v1/StatefulSet. See the release notes for more information. StatefulSet represents a set of pods with consistent identities. Identities are defined as:\n - Network: A single stable DNS and hostname.\n - Storage: As many VolumeClaims as requested.\nThe StatefulSet guarantees that a given network identity will always map to the same storage identity."
+  },
+  "io.k8s.api.core.v1.GitRepoVolumeSource": {
+    "description": "Represents a volume that is populated with the contents of a git repository. Git repo volumes do not support ownership management. Git repo volumes support SELinux relabeling.\n\nDEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir into the Pod's container."
+  },
+  "io.k8s.api.core.v1.Volume": {
+    "properties": {
+      "gitRepo": {
+        "description": "GitRepo represents a git repository at a particular revision. DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir into the Pod's container."
+      }
+    }
+  },
+  "io.k8s.api.extensions.v1beta1.DaemonSet": {
+    "description": "DEPRECATED - This group version of DaemonSet is deprecated by apps/v1beta2/DaemonSet. See the release notes for more information. DaemonSet represents the configuration of a daemon set."
+  },
+  "io.k8s.api.extensions.v1beta1.DaemonSetSpec": {
+    "properties": {
+      "templateGeneration": {
+        "description": "DEPRECATED. A sequence number representing a specific generation of the template. Populated by the system. It can be set only during the creation."
+      }
+    }
+  },
+  "io.k8s.api.extensions.v1beta1.Deployment": {
+    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1beta2/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
+  },
+  "io.k8s.api.extensions.v1beta1.DeploymentRollback": {
+    "description": "DEPRECATED. DeploymentRollback stores the information required to rollback a deployment."
+  },
+  "io.k8s.api.extensions.v1beta1.DeploymentSpec": {
+    "properties": {
+      "rollbackTo": {
+        "description": "DEPRECATED. The config this deployment is rolling back to. Will be cleared after rollback is done."
+      }
+    }
+  },
+  "io.k8s.api.extensions.v1beta1.IPBlock": {
+    "description": "DEPRECATED 1.9 - This group version of IPBlock is deprecated by networking/v1/IPBlock. IPBlock describes a particular CIDR (Ex. \"192.168.1.1/24\") that is allowed to the pods matched by a NetworkPolicySpec's podSelector. The except entry describes CIDRs that should not be included within this rule."
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicy": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicy is deprecated by networking/v1/NetworkPolicy. NetworkPolicy describes what network traffic is allowed for a set of Pods"
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicyEgressRule": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyEgressRule is deprecated by networking/v1/NetworkPolicyEgressRule. NetworkPolicyEgressRule describes a particular set of traffic that is allowed out of pods matched by a NetworkPolicySpec's podSelector. The traffic must match both ports and to. This type is beta-level in 1.8"
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicyIngressRule": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyIngressRule is deprecated by networking/v1/NetworkPolicyIngressRule. This NetworkPolicyIngressRule matches traffic if and only if the traffic matches both ports AND from."
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicyList": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyList is deprecated by networking/v1/NetworkPolicyList. Network Policy List is a list of NetworkPolicy objects."
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicyPeer": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyPeer is deprecated by networking/v1/NetworkPolicyPeer."
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicyPort": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyPort is deprecated by networking/v1/NetworkPolicyPort."
+  },
+  "io.k8s.api.extensions.v1beta1.NetworkPolicySpec": {
+    "description": "DEPRECATED 1.9 - This group version of NetworkPolicySpec is deprecated by networking/v1/NetworkPolicySpec."
+  },
+  "io.k8s.api.extensions.v1beta1.ReplicaSet": {
+    "description": "DEPRECATED - This group version of ReplicaSet is deprecated by apps/v1beta2/ReplicaSet. See the release notes for more information. ReplicaSet ensures that a specified number of pod replicas are running at any given time."
+  },
+  "io.k8s.api.extensions.v1beta1.RollbackConfig": {
+    "description": "DEPRECATED."
+  }
+}
+
+#+END_SRC
+
+
+* Footnotes
+
+# Local Variables:
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# End:
