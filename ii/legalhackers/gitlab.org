@@ -1,18 +1,15 @@
-# -*- org-use-property-inheritance: t; -*-
 #+TITLE: Setting up Gitlab
 #+AUTHOR: Hippie Hacker and James Blair
 #+EMAIL: hh@ii.coop and mail@jamesblair.net
 #+CREATOR: ii.coop + Inland Revenue
 #+DATE: 5th of October, 2018
-#+PROPERTY: header-args:tmate :socket /tmp/br-right.isocket
-#+PROPERTY: header-args:tmate :session br-right:misc
-#+PROPERTY: header-args:tmux :socket /tmp/br-right.isocket
-#+PROPERTY: header-args:tmux :session br-right:misc
+#+PROPERTY: header-args:shell :results output list raw replace
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
 
 * Preparing to use the Gitlab Chart
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.hh-right.isocket"
-:header-args:tmate: :session br-right:misc
+:header-args:tmate+: :session br-right:misc
 :END:
 
 Gitlab provides [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/README.md][some decent documentation]] including a [[https://gitlab.com/charts/gitlab/blob/master/doc/cloud/gke.md#scripted-cluster-creation-on-gke][script to spin up a cluster on gke]].
@@ -26,7 +23,8 @@ There are other ways, but this is the most succinct.
  :session br-right:misc
 
 #+NAME: Install Helm
-#+BEGIN_SRC tmate :session br-right:misc
+#+BEGIN_SRC tmate
+# :session br-right:misc
 curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz \
   | tar xvz -f - --strip-components 1 -C /usr/local/bin
 #+END_SRC
@@ -36,7 +34,6 @@ curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.
 We mainly need this for the GKE Setup Script for now.
 
 #+NAME: Go get gitlab chart
-<<<<<<< Updated upstream
 #+BEGIN_SRC tmate :session br-right:misc
 git clone https://gitlab.com/charts/gitlab.git ~/gitlab
 #+END_SRC
@@ -111,7 +108,6 @@ git clone https://gitlab.com/charts/gitlab.git ~/gitlab
   #+END_SRC
 
 **** Create an external IP
-=======
 #+BEGIN_SRC tmux :session br:gitlab
 git clone git@gitlab.com:charts/gitlab.git ~/gitlab
 #+END_SRC
@@ -433,12 +429,17 @@ Login to [[https://dashboard.cloud.catalyst.net.nz][Catalyst Cloud Dashboard]] a
 
 Ensure you have a valid keypair to ssh in.
 
+** Getting kubectl accessing cluster
+#+BEGIN_SRC tmate
+  scp -P 22111 root@43.243.56.235:/etc/kubernetes/admin.conf kubeconfig.conf
+  export KUBECONFIG=$(pwd)/kubeconfig.conf
+#+END_SRC   
 * Deploy Using the Gitlab Chart
 
 ** Configure helm to use charts.gitlab.io
 
 #+NAME: Get Chart for gitlab
-#+BEGIN_SRC tmux :session br-right:misc
+#+BEGIN_SRC tmate :session br-right:misc
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 #+END_SRC
@@ -466,10 +467,10 @@ helm search gitlab/gitlab
 
 #+RESULTS: Verify we have the charts
 #+BEGIN_SRC shell
-NAME                 	CHART VERSION	APP VERSION	DESCRIPTION                                                 
-gitlab/gitlab        	1.1.3        	11.3.3     	Web-based Git-repository manager with wiki and issue-trac...
-gitlab/gitlab-omnibus	0.1.37       	           	GitLab Omnibus all-in-one bundle                            
-gitlab/gitlab-runner 	0.1.34       	           	GitLab Runner                                               
+- NAME                 	CHART VERSION	APP VERSION	DESCRIPTION                                                 
+- gitlab/gitlab        	1.4.2        	11.6.3     	Web-based Git-repository manager with wiki and issue-trac...
+- gitlab/gitlab-omnibus	0.1.37       	           	GitLab Omnibus all-in-one bundle                            
+- gitlab/gitlab-runner 	0.1.45-rc1   	11.7.0-rc1 	GitLab Runner
 #+END_SRC
 
 ** Getting our secrets
@@ -525,37 +526,38 @@ We use mailgun for now, until there is a smtp.ii.nz
 ** Configure the Chart
 
 #+NAME: The Config
-#+BEGIN_SRC yaml :tangle ../gitlab/recode.gitlab.yaml :noweb yes
+#+BEGIN_SRC yaml :tangle recode.gitlab.yaml :noweb yes
   # Global chart properties
   global:
     hosts:
       domain: recode.ii.nz
-      externalIP: <<ingress_ip()>>
-    # Outgoing email server settings
-  #   smtp:
-  #     enabled: true
-  #     address: smtp.mailgun.org
-  #     port: 2525
-  #     user_name: "<<smtp_user_name()>>"
-  #     password: "<<smtp_password()>>"
-  #       # Needs to be stored as a k8s secret
-  #       # this is the key, not the value
-  #       #secret: "<<smtp_password()>>"
-  #       #key: password
-  #     #domain: recode.ii.nz
-  #     authentication: "plain"
-  #     starttls_auto: false
-  #     openssl_verify_mode: "peer"
- # Email persona used in email sent by GitLab
-    email:
-     from: 'gitlab@recode.ii.nz'
-     display_name: GitLab@recode.ii.nz
-     reply_to: 'hh@ii.coop'
-     subject_suffix: ' | ii.nz'
+      externalIP: 43.243.56.235
+      #<<ingress_ip()>>
+  # Outgoing email server settings
+  #    smtp:
+  #      enabled: true
+  #      address: smtp.mailgun.org
+  #      port: 2525
+  #      user_name: "<<smtp_user_name()>>"
+  #      password: "<<smtp_password()>>"
+  #        # Needs to be stored as a k8s secret
+  #        # this is the key, not the value
+  #        #secret: "<<smtp_password()>>"
+  #        #key: password
+  #      #domain: recode.ii.nz
+  #      authentication: "plain"
+  #      starttls_auto: false
+  #      openssl_verify_mode: "peer"
+  # Email persona used in email sent by GitLab
+  email:
+    from: 'gitlab@recode.ii.nz'
+    display_name: GitLab@recode.ii.nz
+    reply_to: 'hh@ii.coop'
+    subject_suffix: ' | ii.nz'
     time_zone: NZST
     timeout: 600
   certmanager-issuer:
-    email: recode@ii.nz
+   email: recode@ii.nz
   gitlab:
     migrations:
       image:
@@ -571,7 +573,7 @@ We use mailgun for now, until there is a smtp.ii.nz
         repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
     omniauth:
       enabled: yes
-      autoSignInWithProvider: 
+      # autoSignInWithProvider: 
       allowSingleSignOn: ['github', 'google_oauth2']
       blockAutoCreatedUsers: false
       providers:
@@ -616,19 +618,31 @@ kube-system   tiller-deploy-5c99b8bcbf-6hp5t                             1/1    
 
 ** Deploy Gitlab on Kubernetes 
 
+*** Helm Initialization
+**** Setup a Service Account and initialize tiller
+#+NAME: Setup a Service Account
+#+BEGIN_SRC tmate
+  kubectl --namespace kube-system create serviceaccount tiller
+  kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+#+END_SRC
+#+NAME: Initialize tiller
+#+BEGIN_SRC tmate
+  helm init --service-account tiller
+#+END_SRC
+  
+
 
 *** Use the values yaml generated above to deploy gitlab
 
 #+NAME: Deploy Gitlab on Kubernetes
-#+BEGIN_SRC tmux :session br:deploy
-helm upgrade --install gitlab gitlab/gitlab --values ~/gitlab/recode.gitlab.yaml
+#+BEGIN_SRC tmate :session br:misc
+helm upgrade --install gitlab gitlab/gitlab --values recode.gitlab.yaml
 #+END_SRC
 *** You can fully cleanup / purge as to start over
 #+NAME: Destroy / Purge helm deployment of gitlab to try again
 #+BEGIN_SRC tmux :session br:deploy
 helm delete --purge gitlab
 #+END_SRC
-
 *** Remove your cluster from gke (can get expensive if you leave it up)
 
 This can be useful if you want to debug the deployment, iterate over different
@@ -780,15 +794,11 @@ left: $left_session
 right: $right_session
 "
 #+END_SRC
+
 # Local Variables:
-# eval: (require (quote ob-shell))
-# eval: (require (quote ob-lisp))
-# eval: (require (quote ob-emacs-lisp))
-# eval: (require (quote ob-js))
-# eval: (require (quote ob-go))
-# eval: (setq org-babel-tmate-session-prefix "rt-")
-# eval: (setq org-babel-tmux-session-prefix "rt-")
-# org-confirm-babel-evaluate: nil
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
 # org-babel-tmate-session-prefix: ""
-# org-babel-tmux-session-prefix: "rt-"
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
 # End:
