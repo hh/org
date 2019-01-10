@@ -325,19 +325,28 @@ helm upgrade --install $RELEASE jupyterhub/jupyterhub \
      
 #+NAME: Wait for two running pods
 #+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text"
-  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-apihub}
   kubectl get pod
 #+END_SRC
 
 #+RESULTS: Wait for two running pods
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME                            READY   STATUS    RESTARTS   AGE
-autohttps-85cf9d6698-qkvxl      2/2     Running   0          1m
-continuous-image-puller-2bb6n   1/1     Running   0          1m
-continuous-image-puller-mwpjv   1/1     Running   0          1m
-hub-54767f66df-9t5mc            1/1     Running   0          1m
-proxy-8444c9ddf7-vpssz          1/1     Running   0          1m
+NAME                                READY   STATUS              RESTARTS   AGE
+apihub-image-cleaner-cm6m8          1/1     Running             0          9h
+apihub-image-cleaner-t6nvq          1/1     Running             0          9h
+binder-5dcd69fb57-cqq7q             1/1     Running             0          8h
+build-ii-2dapisnoop-1f8ccb-2cf3d9   0/1     ContainerCreating   0          2s
+hub-7b9f789bc7-s7kl5                1/1     Running             0          9h
+jupyter-ii-2dapisnoop-2d99rmjng4    1/1     Running             0          4m
+jupyter-ii-2dapisnoop-2dgwgvxjea    1/1     Running             0          15m
+jupyter-ii-2dapisnoop-2doj89i1zq    1/1     Running             0          3h
+jupyter-ii-2dapisnoop-2dsc5gzj29    1/1     Running             0          8h
+jupyter-ii-2dapisnoop-2du7r3f8ec    1/1     Running             0          39m
+jupyter-ii-2dapisnoop-2dw298k39w    1/1     Running             0          3h
+jupyter-ii-2dapisnoop-2dwr2cstbt    1/1     Running             0          7m
+jupyter-ii-2dapisnoop-2dydm6bgi4    1/1     Running             0          28m
+proxy-74d875fb89-wfrch              1/1     Running             0          9h
 #+END_SRC
 
 *** Find the IP we can use to access the JupyterHub
@@ -357,6 +366,13 @@ NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)             
 proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:32422/TCP   3d
 #+END_SRC
 
+** debugging a build
+   #+NAME: Get into pod
+#+BEGIN_SRC tmate hh-right:binder-logs
+  BUILD_POD=$(kubectl get pod -l component=binderhub-build | grep Running | awk '{print $1}')
+  kubectl logs $POD -f
+  kubectl exec -ti $POD /bin/bash
+#+END_SRC 
 * Setup GCR
 :PROPERTIES:
 :header-args:tmate: :socket "/tmp/.hh-right.isocket"
@@ -591,7 +607,7 @@ It should match proxy-
     
 #+NAME: Install the chart using the config above
 #+BEGIN_SRC tmate
-  NAME=apihub
+  NAME=hub
   NAMESPACE=$NAME
   helm install jupyterhub/binderhub \
     --version=0.1.0-75c0c6e \
@@ -603,7 +619,7 @@ It should match proxy-
 
 #+NAME: Install the chart using the config above
 #+BEGIN_SRC tmate
-  NAME=apihub
+  NAME=hub
   NAMESPACE=$NAME
   helm upgrade $NAME jupyterhub/binderhub \
     --version=0.1.0-75c0c6e \
@@ -613,28 +629,40 @@ It should match proxy-
 
 #+NAME: NAMESPACE
 #+BEGIN_SRC shell
-echo apihub
+echo hub
 #+END_SRC
 
+#+NAME: KUBECONFIG
+#+BEGIN_SRC shell
+echo $HOME/packet_config
+#+END_SRC
+
+#+NAME: local-storage.yaml
+#+BEGIN_SRC yaml :tangle ./local-storage.yml
+  kind: StorageClass
+  apiVersion: storage.k8s.io/v1
+  metadata:
+    name: local-storage
+  provisioner: kubernetes.io/no-provisioner
+  volumeBindingMode: WaitForFirstConsumer
+#+END_SRC
+
+#+NAME: patch local-storeage to be the default
+#+BEGIN_SRC tmate
+kubectl patch storageclass local-storage -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+#+END_SRC
 *** Monitor health of the pods
      
 #+NAME: Wait for binder
-#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text" :var NAMESPACE=NAMESPACE()
-  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-jhub}
+#+BEGIN_SRC shell :wrap 'SRC txt' :results replace code output :wrap "SRC text" :var NAMESPACE=NAMESPACE() :var KUBECONFIG=KUBECONFIG()
+  KUBECONFIG=~/packet_config
+  kubectl config set-context $(kubectl config current-context) --namespace ${NAMESPACE:-hub}
   kubectl get pod 
 #+END_SRC
 
 #+RESULTS: Wait for binder
 #+BEGIN_SRC text
 Context "gke_apisnoop_australia-southeast1-c_apisnoop-jupyterhub" modified.
-NAME                               READY   STATUS        RESTARTS   AGE
-apihub-image-cleaner-cm6m8         1/1     Running       0          9m
-apihub-image-cleaner-t6nvq         1/1     Running       0          9m
-binder-5dcd69fb57-cqq7q            1/1     Running       0          20s
-binder-69d45cb5b6-dxthk            1/1     Terminating   0          9m
-hub-7b9f789bc7-s7kl5               1/1     Running       0          9m
-jupyter-ii-2dapisnoop-2dfkx57i0d   1/1     Running       0          6m
-proxy-74d875fb89-wfrch             1/1     Running       0          9m
 #+END_SRC
 
 
@@ -655,7 +683,7 @@ hub            ClusterIP      10.3.242.98    <none>          8081/TCP           
 proxy-api      ClusterIP      10.3.241.164   <none>          8001/TCP                     1m
 proxy-public   LoadBalancer   10.3.251.114   35.189.62.106   80:31766/TCP,443:31315/TCP   1m
 #+END_SRC
-* 
+* exploring 
 #+NAME: select
 #+BEGIN_SRC shell :results output verbatim code :wrap "SRC json"
 kubectl get service proxy-public -o json | jq .
@@ -732,34 +760,34 @@ kubectl get pod -l component=proxy -o json | jq .items[0]
   "kind": "Pod",
   "metadata": {
     "annotations": {
-      "checksum/hub-secret": "0754c0a8da2618da90445515ad9031f18622c1fe2ba3c5b2205abbe07c5bfc56",
+      "checksum/hub-secret": "76b1b51176e82bef3cd0a3408c32a3c15d2efef0f11b954136a19a5005c19110",
       "checksum/proxy-secret": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
-    "creationTimestamp": "2018-11-04T22:14:00Z",
-    "generateName": "proxy-586d5796cc-",
+    "creationTimestamp": "2018-11-05T16:26:00Z",
+    "generateName": "proxy-74d875fb89-",
     "labels": {
       "app": "jupyterhub",
       "component": "proxy",
       "hub.jupyter.org/network-access-hub": "true",
       "hub.jupyter.org/network-access-singleuser": "true",
-      "pod-template-hash": "1428135277",
-      "release": "jhub"
+      "pod-template-hash": "3084319645",
+      "release": "apihub"
     },
-    "name": "proxy-586d5796cc-p2lwb",
-    "namespace": "jhub",
+    "name": "proxy-74d875fb89-wfrch",
+    "namespace": "apihub",
     "ownerReferences": [
       {
         "apiVersion": "extensions/v1beta1",
         "blockOwnerDeletion": true,
         "controller": true,
         "kind": "ReplicaSet",
-        "name": "proxy-586d5796cc",
-        "uid": "ee50a5cd-e07e-11e8-be28-42010a98004b"
+        "name": "proxy-74d875fb89",
+        "uid": "7b2f6e5a-e117-11e8-be28-42010a98004b"
       }
     ],
-    "resourceVersion": "803581",
-    "selfLink": "/api/v1/namespaces/jhub/pods/proxy-586d5796cc-p2lwb",
-    "uid": "ee5c427e-e07e-11e8-be28-42010a98004b"
+    "resourceVersion": "918132",
+    "selfLink": "/api/v1/namespaces/apihub/pods/proxy-74d875fb89-wfrch",
+    "uid": "7b3ccda7-e117-11e8-be28-42010a98004b"
   },
   "spec": {
     "affinity": {
@@ -830,14 +858,14 @@ kubectl get pod -l component=proxy -o json | jq .items[0]
         "volumeMounts": [
           {
             "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
-            "name": "default-token-8t5sp",
+            "name": "default-token-dl8qf",
             "readOnly": true
           }
         ]
       }
     ],
     "dnsPolicy": "ClusterFirst",
-    "nodeName": "gke-apisnoop-jupyterhub-default-pool-b3198ed6-tvmv",
+    "nodeName": "gke-apisnoop-jupyterhub-default-pool-b3198ed6-b886",
     "restartPolicy": "Always",
     "schedulerName": "default-scheduler",
     "securityContext": {},
@@ -860,10 +888,10 @@ kubectl get pod -l component=proxy -o json | jq .items[0]
     ],
     "volumes": [
       {
-        "name": "default-token-8t5sp",
+        "name": "default-token-dl8qf",
         "secret": {
           "defaultMode": 420,
-          "secretName": "default-token-8t5sp"
+          "secretName": "default-token-dl8qf"
         }
       }
     ]
@@ -872,26 +900,26 @@ kubectl get pod -l component=proxy -o json | jq .items[0]
     "conditions": [
       {
         "lastProbeTime": null,
-        "lastTransitionTime": "2018-11-04T22:14:00Z",
+        "lastTransitionTime": "2018-11-05T16:26:00Z",
         "status": "True",
         "type": "Initialized"
       },
       {
         "lastProbeTime": null,
-        "lastTransitionTime": "2018-11-04T22:14:02Z",
+        "lastTransitionTime": "2018-11-05T16:26:02Z",
         "status": "True",
         "type": "Ready"
       },
       {
         "lastProbeTime": null,
-        "lastTransitionTime": "2018-11-04T22:14:00Z",
+        "lastTransitionTime": "2018-11-05T16:26:00Z",
         "status": "True",
         "type": "PodScheduled"
       }
     ],
     "containerStatuses": [
       {
-        "containerID": "docker://9cced2a7bebe6514977fb747c7d76874917a3c8a0b320e0a643a7922994ea635",
+        "containerID": "docker://5b6f6ecf97f7766784a988a1b3a2a27e385f6c167274225b61f21c2f539f3876",
         "image": "jupyterhub/configurable-http-proxy:3.0.0",
         "imageID": "docker-pullable://jupyterhub/configurable-http-proxy@sha256:c36cf3cc1c99f59348a8d6f5f64752df3eb4d88df93a11bc4e00acf23dbecfba",
         "lastState": {},
@@ -900,20 +928,19 @@ kubectl get pod -l component=proxy -o json | jq .items[0]
         "restartCount": 0,
         "state": {
           "running": {
-            "startedAt": "2018-11-04T22:14:02Z"
+            "startedAt": "2018-11-05T16:26:02Z"
           }
         }
       }
     ],
-    "hostIP": "10.152.0.3",
+    "hostIP": "10.152.0.2",
     "phase": "Running",
-    "podIP": "10.0.0.79",
+    "podIP": "10.0.1.99",
     "qosClass": "Burstable",
-    "startTime": "2018-11-04T22:14:00Z"
+    "startTime": "2018-11-05T16:26:00Z"
   }
 }
 #+END_SRC
-
 
 * Error Debugging
 :PROPERTIES:

@@ -14,15 +14,24 @@
 
 octodns-compare does similar comparison type stuff,
  though it works at the provider level
+
 octodns-report does actual DNS queries against servers
+
 using octoDNS to get the list of things to check.
 
+* Open DNS Software
+It would be nice to support open standands like RFC2136 or AXFR
+** GPL DNS software that supports RFC2136
+https://www.knot-dns.cz
+** AXFR (google does not support)
+https://stackoverflow.com/questions/46892178/google-cloud-dns-secondary-dns-supportt
 
+* CoreDNS
+It doesn't seem to support AXFR or RFC2136 or anything other than being a proxy
+** Underlying library for Go DNS stuff
 https://github.com/miekg/exdns
-
-https://www.knot-dns.cz GPL / Support RFC RFC2136
-https://stackoverflow.com/questions/46892178/google-cloud-dns-secondary-dns-supportt r
-
+* octoDNS
+** An example using dns
 https://gist.github.com/yzguy/e648209d332520956ecabe6e64db24cb
 
 #+BEGIN_SRC python
@@ -255,114 +264,6 @@ There were quite a few definitions dropped, but again this shouldn't affect test
 #'.[].get.description' -r \
   echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
 #+END_SRC
-
-#+RESULTS: DEPRECATED definitions
-#+BEGIN_SRC json
-{
-  "io.k8s.api.apps.v1beta1.ControllerRevision": {
-    "description": "DEPRECATED - This group version of ControllerRevision is deprecated by apps/v1beta2/ControllerRevision. See the release notes for more information. ControllerRevision implements an immutable snapshot of state data. Clients are responsible for serializing and deserializing the objects that contain their internal state. Once a ControllerRevision has been successfully created, it can not be updated. The API Server will fail validation of all requests that attempt to mutate the Data field. ControllerRevisions may, however, be deleted. Note that, due to its use by both the DaemonSet and StatefulSet controllers for update and rollback, this object is beta. However, it may be subject to name and representation changes in future releases, and clients should not depend on its stability. It is primarily for internal use by controllers."
-  },
-  "io.k8s.api.apps.v1beta1.Deployment": {
-    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1beta2/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
-  },
-  "io.k8s.api.apps.v1beta1.DeploymentRollback": {
-    "description": "DEPRECATED. DeploymentRollback stores the information required to rollback a deployment."
-  },
-  "io.k8s.api.apps.v1beta1.DeploymentSpec": {
-    "properties": {
-      "rollbackTo": {
-        "description": "DEPRECATED. The config this deployment is rolling back to. Will be cleared after rollback is done."
-      }
-    }
-  },
-  "io.k8s.api.apps.v1beta1.RollbackConfig": {
-    "description": "DEPRECATED."
-  },
-  "io.k8s.api.apps.v1beta1.StatefulSet": {
-    "description": "DEPRECATED - This group version of StatefulSet is deprecated by apps/v1beta2/StatefulSet. See the release notes for more information. StatefulSet represents a set of pods with consistent identities. Identities are defined as:\n - Network: A single stable DNS and hostname.\n - Storage: As many VolumeClaims as requested.\nThe StatefulSet guarantees that a given network identity will always map to the same storage identity."
-  },
-  "io.k8s.api.apps.v1beta2.ControllerRevision": {
-    "description": "DEPRECATED - This group version of ControllerRevision is deprecated by apps/v1/ControllerRevision. See the release notes for more information. ControllerRevision implements an immutable snapshot of state data. Clients are responsible for serializing and deserializing the objects that contain their internal state. Once a ControllerRevision has been successfully created, it can not be updated. The API Server will fail validation of all requests that attempt to mutate the Data field. ControllerRevisions may, however, be deleted. Note that, due to its use by both the DaemonSet and StatefulSet controllers for update and rollback, this object is beta. However, it may be subject to name and representation changes in future releases, and clients should not depend on its stability. It is primarily for internal use by controllers."
-  },
-  "io.k8s.api.apps.v1beta2.DaemonSet": {
-    "description": "DEPRECATED - This group version of DaemonSet is deprecated by apps/v1/DaemonSet. See the release notes for more information. DaemonSet represents the configuration of a daemon set."
-  },
-  "io.k8s.api.apps.v1beta2.Deployment": {
-    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
-  },
-  "io.k8s.api.apps.v1beta2.ReplicaSet": {
-    "description": "DEPRECATED - This group version of ReplicaSet is deprecated by apps/v1/ReplicaSet. See the release notes for more information. ReplicaSet ensures that a specified number of pod replicas are running at any given time."
-  },
-  "io.k8s.api.apps.v1beta2.StatefulSet": {
-    "description": "DEPRECATED - This group version of StatefulSet is deprecated by apps/v1/StatefulSet. See the release notes for more information. StatefulSet represents a set of pods with consistent identities. Identities are defined as:\n - Network: A single stable DNS and hostname.\n - Storage: As many VolumeClaims as requested.\nThe StatefulSet guarantees that a given network identity will always map to the same storage identity."
-  },
-  "io.k8s.api.core.v1.GitRepoVolumeSource": {
-    "description": "Represents a volume that is populated with the contents of a git repository. Git repo volumes do not support ownership management. Git repo volumes support SELinux relabeling.\n\nDEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir into the Pod's container."
-  },
-  "io.k8s.api.core.v1.Volume": {
-    "properties": {
-      "gitRepo": {
-        "description": "GitRepo represents a git repository at a particular revision. DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir into the Pod's container."
-      }
-    }
-  },
-  "io.k8s.api.extensions.v1beta1.DaemonSet": {
-    "description": "DEPRECATED - This group version of DaemonSet is deprecated by apps/v1beta2/DaemonSet. See the release notes for more information. DaemonSet represents the configuration of a daemon set."
-  },
-  "io.k8s.api.extensions.v1beta1.DaemonSetSpec": {
-    "properties": {
-      "templateGeneration": {
-        "description": "DEPRECATED. A sequence number representing a specific generation of the template. Populated by the system. It can be set only during the creation."
-      }
-    }
-  },
-  "io.k8s.api.extensions.v1beta1.Deployment": {
-    "description": "DEPRECATED - This group version of Deployment is deprecated by apps/v1beta2/Deployment. See the release notes for more information. Deployment enables declarative updates for Pods and ReplicaSets."
-  },
-  "io.k8s.api.extensions.v1beta1.DeploymentRollback": {
-    "description": "DEPRECATED. DeploymentRollback stores the information required to rollback a deployment."
-  },
-  "io.k8s.api.extensions.v1beta1.DeploymentSpec": {
-    "properties": {
-      "rollbackTo": {
-        "description": "DEPRECATED. The config this deployment is rolling back to. Will be cleared after rollback is done."
-      }
-    }
-  },
-  "io.k8s.api.extensions.v1beta1.IPBlock": {
-    "description": "DEPRECATED 1.9 - This group version of IPBlock is deprecated by networking/v1/IPBlock. IPBlock describes a particular CIDR (Ex. \"192.168.1.1/24\") that is allowed to the pods matched by a NetworkPolicySpec's podSelector. The except entry describes CIDRs that should not be included within this rule."
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicy": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicy is deprecated by networking/v1/NetworkPolicy. NetworkPolicy describes what network traffic is allowed for a set of Pods"
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicyEgressRule": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyEgressRule is deprecated by networking/v1/NetworkPolicyEgressRule. NetworkPolicyEgressRule describes a particular set of traffic that is allowed out of pods matched by a NetworkPolicySpec's podSelector. The traffic must match both ports and to. This type is beta-level in 1.8"
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicyIngressRule": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyIngressRule is deprecated by networking/v1/NetworkPolicyIngressRule. This NetworkPolicyIngressRule matches traffic if and only if the traffic matches both ports AND from."
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicyList": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyList is deprecated by networking/v1/NetworkPolicyList. Network Policy List is a list of NetworkPolicy objects."
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicyPeer": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyPeer is deprecated by networking/v1/NetworkPolicyPeer."
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicyPort": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicyPort is deprecated by networking/v1/NetworkPolicyPort."
-  },
-  "io.k8s.api.extensions.v1beta1.NetworkPolicySpec": {
-    "description": "DEPRECATED 1.9 - This group version of NetworkPolicySpec is deprecated by networking/v1/NetworkPolicySpec."
-  },
-  "io.k8s.api.extensions.v1beta1.ReplicaSet": {
-    "description": "DEPRECATED - This group version of ReplicaSet is deprecated by apps/v1beta2/ReplicaSet. See the release notes for more information. ReplicaSet ensures that a specified number of pod replicas are running at any given time."
-  },
-  "io.k8s.api.extensions.v1beta1.RollbackConfig": {
-    "description": "DEPRECATED."
-  }
-}
-
-#+END_SRC
-
 
 * Footnotes
 

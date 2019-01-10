@@ -4,13 +4,13 @@
 #+EMAIL: hh@ii.coop and stephen@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 22nd of November, 2018
-#+PROPERTY: header-args:tmate :socket /tmp/.lh-right.isocket
-#+PROPERTY: header-args:tmate :session lh-right:misc
+#+PROPERTY: header-args:shell :results output list raw replace
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
 
 * Preparing to use Kind
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.lh-right.isocket"
-:header-args:tmate: :session lh-right:misc
+:header-args:tmate+: :session lh-right:misc
 :END:
 
 ** Setup tmate
@@ -141,130 +141,10 @@ Beware your copy paste methods and try pasting into a notepad first.
 
 * Footnotes
   
-** isocket
-*** Connecting the left pair / isocket
-
- ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
- _even_ when we don't have have local one (within emacs)
-
-#+NAME: left_session_create
-#+BEGIN_SRC shell :var session="ii-left" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
-  $terminal_exec \
-      "ssh -att \
-           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
-           -l $user \
-           $host \
-      tmate -S /tmp/.$session.isocket \
-            new-session \
-            -A \
-            -s $session \
-            -n emacs \
-      emacs --fg-daemon=$session" \
-  &
-#+END_SRC
-
-#+NAME: left_session_setup
-#+BEGIN_SRC shell :var session="ii-left" user="root" host="apisnoop.cncf.io" :session nil :results silent
-  ssh -att $user@$host \
-  "tmate -S /tmp/.$session.isocket \
-        new-window \
-        -n editor" \
-   "emacsclient -nw \
-              --socket-name $session \
-              ~/org/ii/legalhackers/gitlab.org"
-#+END_SRC
-
-**** Connecting to emacs daemon
-
- #+NAME: alse run emacsclient
- #+BEGIN_SRC tmate :noeval
- export SESSION=lt-emacs
- emacsclient --socket-name $SESSION
- #+END_SRC
-
-*** Connecting the right pair / isocket
-
-#+NAME: right_session_create
-#+BEGIN_SRC shell :var session="lh-right" terminal_exec="sakura -e" :session nil
-   ($terminal_exec \
-      "tmate -S /tmp/.$session.isocket \
-            new-session \
-            -A \
-            -s $session \
-            -n misc" \
-   &)
-  wait
-#+END_SRC
-
-#+RESULTS:
-
-
- #+NAME: right_session_join
- #+BEGIN_SRC shell :results silent
- export SESSION=api-snoop
- export XTERM_EXEC="roxterm -e"
- $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket \
-   at \; sleep 9999
- #+END_SRC
-
- #+NAME: right_session_setup
- #+BEGIN_SRC shell :results verbatim
- export SESSION=api-snoop
- echo ssh -tt root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket \
-    new-window -n session \
-     bash
- #+END_SRC
-
- #+NAME: right_session
- #+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
- export SESSION=
- ssh -tt root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
- #+END_SRC
-
- #+RESULTS[dd96525b42bbbe741e292e99ad5f3592a7163025]: right_session
- #+BEGIN_SRC text :noeval
- ssh mJrsCgvGTOTOFagYpBKvRf7EE@sf2.tmate.io
- #+END_SRC
-
-
-
-
-
- #+NAME: give this to your pair
- #+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session()
- echo "ii pair session ready
- left: $left_session
- right: $right_session
- "
- #+END_SRC
-
- #+RESULTS: give this to your pair
- | ii     | pair | session | ready |
- | left:  | nil  |         |       |
- | right: | nil  |         |       |
- |        |      |         |       |
-
-*** TODO Sharing your eyes
-
-#+NAME: give this to your pair
-#+BEGIN_SRC bash :noweb yes :var left_session=left_session() :var right_session=right_session()
-echo "ii pair session ready
-left: $left_session
-right: $right_session
-"
-#+END_SRC
 # Local Variables:
-# eval: (require (quote ob-shell))
-# eval: (require (quote ob-lisp))
-# eval: (require (quote ob-emacs-lisp))
-# eval: (require (quote ob-js))
-# eval: (require (quote ob-go))
-# eval: (setq org-babel-tmate-session-prefix "")
-# eval: (setq org-babel-tmux-session-prefix "")
-# org-confirm-babel-evaluate: nil
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
 # org-babel-tmate-session-prefix: ""
-# org-babel-tmux-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
 # End:

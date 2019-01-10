@@ -599,21 +599,44 @@ kubectl get pods --all-namespaces
 
 #+RESULTS: Verify Cluster
 #+BEGIN_SRC shell
-NAMESPACE     NAME                                                       READY   STATUS    RESTARTS   AGE
-kube-system   dns-external-dns-fb98777fb-xl276                           1/1     Running   0          51m
-kube-system   event-exporter-v0.1.9-5c8fb98cdb-pcp6g                     2/2     Running   0          53m
-kube-system   fluentd-gcp-v2.0.17-m7cl4                                  2/2     Running   0          53m
-kube-system   fluentd-gcp-v2.0.17-vmqvm                                  2/2     Running   0          53m
-kube-system   heapster-v1.5.2-68bf4d4889-7ts7x                           3/3     Running   0          51m
-kube-system   kube-dns-5dcfcbf5fb-czj25                                  4/4     Running   0          53m
-kube-system   kube-dns-5dcfcbf5fb-hqfz5                                  4/4     Running   0          52m
-kube-system   kube-dns-autoscaler-69c5cbdcdd-9f8r2                       1/1     Running   0          53m
-kube-system   kube-proxy-gke-gitlab-cluster-default-pool-ad84c32e-c7gp   1/1     Running   0          53m
-kube-system   kube-proxy-gke-gitlab-cluster-default-pool-ad84c32e-nhsk   1/1     Running   0          53m
-kube-system   kubernetes-dashboard-76f945f76-s58bp                       1/1     Running   0          53m
-kube-system   l7-default-backend-57856c5f55-w8hn2                        1/1     Running   0          53m
-kube-system   metrics-server-v0.2.1-7f8dd98c8f-k66rb                     2/2     Running   0          51m
-kube-system   tiller-deploy-5c99b8bcbf-6hp5t                             1/1     Running   0          52m
+- NAMESPACE          NAME                                                   READY   STATUS                  RESTARTS   AGE
+- gitlab             gitlab-certmanager-788c6859c6-rlwdp                    1/1     Running                 0          4m10s
+- gitlab             gitlab-gitaly-0                                        1/1     Running                 0          4m10s
+- gitlab             gitlab-gitlab-runner-6566bd6c9f-x82h5                  0/1     CrashLoopBackOff        5          4m10s
+- gitlab             gitlab-gitlab-shell-574bf6674-cfnvm                    1/1     Running                 0          3m55s
+- gitlab             gitlab-gitlab-shell-574bf6674-qj9zb                    1/1     Running                 0          4m10s
+- gitlab             gitlab-issuer.1-znbbn                                  0/1     Completed               0          4m10s
+- gitlab             gitlab-migrations.1-2bnxh                              0/1     Completed               0          4m10s
+- gitlab             gitlab-minio-c64f9694b-zzlp5                           1/1     Running                 0          4m10s
+- gitlab             gitlab-minio-create-buckets.1-v9xcs                    0/1     Completed               0          4m10s
+- gitlab             gitlab-nginx-ingress-controller-78fb4c686b-jd8ld       1/1     Running                 0          4m10s
+- gitlab             gitlab-nginx-ingress-controller-78fb4c686b-jhs76       1/1     Running                 0          4m10s
+- gitlab             gitlab-nginx-ingress-controller-78fb4c686b-whftx       1/1     Running                 0          4m10s
+- gitlab             gitlab-nginx-ingress-default-backend-7f87d67c8-l96x8   1/1     Running                 0          4m10s
+- gitlab             gitlab-nginx-ingress-default-backend-7f87d67c8-t99ws   1/1     Running                 0          4m10s
+- gitlab             gitlab-postgresql-cb4c58788-skdvx                      2/2     Running                 0          4m10s
+- gitlab             gitlab-prometheus-server-66f6d79d66-5mpdb              2/2     Running                 0          4m9s
+- gitlab             gitlab-redis-7577d89db9-x2kmb                          2/2     Running                 0          4m9s
+- gitlab             gitlab-registry-786c59c8f5-jhvqf                       1/1     Running                 0          4m9s
+- gitlab             gitlab-registry-786c59c8f5-pqh54                       1/1     Running                 0          3m55s
+- gitlab             gitlab-sidekiq-all-in-1-64bdcb4dd5-89bk8               0/1     Init:CrashLoopBackOff   5          4m10s
+- gitlab             gitlab-task-runner-674569d784-skxxc                    1/1     Running                 0          4m10s
+- gitlab             gitlab-unicorn-7b86fc9749-r5sjv                        0/2     Init:2/3                2          4m10s
+- gitlab             gitlab-unicorn-7b86fc9749-v2gbd                        0/2     Init:2/3                2          3m55s
+- kube-system        calico-node-qm9pc                                      2/2     Running                 0          8h
+- kube-system        coredns-86c58d9df4-98nmd                               1/1     Running                 0          8h
+- kube-system        coredns-86c58d9df4-rz44g                               1/1     Running                 0          8h
+- kube-system        etcd-s235                                              1/1     Running                 0          8h
+- kube-system        hostpath-provisioner-75766d7558-qd72n                  1/1     Running                 2          3h42m
+- kube-system        kube-apiserver-s235                                    1/1     Running                 0          8h
+- kube-system        kube-controller-manager-s235                           1/1     Running                 0          8h
+- kube-system        kube-proxy-pcrmx                                       1/1     Running                 0          8h
+- kube-system        kube-scheduler-s235                                    1/1     Running                 0          8h
+- kube-system        kubernetes-dashboard-57df4db6b-8vj9c                   1/1     Running                 0          6h21m
+- kube-system        tiller-deploy-6cf89f5895-8f724                         1/1     Running                 0          7h14m
+- rook-ceph-system   rook-ceph-agent-72bf2                                  1/1     Running                 0          6h30m
+- rook-ceph-system   rook-ceph-operator-86554fd8d-r5bp5                     1/1     Running                 0          6h30m
+- rook-ceph-system   rook-discover-2494q                                    1/1     Running                 0          6h30m
 #+END_SRC
 
 ** Deploy Gitlab on Kubernetes 
@@ -656,18 +679,109 @@ export PROJECT=recodenz
 #+END_SRC
 
 * Monitor the Progress of your gitlab installation
+#+NAME: set_env  
+#+BEGIN_SRC emacs-lisp :results silent
+  ;; set this dynamically at some point to the most recent dind
+  (setenv "KUBECONFIG" (concat (file-name-directory buffer-file-name) "kubeconfig.conf"))
+#+END_SRC
+
+
+#+NAME: replicaset
+#+BEGIN_SRC shell
+  rs=$(kubectl -n gitlab get replicaset -l app=unicorn -o jsonpath='{.items[0].metadata.name}')
+  echo $rs
+#+END_SRC
+
+#+NAME: describe pod
+#+BEGIN_SRC tmate :session br-right:misc
+  pod=$(kubectl -n gitlab get pod -l app=unicorn -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n gitlab describe pod/$pod
+#+END_SRC
+
+#+NAME: init container broken
+#+BEGIN_SRC shell :results verbatim :wrap src json
+  pod=$(kubectl -n gitlab get pod -l app=unicorn -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n gitlab get pod $pod -o json | jq '.status.initContainerStatuses[] | select(.ready==false)'
+#+END_SRC
+
+#+RESULTS: init container broken
+#+BEGIN_src json
+{
+  "containerID": "docker://406cd83379a83c744c2cc14aef13a45a2b02da8022ad804a84e0c19f9d0d694a",
+  "image": "registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ee:v11.6.3",
+  "imageID": "docker-pullable://registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ee@sha256:0cee129cb0e1517451dc9586223a6a5f85790b6432b8b268b51af769b03037d8",
+  "lastState": {
+    "terminated": {
+      "containerID": "docker://406cd83379a83c744c2cc14aef13a45a2b02da8022ad804a84e0c19f9d0d694a",
+      "exitCode": 1,
+      "finishedAt": "2019-01-09T08:18:44Z",
+      "reason": "Error",
+      "startedAt": "2019-01-09T08:17:08Z"
+    }
+  },
+  "name": "dependencies",
+  "ready": false,
+  "restartCount": 9,
+  "state": {
+    "waiting": {
+      "message": "Back-off 5m0s restarting failed container=dependencies pod=gitlab-unicorn-7b86fc9749-gnbpn_gitlab(f6d55065-13e1-11e9-833a-ac162d770d60)",
+      "reason": "CrashLoopBackOff"
+    }
+  }
+}
+#+END_src
+
+#+NAME: container logs
+#+BEGIN_SRC shell :results verbatim :wrap "SRC logs"
+  pod=$(kubectl -n gitlab get pod -l app=unicorn -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n gitlab logs $pod -c dependencies
+#+END_SRC
+
+#+RESULTS: container logs
+#+BEGIN_SRC logs
++ /scripts/set-config /var/opt/gitlab/templates /srv/gitlab/config
+Begin parsing .erb files from /var/opt/gitlab/templates
+Writing /srv/gitlab/config/database.yml
+Writing /srv/gitlab/config/resque.yml
+Writing /srv/gitlab/config/gitlab.yml
+Copying other config files found in /var/opt/gitlab/templates
+Copying unicorn.rb into /srv/gitlab/config
+Copying smtp_settings.rb into /srv/gitlab/config
++ exec /scripts/wait-for-deps
+Checking database connection and schema version
+WARNING: This version of GitLab depends on gitlab-shell 8.4.3, but you're running Unknown. Please update gitlab-shell.
+Database Schema
+Current version: 20181204154019
+Codebase version: 20181215161939
+Checking database connection and schema version
+WARNING: This version of GitLab depends on gitlab-shell 8.4.3, but you're running Unknown. Please update gitlab-shell.
+Database Schema
+Current version: 20181204154019
+Codebase version: 20181215161939
+Checking database connection and schema version
+WARNING: This version of GitLab depends on gitlab-shell 8.4.3, but you're running Unknown. Please update gitlab-shell.
+Database Schema
+Current version: 20181204154019
+Codebase version: 20181215161939
+Checking database connection and schema version
+WARNING: This version of GitLab depends on gitlab-shell 8.4.3, but you're running Unknown. Please update gitlab-shell.
+Database Schema
+Current version: 20181204154019
+Codebase version: 20181215161939
+Checking database connection and schema version
+#+END_SRC
 
 ** See how they run
 
 #+NAME: see how the run
-#+BEGIN_SRC tmux :session br-right:misc
+#+BEGIN_SRC tmate :session br-right:misc
 helm status gitlab
 #+END_SRC
 
 ** Get root password
 
 #+NAME: get root password
-#+BEGIN_SRC tmux :session br-right:misc
+#+BEGIN_SRC tmate :session br-right:misc
 kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.password} | base64 --decode ; echo
 #+END_SRC
 

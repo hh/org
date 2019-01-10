@@ -152,12 +152,13 @@ make -j 48 install
 #+END_SRC
 ** Install Spacemacs Customizations
 #+NAME: configure spacemacs (ii+tmate)
-#+BEGIN_SRC tmux :session k8s:packet
-git clone https://github.com/ii/spacemacs ~/.emacs.d
-ln -s ~/.emacs.d/private/local/.spacemacs ~/.spacemacs
-git clone https://github.com/ii/ob-tmux ~/.emacs.d/private/local/ob-tmux.el/
-git clone https://github.com/benma/go-dlv.el ~/.emacs.d/private/local/go-dlv.el/
-echo "alias emc='emacsclient -t '" > /etc/profile.d/emc-alias.sh
+#+BEGIN_SRC tmux :session k8s:packet :socket /tmp/.zz.isocket
+  git clone https://github.com/ii/spacemacs ~/.emacs.d
+  ln -s ~/.emacs.d/private/local/.spacemacs ~/.spacemacs
+  git clone https://github.com/ii/ob-tmate ~/.emacs.d/private/local/ob-tmate.el/
+  git clone https://github.com/ii/ob-tmux ~/.emacs.d/private/local/ob-tmux.el/
+  git clone https://github.com/benma/go-dlv.el ~/.emacs.d/private/local/go-dlv.el/
+  echo "alias emc='emacsclient -t '" > /etc/profile.d/emc-alias.sh
 #+END_SRC
 ** Install tmate
 #+NAME: install tmate
