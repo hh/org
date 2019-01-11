@@ -1,0 +1,239 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: Setting up Guix on Debian/Ubuntu
+#+AUTHOR: Devan Carpenter and Hippie Hacker
+#+EMAIL: devan@ii.coop and hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 23rd of November, 2018
+#+PROPERTY: header-args:tmate :socket /tmp/.ii-right.isocket
+#+PROPERTY: header-args:tmate+ :session ii-right:misc
+
+* Install and Prepare Guix
+
+We will be following the documentation at:
+
+https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html
+
+** Download guix binary bundle and signature
+
+#+NAME: Download guix binary bundle and signature
+#+BEGIN_SRC tmate
+wget -c https://alpha.gnu.org/gnu/guix/guix-binary-0.15.0.x86_64-linux.tar.xz 
+wget -c ftp://alpha.gnu.org/gnu/guix/guix-binary-0.15.0.x86_64-linux.tar.xz.sig
+#+END_SRC
+
+** Request the signing keys and verify the signature
+
+#+NAME: Request the signing keys and verify the signature
+#+BEGIN_SRC tmate
+gpg --keyserver pgp.mit.edu --recv-keys 3CE464558A84FDC69DB40CFB090B11993D9AEBB5
+gpg --verify guix-binary-0.15.0.x86_64-linux.tar.xz.sig
+#+END_SRC
+
+** Ensure you are root from here on
+
+#+NAME: Ensure you are root for the following
+#+BEGIN_SRC tmate
+  sudo su -
+  cd /tmp/
+#+END_SRC
+
+**  Copy over root profile and The Store 
+
+This creates /gnu/store (see The Store) and /var/guix. The latter contains a ready-to-use profile for root
+#+NAME: Copy over root profile and The Store 
+#+BEGIN_SRC tmate
+  tar --warning=no-timestamp -xf \
+       guix-binary-0.15.0.x86_64-linux.tar.xz
+  mv var/guix /var/ && mv gnu /
+#+END_SRC
+
+** Make root profile available and source environment variables
+
+#+NAME: Make root profile available and source environment variables
+#+BEGIN_SRC tmate
+ln -sf /var/guix/profiles/per-user/root/guix-profile \
+         ~root/.guix-profile
+#+END_SRC
+
+#+BEGIN_SRC tmate
+GUIX_PROFILE="`echo ~root`/.guix-profile" ; \
+  source $GUIX_PROFILE/etc/profile
+#+END_SRC
+** build users
+
+Apparrently you need like ten users to build the software in somewhat of
+isolation, and parallel builds. Multiple users could be building / installing at the same time.
+!NO MORE APT.LOCK! :)
+
+#+BEGIN_SRC tmate
+  groupadd --system guixbuild
+  for i in `seq -w 1 10`
+  do useradd \
+         -g guixbuild \
+         -G guixbuild \
+         -d /var/empty \
+         -s `which nologin` \
+         -c "Guix build user $i" \
+         --system \
+         guixbuilder$i
+  done
+#+END_SRC
+
+** Start the Guix daemon
+
+Start the Guix daemon manually, to see if it works. It should have no output by default.
+#(nth 4 (org-heading-components))
+##+NAME: 
+#+BEGIN_SRC tmate
+guix-daemon --build-users-group=guixbuild
+#+END_SRC
+
+Now let's kill the running daemon...
+
+#+BEGIN_SRC tmate
+
+#+END_SRC
+
+...and add it as a systemd unit, set it to autostart, and start it now
+
+#+BEGIN_SRC tmate
+cp ~root/.guix-profile/lib/systemd/system/guix-daemon.service \
+        /etc/systemd/system/
+systemctl start guix-daemon && systemctl enable guix-daemon
+#+END_SRC
+
+** Make the guix command available to users on your machine
+
+#+BEGIN_SRC tmate
+mkdir -p /usr/local/bin
+ln -sf /var/guix/profiles/per-user/root/guix-profile/bin/guix /usr/local/bin/guix
+#+END_SRC
+
+** Make the GNU Info manual for Guix available
+#+BEGIN_SRC tmate
+  mkdir -p /usr/local/share/info
+  for i in /var/guix/profiles/per-user/root/guix-profile/share/info/*
+  do ln -sf $i /usr/local/share/info
+  done
+#+END_SRC
+
+** Authorize Substitute Servers 
+If you want to download "binary substitutes" (think pre-built packages) then you will need to authorize a "substitute server"
+
+#+BEGIN_SRC tmate
+guix archive --authorize < ~root/.guix-profile/share/guix/hydra.gnu.org.pub
+guix archive --authorize < ~root/.guix-profile/share/guix/berlin.guixsd.org.pub
+#+END_SRC
+
+#+BEGIN_SRC tmate
+sed -i 'sXguix-daemon Xguix-daemon --substitute-urls="https://berlin.guixsd.org https://hydra.gnu.org" X' /etc/systemd/system/guix-daemon.service 
+#+END_SRC
+
+#+NAME: guix-daemon.service
+#+BEGIN_SRC shell :results raw code
+cat /etc/systemd/system/guix-daemon.service
+#+END_SRC
+
+#+RESULTS: guix-daemon.service
+#+BEGIN_SRC shell
+# This is a "service unit file" for the systemd init system to launch
+# 'guix-daemon'.  Drop it in /etc/systemd/system or similar to have
+# 'guix-daemon' automatically started.
+
+[Unit]
+Description=Build daemon for GNU Guix
+
+[Service]
+ExecStart=/var/guix/profiles/per-user/root/guix-profile/bin/guix-daemon --substitute-urls="https://berlin.guixsd.org https://hydra.gnu.org" --build-users-group=guixbuild
+Environment=GUIX_LOCPATH=/root/.guix-profile/lib/locale
+RemainAfterExit=yes
+StandardOutput=syslog
+StandardError=syslog
+
+# See <https://lists.gnu.org/archive/html/guix-devel/2016-04/msg00608.html>.
+# Some package builds (for example, go@1.8.1) may require even more than
+# 1024 tasks.
+TasksMax=8192
+
+[Install]
+WantedBy=multi-user.target
+#+END_SRC
+
+
+Now we need to reload / restart 
+
+#+BEGIN_SRC tmate
+systemctl daemon-reload
+systemctl restart guix-daemon
+#+END_SRC
+
+* Setup for Users
+
+We will continue on to the setup of regular user[s] now
+
+** Exit root
+First thing to do is logout of root
+#+NAME: Logout of root user
+#+BEGIN_SRC tmate
+  exit
+#+END_SRC
+
+Guix does not share the locale data with the host system, so you must install the locales package, and define the env variable.
+
+** Install locales
+#+BEGIN_SRC tmate
+guix package -i glibc-utf8-locales
+export GUIX_LOCPATH=$HOME/.guix-profile/lib/locale
+echo "export GUIX_LOCPATH=$HOME/.guix-profile/lib/locale" >> $HOME/.bashrc
+#+END_SRC
+
+** Export the new PATH
+#+BEGIN_SRC tmate
+export PATH="/home/hh/.config/guix/current/bin${PATH:+:}$PATH"
+export PATH="/home/hh/.guix-profile/bin${PATH:+:}$PATH"
+#+END_SRC
+
+Make it permanent.
+
+#+BEGIN_SRC tmate
+echo 'export PATH="/home/hh/.config/guix/current/bin${PATH:+:}$PATH"' >> $HOME/.bashrc
+echo 'export PATH="/home/hh/.guix-profile/bin${PATH:+:}$PATH"' >> $HOME/.bashrc
+#+END_SRC
+
+** Update Guix
+#+BEGIN_SRC tmate
+guix pull
+guix package -u
+#+END_SRC
+
+** Install fonts
+#+BEGIN_SRC tmate
+guix package -i gs-fonts font-dejavu font-gnu-freefont-ttf font-inconsolata
+#+END_SRC
+
+** Learn some guix package commands
+
+This will show you packages with matching string in the title, and only outputs their name and version
+
+#+BEGIN_SRC tmate
+guix package -A icecat
+#+END_SRC
+
+This does a plaintext search of all the metadata related to the available package definitions, and returns that to you
+#+BEGIN_SRC tmate
+guix package -s icecat
+#+END_SRC
+
+"-i" or "--install" installs packages
+#+BEGIN_SRC tmate
+guix package -i icecat
+#+END_SRC
+
+This creates /gnu/store (see The Store) and /var/guix. The latter contains a ready-to-use profile for root
+* Footnotes
+# Local Variables:
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# End:

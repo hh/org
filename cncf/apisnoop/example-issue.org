@@ -5,20 +5,19 @@
 #+ISSUE: https://github.com/cncf/apisnoop/issues/35
 #+CREATOR: ii.coop
 #+DATE: August 29nd, 2018
-#+PROPERTY: header-args:tmux :session k8s:default
+#+LPROPERTY: header-args:tmate :session ii:MAIN
+#+PROPERTY: header-args:tmate :socket "/tmp/target.i.socket"
+# :async
 
 #+NAME: Start Shell
-#+BEGIN_SRC shell :async
-echo xterm -e \
- "ssh -At root@apisnoop.cncf.ci tmate -S /tmp/ii-emacs.socket new-session -A -c /root -s ii -n emacs"
-sleep 5
+#+BEGIN_SRC shell :results none :var socket="/tmp/target.i.socket"
+  export DISPLAY=:0
+  sakura -e \
+         ssh -At -L $socket:$socket root@apisnoop.cncf.ci \
+         "tmate -S $socket new-session -A -c /root -s ii -n MAIN" &
 #+END_SRC
-./api/openapi-spec/swagger.json
-#+RESULTS: Start Shell
-: xterm -e ssh -At root@apisnoop.cncf.ci tmate -S /tmp/ii-emacs.socket new-session -A -c /root -s ii -n emacs
 
-#+NAME: go into k8s sourc
-#+BEGIN_SRC tmux
+#+BEGIN_SRC tmate
 cd ~/go/src/k8s.io/kubernetes
 #+END_SRC
 
@@ -284,12 +283,13 @@ At this point I was unsure how to get at the keys you see here:
 # eval: (require (quote ob-async))
 # Local Variables:
 # eval: (require 'ox-md)
-# eval: (require (quote ob-tmux))
+# eval: (require (quote ob-tmate))
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
 # org-confirm-babel-evaluate: nil
+# socket: "/tmp/mysocket"
 # End:
 

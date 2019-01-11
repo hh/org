@@ -1,0 +1,307 @@
+#+TITLE: Setting up Gitlab
+#+AUTHOR: Hippie Hacker and James Blair
+#+EMAIL: hh@ii.coop and mail@jamesblair.net
+#+CREATOR: ii.coop + Inland Revenue
+#+DATE: 5th of October, 2018
+#+PROPERTY: header-args:shell :results output list raw replace
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
+#+PROPERTY: header-args:yaml :tangle yes
+
+* [[https://github.com/rook/rook/blob/master/Documentation/k8s-pre-reqs.md#example-setup-for-a-ceph-cluster][Setup Rook-CEPH Cluster]]
+:PROPERTIES:
+:header-args:yaml: :tangle no
+:END:
+
+#+NAME: Setup a Service Account
+#+BEGIN_SRC tmate
+  kubectl --namespace kube-system create serviceaccount tiller
+  kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+#+END_SRC
+
+#+NAME: Initialize tiller
+#+BEGIN_SRC tmate
+  helm init --service-account tiller
+#+END_SRC
+ 
+#+NAME: Add rook helm repo
+#+BEGIN_SRC tmate
+  helm repo add rook-stable https://charts.rook.io/stable
+#+END_SRC
+
+#+NAME: Install rook-ceph-system
+#+BEGIN_SRC tmate
+  helm install \
+       --namespace rook-ceph-system \
+       rook-stable/rook-ceph 
+#+END_SRC
+
+* Configure Rook RBAC
+:PROPERTIES:
+:header-args:yaml: :tangle rook-rbac.yaml
+:END:
+#+NAME: rook_rbac
+#+BEGIN_SRC yaml
+  #################################################################################
+  # This example first defines some necessary namespace and RBAC security objects.
+  #################################################################################
+  apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: rook-ceph
+  ---
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: rook-ceph-osd
+    namespace: rook-ceph
+  ---
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+  ---
+  kind: Role
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-osd
+    namespace: rook-ceph
+  rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: [ "get", "list", "watch", "create", "update", "delete" ]
+  ---
+  # Aspects of ceph-mgr that require access to the system namespace
+  kind: Role
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-mgr-system
+    namespace: rook-ceph
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - configmaps
+    verbs:
+    - get
+    - list
+    - watch
+  ---
+  # Aspects of ceph-mgr that operate within the cluster's namespace
+  kind: Role
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    - services
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - batch
+    resources:
+    - jobs
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - delete
+  - apiGroups:
+    - ceph.rook.io
+    resources:
+    - "*"
+    verbs:
+    - "*"
+  ---
+  # Allow the operator to create resources in this cluster's namespace
+  kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-cluster-mgmt
+    namespace: rook-ceph
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: rook-ceph-cluster-mgmt
+  subjects:
+  - kind: ServiceAccount
+    name: rook-ceph-system
+    namespace: rook-ceph-system
+  ---
+  # Allow the osd pods in this namespace to work with configmaps
+  kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-osd
+    namespace: rook-ceph
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: rook-ceph-osd
+  subjects:
+  - kind: ServiceAccount
+    name: rook-ceph-osd
+    namespace: rook-ceph
+  ---
+  # Allow the ceph mgr to access the cluster-specific resources necessary for the mgr modules
+  kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: rook-ceph-mgr
+  subjects:
+  - kind: ServiceAccount
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+  ---
+  # Allow the ceph mgr to access the rook system resources necessary for the mgr modules
+  kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-mgr-system
+    namespace: rook-ceph-system
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: rook-ceph-mgr-system
+  subjects:
+  - kind: ServiceAccount
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+  ---
+  # Allow the ceph mgr to access cluster-wide resources necessary for the mgr modules
+  kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  metadata:
+    name: rook-ceph-mgr-cluster
+    namespace: rook-ceph
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: rook-ceph-mgr-cluster
+  subjects:
+  - kind: ServiceAccount
+    name: rook-ceph-mgr
+    namespace: rook-ceph
+#+END_SRC
+
+#+BEGIN_SRC tmate :noweb yes
+  cat <<-EOF | kubectl apply -f -
+  <<rook_rbac>>
+  EOF
+#+END_SRC
+
+* [[https://github.com/rook/rook/blob/master/Documentation/ceph-quickstart.md#create-a-rook-cluster][Configure Rook Cluster]]
+:PROPERTIES:
+:header-args:yaml: :tangle rook-cluster.yaml
+:END:
+
+#+NAME: ceph-cluster-config
+#+BEGIN_SRC yaml
+#################################################################################
+# The Ceph Cluster CRD example
+#################################################################################
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    # For the latest ceph images, see https://hub.docker.com/r/ceph/ceph/tags
+    image: ceph/ceph:v13.2.2-20181023
+  dataDirHostPath: /home/rook
+  mon:
+    count: 1
+    allowMultiplePerNode: true
+  dashboard:
+    enabled: true
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    config:
+      databaseSizeMB: "1024"
+      journalSizeMB: "1024"
+#+END_SRC
+
+#+NAME: apply ceph-cluster-config
+#+BEGIN_SRC tmate :noweb yes
+  kubectl apply -f rook-rbac.yaml
+#+END_SRC
+
+
+#+NAME: apply ceph-cluster-config
+#+BEGIN_SRC tmate :noweb yes
+  cat <<-EOF | kubectl apply -f -
+  <<ceph-cluster-config>>
+  EOF
+#+END_SRC
+
+* Dashboard
+#+NAME: create service account
+#+BEGIN_SRC tmate
+    cat <<-EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: admin-user
+        namespace: kube-system
+    EOF
+#+END_SRC
+#+NAME: create service account
+#+BEGIN_SRC tmate
+    cat <<-EOF | kubectl apply -f -
+      apiVersion: rbac.authorization.k8s.io/v1beta1
+      kind: ClusterRoleBinding
+      metadata:
+        name: admin-user
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: admin-user
+        namespace: kube-system
+    EOF
+#+END_SRC
+
+#+NAME: create service account
+#+BEGIN_SRC tmate
+kubectl get -n kube-system -o json secret \
+  `kubectl get secret -n kube-system | grep admin-user | awk '{print $1}'` \
+  | jq -r .data.token \
+  | base64 --decode
+#+END_SRC
+
+Take the output from the above command and visit
+[[http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/]]
+Choose Token as your authentication method and paste in the output from above.
+
+Beware your copy paste methods and try pasting into a notepad first.
+* Set KUBECONFIG
+#+BEGIN_SRC emacs-lisp :results silent
+  ;; set this dynamically at some point to the most recent dind
+  (setenv "KUBECONFIG" (concat (file-name-directory buffer-file-name) "kubeconfig.conf"))
+#+END_SRC
+
+# Local Variables:
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:

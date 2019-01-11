@@ -1,0 +1,22 @@
+#+TITLE: 
+#+AUTHOR: Hippie Hacker and Stephen Heywood
+#+EMAIL: hh@ii.coop and stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 22nd of November, 2018
+#+PROPERTY: header-args:shell :results output list raw replace
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
+* 
+
+We added test name to the user agents so that we could verify that a given test name 
+API Accesses
+* Footnotes
+  
+# Local Variables:
+# eval: (make-local-variable socket)
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:

@@ -1,0 +1,275 @@
+# -*- org-use-property-inheritance: t; -*-
+#+TITLE: WIP: DNS: add canary
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+ISSUE: https://github.com/kubernetes/k8s.io/pull/147
+#+CREATOR: ii.coop
+#+DATE: October 24th, 2018
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (file-name-base buffer-file-name)
+#+PROPERTY: header-args:shell  :var SOCKET=(symbol-value 'socket)
+#+PROPERTY: header-args:shell+ :results verbatim code
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE"
+
+
+octodns-compare does similar comparison type stuff,
+ though it works at the provider level
+
+octodns-report does actual DNS queries against servers
+
+using octoDNS to get the list of things to check.
+
+* Open DNS Software
+It would be nice to support open standands like RFC2136 or AXFR
+** GPL DNS software that supports RFC2136
+https://www.knot-dns.cz
+** AXFR (google does not support)
+https://stackoverflow.com/questions/46892178/google-cloud-dns-secondary-dns-supportt
+
+* CoreDNS
+It doesn't seem to support AXFR or RFC2136 or anything other than being a proxy
+** Underlying library for Go DNS stuff
+https://github.com/miekg/exdns
+* octoDNS
+** An example using dns
+https://gist.github.com/yzguy/e648209d332520956ecabe6e64db24cb
+
+#+BEGIN_SRC python
+#!/usr/bin/env python
+
+import sys
+import dns.query
+import dns.zone
+import dns.name
+
+from dns.exception import DNSException
+from dns.rdatatype import SOA
+
+config = {
+    'masters': {
+        'provider1': '10.10.10.10',
+        'provider2': '20.20.20.20'
+    },
+    'domains': [
+        'domain.com',
+        'domain.net'
+    ]
+}
+
+# Zone Transfer
+def get_zone(domain, master):
+    try:
+        zone = dns.zone.from_xfr(dns.query.xfr(master, domain, relativize=False), relativize=False)
+    except DNSException as e:
+        return None, e
+
+    return zone, None
+
+# Compare a zone against another, return data
+def compare_zones(z1, z2):
+    data = {
+        'totals': [
+            get_zone_total(z1),
+            get_zone_total(z2)
+        ],
+        'missing': {},
+        'matches': [],
+        'mismatches': {}
+    }
+
+    # Loop through all the name to rdataset pairs
+    for (name, z1_rdataset) in z1.iterate_rdatasets():
+
+        # Skip SOA records (different between providers)
+        if z1_rdataset.rdtype == SOA:
+            continue
+
+        # Find same record in second zone
+        try:
+            z2_node = z2.find_node(name)
+            z2_rdataset = z2_node.find_rdataset(z1_rdataset.rdclass, z1_rdataset.rdtype)
+        except KeyError:
+            data['missing'][name] = z1_rdataset
+            continue
+
+        # Compare rdatasets
+        if z1_rdataset == z2_rdataset:
+            if z1_rdataset.ttl == z2_rdataset.ttl:
+                data['matches'].append(name)
+            else:
+                data['mismatches'][name] = [z1_rdataset, z2_rdataset]
+        else:
+            data['mismatches'][name] = [z1_rdataset, z2_rdataset]
+
+    return data
+
+# Get Total Number of Records
+def get_zone_total(zone):
+    return sum([len(val) for val in zone.values()]) - 1
+
+if __name__ == '__main__':
+    error = False
+    for domain in config['domains']:
+        print '----------- {} -----------'.format(domain)
+
+        # Perform zone transfer against Provider1
+        p1, err = get_zone(domain=domain, master=config['masters']['provider1'])
+        if err is not None:
+            print 'ERROR: Unable to perform zone transfer against Provider1 for {} ({})'.format(domain, err)
+            error = True
+            continue
+
+        # Perform zone transfer against Provider2
+        p2, err = get_zone(domain=domain, master=config['masters']['provider2'])
+        if err is not None:
+            print 'ERROR: Unable to perform zone transfer against Provider1 for {} ({})'.format(domain, err)
+            error = True
+            continue
+
+        # Compare zones to each other
+        results = compare_zones(p1, p2)
+
+        p1_total = results['totals'][0]
+        p2_total = results['totals'][1]
+
+        # Provider1 total is more than Provider2
+        if p1_total > p2_total:
+            # Provider2 is missing records
+            print 'ERROR: Records missing from Provider2'
+            for name, rdataset in results['missing'].iteritems():
+                print '{} {}'.format(name, rdataset)
+            error = True
+
+        # Provider1 total is less than Provider2
+        elif p1_total < p2_total:
+
+            # Compare zones, switching order
+            results = compare_zones(p2, p1)
+
+            p2_total = results['totals'][0]
+            p1_total = results['totals'][1]
+
+            # Provider2 total is more, Provider1 is missing records
+            print 'ERROR: Records missing from Provider1'
+            for name, rdataset in results['missing'].iteritems():
+                print '{} {}'.format(name, rdataset)
+            error = True
+
+        # Provider1 and Provider2 totals are the same
+        else:
+            # Totals are the same, but records are mismatched
+            if len(results['mismatches']) != 0:
+                print 'ERROR: Records out of sync'
+                for name, rdataset_list in results['mismatches'].iteritems():
+                    print "Provider1:\t {} {}".format(name, rdataset_list[0])
+                    print "Provider2:\t {} {}".format(name, rdataset_list[1])
+                    print
+                error = True
+
+            # Totals match, but a record is missing
+            elif len(results['matches']) != p1_total:
+                print 'ERROR: Records missing from Provider2'
+                for name, rdataset in results['missing'].iteritems():
+                    print '{} {}'.format(name, rdataset)
+                error = True
+
+        # Print report
+        print "\nResults"
+        print "Provider1 Total:\t", p1_total
+        print "Provider2 Total:\t", p2_total
+        print "Missing:\t", len(results['missing'])
+        print "Matches:\t", len(results['matches'])
+        print "Mis-matches:\t", len(results['mismatches'])
+        print
+
+    # If any error raised, exit
+    if error:
+        sys.exit(1)
+#+END_SRC
+* create project & configuration
+** Secrets / ENV Setup
+ #+NAME: create project configuration
+ #+BEGIN_SRC tmate
+   export PROJECT=kubernetes-public
+   export EMAIL=hh@ii.coop
+
+   gcloud config configurations create $PROJECT --activate \
+     || gcloud config configurations activate $PROJECT
+   gcloud config set account $EMAIL
+   gcloud config set project $PROJECT
+ #+END_SRC
+ 
+#+NAME: create project configuration
+ #+BEGIN_SRC tmate
+   export PROJECT=kubernetes-public
+   export EMAIL=hh@ii.coop
+
+   gcloud config configurations create $PROJECT --activate \
+     || gcloud config configurations activate $PROJECT
+   gcloud config set account $EMAIL
+   gcloud config set project $PROJECT
+ #+END_SRC
+
+#+NAME: test canary
+#+BEGIN_SRC tmate
+  (
+    cd ~/kubernetes/k8s.io/dns
+    ~/kubernetes/k8s.io/dns/test.sh canary
+    echo exit=$?
+  ) 2>&1
+#+END_SRC
+
+#+NAME: test.sh canary
+#+BEGIN_SRC shell :results verbatim :path ~/kubernetes/k8s.io/dns
+  (
+    cd ~/kubernetes/k8s.io/dns
+    ~/kubernetes/k8s.io/dns/test.sh canary
+    echo exit=$?
+  ) 2>&1
+#+END_SRC
+
+#+RESULTS: test.sh canary
+#+begin_example
+canary
+Testing canary via ns-cloud-c1.googledomains.com. and ns-cloud-b1.googledomains.com.
+1 aspmx.l.google.com. 5 alt1.aspmx.l.google.com. 5 alt2.aspmx.l.google.com. 10 alt3.aspmx.l.google.com. 10 alt4.aspmx.l.google.com.
+FAIL: MX canary.k8s.io:
+  got:
+1 aspmx.l.google.com.
+5 alt1.aspmx.l.google.com.
+5 alt2.aspmx.l.google.com.
+10 alt3.aspmx.l.google.com.
+10 alt4.aspmx.l.google.com.
+--------------------
+exit=2
+#+end_example
+
+
+
+
+
+* DEPRECATED definitions
+
+There were quite a few definitions dropped, but again this shouldn't affect test coverage.
+
+#+NAME: DEPRECATED definitions
+#+BEGIN_SRC shell :results verbatim :wrap SRC json
+  cd ~/go/src/k8s.io/kubernetes
+  cat ./api/openapi-spec/swagger.json \
+  | jq .definitions \
+  | gron | grep DEPRECATED | gron --ungron \
+  | jq . 
+#\
+#  | sort -r | uniq | cat
+#'.[].get.description' -r \
+  echo # https://necromuralist.github.io/posts/org-babel-stderr-results/
+#+END_SRC
+
+* Footnotes
+
+# Local Variables:
+# eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# End:

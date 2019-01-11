@@ -17,7 +17,7 @@ https://gitlab.com/charts/gitlab/blob/master/doc/cloud/gke.md#scripted-cluster-c
 ** Helm
 
 #+NAME: Install Helm
-#+BEGIN_SRC tmux :session br:gitlab
+#+BEGIN_SRC tmate :session br:gitlab
 curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz | tar xvz -f - --strip-components 1 -C /usr/local/bin
 #+END_SRC
 
