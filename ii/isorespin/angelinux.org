@@ -1,0 +1,385 @@
+* Install isorespin
+
+The main site is at http://www.linuxium.com.au/how-tos  
+But I found a repository at https://github.com/kenorb-contrib/isorespin
+
+#+NAME: Install isorespin
+#+BEGIN_SRC shell
+  sudo wget -O /usr/local/bin/isorespin.sh \
+       https://raw.githubusercontent.com/kenorb-contrib/isorespin/master/isorespin.sh
+  sudo chmod +x /usr/local/bin/isorespin.sh
+#+END_SRC
+
+#+NAME: isorespin dependencies (on debian)
+#+BEGIN_SRC shell
+  sudo apt install -y \
+       bc \
+       squashfs-tools \
+       xorriso \
+       p7zip-full \
+       live-build
+#+END_SRC
+
+* Create our isorespin templates
+
+In general, tangle this section and run:
+
+#+NAME: runme.sh
+#+BEGIN_SRC shell
+isorespin.sh -i ubuntu-18.04.1-desktop-amd64.iso -t ii.tpl
+#+END_SRC
+
+The following tangles into a set of .sh files and .tpl files which are all referenced by ii.tpl
+
+This should also work for elementary, or any other OS based on Ubuntu Bionic Beaver.
+
+** Software
+
+Some of this software is residual from needing to compile emacs.
+Since we are using a PPA we might be able to reduce this.
+The is based on machine-setup.org
+
+#+NAME: Main software
+#+BEGIN_SRC shell :tangle software.tpl
+  -p "\
+  apt-file \
+  apt-transport-https \
+  aptitude \
+  autoconf \
+  build-essential \
+  ca-certificates \
+  curl \
+  gcc \
+  git \
+  gnupg2 \
+  jq \
+  libgif-dev \
+  libgnutls28-dev \
+  libncurses5-dev \
+  libtiff5-dev \
+  libjpeg-dev \
+  libpng-dev \
+  libtinfo-dev \
+  libxml2-dev \
+  libxpm-dev \
+  liblz4-tool \
+  make \
+  mailutils \
+  mtr \
+  pkg-config \
+  python3-dev \
+  silversearcher-ag \
+  software-properties-common \
+  strace \
+  sudo \
+  texinfo \
+  tmate \
+  tmux \
+  unzip \
+  whois \
+  whowatch \
+  zip"
+#+END_SRC
+
+** Kubernetes
+
+#+NAME: Kubernetes
+#+BEGIN_SRC shell :tangle kubernetes.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 6A030B21BA07F4FB" \
+  -r "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
+  -p "kubelet kubeadm kubectl"
+#+END_SRC
+
+** Google Cloud SDK
+
+https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu
+
+#+NAME: Google SDK
+#+BEGIN_SRC shell :tangle google-sdk.tpl
+  -r "deb https://packages.cloud.google.com/apt cloud-sdk-bionic main" \
+  -p google-cloud-sdk
+#+END_SRC
+
+** Docker
+
+#+NAME: Docker
+#+BEGIN_SRC shell :tangle docker.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9DC858229FC7DD38854AE2D88D81803C0EBFCD88" \
+  -r "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable" \
+  -p docker-ce
+#+END_SRC
+
+** Emacs
+
+https://launchpad.net/~ubuntu-elisp/+archive/ubuntu/ppa
+
+#+NAME: Emacs
+#+BEGIN_SRC shell :tangle emacs.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72" \
+  -r "deb http://ppa.launchpad.net/ubuntu-elisp/ppa/ubuntu bionic main" \
+  -p emacs-snapshot
+#+END_SRC
+
+** Go
+
+# https://golang.org/doc/install#install
+#+NAME: go
+#+BEGIN_SRC shell :tangle go.sh :tangle-mode (identity #o755)
+echo 'export PATH=$PATH:$HOME/go/bin' > /etc/profile.d/homedir-go-path.sh
+#+END_SRC
+
+#+NAME: go.tpl
+#+BEGIN_SRC shell :tangle go.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 52B59B1571A79DBC054901C0F6BC817356A3D45E" \
+  -r "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu bionic main" \
+  -p "golang-1.11" \
+  -f go.sh \
+  -c go.sh
+#+END_SRC
+
+** NodeJS
+
+https://deb.nodesource.com/setup_11.x
+
+#+NAME: node.tpl
+#+BEGIN_SRC shell :tangle node.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280" \
+  -r "deb https://deb.nodesource.com/node_11.x bionic main" \
+  -p "nodejs"
+#+END_SRC
+
+** Bazel
+
+#+NAME: bazel.tpl
+#+BEGIN_SRC shell :tangle bazel.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 48457EE0" \
+  -r "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" \
+  -p "openjdk-8-jdk bazel"
+#+END_SRC
+
+** Google Chrome
+
+https://dl-ssl.google.com/linux/linux_signing_key.pub
+
+#+NAME: chrome.tpl
+#+BEGIN_SRC shell :tangle chrome.tpl
+  --key "adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796" \
+  -r "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+  -p "google-chrome-stable"
+#+END_SRC
+
+** Google Talk Plugin
+
+#+NAME: google-talkplugin.tpl
+#+BEGIN_SRC shell :tangle google-talkplugin.tpl
+  -r "deb http://dl.google.com/linux/talkplugin/deb/ stable main" \
+  -p "google-talkplugin"
+#+END_SRC
+
+** Spotify
+
+#+NAME: spotify.tpl
+#+BEGIN_SRC shell :tangle spotify.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90" \
+  -r "deb http://repository.spotify.com stable non-free" \
+  -p "spotify-client"
+#+END_SRC
+
+** Signal
+#+NAME: signal.tpl
+#+BEGIN_SRC shell :tangle signal.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys DBA36B5181D0C816F630E889D980A17457F6FB06" \
+  -r "deb [arch=amd64] https://updates.signal.org/desktop/apt xenial main" \
+  -p "signal-desktop"
+#+END_SRC
+
+** Skype
+#+NAME: skype.tpl
+#+BEGIN_SRC shell :tangle skype.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys D4040146BE3972509FD57FC71F3045A5DF7587C3" \
+  -r "deb [arch=amd64] https://repo.skype.com/deb stable main" \
+  -p "skypeforlinux"
+#+END_SRC
+
+** Virtualbox
+#+NAME: virtualbox.tpl
+#+BEGIN_SRC shell :tangle virtualbox.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys B9F8D658297AF3EFC18D5CDFA2F683C52980AECF" \
+  -r "deb http://download.virtualbox.org/virtualbox/debian bionic contrib" \
+  -p "virtualbox-6.0"
+#+END_SRC
+
+** Oracle Java 8
+We need this to access our old DL380P systems iLO (Integrated Lights Out / Virtual Console)
+#+NAME: oracle-java8.tpl
+#+BEGIN_SRC shell :tangle oracle-java8.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys 7B2C3B0889BF5709A105D03AC2518248EEA14886" \
+  -r "http://ppa.launchpad.net/webupd8team/java/ubuntu bionic main " \
+  -p " oracle-java8-installer"
+#+END_SRC
+
+** Fish Shell
+
+Devan says this is the bomb, and I believe him
+
+#+NAME: fish.tpl
+#+BEGIN_SRC shell :tangle fish.tpl
+  --key "adv \
+  --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv-keys 59FDA1CE1B84B3FAD89366C027557F056DC33CA5" \
+  -r "deb http://ppa.launchpad.net/fish-shell/release-3/ubuntu bionic main" \
+  -p "fish"
+#+END_SRC
+
+** Microsoft Surface Kernel
+
+#+NAME: linux-surface kernel
+#+BEGIN_SRC shell :tangle linux-surface.sh :tangle-mode (identity #o755)
+  git clone --depth 1 https://github.com/jakeday/linux-surface.git ~/linux-surface
+  cd ~/linux-surface
+  sh setup.sh
+#+END_SRC
+
+#+NAME: surface.tpl
+#+BEGIN_SRC shell :tangle surface.tpl
+  -f linux-surface.sh \
+  -c linux-surface.sh
+#+END_SRC
+
+** AMD GPU Binaries
+
+We need this for our stubborn AMD Systems at the iimaginarium.
+However I don't think this kernel is getting installed as the one booting the ISO yet.
+
+https://github.com/M-Bab/linux-kernel-amdgpu-binaries
+
+#+NAME: amd radion
+#+BEGIN_SRC shell :tangle amd-gpu.sh :tangle-mode (identity #o755)
+  mkdir -p /tmp/amd
+  cd /tmp/amd
+  wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/firmware-radeon-ucode_2.40_all.deb
+  wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/linux-headers-4.19.6_18.12.04.amdgpu.ubuntu_amd64.deb
+  wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/linux-image-4.19.6_18.12.04.amdgpu.ubuntu_amd64.deb
+  dpkg -i *deb
+  cd -
+  rm -rf /tmp/amd
+#+END_SRC
+
+#+NAME: amd-gpu.tpl
+#+BEGIN_SRC shell :tangle amd-gpu.tpl
+  -f amd-gpu.sh \
+  -c amd-gpu.sh
+#+END_SRC
+
+** Populate /etc/skel
+
+Populate /etc/skel with our desired configs.
+This get's copied as each new users $HOME
+
+#+NAME: ii-config
+#+BEGIN_SRC shell :tangle ii-config.sh :tangle-mode (identity #o755)
+  git clone --depth 1 https://github.com/syl20bnr/spacemacs.git  /etc/skel/.emacs.d
+  git clone --depth 1 https://github.com/d12frosted/elpa-mirror /etc/skel/.emacs.d/private/local/elpa-mirror
+  git clone --depth 1 https://gitlab.ii.coop/ii/tooling/ob-tmate.git /etc/skel/.emacs.d/private/local/ob-tmate.el
+  git clone --depth 1 https://gitlab.ii.coop/ii/tooling/zz-tools/zz-spacemacs.git /etc/skel/.emacs.d/private/local/zz-spacemacs
+  ln -s .emacs.d/private/local/zz-spacemacs/.spacemacs /etc/skel/.spacemacs
+  cat <<EOF > /etc/skel/.tmate.conf
+  set-option -g set-clipboard on
+  set-option -g mouse on
+  set-option -g history-limit 50000
+  # ii tmate -- pair.ii.coop
+  set -g tmate-server-host pair.ii.nz
+  set -g tmate-server-port 22
+  set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
+  set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
+  set -g tmate-identity ""
+  set -s escape-time 0
+  EOF
+#+END_SRC
+
+#+NAME: ii-config.tpl
+#+BEGIN_SRC shell :tangle amd-gpu.tpl
+  -f ii-config.sh \
+  -c ii-config.sh
+#+END_SRC
+
+** Kernel
+
+This repo can be changed, but probably needs to be a ppa.
+Some builds can fail resulting in a failure to download:
+https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.0-rc2
+So we hardcode to a successful build.
+
+#+NAME: ii.tpl Kernel
+#+BEGIN_SRC shell :tangle ii.tpl
+  -t 5.0-rc1 \
+#+END_SRC
+
+** Bootloader
+
+I find refind has a nice UI and will work on Macs and PCs with EFI
+We can customize it later to have an ii theme.
+
+#+NAME: ii.tpl bootloader
+#+BEGIN_SRC shell :tangle ii.tpl
+  -b rEFInd \
+#+END_SRC
+
+
+** Proprietary Drivers
+   
+Atom seems to download the broadcom and other drivers.
+Likely needed on some laptops.
+
+#+NAME: ii.tpl atom
+#+BEGIN_SRC shell :tangle ii.tpl
+  --atom \
+#+END_SRC
+
+** ii.tpl
+
+This last section just references all the other tpl files
+
+#+NAME: ii.tpl
+#+BEGIN_SRC shell :tangle ii.tpl
+  -t software.tpl \
+  -t kubernetes.tpl \
+  -t google-sdk.tpl \
+  -t docker.tpl \
+  -t emacs.tpl \
+  -t go.tpl \
+  -t bazel.tpl \
+  -t node.tpl \
+  -t chrome.tpl \
+  -t google-talkplugin.tpl \
+  -t spotify.tpl \
+  -t signal.tpl \
+  -t skype.tpl \
+  -t virtualbox.tpl \
+  -t fish.tpl \
+  -t amd-gpu.tpl
+#+END_SRC

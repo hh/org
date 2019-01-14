@@ -1,0 +1,38 @@
+* Look at Cubic
+
+I started with [[https://www.techrepublic.com/article/how-to-create-a-custom-ubuntu-iso-with-cubic/][a Tech Republic blog post on cubic]]
+It was a pain to install on my box.
+It uses Polkit to get root access.
+So I had to run lxpolkit in another window.
+Then it was eventually able to pop up a window.
+
+** In the shell
+
+DNS wasn't working due to symlinks.
+
+#+BEGIN_SRC shell
+  mkdir -p /run/systemd/resolve
+echo nameserver 8.8.8.8 >> /run/systemd/resolve/stub-resolv.conf
+#+END_SRC
+
+
+#+BEGIN_SRC 
+ apt update -y
+ apt install -y git curl wget sed
+ git clone --depth 1 https://github.com/jakeday/linux-surface.git ~/linux-surface
+ cd ~/linux-surface
+ sudo sh setup.sh
+#+END_SRC
+* Look at Directly creating a LiveCD
+[[https://help.ubuntu.com/community/LiveCDCustomization#Live_CD_Kernel][Custom Live CD Kernel]]
+
+We need to copy the kernel / initrd in place before we burn the ISO.
+However I'm wondering if the initrd needs to be updated for use on the CDROM?
+
+#+BEGIN_SRC 
+sudo cp ./squashfs-root/boot/vmlinuz-4.18.20-surface-linux-surface custom-live-iso/casper/vmlinuz
+sudo cp ./squashfs-root/boot/initrd.img-4.18.20-surface-linux-surface ./custom-live-iso/casper/
+#+END_SRC
+
+In the end, while it has a nice gui, this wasn't going to result in a repeatable build.
+
