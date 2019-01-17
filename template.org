@@ -1,0 +1,38 @@
+#+TITLE: CHANGEME
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 17th of January, 2019
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
+#+STARTUP: showeverything
+* First Section
+:PROPERTIES:
+:header-args:shell+: :dir (concat tmpdir "/squid-4.5")
+:END:
+
+ 
+* Footer
+org-file-dir is the directory this file exists in
+user-buffer is $USER.$FILENAME without .org ie. hh.filenamebase
+socket is /tmp/$USER.$FILENAMEBASE.ii.socket
+we copy the tmate command to clipboard and primary
+tmpdir creates folder in the ramdisk on load
+:async yes to enable async execution
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (gui-select-text (concat "tmate -S " socket " new-session -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (require 'ob-async)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
