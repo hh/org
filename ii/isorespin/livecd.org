@@ -513,7 +513,7 @@ RUN git clone --depth 1 -b stable \
     https://gitlab.ii.coop/ii/tooling/dot-spacemacs.git \
     /etc/skel/.emacs.d/private/local/dot-spacemacs \
   && ln -s .emacs.d/private/local/dot-spacemacs/.spacemacs /etc/skel/.spacemacs \
-  && ln -sf ../dot-spacemacs/.lock /etc/skel/.emacs.d/.lock
+  && ln -sf .emacs.d/private/local/dot-spacemacs/.lock /etc/skel/.emacs.d/.lock
 #+END_SRC
 
 On first start, emacs will want to compile all our elisp files. Instead we copy
