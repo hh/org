@@ -38,7 +38,7 @@ git clone --depth 1 -b stable \
 
 emacs --batch -l ~/.emacs.d/init.el
 
-Add the following to your ~/.gitconfig
+echo Add something like the following to your ~/.gitconfig
 cat <<EOF
 [user]
   email = hh@ii.coop

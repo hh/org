@@ -83,7 +83,7 @@ emacs --batch -l ~/.emacs.d/init.el
 * Request they configure gitlab
 
 #+BEGIN_SRC sh
-  Add the following to your ~/.gitconfig
+  echo Add something like the following to your ~/.gitconfig
   cat <<EOF
   [user]
     email = hh@ii.coop
