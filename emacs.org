@@ -1,0 +1,61 @@
+#+TITLE: Setting up iiEmacs
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 18th of January, 2019
+#+PROPERTY: header-args:sh :results output code verbatim replace
+#+PROPERTY: header-args:sh+ :dir (expand-file-name "~")
+#+PROPERTY: header-args:sh+ :tangle yes
+#+STARTUP: showeverything
+
+
+* Emacs Snapshot PPA
+
+This installs emacs-snapshot on ubuntu bionic...
+though any process that gives us emacs 27.0.50 is probably fine.
+Be sure that no ether .elc files are loaded
+
+#+BEGIN_SRC sh
+  sudo apt-key adv \
+    --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72 \
+    && sudo add-apt-repository \
+    "deb http://ppa.launchpad.net/ubuntu-elisp/ppa/ubuntu bionic main" \
+    && sudo apt-get install -y \
+    emacs-snapshot
+#+END_SRC
+
+* ELPA Mirror
+
+
+We use spacemacs, and it takes a while to download / configure / compile all the
+lisp files.
+
+One of the larger components that is much faster to have local is our elpa-mirror.
+
+#+BEGIN_SRC sh
+  sudo git clone --depth 1 -b stable \
+      https://github.com/ii/elpa-mirror \
+      /usr/local/elpa-mirror
+#+END_SRC
+
+* Configuring Emacs
+
+#+BEGIN_SRC sh
+git clone --depth 1 -b stable \
+    https://github.com/ii/spacemacs.git \
+    ~/.emacs.d \
+  && git clone --depth 1 \
+    https://gitlab.ii.coop/ii/tooling/ob-tmate.git \
+    ~/.emacs.d/private/local/ob-tmate.el \
+  && git clone --depth 1 -b stable \
+    https://gitlab.ii.coop/ii/tooling/dot-spacemacs.git \
+    ~/.emacs.d/private/local/dot-spacemacs \
+  && ln -s .emacs.d/private/local/dot-spacemacs/.spacemacs ~/.spacemacs \
+  && ln -sf private/local/dot-spacemacs/.lock ~/.emacs.d/.lock
+#+END_SRC
+
+* Compiling Elisp Configuration / Installing Packages
+
+#+BEGIN_SRC sh
+emacs --batch -l ~/.emacs.d/init.el
+#+END_SRC
