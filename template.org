@@ -6,7 +6,7 @@
 #+PROPERTY: header-args:shell :results output code verbatim replace
 #+PROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+PROPERTY: header-args:tmate+ :session (user-login-name)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":main")
 #+STARTUP: showeverything
 
 * In Org Folder
