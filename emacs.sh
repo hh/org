@@ -15,7 +15,7 @@ git clone --depth 1 -b stable \
   && git clone --depth 1 \
     https://gitlab.ii.coop/ii/tooling/ob-tmate.git \
     ~/.emacs.d/private/local/ob-tmate.el \
-  && git clone --depth 1 -b stable \
+  && git clone --depth 1 \
     https://gitlab.ii.coop/ii/tooling/dot-spacemacs.git \
     ~/.emacs.d/private/local/dot-spacemacs \
   && ln -s .emacs.d/private/local/dot-spacemacs/.spacemacs ~/.spacemacs \
