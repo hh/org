@@ -491,8 +491,8 @@ One of the larger components that is much faster to have local is our elpa-mirro
 
 #+NAME: configure-elpa-mirror
 #+BEGIN_SRC dockerfile
-RUN git clone --depth 1 \
-    https://github.com/d12frosted/elpa-mirror \
+RUN git clone --depth 1 -b stable \
+    https://github.com/ii/elpa-mirror \
     /usr/local/elpa-mirror \
 #+END_SRC
 
@@ -503,8 +503,8 @@ $HOME
 
 #+NAME: configure-emacs
 #+BEGIN_SRC dockerfile
-RUN git clone --depth 1 -b develop \
-    https://github.com/syl20bnr/spacemacs.git \
+RUN git clone --depth 1 -b stable \
+    https://github.com/ii/spacemacs.git \
     /etc/skel/.emacs.d \
   && git clone --depth 1 \
     https://gitlab.ii.coop/ii/tooling/ob-tmate.git \

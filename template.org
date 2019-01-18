@@ -8,6 +8,17 @@
 #+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+NOPROPERTY: header-args:tmate+ :session (user-login-name)
 #+STARTUP: showeverything
+#+TITLE: CHANGEME
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 17th of January, 2019
+#+NOPROPERTY: header-args:shell :results output code verbatim replace
+#+NOPROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
+#+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+NOPROPERTY: header-args:tmate+ :session (user-login-name)
+#+STARTUP: showeverything
+
 
 * In Org Folder
 :NOPROPERTIES:
