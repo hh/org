@@ -3,29 +3,20 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 17th of January, 2019
-#+NOPROPERTY: header-args:shell :results output code verbatim replace
-#+NOPROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
-#+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+NOPROPERTY: header-args:tmate+ :session (user-login-name)
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (user-login-name)
 #+STARTUP: showeverything
-#+TITLE: CHANGEME
-#+AUTHOR: Hippie Hacker
-#+EMAIL: hh@ii.coop
-#+CREATOR: ii.coop
-#+DATE: 17th of January, 2019
-#+NOPROPERTY: header-args:shell :results output code verbatim replace
-#+NOPROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
-#+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+NOPROPERTY: header-args:tmate+ :session (user-login-name)
-#+STARTUP: showeverything
-
 
 * In Org Folder
-:NOPROPERTIES:
+:PROPERTIES:
 :header-args:shell+: :dir (symbol-value 'org-file-dir)
-:header-args:tmate: :prologue (concat "cd " org-file-dir) 
+:header-args:tmate+: :prologue (concat "cd " org-file-dir "\n") 
 :END:
+
 ** shell
+
 #+BEGIN_SRC shell
 pwd
 #+END_SRC
@@ -37,8 +28,9 @@ pwd
 #+END_SRC
 
 * In Temp Folder
-:NOPROPERTIES:
+:PROPERTIES:
 :header-args:shell+: :dir (symbol-value 'tmpdir)
+:header-args:tmate+: :prologue (concat "cd " tmpdir "\n") 
 :END:
 
 #+BEGIN_SRC shell
@@ -50,6 +42,9 @@ pwd
 /dev/shm/hh.template-8geaSN
 #+END_SRC
 
+#+BEGIN_SRC tmate
+pwd
+#+END_SRC
 
 * Footer
 org-file-dir is the directory this file exists in
