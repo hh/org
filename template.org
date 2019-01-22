@@ -4,16 +4,13 @@
 #+CREATOR: ii.coop
 #+DATE: 17th of January, 2019
 #+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":main")
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
 #+STARTUP: showeverything
 
 * In Org Folder
-:PROPERTIES:
-:header-args:shell+: :dir (symbol-value 'org-file-dir)
-:header-args:tmate+: :prologue (concat "cd " org-file-dir "\n") 
-:END:
 
 ** shell
 
@@ -28,6 +25,7 @@ pwd
 #+END_SRC
 
 * In Temp Folder
+
 :PROPERTIES:
 :header-args:shell+: :dir (symbol-value 'tmpdir)
 :header-args:tmate+: :prologue (concat "cd " tmpdir "\n") 
