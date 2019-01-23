@@ -4,7 +4,6 @@ cat <<EOF > ~/.tmate.conf
 set-option -g set-clipboard on
 set-option -g mouse on
 set-option -g history-limit 50000
-# ii tmate -- pair.ii.coop
 set -g tmate-server-host pair.ii.nz
 set -g tmate-server-port 22
 set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
