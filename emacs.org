@@ -34,6 +34,17 @@ This installs emacs-snapshot on ubuntu bionic...
 though any process that gives us emacs 27.0.50 is probably fine.
 Be sure that no ether .elc files are loaded
 
+#+NAME: debian stretch
+#+BEGIN_SRC sh
+  sudo apt-key adv \
+    --recv-keys AD287B4E92138B93 \
+    && sudo add-apt-repository \
+    "deb http://emacs.ganneff.de/ stretch main" \
+    && sudo apt-get install -y \
+    emacs-snapshot
+#+END_SRC
+
+#+NAME: ubuntu bionic
 #+BEGIN_SRC sh
   sudo apt-key adv \
     --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72 \

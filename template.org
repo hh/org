@@ -13,9 +13,14 @@
 * In Org Folder
 
 ** shell
-
+#+NAME: print working dir
 #+BEGIN_SRC shell
 pwd
+#+END_SRC
+
+#+RESULTS: print working dir
+#+BEGIN_SRC shell
+/home/hh/ii/org
 #+END_SRC
 
 ** tmate
