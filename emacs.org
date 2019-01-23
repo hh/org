@@ -6,6 +6,7 @@
 #+PROPERTY: header-args:sh :results output code verbatim replace
 #+PROPERTY: header-args:sh+ :dir (expand-file-name "~")
 #+PROPERTY: header-args:sh+ :tangle yes
+#+PROPERTY: header-args:sh+ :comments org
 #+STARTUP: showeverything
 
 * Install and Configure tmate
@@ -24,7 +25,7 @@ sudo apt-get install -y tmate
   set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
   set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
   set -g tmate-identity ""
-  set -s escape-time 0   
+  set -s escape-time 0
   EOF
 #+END_SRC
 
@@ -34,24 +35,30 @@ This installs emacs-snapshot on ubuntu bionic...
 though any process that gives us emacs 27.0.50 is probably fine.
 Be sure that no ether .elc files are loaded
 
-#+NAME: debian stretch
+#+NAME: Debian
 #+BEGIN_SRC sh
-  sudo apt-key adv \
+  if [ $(lsb_release -i -s) == "Debian" ] ; then
+    CODENAME=$(lsb_release -c -s)
+    sudo apt-key adv \
     --recv-keys AD287B4E92138B93 \
     && sudo add-apt-repository \
-    "deb http://emacs.ganneff.de/ stretch main" \
+    "deb http://emacs.ganneff.de/ $CODENAME main" \
     && sudo apt-get install -y \
     emacs-snapshot
+  fi
 #+END_SRC
 
-#+NAME: ubuntu bionic
+#+NAME: Ubuntu
 #+BEGIN_SRC sh
-  sudo apt-key adv \
+  if [ $(lsb_release -i -s) == "Ubuntu" ] ; then
+    CODENAME=$(lsb_release -c -s)
+    sudo apt-key adv \
     --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72 \
     && sudo add-apt-repository \
-    "deb http://ppa.launchpad.net/ubuntu-elisp/ppa/ubuntu bionic main" \
+    "deb http://ppa.launchpad.net/ubuntu-elisp/ppa/ubuntu $CODENAME main" \
     && sudo apt-get install -y \
     emacs-snapshot
+  fi
 #+END_SRC
 
 * ELPA Mirror
