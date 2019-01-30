@@ -1,0 +1,7 @@
+* TODO learn more about arm computers
+  We are using a large.arm in tokyo.  What does that mean fully? 
+* TODO update our emacs.sh org file 
+  When i tried to install, I found that I needed:
+  - git
+  - emacs-snapshot
+  - I was continuing to have issue cos I have a debian box, and the script was meant for ubuntu, specifically ubuntu bionic.  And so if i wanna kedep going on this box, I will need to remake the script to work for debian
