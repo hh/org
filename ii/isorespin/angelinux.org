@@ -24,10 +24,17 @@ But I found a repository at https://github.com/kenorb-contrib/isorespin
 
 In general, tangle this section and run:
 
-#+NAME: runme.sh
+#+NAME: ubuntu.sh
 #+BEGIN_SRC shell
 isorespin.sh -i ubuntu-18.04.1-desktop-amd64.iso -t ii.tpl
 #+END_SRC
+
+#+NAME: elementary.sh
+#+BEGIN_SRC shell
+  wget https://sgp1.dl.elementary.io/download/MTU0NzQ1NjU2NA==/elementaryos-5.0-stable.20181016.iso
+  isorespin.sh -i elementaryos-5.0-stable.20181016.iso -t ii.tpl
+#+END_SRC
+
 
 The following tangles into a set of .sh files and .tpl files which are all referenced by ii.tpl
 
@@ -127,8 +134,8 @@ https://launchpad.net/~ubuntu-elisp/+archive/ubuntu/ppa
 #+END_SRC
 
 ** Go
-
-# https://golang.org/doc/install#install
+https://golang.org/doc/install#install
+https://github.com/golang/go/wiki/Ubuntu
 #+NAME: go
 #+BEGIN_SRC shell :tangle go.sh :tangle-mode (identity #o755)
 echo 'export PATH=$PATH:$HOME/go/bin' > /etc/profile.d/homedir-go-path.sh
@@ -147,7 +154,7 @@ echo 'export PATH=$PATH:$HOME/go/bin' > /etc/profile.d/homedir-go-path.sh
 
 ** NodeJS
 
-https://deb.nodesource.com/setup_11.x
+https://github.com/nodesource/distributions/blob/master/README.md#debinstall
 
 #+NAME: node.tpl
 #+BEGIN_SRC shell :tangle node.tpl
@@ -159,6 +166,8 @@ https://deb.nodesource.com/setup_11.x
 #+END_SRC
 
 ** Bazel
+
+https://docs.bazel.build/versions/master/install-ubuntu.html#install-on-ubuntu
 
 #+NAME: bazel.tpl
 #+BEGIN_SRC shell :tangle bazel.tpl

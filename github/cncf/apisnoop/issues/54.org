@@ -1,0 +1,18 @@
+#+NAME: Issue 54
+
+* Description
+Consistent Positioning and Alignment of sections from top to botom of page
+
+* Method
+** Add padding to main container
+   Everything is inside our Mainpage which acts as a container.  This page already has =pa4= or padding all around of 4. We can then remove the padding for the releases list, the sunburst section, and the tests section, and they should all be lined up.
+** DONE Remove Padding from Releases List
+** DONE Remove Padding from Sunburst section 
+   CLOSED: [2019-01-14 Mon 10:34]
+** DONE remove padding from tests list
+   CLOSED: [2019-01-14 Mon 10:34]
+** DONE Setup some style rules
+   CLOSED: [2019-01-14 Mon 10:48]
+   We have pa4 all around, and an additional mt4 between major sections.  This will provide necessary spacing i think.
+   the sunburst has an additional pt4 and mt1 for the top headings, to make the 'switching to' item work.
+j 
