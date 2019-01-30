@@ -6,11 +6,138 @@
 #+DATE: 30th of January, 2019
 #+CREATOR: ii.coop
 #+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :dir (symbol-value 'tmpdir)
+#+PROPERTY: header-args:shell+ :prologue "exec 2>&1\n"
+#+PROPERTY: header-args:shell+ :epilogue ":\n"
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
+#+PROPERTY: header-args:shell+ :var TMATE_SOCKET=(symbol-value 'socket)
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
 #+STARTUP: showeverything
 
+* Setting up session Connecting
+  :PROPERTIES:
+  :header-args:elisp+: :var ssh-host="root@dev.apisnoop.cncf.ci"
+  :END:
+** root
+#+NAME ssh
+#+BEGIN_SRC elisp
+(set (make-local-variable 'ssh-host) "root@dev.apisnoop.cncf.ci")
+(set (make-local-variable 'start-ssh-command) (concat "ssh -ttA -L " socket ":" socket " " ssh-host))
+(set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main "))
+(gui-select-text (concat start-ssh-command " " start-tmate-command))
+#+END_SRC
+
+#+RESULTS:
+: ssh -ttA -L /tmp/zz.84_cleanup-apisnoop-box.iisocket:/tmp/zz.84_cleanup-apisnoop-box.iisocket root@dev.apisnoop.cncf.ci tmate -S /tmp/zz.84_cleanup-apisnoop-box.iisocket new-session -A -s zz -n main 
+
+#+NAME retrieve ssh-string
+#+BEGIN_SRC elisp
+;\"tmate wait tmate-ready && bash --login\"
+(set (make-local-variable 'get-tmate-command) (concat "ssh -tA " ssh-host " tmate -S " socket " \"wait tmate-ready \\; display -p '#{tmate_ssh}'\" | xclip -i -sel p -f | xclip -i -sel c"))
+(gui-select-text get-tmate-command)
+#+END_SRC
+
+#+RESULTS:
+: ssh -tA root@dev.apisnoop.cncf.ci tmate -S /tmp/zz.84_cleanup-apisnoop-box.iisocket "wait tmate-ready \; display -p '#{tmate_ssh}'" | xclip -i -sel p -f | xclip -i -sel c
+** Ensure all new users can be sshed into by admins / tmate
+   
+   This use will just be serving up our site, but there are some qualities that we want all our service accolu8nts , to have.
+   
+   With any service account, we want to:
+- Be able to ssh in as that user, using any admin keys exiting in root's authorized keys
+- Be able to have that user start a tmate session, where the tmate server is in nz, so we can quickly issue it commands from our org file
+    
+  When we create a  new user, it will copy any files within etc/skel to the home directory of that new user.  So here we will make sure the etc/skel is populated with the configuration needed to achieve all that up above.
+  
+  #+NAME: Setup /etc/skel
+  #+BEGIN_SRC tmate
+    mkdir -p /etc/skel/.ssh  
+    chmod 700 /etc/skel/.ssh/
+    ssh-keygen -t rsa -f /etc/skel/.ssh/id_rsa -N ''
+    cat <<EOF > /etc/skel/.tmate.conf
+    set-option -g set-clipboard on
+    set-option -g mouse on
+    set-option -g history-limit 50000
+    set -g tmate-server-host pair.ii.nz
+    set -g tmate-server-port 22
+    set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
+    set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
+    set -g tmate-identity ""
+    set -s escape-time 0
+    EOF
+#+END_SRC
+  
+* Add New User
+  This is an experiment, so we'll just create a new user called 'web'
+  #+NAME: Create Web User
+  #+BEGIN_SRC tmate
+    adduser \
+      --disabled-password \
+      --gecos "Web User" \
+      web 
+  #+END_SRC
+
+* Switch to Web User
+** web
+ #+NAME webssh
+ #+BEGIN_SRC elisp
+ (set (make-local-variable 'web-socket) (concat socket ".zweb"))
+ (set (make-local-variable 'ssh-host) "web@dev.apisnoop.cncf.ci")
+ (set (make-local-variable 'start-ssh-command) (concat "ssh -ttA -L " web-socket ":" web-socket " " ssh-host))
+ (set (make-local-variable 'start-tmate-command) (concat "tmate -S " web-socket " new-session -A -s " user-login-name " -n main "))
+ (gui-select-text (concat start-ssh-command " " start-tmate-command))
+ #+END_SRC
+
+ #+RESULTS:
+ : ssh -ttA -L /tmp/zz.84_cleanup-apisnoop-box.iisocket.zweb:/tmp/zz.84_cleanup-apisnoop-box.iisocket.zweb web@dev.apisnoop.cncf.ci tmate -S /tmp/zz.84_cleanup-apisnoop-box.iisocket.zweb new-session -A -s zz -n main 
+
+ #+NAME retrieve ssh-string
+ #+BEGIN_SRC elisp
+ ;\"tmate wait tmate-ready && bash --login\"
+ (set (make-local-variable 'get-tmate-command) (concat "ssh -tA " ssh-host " tmate -S " web-socket " \"wait tmate-ready \\; display -p '#{tmate_ssh}'\" | xclip -i -sel p -f | xclip -i -sel c"))
+ (gui-select-text get-tmate-command)
+ #+END_SRC
+
+ #+RESULTS:
+ : ssh -tA web@dev.apisnoop.cncf.ci tmate -S /tmp/zz.84_cleanup-apisnoop-box.iisocket.zweb "wait tmate-ready \; display -p '#{tmate_ssh}'" | xclip -i -sel p -f | xclip -i -sel c
+* webstuf
+  :PROPERTIES:
+  :header-args:tmate+: :session (concat (user-login-name) ":" "webstuf")
+  :header-args:tmate+: :socket (symbol-value 'web-socket)
+  :END:
+** foo
+  :PROPERTIES:
+  :header-args:tmate+: :session (concat (user-login-name) ":" "foo")
+  :END:
+#+BEGIN_SRC tmate
+pwd
+#+END_SRC
+** Check prerequisities
+   We need node
+   #+NAME: Check for node 
+   #+BEGIN_SRC tmate
+  node --version 
+   #+END_SRC
+   
+   We have it, so now we can build up our folder.
+** make the apisnoop directory
+   #+NAME: Make our directory
+   #+BEGIN_SRC tmate
+     mkdir data
+     git clone https://github.com/cncf/apisnoop.git
+     tree
+   #+END_SRC
+** Pull new data, using apisnoop's tools
+   #+NAME: Pull Data
+   #+BEGIN_SRC tmate
+     cd apisnoop 
+     pip2 install -r requirements.txt
+     python2 downloadArtifacts.py sources.yaml ../data/
+
+   #+END_SRC
+   
 * Our Issue
 [[https://github.com/cncf/apisnoop/issues/84][Link to github]]
 #+NAME: Issue Description
@@ -23,87 +150,14 @@ AND can easily reason about both the code and its infrastructure
 
 We realized that, instead of cleaning up the existing box, it would be more productive to create a new box from scratch, so the box only contains exactly what we need.  We could then maybe make this the new default structure for the apisnoop repo, with everything else in a different 'exploratory' repo.
 
-* Setup Right Eye
-* middle
-:PROPERTIES:
-:header-args:tmate+: :socket (concat socket ".middle")
-:END:
-
-#+BEGIN_SRC tmate
-ls
-#+END_SRC
-
-* FOO
-:PROPERTIES:
-:header-args:tmate+: :socket (concat socket ".right")
-:END:
-
-#+BEGIN_SRC tmate
-ls
-#+END_SRC
-** subthings
-#+BEGIN_SRC
-
-#+END_SRC
-* Set Your Right Eye
-  socket:  apisnoopfuntime
-  name: zz-right
-  
-  now type =C-x C-e=
-  you are now ready to run the commands on the remote box.
-* remtoe sample
-  #+BEGIN_SRC tmate
- pwd 
-  #+END_SRC
-* In Org Folder
-:PROPERTIES:
-:header-args:shell+: :dir (symbol-value 'org-file-dir)
-:header-args:tmate+: :prologue (concat "cd " org-file-dir "\n") 
-:END:
-
-** shell
-
-#+BEGIN_SRC shell
-pwd
-#+END_SRC
-
-** tmate
-
-#+BEGIN_SRC tmate :noweb yes
-pwd
-#+END_SRC
-
-* In Temp Folder
-:PROPERTIES:
-:header-args:shell+: :dir (symbol-value 'tmpdir)
-:header-args:tmate+: :prologue (concat "cd " tmpdir "\n") 
-:END:
-
-#+BEGIN_SRC shell
-pwd
-#+END_SRC
-
-#+RESULTS:
-#+BEGIN_SRC shell
-/dev/shm/hh.template-8geaSN
-#+END_SRC
-
-#+RESULTS:
-#+BEGIN_SRC shell
-#+END_SRC
-
-#+BEGIN_SRC tmate
-pwd
-#+END_SRC
-
+* Ideas Sparked by this ticket
+** TODO turn the etc/skel copy into a bash script
+** TODO turn our left pair into script
+** TODO make an issue template, and the retrieval of it into a script
+** TODO push ob-tmate commit.
+** TODO add paren tab to create code block with name pulled from heading.
+   
 * Footer
-org-file-dir is the directory this file exists in
-user-buffer is $USER.$FILENAME without .org ie. hh.filenamebase
-socket is /tmp/$USER.$FILENAMEBASE.ii.socket
-we copy the tmate command to clipboard and primary
-tmpdir creates folder in the ramdisk on load
-:async yes to enable async execution
-As soon as you load this file, create a new terminal and paste to create target tmate session
 # Local Variables:
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
 # eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
@@ -112,7 +166,7 @@ As soon as you load this file, create a new terminal and paste to create target 
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
 # eval: (set (make-local-variable 'start-ssh-command) (concat "ssh -L " socket ":" socket))
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
 # eval: (xclip-mode 1) 
 # eval: (gui-select-text start-ssh-command)
 # eval: (gui-select-text start-tmate-command)
