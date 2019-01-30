@@ -1,0 +1,268 @@
+#+TITLE: kubectl
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 23rd of January, 2019
+#+PROPERTY: header-args:shell :exports both
+#+PROPERTY: header-args:shell+ :never-export
+#+PROPERTY: header-args:shell+ :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
+#+STARTUP: showeverything
+
+* Create a service account
+
+#+BEGIN_SRC shell :eval never-export
+gcloud iam service-accounts create ii-service-account --display-name "ii Service Account"
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+#+END_SRC
+
+#+BEGIN_SRC shell
+gcloud iam service-accounts list
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+NAME                                    EMAIL
+BinderHub                               binderhub@apisnoop.iam.gserviceaccount.com
+ii Service Account                      ii-service-account@apisnoop.iam.gserviceaccount.com
+Compute Engine default service account  840466421052-compute@developer.gserviceaccount.com
+#+END_SRC
+
+* Create a keyfile for activating service account on other machines.
+
+#+BEGIN_SRC shell
+gcloud iam service-accounts keys create key.json --iam-account ii-service-account@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+#+END_SRC
+
+* Ensure that account can use any clusters we create:
+
+#+BEGIN_SRC shell
+gcloud projects add-iam-policy-binding apisnoop \
+  --member serviceAccount:ii-service-account@apisnoop.iam.gserviceaccount.com \
+  --role roles/container.developer
+#+END_SRC
+
+* Note the newly added ii-service-account bindings:
+
+#+RESULTS:
+#+BEGIN_SRC shell
+auditConfigs:
+- auditLogConfigs:
+  - logType: ADMIN_READ
+  - logType: DATA_READ
+  - logType: DATA_WRITE
+  service: storage.googleapis.com
+bindings:
+- members:
+  - user:devan@ii.coop
+  role: roles/compute.admin
+- members:
+  - serviceAccount:service-840466421052@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - user:devan@ii.coop
+  role: roles/container.admin
+- members:
+  - serviceAccount:ii-service-account@apisnoop.iam.gserviceaccount.com
+  role: roles/container.developer
+- members:
+  - serviceAccount:service-840466421052@container-engine-robot.iam.gserviceaccount.com
+  role: roles/container.serviceAgent
+- members:
+  - serviceAccount:840466421052-compute@developer.gserviceaccount.com
+  - serviceAccount:840466421052@cloudservices.gserviceaccount.com
+  - serviceAccount:service-840466421052@containerregistry.iam.gserviceaccount.com
+  role: roles/editor
+- members:
+  - serviceAccount:service-840466421052@firebase-rules.iam.gserviceaccount.com
+  role: roles/firebaserules.system
+- members:
+  - user:devan@ii.coop
+  role: roles/iam.roleAdmin
+- members:
+  - user:devan@ii.coop
+  role: roles/iam.serviceAccountAdmin
+- members:
+  - user:devan@ii.coop
+  role: roles/iam.serviceAccountKeyAdmin
+- members:
+  - user:devan@ii.coop
+  - user:hh@ii.coop
+  role: roles/owner
+- members:
+  - serviceAccount:binderhub@apisnoop.iam.gserviceaccount.com
+  - user:devan@ii.coop
+  role: roles/storage.admin
+etag: BwWAETAFc_0=
+version: 1
+#+END_SRC
+
+
+* Create a cluster (with your normal admin account)
+
+#+BEGIN_SRC shell
+gcloud container clusters create ii-cluster
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+NAME        LOCATION                MASTER_VERSION  MASTER_IP      MACHINE_TYPE   NODE_VERSION  NUM_NODES  STATUS
+ii-cluster  australia-southeast1-c  1.10.9-gke.5    35.244.70.230  n1-standard-1  1.10.9-gke.5  3          RUNNING
+#+END_SRC
+
+* Become / activate the service account:
+
+#+BEGIN_SRC shell
+gcloud auth activate-service-account --key-file=key.json
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+#+END_SRC
+
+#+BEGIN_SRC shell
+gcloud auth list
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+                   Credentialed Accounts
+ACTIVE  ACCOUNT
+        binderhub@apisnoop.iam.gserviceaccount.com
+        hh@ii.coop
+,*       ii-service-account@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+
+* Populate KUBCONFIG (~/.kube/config by default)
+
+#+BEGIN_SRC shell
+gcloud container clusters get-credentials ii-cluster
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+#+END_SRC
+
+#+BEGIN_SRC shell
+gcloud auth list
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+                   Credentialed Accounts
+ACTIVE  ACCOUNT
+        binderhub@apisnoop.iam.gserviceaccount.com
+        hh@ii.coop
+,*       ii-service-account@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+
+* export kubeconfig
+
+There might be many contexts, but we are only interested in the one we just created
+
+#+BEGIN_SRC shell
+kubectl config get-contexts
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+CURRENT   NAME                                             CLUSTER                                          AUTHINFO                                         NAMESPACE
+,*         gke_apisnoop_australia-southeast1-c_ii-cluster   gke_apisnoop_australia-southeast1-c_ii-cluster   gke_apisnoop_australia-southeast1-c_ii-cluster   
+#+END_SRC
+
+Kubectl with flatten and minify will ensure only the current context is exported and fully includes certs / authinfo:
+
+#+BEGIN_SRC shell
+kubectl config view --help 2>&1 | grep false
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+      --flatten=false: Flatten the resulting kubeconfig file into self-contained output (useful for creating portable kubeconfig files)
+      --minify=false: Remove all information not used by current-context from the output
+      --raw=false: Display raw byte data
+#+END_SRC
+
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl config view --flatten --minify
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURERENDQWZTZ0F3SUJBZ0lSQU1XY1JlZGkvTUJkTWx4RFpjbHZjM1l3RFFZSktvWklodmNOQVFFTEJRQXcKTHpFdE1Dc0dBMVVFQXhNa05HSXlZakJpTUdVdFpESTJOeTAwTkRWbUxXRmpNbVV0TkdZd016STJOR05tWkdWbQpNQjRYRFRFNU1ERXlNakU0TkRNMU1sb1hEVEkwTURFeU1URTVORE0xTWxvd0x6RXRNQ3NHQTFVRUF4TWtOR0l5CllqQmlNR1V0WkRJMk55MDBORFZtTFdGak1tVXROR1l3TXpJMk5HTm1aR1ZtTUlJQklqQU5CZ2txaGtpRzl3MEIKQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBc2hLaUNuSzBqUDcvMk9xYXc5eVdtNUNNbEU5cE1CaTJsS0NDTlFGeQpzRGMwMGZlb0Q3YTlLS2tJVlRaYkdud3Nia1Y3blZPdy9xWGFMUXpJaHZMQVFQN0luVTFWNW40UUptWWY5WEIvClFtTkRzdFREcWpCNXFoVlVNRlIrWEZYUENOMCtnOUt0Q0ZrWmhCS3B1QVlYYWI5M3lhdjRTRDRMOXMrdmRhR3gKMEVVVTFwbnhMVTZocjVhOEZCemw2VElRMUJBMTB2ZFhOZER1VlBmdG9BSGVmMGdKOGJkNG90RU96and0OCt4ZQpYcnJhMk9ERmlzRFdkcGNucmNBb2Zpd1JtQXFCck1KbGxJMTVuRjNWV2R2TmF4SlFxbC9MRFV0aTcvVWdjNTR6ClpVa0VnUVF4aEZTeFF1MVpvUjV1dUp4ZXVzYjZuUkRTVVpFMkQ4eHZBdy9JcHdJREFRQUJveU13SVRBT0JnTlYKSFE4QkFmOEVCQU1DQWdRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQQpNQnE1K0VRaGExUGtjMVQyaUZXWkRja0NEMk1oV1kyRmZKSkhwdk1nbHdoeGNteGV4dk1KNzkxSXNoWFpBZk1CClprdHNMMDNmU0ZreW8wQW9mYTJYcytnZng5WjJTS0hSbm1lcUpieWhTSHB1ejBqWjBZMUpxYWxUYitPZ3ovNzQKY09VVVcrN3JXT1ZYejdabk4wcTJBUVVncmE4SEl1REdDWWdtNXdCbkNKa2w1alZBVUJlSVRSa2ZjT21xUyszQwowMW5tTUpGSzlxWTZ2dVJIckZ4L3YvNlcxR2UwRWJTTGgvaTlFTDkyYit3aDJIS1hMN3Z5VnpETDF3dWpWbjBoCkkwRWZKMzZFeVdaNjhuVytoY1RrZ1lxZEQwNndLM1hndVk2ejdvcUJYTTgyc0ZQSHZuL1FJZ1N6UkgvRDExRSsKcFpHcHhTTG9BYmpsU2liRXhCeEw4QT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    server: https://35.244.70.230
+  name: gke_apisnoop_australia-southeast1-c_ii-cluster
+contexts:
+- context:
+    cluster: gke_apisnoop_australia-southeast1-c_ii-cluster
+    user: gke_apisnoop_australia-southeast1-c_ii-cluster
+  name: gke_apisnoop_australia-southeast1-c_ii-cluster
+current-context: gke_apisnoop_australia-southeast1-c_ii-cluster
+kind: Config
+preferences: {}
+users:
+- name: gke_apisnoop_australia-southeast1-c_ii-cluster
+  user:
+    auth-provider:
+      config:
+        cmd-args: config config-helper --format=json
+        cmd-path: /usr/lib/google-cloud-sdk/bin/gcloud
+        expiry-key: '{.credential.token_expiry}'
+        token-key: '{.credential.access_token}'
+      name: gcp
+#+END_SRC
+
+* TLDR
+
+Notice how the token and key are not included.
+Only the cert for us to trust the apiserver, and the auth-provider config pointing to gcloud.
+
+To use a service account and cluster on on another box, you'd need to either:
+
+ - copy/include your ~/.config/gcloud to the user account in question.
+
+ - copy/include your service account key.json and
+   - run gcloud auth activate-service-account --key-file=key.json
+
+** Just use the key.json and the gcloud commands
+
+#+BEGIN_SRC shell
+gcloud auth activate-service-account --key-file=key.json
+gcloud container clusters get-credentials ii-cluster
+#+END_SRC
+
+** Include ~/.config/gcloud/ and ~/.kube/config
+
+#+BEGIN_SRC shell
+export KUBECONFIG=~/.kube/config #or elsewhere
+#+END_SRC
+
+* Footer
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-tmate-command)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# org-export-use-babel: nil
+# End:
