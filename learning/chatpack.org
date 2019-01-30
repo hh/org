@@ -1,0 +1,53 @@
+#+TITLE: Creating a quick-to-deploy Chat Service
+#+AUTHOR: Zach Mandeville
+#+AUTHOR: Hippie Hacker
+
+* Our Purpose
+  I would like to create a chat service for the Wellington boardgame club.  This service should be accessible at boardgameclub.solarpunk.cool/chat or, if subdirectory not possible, to do chat.solarpunk.cool
+   
+  I want this chat to be nostalgic and accessible: which means, to me, using xmpp.  Doing it this way allows for people to use any sort of jabber client (including the default messenger apps on their phone) to be able to log into this specific service.
+  
+  In the future, it'd be great to be able to deploy a chat service for whatever group I may be a parrt of, or for ephemeral groups (like being able to chat with people organizing an event up until the event happens, and then disperse) and so we want our chat service to be able to replicate easily...and to not feel bad if it goes down as we can easily spin up another version.  
+  
+  We also want it to be resilient.  There's something great in having 2002 software that will _never_ go down because we are deploying it with the most cutting edge 2019 infrastructure. 
+  
+  Lastly, I want to get better at this 2019 infra as it's a large part of my job.
+* [0/12] Points to Cover in this Project  
+  - [ ] Spin up a new dev machine on packet
+  - [ ] Have this new machine be able to deploy an xmpp service (prosody) using docker
+  - [ ] Have this new machine be a comfortable dev environment for me (so have it work in the same way as my mac)
+  - [ ] Be able to spin up the entire machine with a single script from the command line
+  - [ ] Be able to configure an xmpp client that I can access with a jabber client and on my phone
+  - [ ] Be able to add conversejs to this client so I have a web interface accessible on solarpunk.cool
+  - [ ] Add this entire process into a single script I can run
+  - [ ] Be able to have the same app being hosted by multiple packet machines, and if one goes down the app stays up
+  - [ ] Be able to configure this script for new domains as needed
+  - [ ] Be able to configure this script to work locally (chat.solarpunk.local for example)
+  - [ ] Be able to explain why docker/packet/kubernetes are or are not needed for this.
+* Spin up a new dev machine on packet
+  Log onto  https://packet.com 
+  
+  Create a new server with following specs:
+  #+NAME: Server Specs
+  #+BEGIN_EXAMPLE
+ on demand 
+ hostname: chat.sollarpunk.cool
+ location: SYD1 - Sydney, Australia
+ Type: x1.small.x86
+ OS: Debian 9
+ ssh-keys: the keys for hh, stephen, devan, and myself (they have to be loaded to packet separately, similar to loadikng a key in github)
+  #+END_EXAMPLE
+  
+  we also want to add optional user data, which we'll use to bring in a script that downloads all the programs we need.  We're following packet's [[https://support.packet.com/kb/articles/user-data][user data guide]]  
+  
+  #+NAME: Our User Data Script
+  #+BEGIN_EXAMPLE shell
+    .#!/bin/bash
+    apt-get install emacs
+    apt-get install git
+    curl https://gitlab.ii.coop/ii/org/raw/master/emacs.sh | bash
+  #+END_EXAMPLE
+  
+  If this works, I should be able to ssh in, using my ssh key, and run emacs on this remote machine.
+  
+  
