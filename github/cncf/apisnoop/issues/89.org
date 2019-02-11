@@ -1,0 +1,174 @@
+#+TITLE: #89: Add ability to download processed data to a specified folder via a command-line utility
+#+AUTHOR: Zach Mandeville
+#+AUTHOR: Hippie Hacker
+#+EMAIL: zz@ii.coop
+#+EMAIL: hh@ii.coop
+#+DATE: 30th of January, 2019
+#+CREATOR: ii.coop
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :prologue "exec 2>&1\n"
+#+PROPERTY: header-args:shell+ :epilogue ":\n"
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
+#+PROPERTY: header-args:shell+ :var TMATE_SOCKET=(symbol-value 'socket)
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
+#+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
+#+STARTUP: showeverything
+
+* Our Issue
+[[https://github.com/cncf/apisnoop/issues/89][Link to github]]
+#+NAME: Issue Description
+#+BEGIN_SRC feature
+As an APISnoop developer maintaining the web interface's backend,
+who wants a reliable and simple way to bring in new data that does not require a heavy refactor of the backend's existing logic and code, so that I can keep the website current with little time-commitment or room for errors, I want a command-line utility that downloads already processed data to the backend's  specified data folder.
+
+```gherkin
+Given a GCS bucket that holds a cache of our processed data,
+And a sources.yaml file that outlines the latest builds of this data,
+And a web backend that populates its service by consuming files from its local data folder,
+When the apisnoop script is run with the flag --download-cache,
+Then the latest processed data as outlined ion sources.yaml is downloaded to the backend's data folder,
+And this data is formatted to work well with the existing logic of the backend.
+```
+#+END_SRC
+
+* Add'l Context
+  There's two parties that care about the processed data-- the party that generates it, and the party that displays this generated data through our website.  Both parties may be the same person (a member of ii), but they may be operating from different boxes, or repos, or at different times.   Our web backend and client care about only about the processed data, and being able to download new versions--they don't care how it's generated.  Similarly, we will likely generate new data as part of some ci script and not care who ends up using the data (whether it's multiple instances of apisnoop's web or some other service).  
+
+In other words, there's a whole flow for getting new data up onto the website, and it's ordcer is important, but each section of the flow should be able to be run independently and from different locations.
+
+
+The current flow is to invoke apisnoop with the following arguments, in order:
+
+- --install :: Install the python dependencies for all the functions that come after
+- --update-sources :: updates our sources.yaml so it only contains the latest build, as gleaned from the testgrid running on gubernator,k8s.io
+- --update-cache ./data-gen/sources.yaml ./audit-log-cache :: Runs a program that downloads the builds outlined in sources.yaml and places them in a local cache.  This can be a new folder made as part of this task.
+- --process-cache ./audit-log-cache ./processed-audit-log-cache ::  runs a program that processes the gitant file to json that our backend can turn into api endpoints.  Right now does this as three files per build: apisnoop.json, finished.json, and metadata.json.  finished and metadata are both metadata about that particular release.  apisnoop.json is identical to the json our backend already consumes to generate its api (what used to be called things like sig-release1.14_e2eonly.json)
+- --upload-apiusage :: invoked our configured gsutil to upload the =./process-audit-log-cache= to our GCS bucket, with the prefix =gs://apisnoop/dev=
+- --download-apiusage destination-folder gcs-prefix :: downloads everything within that gcs-prefix to the destination-folder.  
+
+This last command would be the one that our backend cares about, and would likely be run separately from the others from our backend's box.
+
+** Our Backend Service
+*** Current State
+    
+Our backend is configured to look at a specified data-folder upon startup, and use the json files found within to generate its api services.
+
+There are currently three services:
+- releases :: Organized by release name, as gleaned from the file name (literally the file name with .json removed).  Holds a =data= key which is the _entirety_ of the local json file.  This service is heavy, and _not used in any way by our frontend_.
+- endpoints :: grabs the .endpoints section of each json file, and adds each endpoint to the service.  Endpoints are unique by their name, release, and method--but hold add'l details too.  This is the main api we use to generate all the charts and logic on  apisnoop.
+- tests :: grabs the .tests section of each json file, and adds each test to the service.  Unique by name and release.  Holds the test tag and test-sequence info, and matches to an endpoints .test value.
+
+*** Releases Metadata
+    
+The frontend includes 'metadata' about a release, like its name and gathered date, but this is just being pulled from a filename.  What we need instead is actual metadata about a release that we can reference directly in the frontend.   
+
+We  can revise the =releases= endpoint to list this metadata, since it has no necessary functio now, and we should do this.
+
+There's some possible name confusion with releases.  There are the releases of kubernetes-- like 1.13, 1.14, 1.15 --, but there's also the iterative changes and builds to each release.  When we do apisnooping, it's going to be based off some new build of each release.  So the most recent version of kubernetes' master branch might be  build 875 of version 1.14, as taken from ci-conformance-gcs-bucket.  To navigated to this particular set of data in the frontend, though, a person would just click 'master'.
+
+*** The data folder
+ Our =--upload-apiusage= script uploads based on the bucket, version, and build and so our =--download-apiusage= follows the same format.  
+
+ When we do a new download, it'll be organized something like this:
+
+ #+BEGIN_SRC shell :results output list replace drawer
+ tree ~/apisnoop/processed-audit-logs
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ - /home/zz/apisnoop/processed-audit-logs
+ - ├── ci-kubernetes-e2e-gce-cos-k8sbeta-default
+ - │   └── 9123
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ - ├── ci-kubernetes-e2e-gce-cos-k8sstable1-default
+ - │   └── 5438
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ - ├── ci-kubernetes-e2e-gce-cos-k8sstable2-default
+ - │   └── 1838
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ - ├── ci-kubernetes-e2e-gce-cos-k8sstable3-default
+ - │   └── 465
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ - └── ci-kubernetes-e2e-gci-gce
+ - └── 34751
+ - ├── apisnoop.json
+ - ├── finished.json
+ - └── metadata.json
+ - 10 directories, 15 files
+ :END:
+
+ Which means that if there's a new build, we might see somedthing like this:
+
+ #+BEGIN_EXAMPLE
+ - ├── ci-kubernetes-e2e-gce-cos-k8sbeta-default
+ - │   └── 9123
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ - │   └── 9124
+ - │       ├── apisnoop.json
+ - │       ├── finished.json
+ - │       └── metadata.json
+ #+END_EXAMPLE
+
+**  Adding new builds to our backend.
+   
+   Our backend is held in various db's, each named after a different service (e.g an =endpoints.db= and =tests.db=).
+   It populateds these db's with the info found in the JSON files held in its data folder.
+   Currently, Whenever the backend restarts, it reads each JSON file within =../data/processed-logs== and tries to add each relevant entry to its .db.  If it finds that entry already exits in the db, then it just updates it, otherwise it creates it anew.
+
+ In the new flow, Our backend has to know to look within it's data/processed-audit-logs folder, and then look within any subdirectory within that, and then look for any build inside of _that_ and then read the JSON files found within and use them to generate the various services.
+
+ Both =finished.json= and =metadata.json= are short, and could just be added as add'l keys within =apisnoop.json=.  This would make the process slightly easier to code up.
+
+But as we generate more and more data, this processed-logs folder is going to get biiig.  Our backend will still consume the entire directory and check each json against the db.  This means that the DB will be a duplicate of the processed-logs directory, which is a duplicate of our GCS bucket.  This feels inelegant?
+
+Other options:
+- We keep all downloaded builds in our processed-logs folder, but whenever the backend restarts it wipes all its db's and builds them up again from it's local folder.  This removes the need to query the db for exiting entries each time.
+- Whenever we download new logs, we wipe out the existing ./processed-logs folder.  We know the entries are still in the db (and backed up in our bucket).  This way, when the servber restarts we know that the folders it'll be consuming are new (and so would also remove the need to check for existing entries.)
+- When the server restarts, it consumes the sources.yaml and then looks in its local data folder for _just_ the builds found in that sources.yaml.  The DB and data folder remain duplicates, but we are reducing the level of work the server needs to do each time.
+
+I am not sure what's the best way to manage this for long-term reliability and smartness and such.
+
+* Questions
+  - [[In the new flow, Our backend has to know to look within it's data/processed-audit-logs folder, and then look within any subdirectory within that, and then look for any build inside of _that_ and then read the JSON files found within and use them to generate the various services.][Adding new builds to our backend, should we remove the db or data folder first?]]
+  - As we generate more data, we'll have json's that ared largely the same in terms of levels, categories, and endpoints but hopefully increased test-coverage and such.  And so our endpoints service is going to contaikon a lot of endpoints with the same name, but will belong to different builds and versions.  What makes an endpoint unique, if not its name and method?  How can we be sure we're using consistent naming for this endpoint and ensure we aren't accidentally overwriting a simlar, but unique endpoint?  Same question for tests.
+* Tasks
+** TODO Update our process-cache script to produce only a single json file
+** TODO Update the releases service in our backend to contain the metadata about each release/build
+** TODO Update the flow for restarting the server, to make sure we aren't doing unnecessary duplicate work
+** TODO Update the config for the servber, upon starting up, to look recursively within its data folder for all apisnoop.json files
+   
+
+
+  
+* Footer
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".diisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-ssh-command) (concat "ssh -L " socket ":" socket))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-ssh-command)
+# eval: (gui-select-text start-tmate-command)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
