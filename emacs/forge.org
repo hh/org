@@ -20,11 +20,12 @@ git clone https://github.com/magit/forge.git ~/.emacs.d/private/local/forge
 #+END_SRC
 
 #+BEGIN_SRC elisp
- (defun dotspacemacs/user-init ()
+ (defun dotspacemacs/user-config ()
    "Initialization for user code:..."
-   ;; add this somewhere within dotspacemacs/user-init()
-   (add-to-list 'load-path "~/.emacs.d/private/local/forge/lisp/")
-   (load "~/.emacs.d/private/local/forge/lisp/forge.el")
+   ;; add this somewhere within dotspacemacs/user-config()
+    (add-to-list 'load-path "~/.emacs.d/private/local/forge/lisp/")
+    (load "~/.emacs.d/private/local/forge/lisp/forge.el")
+    (add-to-list 'forge-alist '("gitlab.ii.coop" "gitlab.ii.coop/api/v4" "gitlab.ii.coop" forge-gitlab-repository))
 )
 #+END_SRC
 
