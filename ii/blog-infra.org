@@ -1,0 +1,483 @@
+#+TITLE: Blog Infra
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 12th of February, 2019
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :prologue "exec 2>&1\n"
+#+PROPERTY: header-args:shell+ :epilogue ":\n"
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :dir "/ssh:root@blog.ii.coop#2222:/home/infrastructure/blogs"
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
+#+STARTUP: showeverything
+
+We'll be working on this remote folder, clicking on it loads up the directory over tramp/ssh.
+
+[[file:/ssh:root@blog.ii.coop#2222:/home/infrastructure/blogs][file:/ssh:root@blog.ii.coop#2222:/home/infrastructure/blogs]]
+
+We'll set our header-args:shell+ :dir "/ssh:root@blog.ii.coop#2222:/home/infrastructure/blogs"
+
+#+NAME: list files on remote system
+#+BEGIN_SRC shell
+ls -la
+#+END_SRC
+
+#+RESULTS: list files on remote system
+#+BEGIN_EXAMPLE :noeval t
+total 24
+drwxr-xr-x  5 root root 4096 Jun 24  2018 .
+drwxr-xr-x 12 root root 4096 Jan 28 19:56 ..
+drwxr-xr-x  6 1000 1000 4096 Oct 29  2015 abcs.news
+drwxr-xr-x  6 1000 1000 4096 Jan  2  2017 blog.ii.coop
+drwxr-xr-x  8 1000 1000 4096 May 11  2018 blog.ii.coop.05-11-2018
+-rw-r--r--  1 root root 1774 Jun 24  2018 docker-compose.yaml
+#+END_EXAMPLE
+
+#+END_EXAMPLE
+* What is running on what IPs?
+** What IPs are on this box?
+Our box has a few IPs, that are configured here:
+[[file:/ssh:root@blog.ii.coop#2222:/etc/network/interfaces][blog.ii.coop:/etc/network/interfaces]]
+
+#+NAME: /etc/network/interfaces
+#+BEGIN_SRC text
+auto lo:1
+iface lo:1 inet static
+    address 147.75.88.161
+    netmask 255.255.255.248
+auto lo:2
+iface lo:2 inet static
+    address 147.75.88.162
+    netmask 255.255.255.248
+auto lo:3
+iface lo:3 inet static
+    address 147.75.88.163
+    netmask 255.255.255.248
+auto lo:4
+iface lo:4 inet static
+    address 147.75.88.164
+    netmask 255.255.255.248
+auto lo:5
+iface lo:5 inet static
+    address 147.75.88.165
+    netmask 255.255.255.248
+auto lo:6
+iface lo:6 inet static
+    address 147.75.88.166
+    netmask 255.255.255.248
+#+END_SRC
+
+** Our Applications use different IPs and Ports:
+
+From: [[file:/ssh:root@blog.ii.coop#2222:/home/infrastructure/gitlab.ii.coop/docker-compose.yaml::ports:][gitlab.ii.coop/docker-compose.yaml::ports:]]
+
+#+NAME: IP:PORT usage for gitlab.ii.coop
+#+BEGIN_SRC shell :wrap "SRC yaml"
+grep -A3 '^    ports:' ../gitlab.ii.coop/docker-compose.yaml
+#+END_SRC
+
+#+RESULTS: IP:PORT usage for gitlab.ii.coop
+#+BEGIN_SRC yaml
+    ports: # you'll need to run your hosts ssh on another port
+       - "147.75.88.162:22:22"
+       - "147.75.88.162:80:80"
+       - "147.75.88.162:443:443"
+#+END_SRC
+
+From: [[file:/ssh:root@blog.ii.coop#2222:/home/infrastructure/nginx-letsencrypt/docker-compose.yaml::ports:][nginx-letsencrypt/docker-compose.yaml::ports:]]
+
+#+NAME: IP:PORT usage nginx-letsencrypt
+#+BEGIN_SRC shell :wrap "SRC yaml"
+grep -A2 '^    ports:' ../nginx-letsencrypt/docker-compose.yaml
+#+END_SRC
+
+#+RESULTS: IP:PORT usage nginx-letsencrypt
+#+BEGIN_SRC yaml
+    ports:
+      - "147.75.69.57:80:80"
+      - "147.75.69.57:443:443"
+#+END_SRC
+
+* Verify the various docker-compose files are running
+
+#+BEGIN_SRC shell
+docker-compose -f ../nginx-letsencrypt/docker-compose.yaml up -d
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Creating nginx-proxy ... 
+[2A[2KCreating nginx-proxy ... [32mdone[0m[2BCreating nginx-letsencrypt ... 
+[2A[2KCreating nginx-letsencrypt ... [32mdone[0m[2B
+#+END_EXAMPLE
+
+#+NAME: letsencrypt-logs
+#+BEGIN_SRC shell
+docker-compose -f ../nginx-letsencrypt/docker-compose.yaml logs
+#+END_SRC
+
+#+RESULTS: letsencrypt-logs
+#+BEGIN_EXAMPLE :noeval t
+Attaching to nginx-letsencrypt, nginx-proxy
+[36mnginx-letsencrypt    |[0m Info: Custom Diffie-Hellman group found, generation skipped.
+[36mnginx-letsencrypt    |[0m Reloading nginx proxy (b151e2f79fde504c8b161760e0bdf11ba2df6783dd25221d849bd98cba31cd51)...
+[33mnginx-proxy          |[0m WARNING: /etc/nginx/dhparam/dhparam.pem was not found. A pre-generated dhparam.pem will be used for now while a new one
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:44 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification ''
+[33mnginx-proxy          |[0m is being generated in the background.  Once the new dhparam.pem is in place, nginx will be reloaded.
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:44 [notice] 182#182: signal process started
+[33mnginx-proxy          |[0m [0;37;1mforego     | [0mstarting dockergen.1 on port 5000
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:44 Generated '/app/letsencrypt_service_data' from 3 containers
+[33mnginx-proxy          |[0m [0;37;1mforego     | [0mstarting nginx.1 on port 5100
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:44 Running '/app/signal_le_service'
+[33mnginx-proxy          |[0m [0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:42 Generated '/etc/nginx/conf.d/default.conf' from 2 containers
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:44 Watching docker events
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:42 Running 'nginx -s reload'
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:45 Contents of /app/letsencrypt_service_data did not change. Skipping notification '/app/signal_le_service'
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:42 Watching docker events
+[36mnginx-letsencrypt    |[0m /etc/nginx/certs/gitlab.ii.coop /app
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:42 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification 'nginx -s reload'
+[36mnginx-letsencrypt    |[0m Reloading nginx proxy (b151e2f79fde504c8b161760e0bdf11ba2df6783dd25221d849bd98cba31cd51)...
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:42 Received event start for container add2d467de40
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:45 Generated '/etc/nginx/conf.d/default.conf' from 3 containers
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 134#134: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:45 [notice] 260#260: signal process started
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 135#135: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Creating/renewal gitlab.ii.coop certificates... (gitlab.ii.coop registry.ii.coop mattermost.ii.coop)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 136#136: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019-02-12 03:01:48,570:INFO:simp_le:1479: Generating new certificate private key
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 137#137: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019-02-12 03:01:49,430:ERROR:simp_le:1446: CA marked some of the authorizations as invalid, which likely means it could not access http://example.com/.well-known/acme-challenge/X. Did you set correct path in -d example.com:path or --default_root? Are all your domains accessible from the internet? Please check your domains' DNS entries, your host's network/firewall setup and your webserver config. If a domain's DNS entry has both A and AAAA fields set up, some CAs such as Let's Encrypt will perform the challenge validation over IPv6. If your DNS provider does not answer correctly to CAA records request, Let's Encrypt won't issue a certificate for your domain (see https://letsencrypt.org/docs/caa/). Failing authorizations: https://acme-v01.api.letsencrypt.org/acme/authz/VTE_SQymyNNkTB1VT-RZMpznz8vzW7fHSgcTlTvOrTc, https://acme-v01.api.letsencrypt.org/acme/authz/Wc1wl16jKTIY6xFsOU1df7tJxoTBCUYTColfmxKL2Ww, https://acme-v01.api.letsencrypt.org/acme/authz/0jniu5xuwhuCfhamy8kD7LADUXw2pWjD_GixkhmJEiY
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 138#138: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Traceback (most recent call last):
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 139#139: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 1584, in main
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 140#140: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m     return main_with_exceptions(cli_args)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 141#141: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 1567, in main_with_exceptions
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 142#142: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m     persist_new_data(args, existing_data)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 143#143: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 1489, in persist_new_data
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 144#144: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m     account_key=client.key, key=None, cert=None, chain=None))
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 1195, in persist_data
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 145#145: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m     plugin.save(new_data)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 146#146: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 493, in save
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 147#147: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m     key = self.dump_key(data.key)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:42 [emerg] 148#148: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m   File "/usr/lib/python2.7/site-packages/simp_le.py", line 436, in dump_key
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:01:43 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification 'nginx -s reload'
+[36mnginx-letsencrypt    |[0m     return OpenSSL.crypto.dump_privatekey(self.typ, data.wrapped).strip()
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 294#294: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m AttributeError: 'NoneType' object has no attribute 'wrapped'
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 295#295: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 296#296: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Unhandled error has happened, traceback is above
+[36mnginx-letsencrypt    |[0m 
+[36mnginx-letsencrypt    |[0m Debugging tips: -v improves output verbosity. Help is available under --help.
+[36mnginx-letsencrypt    |[0m /app
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 297#297: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Reloading nginx proxy (b151e2f79fde504c8b161760e0bdf11ba2df6783dd25221d849bd98cba31cd51)...
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 298#298: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:50 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification ''
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 299#299: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:01:50 [notice] 338#338: signal process started
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 300#300: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Sleep for 3600s
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 301#301: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 302#302: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 303#303: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 304#304: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 305#305: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 306#306: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 307#307: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:01:46 [emerg] 308#308: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.145 - - [12/Feb/2019:03:01:47 +0000] "GET /iichip/poky/commit/6c47cd48aff1dbc3b2550ea71307c48debca9298?w=1 HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.152 - - [12/Feb/2019:03:01:48 +0000] "GET /iichip/poky/commit/d48249ddf3745d3fe7c8ced9c58e3b3308fce8bb?view=parallel HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.143 - - [12/Feb/2019:03:01:52 +0000] "GET /iichip/poky/commit/8e2698e0cb99f34abcc3def5c5479da29aacd89b HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.146 - - [12/Feb/2019:03:01:58 +0000] "GET /iichip/poky/blob/38c2f66ea79f3ee3fed1757160340548e7687181/meta/classes/image.bbclass HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.145 - - [12/Feb/2019:03:02:10 +0000] "GET /iichip/poky/commit/28a6b529c0a326f79bd5cbf1234c26820da870d6 HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.132 - - [12/Feb/2019:03:02:13 +0000] "GET /iichip/poky/tree/c5cfcb78f7b2acb3914d005725f9936c0382657d/meta/recipes-multimedia/gstreamer HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.142 - - [12/Feb/2019:03:02:18 +0000] "GET /iichip/poky/commits/a4141e1c11cf86321609e8dfb7c689df35cc2e86/meta/recipes-graphics/xorg-app/xrandr/resolve_symbol_clash.patch HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.180 - - [12/Feb/2019:03:02:21 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.180 - - [12/Feb/2019:03:02:21 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.180 - - [12/Feb/2019:03:02:21 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.180 - - [12/Feb/2019:03:02:21 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.180 - - [12/Feb/2019:03:02:21 +0000] "GET /content/images/2016/09/TactileAstronomy_640x290.jpg HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.delivery 199.59.150.182 - - [12/Feb/2019:03:02:21 +0000] "GET /helping-the-blind-see-the-stars/ HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.181 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.182 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.181 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.182 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.181 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.182 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.181 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.182 - - [12/Feb/2019:03:02:22 +0000] "GET /robots.txt HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.181 - - [12/Feb/2019:03:02:22 +0000] "GET /content/images/2016/09/TactileAstronomy_640x290.jpg HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 199.59.150.182 - - [12/Feb/2019:03:02:22 +0000] "GET /content/images/2016/09/TactileAstronomy_640x290.jpg HTTP/1.1" 503 213 "-" "Twitterbot/1.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 198.167.222.70 - - [12/Feb/2019:03:02:28 +0000] "GET / HTTP/1.1" 503 213 "-" "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mblog.ii.coop 198.167.222.70 - - [12/Feb/2019:03:02:28 +0000] "GET /favicon.ico HTTP/1.1" 503 213 "-" "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.143 - - [12/Feb/2019:03:02:29 +0000] "GET /cobudget/cobudget-api/commit/cb2ce3a944d1d72cc1b79aa423edfaa0e5a33757 HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.134 - - [12/Feb/2019:03:02:39 +0000] "GET /cobudget/cobudget-api/commit/204c8ac994d475de134d105c40ddf133029e2424 HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 46.229.168.151 - - [12/Feb/2019:03:02:41 +0000] "GET /iichip/poky/tree/9d078a14a5072d26a959f423da5be1d7712a33ab/meta/recipes-multimedia/gstreamer/gstreamer1.0-omx HTTP/1.1" 503 213 "-" "Mozilla/5.0 (compatible; SemrushBot/3~bl; +http://www.semrush.com/bot.html)"
+#+END_EXAMPLE
+
+
+#+NAME: up the blogs
+#+BEGIN_SRC shell
+docker-compose up -d
+#+END_SRC
+
+#+RESULTS: up the blogs
+#+BEGIN_EXAMPLE :noeval t
+Creating blog.ii.coop ... 
+Creating abcs.news ... 
+Creating test-blog.ii.coop ... 
+[3A[2KCreating abcs.news ... [32mdone[0m[3B[3A[2KCreating test-blog.ii.coop ... [32mdone[0m[3B[3A[2KCreating blog.ii.coop ... [32mdone[0m[3B
+#+END_EXAMPLE
+
+#+NAME: log the blogs
+#+BEGIN_SRC shell
+docker-compose logs
+#+END_SRC
+
+#+RESULTS: log the blogs
+#+BEGIN_EXAMPLE :noeval t
+Attaching to test-blog.ii.coop, blog.ii.coop, abcs.news
+[36mtest-blog.ii.coop    |[0m 
+[36mtest-blog.ii.coop    |[0m > ghost@0.11.13 start /usr/src/ghost
+[33mblog.ii.coop         |[0m 
+[36mtest-blog.ii.coop    |[0m > node index
+[33mblog.ii.coop         |[0m > ghost@0.11.9 start /ghost
+[36mtest-blog.ii.coop    |[0m 
+[33mblog.ii.coop         |[0m > node index
+[36mtest-blog.ii.coop    |[0m [31mWARNING: Ghost is attempting to use a direct method to send email. 
+[33mblog.ii.coop         |[0m 
+[32mabcs.news            |[0m 
+[36mtest-blog.ii.coop    |[0m It is recommended that you explicitly configure an email service.[0m
+[33mblog.ii.coop         |[0m Ghost is running in production... 
+[32mabcs.news            |[0m > ghost@0.11.9 start /ghost
+[36mtest-blog.ii.coop    |[0m [32mHelp and documentation can be found at https://docs.ghost.org/v0.11/docs/mail-config.[0m
+[33mblog.ii.coop         |[0m Your blog is now available on http://blog.ii.coop 
+[32mabcs.news            |[0m > node index
+[36mtest-blog.ii.coop    |[0m 
+[33mblog.ii.coop         |[0m Ctrl+C to shut down
+[32mabcs.news            |[0m 
+[36mtest-blog.ii.coop    |[0m Ghost is running in development... 
+[32mabcs.news            |[0m Ghost is running in production... 
+[36mtest-blog.ii.coop    |[0m Listening on 0.0.0.0:2368 
+[32mabcs.news            |[0m Your blog is now available on http://blog.abcs.news 
+[36mtest-blog.ii.coop    |[0m Url configured as: http://localhost:2368 
+[32mabcs.news            |[0m Ctrl+C to shut down
+[36mtest-blog.ii.coop    |[0m Ctrl+C to shut down
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell :dir "." :wrap "SRC html"
+curl http://blog.ii.coop 2>/dev/null | head -8
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <title>ii.coop</title>
+    <meta name="description" content="inclusive infrastructure for cooperation" />
+#+END_SRC
+* Reconfiguring / restarting nginx-letsencrypt
+  :PROPERTIES:
+  :header-args:shell+: :dir "/ssh:root@blog.ii.coop#2222:/home/infrastructure/nginx-letsencrypt/"
+  :END:
+
+** stopping docker-compose
+#+BEGIN_SRC shell
+docker-compose down
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Stopping nginx-letsencrypt ... 
+Stopping nginx-proxy       ... 
+[2A[2KStopping nginx-letsencrypt ... [32mdone[0m[2B[1A[2KStopping nginx-proxy       ... [32mdone[0m[1BRemoving nginx-letsencrypt ... 
+Removing nginx-proxy       ... 
+[1A[2KRemoving nginx-proxy       ... [32mdone[0m[1B[2A[2KRemoving nginx-letsencrypt ... [32mdone[0m[2BNetwork nginx-proxy is external, skipping
+#+END_EXAMPLE
+
+Backed up certs to certs.back
+#+BEGIN_SRC shell
+rm -rf certs ; ls
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+body_size_proxy.conf  certs.back  certs.old  docker-compose.yaml
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell
+docker-compose up -d
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Creating nginx-proxy ... 
+[2A[2KCreating nginx-proxy ... [32mdone[0m[2BCreating nginx-letsencrypt ... 
+[2A[2KCreating nginx-letsencrypt ... [32mdone[0m[2B
+#+END_EXAMPLE
+
+Check out logs
+
+#+BEGIN_SRC shell :async yes
+docker-compose logs
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Attaching to nginx-letsencrypt, nginx-proxy
+[33mnginx-proxy          |[0m WARNING: /etc/nginx/dhparam/dhparam.pem was not found. A pre-generated dhparam.pem will be used for now while a new one
+[33mnginx-proxy          |[0m is being generated in the background.  Once the new dhparam.pem is in place, nginx will be reloaded.
+[33mnginx-proxy          |[0m [0;37;1mforego     | [0mstarting dockergen.1 on port 5000
+[33mnginx-proxy          |[0m [0;37;1mforego     | [0mstarting nginx.1 on port 5100
+[33mnginx-proxy          |[0m [0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:12 Generated '/etc/nginx/conf.d/default.conf' from 5 containers
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:12 Running 'nginx -s reload'
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:12 Watching docker events
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 129#129: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 130#130: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 131#131: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 132#132: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 133#133: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 134#134: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 135#135: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Generating a RSA private key
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 136#136: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m ..................................................................................................................++++
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 137#137: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m .....................................................................++++
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 138#138: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m writing new private key to '/etc/nginx/certs/default.key.new'
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 139#139: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m -----
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 140#140: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Info: a default key and certificate have been created at /etc/nginx/certs/default.key and /etc/nginx/certs/default.crt.
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 141#141: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Info: Creating Diffie-Hellman group in the background.
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 142#142: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m A pre-generated Diffie-Hellman group will be used for now while the new one
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:12 [emerg] 143#143: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m is being created.
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:12 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification 'nginx -s reload'
+[36mnginx-letsencrypt    |[0m Generating DH parameters, 2048 bit long safe prime, generator 2
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:12 Received event start for container 01752abe97df
+[36mnginx-letsencrypt    |[0m Reloading nginx proxy (bd2ef37593536960bf345f394e7da34bbe4a2ad37ad9474efd12fee71ec12249)...
+[33mnginx-proxy          |[0m [0m[0;36;1mdockergen.1 | [0;31;1m2019/02/12 03:25:13 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification 'nginx -s reload'
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 Generated '/etc/nginx/conf.d/default.conf' from 6 containers
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0mgitlab.ii.org.nz 66.249.69.18 - - [12/Feb/2019:03:25:15 +0000] "GET /groups/iichip/group_members HTTP/1.1" 503 615 "-" "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 [notice] 180#180: signal process started
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0mgitlab.ii.org.nz 66.249.69.18 - - [12/Feb/2019:03:25:17 +0000] "GET /iichip/poky/blob/efe59dbec50e51061fb2e38e00c17b44a339aea9/meta/recipes-devtools/gcc/gcc-5.3/0045-Support-for-arm-linux-musl.patch HTTP/1.1" 503 615 "-" "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 Generated '/app/letsencrypt_service_data' from 6 containers
+[33mnginx-proxy          |[0m [0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 292#292: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 Running '/app/signal_le_service'
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 293#293: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 294#294: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 Watching docker events
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 295#295: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:15 Contents of /app/letsencrypt_service_data did not change. Skipping notification '/app/signal_le_service'
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 296#296: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Sleep for 3600s
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 297#297: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m This is going to take a long time
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 298#298: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Info: Diffie-Hellman group creation complete, reloading nginx.
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 299#299: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m Reloading nginx proxy (bd2ef37593536960bf345f394e7da34bbe4a2ad37ad9474efd12fee71ec12249)...
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 300#300: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:51 Contents of /etc/nginx/conf.d/default.conf did not change. Skipping notification ''
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 301#301: io_setup() failed (11: Resource temporarily unavailable)
+[36mnginx-letsencrypt    |[0m 2019/02/12 03:25:51 [notice] 258#258: signal process started
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 302#302: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 303#303: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 304#304: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 305#305: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m [0m[0;33;1mnginx.1    | [0;31;1m2019/02/12 03:25:51 [emerg] 306#306: io_setup() failed (11: Resource temporarily unavailable)
+[33mnginx-proxy          |[0m 2019/02/12 03:25:59 [notice] 307#307: signal process started
+[33mnginx-proxy          |[0m [0mGenerating DH parameters, 2048 bit long safe prime, generator 2
+[33mnginx-proxy          |[0m This is going to take a long time
+[33mnginx-proxy          |[0m dhparam generation complete, reloading nginx
+#+END_EXAMPLE
+
+* Reconfiguring / restarting gitlab
+  :PROPERTIES:
+  :header-args:shell+: :dir "/ssh:root@blog.ii.coop#2222:/home/infrastructure/gitlab.ii.coop/"
+  :END:
+
+#+BEGIN_SRC shell
+docker-compose down
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Stopping gitlab.ii.coop ... 
+[1A[2KStopping gitlab.ii.coop ... [32mdone[0m[1BRemoving gitlab.ii.coop ... 
+[1A[2KRemoving gitlab.ii.coop ... [32mdone[0m[1BRemoving network gitlabiicoop_default
+#+END_EXAMPLE
+
+Backed up certs to certs.back
+
+#+BEGIN_SRC shell
+docker-compose up -d
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Creating network "gitlabiicoop_default" with the default driver
+Creating gitlab.ii.coop ... 
+[1A[2KCreating gitlab.ii.coop ... [32mdone[0m[1B
+#+END_EXAMPLE
+
+Check out logs
+
+#+BEGIN_SRC shell
+docker-compose logs --no-color -t --tail=10
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Attaching to gitlab.ii.coop
+gitlab.ii.coop    | 2019-02-12T03:23:22.001497487Z     [32m- change owner from '' to 'root'[0m
+gitlab.ii.coop    | 2019-02-12T03:23:22.002764700Z     [32m- change group from '' to 'root'[0m
+gitlab.ii.coop    | 2019-02-12T03:23:22.012064563Z [0m  * template[/var/log/gitlab/gitlab-pages/config] action create (up to date)
+gitlab.ii.coop    | 2019-02-12T03:23:22.012388120Z   * ruby_block[reload gitlab-pages svlogd configuration] action nothing (skipped due to action :nothing)
+gitlab.ii.coop    | 2019-02-12T03:23:22.012608362Z   * ruby_block[restart gitlab-pages svlogd configuration] action nothing (skipped due to action :nothing)
+gitlab.ii.coop    | 2019-02-12T03:23:22.014193674Z   * file[/opt/gitlab/sv/gitlab-pages/down] action delete (up to date)
+gitlab.ii.coop    | 2019-02-12T03:23:22.016532582Z   * link[/opt/gitlab/init/gitlab-pages] action create
+gitlab.ii.coop    | 2019-02-12T03:23:22.017905277Z     [32m- create symlink at /opt/gitlab/init/gitlab-pages to /opt/gitlab/embedded/bin/sv[0m
+gitlab.ii.coop    | 2019-02-12T03:23:22.019958939Z [0m  * link[/opt/gitlab/service/gitlab-pages] action create
+gitlab.ii.coop    | 2019-02-12T03:23:22.020131991Z     [32m- create symlink at /opt/gitlab/service/gitlab-pages to /opt/gitlab/sv/gitlab-pages[0m
+#+END_EXAMPLE
+
+
+* Footer
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-tmate-command)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
