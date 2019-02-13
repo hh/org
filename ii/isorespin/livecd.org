@@ -201,8 +201,6 @@ Enable universe so jq, tmate, silvesearcher-ag...
     lolcat \
     macchanger \
     nmap \
-    openscad \
-    openstack-clients \
     pass \
     qemu-kvm \
     sakura \
@@ -231,9 +229,20 @@ Enable universe so jq, tmate, silvesearcher-ag...
 
 *** Kubernetes 
 
+#+NAME: Openscad
+#+BEGIN_SRC dockerfile
+  RUN apt-key adv \
+    --recv-keys x \
+    && add-apt-repository \
+    ppa:openscad/releases \
+    && apt-get install -y \
+    openscad
+#+END_SRC
+
 #+NAME: Kubernetes
 #+BEGIN_SRC dockerfile
 RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
   --recv-keys 6A030B21BA07F4FB \
   && add-apt-repository \
   "deb http://apt.kubernetes.io/ kubernetes-xenial main" \

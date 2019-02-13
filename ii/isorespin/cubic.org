@@ -1,0 +1,984 @@
+#+TITLE: Remastering Using Cubic
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 13th of February, 2019
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :prologue "exec 2>&1\n"
+#+PROPERTY: header-args:shell+ :epilogue ":\n"
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
+#+PROPERTY: header-args:sh :results output code verbatim replace
+#+PROPERTY: header-args:sh+ :dir (file-name-directory buffer-file-name)
+#+PROPERTY: header-args:sh+ :tangle iiusb/cubic.sh
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: showeverything
+
+* removed
+signal
+spotify
+virtualbox-6.0
+skypeforlinux
+* Create base Docker Image from an ISO
+  
+** Prerequisites
+
+You'll need to have an ubuntu based ISO, be sure and set the ISO variable.
+
+https://launchpad.net/cubic
+
+#+NAME: prereqs
+#+BEGIN_SRC sh :tangle no
+  sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 081525E2B4F1283B
+  sudo apt-add-repository -y ppa:cubic-wizard/release
+  sudo apt update
+  sudo apt install cubic
+#+END_SRC
+
+For now we are starting with a cubic iso.
+Start with a clean working dir and reference you ISO when you run the cubic gui.
+   
+** import extraction into docker
+
+#+NAME list cd
+#+BEGIN_SRC tmate
+  cd ~/iiusbi
+  sudo tar -C squashfs-root -c -f - .  | sudo docker import - iiusbi
+#+END_SRC
+
+* Verify base Docker Image 
+
+#+NAME: check docker image
+#+BEGIN_SRC shell
+docker images | grep iiusbi
+#+END_SRC
+
+#+RESULTS: check docker image
+#+BEGIN_EXAMPLE :noeval t
+Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get http://%2Fvar%2Frun%2Fdocker.sock/v1.39/images/json: dial unix /var/run/docker.sock: connect: permission denied
+#+END_EXAMPLE
+
+#+NAME: verify container works
+#+BEGIN_SRC shell
+docker run -i iiusb lsb_release -a
+#+END_SRC
+
+#+RESULTS: verify container works
+#+BEGIN_EXAMPLE :noeval t
+docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.39/containers/create: dial unix /var/run/docker.sock: connect: permission denied.
+See 'docker run --help'.
+#+END_EXAMPLE
+
+* Customize Base Docker Image
+** Examples for poking around
+   
+#+BEGIN_SRC tmate
+sudo docker run -ti iiusb /bin/bash -l
+#+END_SRC
+
+#+NAME: inspect installed packages, sort by size
+#+BEGIN_SRC tmate
+dpkg-query -W --showformat='${Installed-Size}\t${Package}\n' | sort -nr | less
+#+END_SRC
+
+#+NAME: purg a few packages we dont want
+#+BEGIN_SRC tmate
+aptitude purge package-name
+#+END_SRC
+
+#+NAME: locals
+#+BEGIN_SRC tmate
+locale-gen --purge en_US.UTF-8 
+#+END_SRC
+
+** Dockerfile
+   :PROPERTIES:
+   :header-args: dockerfile  :tangle iiusb/Dockerfile
+   :END:
+
+Ensure en_US.UTF-8 everywhere, for now
+Enable universe so jq, tmate, silvesearcher-ag...
+ 
+#+NAME: Angelinux Dockerfile
+#+BEGIN_SRC dockerfile
+  FROM iiusbi
+  RUN echo 'Acquire::http { Proxy "http://192.168.1.9:3142"; }' \
+    | sudo tee -a /etc/apt/apt.conf.d/proxy \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && locale-gen --purge en_US.UTF-8 \
+    && sed -i s:restricted:restricted\ universe: /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -yq \
+      apt-file \
+      apt-transport-https \
+      aptitude \
+      awesome \
+      autoconf \
+      build-essential \
+      byzanz \
+      ca-certificates \
+      debian-goodies \
+      curl \
+      figlet \
+      git \
+      gpg \
+      gtk-redshift \
+      htop \
+      jq \
+      kvmtool \
+      linux-headers-generic \
+      locales \
+      lolcat \
+      macchanger \
+      nmap \
+      pass \
+      qemu-kvm \
+      sakura \
+      silversearcher-ag \
+      software-properties-common \
+      strace \
+      sudo \
+      texinfo \
+      thunar \
+      tig \
+      tmate \
+      tmux \
+      tshark \
+      unzip \
+      whois \
+      wireshark \
+      vlc \
+      xfonts-terminus \
+      xfonts-terminus-dos \
+      xfonts-terminus-oblique \
+      zfs-dkms \
+      zfs-initramfs \
+      zfsutils-linux \
+      zip
+#+END_SRC
+
+*** Kubernetes 
+
+#+NAME: Openscad
+#+BEGIN_SRC dockerfile :tangle no
+  RUN apt-key adv \
+    --keyserver keyserver.ubuntu.com \
+    --recv-keys CB86A1742C718B1EEA0440B3176F9F68AD382CA4 \
+    && add-apt-repository \
+    "deb http://ppa.launchpad.net/openscad/releases/ubuntu bionic main" \
+    && apt-get install -yq \
+    openscad
+#+END_SRC
+
+#+NAME: Kubernetes
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 6A030B21BA07F4FB \
+  && add-apt-repository \
+  "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
+  && apt-get install -y \
+  kubelet kubeadm kubectl
+#+END_SRC
+
+*** Google Cloud SDK
+
+https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu
+
+Uses the same apt-key as kubernetes.
+
+#+NAME: Google SDK
+#+BEGIN_SRC dockerfile
+RUN add-apt-repository \
+  "deb http://packages.cloud.google.com/apt cloud-sdk-bionic main" \
+  && apt-get install -y \
+  google-cloud-sdk
+#+END_SRC
+
+*** Docker
+
+#+NAME: Docker
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --recv-keys 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://download.docker.com/linux/ubuntu cosmic stable" \
+  && apt-get install -y \
+  docker-ce
+#+END_SRC
+
+*** Emacs
+
+https://launchpad.net/~ubuntu-elisp/+archive/ubuntu/ppa
+
+#+NAME: Emacs
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72 \
+  && add-apt-repository -y \
+  ppa:ubuntu-elisp/ppa \
+  && apt-get install -yq \
+  emacs-snapshot
+#+END_SRC
+
+*** Go
+
+ https://golang.org/doc/install#install
+ https://github.com/golang/go/wiki/Ubuntu
+
+#+NAME: go
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 52B59B1571A79DBC054901C0F6BC817356A3D45E \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu cosmic main" \
+  && apt-get install -y \
+  golang-1.11 \
+  && echo \'export PATH=$PATH:$HOME/go/bin\' \
+     > /etc/profile.d/homedir-go-path.sh \
+  && echo \'export PATH=/usr/lib/go-1.11/bin:$PATH\' \
+     > /etc/profile.d/system-go-path.sh
+#+END_SRC
+
+*** kind
+
+#+NAME: kind
+#+BEGIN_SRC dockerfile
+RUN . /etc/profile.d/homedir-go-path.sh \
+  &&  . /etc/profile.d/system-go-path.sh \
+  && mkdir /etc/skel/go \
+  && ln -s /etc/skel/go /root/go \
+  && go get sigs.k8s.io/kind
+#+END_SRC
+
+*** helm
+
+#+NAME helm
+#+BEGIN_SRC dockerfile
+RUN curl -L \
+  https://storage.googleapis.com/kubernetes-helm/helm-v2.12.3-linux-amd64.tar.gz \
+  | tar xvz -f - --strip-components 1 -C /usr/local/bin linux-amd64/helm linux-amd64/tiller
+#+END_SRC
+
+*** NodeJS
+
+    Take a look at nvm instead: https://github.com/creationix/nvm 
+    
+    A node version manager, which ends up being an easier way to install node,
+    switch between versions of it as needed, and get npm included
+    
+ https://github.com/nodesource/distributions/blob/master/README.md#debinstall
+
+#+NAME: node.tpl
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280 \
+  && add-apt-repository \
+  "deb https://deb.nodesource.com/node_11.x cosmic main" \
+  && apt-get install -y \
+  nodejs
+#+END_SRC
+
+*** Bazel
+
+ https://docs.bazel.build/versions/master/install-ubuntu.html#install-on-ubuntu
+
+We install oracle-java8, so we should be good.
+I'm unsure which ubuntu ppa we should be using.
+
+# #+NAME: openjdk-8-jdk.tpl
+# #+BEGIN_SRC dockerfile
+# RUN apt-key adv \
+#    --keyserver keyserver.ubuntu.com \
+#    --recv-keys DA1A4A13543B466853BAF164EB9B1D8886F44E2A \
+#   && add-apt-repository \
+#   "deb http://ppa.launchpad.net/openjdk-r/ppa/ubuntu trusty main" \
+#   && apt-get install -y openjdk-8-jdk
+# #+END_SRC
+
+#+NAME: bazel.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 48457EE0 \
+  && add-apt-repository \
+  "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" \
+  && apt-get install -y \
+  bazel
+#+END_SRC
+
+*** Google Chrome
+
+ https://dl-ssl.google.com/linux/linux_signing_key.pub
+
+#+NAME: chrome
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796 \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update \
+  && apt-get install -y \
+  google-chrome-stable
+#+END_SRC
+
+*** Fish Shell
+
+ Devan says this is the bomb, and I believe him
+
+#+NAME: fish
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --recv-keys 59FDA1CE1B84B3FAD89366C027557F056DC33CA5 \
+  --keyserver keyserver.ubuntu.com \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/fish-shell/release-3/ubuntu cosmic main" \
+  && apt-get install -y \
+  fish
+#+END_SRC
+
+*** Zoom
+
+#+NAME: Zoom
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+   --keyserver keyserver.ubuntu.com \
+   --recv-keys 396060CADD8A75220BFCB369B903BF1861A7C71D \
+  && curl -L -o /tmp/zoom.deb \
+     https://zoom.us/client/latest/zoom_amd64.deb \
+  && dpkg -i /tmp/zoom.deb \
+  && rm /tmp/zoom.deb
+#+END_SRC
+
+*** Google Talk Plugin
+
+#+NAME: google-talkplugin.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN add-apt-repository \
+  "deb http://dl.google.com/linux/talkplugin/deb/ stable main" \
+  && apt-get install -y \
+  google-talkplugin
+#+END_SRC
+
+*** Spotify
+
+This is bad, provide alternatives soon!
+Artist are starving!
+
+#+NAME: spotify.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90 \
+  && add-apt-repository \
+  "deb http://repository.spotify.com stable non-free" \
+  && apt-get install -y \
+  spotify-client
+#+END_SRC
+
+*** Signal
+
+#+NAME: signal.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys DBA36B5181D0C816F630E889D980A17457F6FB06 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://updates.signal.org/desktop/apt xenial main" \
+  && apt-get install -y \
+  signal-desktop
+ #+END_SRC
+
+*** Skype
+
+Skype does bad things. Don't actually run it, just leave it on disk for now.
+Skype also installs it's own apt repo
+
+#+NAME: skype.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --recv-keys D4040146BE3972509FD57FC71F3045A5DF7587C3 \
+  && echo "deb [arch=amd64] https://repo.skype.com/deb stable main" \
+    > /etc/apt/sources.list.d/skype-stable.list \
+  && apt-get install -y \
+  skypeforlinux
+#+END_SRC
+
+*** Oracle Java 8
+
+ We need this to access our old DL380P systems iLO (Integrated Lights Out / Virtual Console)
+
+#+NAME: oracle-java8.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 7B2C3B0889BF5709A105D03AC2518248EEA14886 \
+  && add-apt-repository \
+  "http://ppa.launchpad.net/webupd8team/java/ubuntu bionic main " \
+  && apt-get install -y \
+  oracle-java8-installer
+#+END_SRC
+
+*** Virtualbox
+
+#+NAME: virtualbox.tpl
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys B9F8D658297AF3EFC18D5CDFA2F683C52980AECF \
+  && add-apt-repository \
+  "deb http://download.virtualbox.org/virtualbox/debian bionic contrib" \
+  && apt-get install -y \
+  virtualbox-6.0
+#+END_SRC
+
+*** Configuring Emacs in /etc/skel
+
+We use spacemacs, and it takes a while to download / configure / compile all the
+lisp files.
+
+One of the larger components that is much faster to have local is our elpa-mirror.
+
+#+NAME: configure-elpa-mirror
+#+BEGIN_SRC dockerfile
+RUN git clone --depth 1 -b stable \
+    https://github.com/ii/elpa-mirror \
+    /usr/local/elpa-mirror \
+#+END_SRC
+
+Here we attempt to put our config into /etc/skel
+
+/etc/skel/.emacs.d and /etc/skel/.spacemacs will be copied to all new users
+$HOME
+
+#+NAME: configure-emacs
+#+BEGIN_SRC dockerfile
+RUN git clone --depth 1 -b stable \
+    https://github.com/ii/spacemacs.git \
+    /etc/skel/.emacs.d \
+  && git clone --depth 1 \
+    https://gitlab.ii.coop/ii/tooling/ob-tmate.git \
+    /etc/skel/.emacs.d/private/local/ob-tmate.el \
+  && git clone --depth 1 \
+    https://github.com/magit/forge.git \
+    /etc/skel/.emacs.d/private/local/forge \
+  && git clone --depth 1 \
+    https://gitlab.ii.coop/ii/tooling/dot-spacemacs.git \
+    /etc/skel/.emacs.d/private/local/dot-spacemacs \
+  && ln -s .emacs.d/private/local/dot-spacemacs/.spacemacs /etc/skel/.spacemacs \
+  && ln -sf .emacs.d/private/local/dot-spacemacs/.lock /etc/skel/.emacs.d/.lock
+#+END_SRC
+
+On first start, emacs will want to compile all our elisp files. Instead we copy
+symlink from root, and compile everything via a batch run of init.el, then
+remove the symlink.
+
+This means startup time for the user will be greatly reduced.
+The S.gpg-agent.* files are sockets, and don't work well being in /etc/skel.
+
+#+BEGIN_EXAMPLE
+Copying files from `/etc/skel' ...
+Stopped: Cannot deal with /etc/skel/./.emacs.d/elpa/gnupg/S.gpg-agent.ssh.
+It is not a dir, file, or symlink.
+#+END_EXAMPLE
+
+#+NAME: compile-elisp
+#+BEGIN_SRC dockerfile
+RUN  ln -sf /etc/skel/.emacs.d /root/.emacs.d \
+  && ln -sf .emacs.d/private/local/dot-spacemacs/.spacemacs /root/.spacemacs \
+  && emacs --batch -l ~/.emacs.d/init.el \
+  && rm /root/.emacs.d /root/.spacemacs \
+  && rm /etc/skel/.emacs.d/elpa/gnupg/S.gpg-agent*
+#+END_SRC
+
+** Stuff that's broken, due to gconf and friends not being installable
+   :PROPERTIES:
+   :header-args: :tangle no
+   :END:
+*** Microsoft Surface Kernel
+
+ #+NAME: linux-surface kernel
+ #+BEGIN_SRC shell :tangle linux-surface.sh :tangle-mode (identity #o755)
+   git clone --depth 1 https://github.com/jakeday/linux-surface.git ~/linux-surface
+   cd ~/linux-surface
+   sh setup.sh
+ #+END_SRC
+
+ #+NAME: surface.tpl
+ #+BEGIN_SRC shell :tangle surface.tpl
+   -f linux-surface.sh \
+   -c linux-surface.sh
+ #+END_SRC
+
+*** AMD GPU Binaries
+
+ We need this for our stubborn AMD Systems at the iimaginarium.
+ However I don't think this kernel is getting installed as the one booting the ISO yet.
+
+ https://github.com/M-Bab/linux-kernel-amdgpu-binaries
+
+ #+NAME: amd radion
+ #+BEGIN_SRC shell :tangle amd-gpu.sh :tangle-mode (identity #o755)
+   mkdir -p /tmp/amd
+   cd /tmp/amd
+   wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/firmware-radeon-ucode_2.40_all.deb
+   wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/linux-headers-4.19.6_18.12.04.amdgpu.ubuntu_amd64.deb
+   wget https://github.com/M-Bab/linux-kernel-amdgpu-binaries/raw/53819982954987ddde463c9354608655cf1ba211/linux-image-4.19.6_18.12.04.amdgpu.ubuntu_amd64.deb
+   dpkg -i *deb
+   cd -
+   rm -rf /tmp/amd
+ #+END_SRC
+
+ #+NAME: amd-gpu.tpl
+ #+BEGIN_SRC shell :tangle amd-gpu.tpl
+   -f amd-gpu.sh \
+   -c amd-gpu.sh
+ #+END_SRC
+
+
+* Customization script
+
+Ensure en_US.UTF-8 everywhere, for now
+Enable universe so jq, tmate, silvesearcher-ag...
+Still a bit interactive, acking a few questions regarding zfs, macchanger, etc 
+#+NAME: iibuntu packages
+#+BEGIN_SRC sh
+  set -x
+  set -e
+  #setup apt-cache-ng on external host
+  echo 'Acquire::http { Proxy "http://192.168.1.9:3142"; }' | sudo tee -a /etc/apt/apt.conf.d/proxy
+  export DEBIAN_FRONTEND=noninteractive
+  locale-gen --purge en_US.UTF-8 \
+      && sed -i s:restricted:restricted\ universe: /etc/apt/sources.list \
+      && apt-get update \
+      && apt-get install -yq \
+      apt-file \
+      apt-transport-https \
+      aptitude \
+      awesome \
+      autoconf \
+      build-essential \
+      byzanz \
+      ca-certificates \
+      debian-goodies \
+      curl \
+      figlet \
+      git \
+      gpg \
+      gtk-redshift \
+      htop \
+      jq \
+      kvmtool \
+      linux-headers-generic \
+      locales \
+      lolcat \
+      macchanger \
+      nmap \
+      pass \
+      qemu-kvm \
+      sakura \
+      silversearcher-ag \
+      software-properties-common \
+      strace \
+      sudo \
+      texinfo \
+      thunar \
+      tig \
+      tmate \
+      tmux \
+      tshark \
+      unzip \
+      whois \
+      wireshark \
+      vlc \
+      xfonts-terminus \
+      xfonts-terminus-dos \
+      xfonts-terminus-oblique \
+      zfs-dkms \
+      zfs-initramfs \
+      zfsutils-linux \
+      zip
+#+END_SRC
+
+** OpenSCAD
+
+#+NAME: Openscad
+#+BEGIN_SRC sh :tangle no
+  apt-key adv \
+    --keyserver keyserver.ubuntu.com \
+    --recv-keys CB86A1742C718B1EEA0440B3176F9F68AD382CA4 \
+    && add-apt-repository \
+    "deb http://ppa.launchpad.net/openscad/releases/ubuntu bionic main" \
+    && apt-get install -yq \
+    openscad
+#+END_SRC
+
+** Kubernetes 
+
+Kubernetes is only available for xenial +yakkety, not bionic or comsic
+
+#+NAME: Kubernetes
+#+BEGIN_SRC sh
+  apt-key adv \
+    --keyserver keyserver.ubuntu.com \
+    --recv-keys 6A030B21BA07F4FB \
+    && add-apt-repository \
+    "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
+    && apt-get install -yq \
+    kubelet kubeadm kubectl
+#+END_SRC
+
+*** Google Cloud SDK
+
+https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu
+
+Uses the same apt-key as kubernetes.
+Happens to have a cosmic, and bionic builds.
+
+#+NAME: Google SDK
+#+BEGIN_SRC sh
+  add-apt-repository \
+    "deb http://packages.cloud.google.com/apt cloud-sdk-cosmic main" \
+    && apt-get install -yq \
+    google-cloud-sdk
+#+END_SRC
+
+*** Docker
+
+#+NAME: Docker
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://download.docker.com/linux/ubuntu cosmic stable" \
+  && apt-get install -yq \
+  docker-ce
+#+END_SRC
+
+*** Emacs
+
+https://launchpad.net/~ubuntu-elisp/+archive/ubuntu/ppa
+
+# don't use this  "deb http://ppa.launchpad.net/ubuntu-elisp/ppa/ubuntu comsic main" \
+#+NAME: Emacs
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 0D7BAE435ADBC6C3E4918A74062D648FD62FCE72 \
+  && add-apt-repository -y \
+  ppa:ubuntu-elisp/ppa \
+  && apt-get install -yq \
+  emacs-snapshot
+#+END_SRC
+
+*** Go
+
+ https://golang.org/doc/install#install
+ https://github.com/golang/go/wiki/Ubuntu
+
+#+NAME: go
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 52B59B1571A79DBC054901C0F6BC817356A3D45E \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu cosmic main" \
+  && apt-get install -y \
+  golang-1.11 \
+  && echo 'export PATH=$PATH:$HOME/go/bin' \
+     > /etc/profile.d/homedir-go-path.sh \
+  && echo 'export PATH=/usr/lib/go-1.11/bin:$PATH' \
+     > /etc/profile.d/system-go-path.sh
+#+END_SRC
+
+*** kind
+
+#+NAME: kind
+#+BEGIN_SRC sh
+. /etc/profile.d/homedir-go-path.sh
+. /etc/profile.d/system-go-path.sh \
+  && mkdir /etc/skel/go \
+  && ln -s /etc/skel/go /root/go \
+  && go get sigs.k8s.io/kind
+#+END_SRC
+
+*** helm
+
+#+NAME helm
+#+BEGIN_SRC sh
+curl -L \
+  https://storage.googleapis.com/kubernetes-helm/helm-v2.12.3-linux-amd64.tar.gz \
+  | tar xvz -f - --strip-components 1 -C /usr/local/bin linux-amd64/helm linux-amd64/tiller
+#+END_SRC
+
+*** NodeJS
+
+    Take a look at nvm instead: https://github.com/creationix/nvm 
+    
+    A node version manager, which ends up being an easier way to install node,
+    switch between versions of it as needed, and get npm included
+    
+ https://github.com/nodesource/distributions/blob/master/README.md#debinstall
+
+#+NAME: node.tpl
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280 \
+  && add-apt-repository \
+  "deb https://deb.nodesource.com/node_11.x cosmic main" \
+  && apt-get install -y \
+  nodejs
+#+END_SRC
+
+*** Bazel
+
+ https://docs.bazel.build/versions/master/install-ubuntu.html#install-on-ubuntu
+
+We install oracle-java8, so we should be good.
+I'm unsure which ubuntu ppa we should be using.
+
+# #+NAME: openjdk-8-jdk.tpl
+# #+BEGIN_SRC dockerfile
+# RUN apt-key adv \
+#    --keyserver keyserver.ubuntu.com \
+#    --recv-keys DA1A4A13543B466853BAF164EB9B1D8886F44E2A \
+#   && add-apt-repository \
+#   "deb http://ppa.launchpad.net/openjdk-r/ppa/ubuntu trusty main" \
+#   && apt-get install -y openjdk-8-jdk
+# #+END_SRC
+
+#+NAME: bazel.tpl
+#+BEGIN_SRC sh :tangle no
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 48457EE0 \
+  && add-apt-repository \
+  "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" \
+  && apt-get install -y \
+  bazel
+#+END_SRC
+
+*** Google Chrome
+
+ https://dl-ssl.google.com/linux/linux_signing_key.pub
+Chrome installs it's own repo in /etc/apt/sources.list.d
+
+#+NAME: chrome
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796 \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update \
+  && apt-get install -y \
+  google-chrome-stable
+#+END_SRC
+
+*** Fish Shell
+
+ Devan says this is the bomb, and I believe him
+
+#+NAME: fish
+#+BEGIN_SRC sh
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 59FDA1CE1B84B3FAD89366C027557F056DC33CA5 \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/fish-shell/release-3/ubuntu cosmic main" \
+  && apt-get install -y \
+  fish
+#+END_SRC
+
+*** Zoom
+
+#+NAME: Zoom
+#+BEGIN_SRC sh
+  apt-get install -y libgl1-mesa-glx
+  apt-key adv \
+     --keyserver keyserver.ubuntu.com \
+     --recv-keys 396060CADD8A75220BFCB369B903BF1861A7C71D \
+    && curl -L -o /tmp/zoom.deb \
+       https://zoom.us/client/latest/zoom_amd64.deb \
+    && dpkg -i /tmp/zoom.deb \
+    && rm /tmp/zoom.deb
+#+END_SRC
+
+*** Google Talk Plugin
+
+#+NAME: google-talkplugin.tpl
+#+BEGIN_SRC sh :tangle no
+add-apt-repository \
+  "deb http://dl.google.com/linux/talkplugin/deb/ stable main" \
+  && apt-get install -y \
+  google-talkplugin
+#+END_SRC
+
+*** Spotify
+
+This is bad, provide alternatives soon!
+Artist are starving!
+
+#+NAME: spotify.tpl
+#+BEGIN_SRC sh :tangle no
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90 \
+  && add-apt-repository \
+  "deb http://repository.spotify.com stable non-free" \
+  && apt-get install -y \
+  spotify-client
+#+END_SRC
+
+*** Signal
+
+Signal apparently only has xenial
+
+#+NAME: signal.tpl
+#+BEGIN_SRC sh :tangle no
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys DBA36B5181D0C816F630E889D980A17457F6FB06 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://updates.signal.org/desktop/apt xenial main" \
+  && apt-get install -y \
+  signal-desktop
+ #+END_SRC
+
+*** Skype
+
+Skype does bad things. Don't actually run it, just leave it on disk for now.
+Skype also installs it's own apt repo
+
+#+BEGIN_EXAMPLE
+ && add-apt-repository \
+  "deb [arch=amd64] https://repo.skype.com/deb stable main" \
+#+END_EXAMPLE
+
+#+NAME: skype.tpl
+#+BEGIN_SRC sh :tangle no
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys D4040146BE3972509FD57FC71F3045A5DF7587C3 \
+  && echo "deb [arch=amd64] https://repo.skype.com/deb stable main" > /etc/apt/sources.list.d/skype-stable.list \
+  && apt-get update \
+  && apt-get install -y \
+  skypeforlinux
+#+END_SRC
+
+#+RESULTS: skype.tpl
+#+BEGIN_SRC sh
+#+END_SRC
+
+*** Oracle Java 8
+
+ We need this to access our old DL380P systems iLO (Integrated Lights Out / Virtual Console)
+#  "http://ppa.launchpad.net/webupd8team/java/ubuntu cosmic main " \
+#+NAME: oracle-java8.tpl
+#+BEGIN_SRC sh :tangle no
+apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 7B2C3B0889BF5709A105D03AC2518248EEA14886 \
+  && add-apt-repository -y\
+  ppa:webupd8team/java \
+  && apt-get install -y \
+  oracle-java8-installer
+#+END_SRC
+
+*** Virtualbox
+
+Needs kernel headers to compile modules
+
+#+NAME: virtualbox.tpl
+#+BEGIN_SRC sh :tangle no
+  apt-key adv \
+    --keyserver keyserver.ubuntu.com \
+    --recv-keys B9F8D658297AF3EFC18D5CDFA2F683C52980AECF \
+    && add-apt-repository \
+    "deb http://download.virtualbox.org/virtualbox/debian cosmic contrib" \
+    && apt-get install -y \
+    virtualbox-6.0
+#+END_SRC
+
+*** Configuring Emacs in /etc/skel
+
+We use spacemacs, and it takes a while to download / configure / compile all the
+lisp files.
+
+One of the larger components that is much faster to have local is our elpa-mirror.
+
+#+NAME: configure-elpa-mirror
+#+BEGIN_SRC sh
+git clone --depth 1 -b stable \
+    https://github.com/ii/elpa-mirror \
+    /usr/local/elpa-mirror \
+#+END_SRC
+
+Here we attempt to put our config into /etc/skel
+
+/etc/skel/.emacs.d and /etc/skel/.spacemacs will be copied to all new users
+$HOME
+
+#+NAME: configure-emacs
+#+BEGIN_SRC sh
+git clone --depth 1 -b stable \
+    https://github.com/ii/spacemacs.git \
+    /etc/skel/.emacs.d \
+  && git clone --depth 1 \
+    https://gitlab.ii.coop/ii/tooling/ob-tmate.git \
+    /etc/skel/.emacs.d/private/local/ob-tmate.el \
+  && git clone --depth 1 \
+    https://github.com/magit/forge.git \
+    /etc/skel/.emacs.d/private/local/forge \
+  && git clone --depth 1 \
+    https://gitlab.ii.coop/ii/tooling/dot-spacemacs.git \
+    /etc/skel/.emacs.d/private/local/dot-spacemacs \
+  && ln -s .emacs.d/private/local/dot-spacemacs/.spacemacs /etc/skel/.spacemacs \
+  && ln -sf .emacs.d/private/local/dot-spacemacs/.lock /etc/skel/.emacs.d/.lock
+#+END_SRC
+
+On first start, emacs will want to compile all our elisp files. Instead we copy
+symlink from root, and compile everything via a batch run of init.el, then
+remove the symlink.
+
+This means startup time for the user will be greatly reduced.
+The S.gpg-agent.* files are sockets, and don't work well being in /etc/skel.
+
+#+BEGIN_EXAMPLE
+Copying files from `/etc/skel' ...
+Stopped: Cannot deal with /etc/skel/./.emacs.d/elpa/gnupg/S.gpg-agent.ssh.
+It is not a dir, file, or symlink.
+#+END_EXAMPLE
+
+#+NAME: compile-elisp
+#+BEGIN_SRC sh
+ln -sf /etc/skel/.emacs.d /root/.emacs.d \
+  && ln -sf .emacs.d/private/local/dot-spacemacs/.spacemacs /root/.spacemacs \
+  && emacs --batch -l ~/.emacs.d/init.el \
+  && rm /root/.emacs.d /root/.spacemacs \
+  && rm -rf /etc/skel/.emacs.d/elpa/gnupg/S.gpg-agent*
+#+END_SRC
+
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-tmate-command)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
