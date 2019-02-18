@@ -1,0 +1,27 @@
+#+TITLE: How to Design Programs
+#+AUTHOR: Zach Mandeville
+
+* Today I learned how to design programs
+  Or, at least I am getting there.  I am working through the book [[https://htdp.org][How To Design Programs]], written by the creators of Racket.  Yesterday the work was around "itemization of data" and building out functions based on each item of a data definition.
+* Why am I doing this? 
+  I am doing this so I can learn new languages more easily (since we are potentially using several with ii) and to have more strategy and confidence with the software I help design/architect with ii.
+
+When I first came onto the team, I helped architect a new version of APISnoop's web interface.  We are now slightly locked-in to this code and I have insecurity in that I chose how we did it based on what I knew, not necessarily what was best for the problem at hand.  As it is likely that this won't be the only software I write with the team, I want to have a solid foundation in which to plan and create.
+
+In addition, I wanted to learn a lisp language.  Emacs is written in a lisp, and there's a lot of work we do around customizing our emacs.  I also am likely going to be doing work in python and maybe go (based on previous convos).  So instead of learning the specific intricacies of a language, I wanted to learn good foundations for any language, and to use some foundational work written in a powerful lisp (Racket).
+* The HTDP way
+  HTDP works with "Design Recipes" and using a systematic approach to building out your program and each function within it.  Essentially, when you are given a problem to solve you:
+- Identify the Data and knowledge necessary for working with the problem
+- Write a signature, purpose statement, and header for the problem.
+  - Signature is a basic input output, like =Number -> String= or =Org-Mode-> Wiki=
+  - Purpose Statement gives a short description of the function, signature.
+  - header is a basic working version of a function (doesn't solve the problem yet, just a placeholder)
+- Write Out the data definitions for the info you previously identified
+- Translate these data definitions into an outline of the function you intend to write.
+- Write out some basic tests of what you'd expect to output given some input
+- Use The data and tests to write the function.
+  
+  You can use this pattern for a single function, or a full program...it works incrementally up.  But what it engenders is a program that is documented and tested by default, along with a steady, simple way to approach big problems.
+* What I learned today  
+  I was working through Chapter 1, Section 4 of the book.  In this, I learned a systematic way of defining the various types of data for any one definition.  By doing this in a systematic way, you end up with a number of "data clauses" which convert easily into test examples and clauses of your function.  It was nice to be able to work through a number of different problems and find that just writing out the context needed for it already led to the function I'd have to write.  While the problems are still simple now, it's already illuminating how I can approach ii problems better.
+  
