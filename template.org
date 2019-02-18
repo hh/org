@@ -11,7 +11,9 @@
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
 #+PROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
+
 * Folder (temp and otherwise)
 ** In Org Folder
 
