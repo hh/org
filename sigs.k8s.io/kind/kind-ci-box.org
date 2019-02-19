@@ -162,12 +162,48 @@ time="03:39:10" level=error msg="Docker build Failed! exit status 100"
 Error: build failed: exit status 100
 #+END_EXAMPLE
 
+
 * cluster
 #+BEGIN_SRC tmate
 kind create cluster
 #+END_SRC
+** shell command
+#+NAME: create cluster
+#+BEGIN_SRC shell
+kind create cluster
+#+END_SRC
+
+#+RESULTS: create cluster
+#+BEGIN_EXAMPLE :noeval t
+Creating cluster "kind" ...
+ • Ensuring node image (kindest/node:v1.13.3) 🖼  ...
+ ✓ Ensuring node image (kindest/node:v1.13.3) 🖼
+ • [control-plane] Creating node container 📦  ...
+time="03:46:00" level=error msg="machine-id-setup error: exit status 1"
+ ✗ [control-plane] Creating node container 📦
+Error: failed to create cluster: machine-id-setup error: exit status 1
+#+END_EXAMPLE
 
 * Footer
+
+#+NAME: start documentation session
+#+BEGIN_SRC shell :noeval yes
+ssh -tAX kind@arm.cncf.ci \
+tmate -S /tmp/$USER.kind-ci-box.iisocket new-session -A -s kind -n emacs \
+\"tmate wait tmate-ready \&\& sleep 2 \&\& \
+  tmate display -p \'#{tmate_ssh}\' \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
+  emacs -nw org/sigs.k8s.io/kind/kind-ci-box.org\"
+#+END_SRC
+
+#+NAME: start repl session
+#+BEGIN_SRC shell :noeval yes
+ssh -tAX kind@arm.cncf.ci \
+tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
+\"tmate wait tmate-ready \&\& sleep 2 \&\& \
+  tmate display -p \'#{tmate_ssh}\' \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
+  bash --login\"
+#+END_SRC
+
 xclip on then off, due to this being a remote box
 # eval: (xclip-mode 1) 
 # Local Variables:
