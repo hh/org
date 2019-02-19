@@ -1,4 +1,4 @@
 * Monday
-Shortcuts
+Today I learned how to clear my gmail inbox and turn that info into tickets in GitLab. Also some keyboard shortcuts.
 * Tuesday
-GitLab
+GitLab training - understanding a little more about how it works from Zach and how to create a wiki and move issues etc.
