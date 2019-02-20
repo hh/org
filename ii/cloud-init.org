@@ -216,13 +216,12 @@ Error: failed to create cluster: machine-id-setup error: exit status 1
 * Footer
 
 #+NAME: start documentation session
-#+BEGIN_SRC shell :noeval yes
-ssh -tAX kind@arm.cncf.ci \
-tmate -S /tmp/$USER.kind-ci-box.iisocket new-session -A -s kind -n emacs \
-\"tmate wait tmate-ready \&\& sleep 2 \&\& \
-  echo \\\`tmate display -p \'#{tmate_ssh}\'\\\` \\\# left \
-  \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
-  emacs -nw org/sigs.k8s.io/kind/kind-ci-box.org\"
+#+BEGIN_SRC shell :noeval yes :tangle cloud-init-left.sh :tangle-mode (identity #o755)
+tmate -S /tmp/$USER.emacs.iisocket new-session -A -s kind -n emacs \
+"tmate wait tmate-ready && sleep 2 && \
+  echo \`tmate display -p '#{tmate_ssh}'\` \# left \
+  | xclip -i -sel p -f | xclip -i -sel c && \
+  emacs -nw ~/ii/org/ii/cloud-init.org"
 #+END_SRC
 
 #+NAME: start repl session
@@ -236,7 +235,7 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
 #+END_SRC
 
 # xclip on then off, due to this being a remote box
-# eval: (xclip-mode 1) 
+# eval: (xclip-mode 1)
 # Local Variables:
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
 # eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
@@ -245,9 +244,9 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
 # eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& sleep 2 \\&\\& echo \\\\\\\`tmate display -p \'\\\#{tmate_ssh}\'\\\\\\\` \\\\\\\# right \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
-# eval: (xclip-mode 1) 
+# eval: (xclip-mode 1)
 # eval: (gui-select-text (concat "ssh -tAX root@147.75.109.113 -L " socket ":" socket " " start-tmate-command))
-# eval: (xclip-mode 0) 
+# eval: (xclip-mode 1)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
 # org-confirm-babel-evaluate: nil
