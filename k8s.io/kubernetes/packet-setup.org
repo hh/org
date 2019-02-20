@@ -158,7 +158,7 @@ Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
 You can now join any number of machines by running the following on each node
 as root:
 
-  kubeadm join 10.88.190.1:6443 --token qr2sgq.bbwp87bhtayb0l7x --discovery-token-ca-cert-hash sha256:7cda5e6c92e79875ba96987b8a88311edf0a88b28d5cb4a26afee4f91a2f83e2
+  kubeadm join 10.88.190.1:6443 --token qr*******************x --discovery-token-ca-cert-hash sha256:7cda5e6c92e79875ba96987b8a88311edf0a88b28d5cb4a26afee4f91a2f83e2
 #+END_EXAMPLE
 
 * kubectl
