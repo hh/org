@@ -111,6 +111,12 @@ but we only have a single node and so I think we are fine here.
 kubeadm reset
 #+END_SRC
 
+#+NAME: delete pvcs
+#+BEGIN_SRC tmate
+rm -rf /volumes/pvc-*
+#+END_SRC
+
+
 #+NAME: Initialize Master  
 #+BEGIN_SRC tmate
 kubeadm init \
@@ -130,11 +136,6 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 #+END_SRC
   https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 
-  #+NAME: untaint the master
-  #+BEGIN_SRC tmate
-    kubectl taint nodes --all node-role.kubernetes.io/master-
-  #+END_SRC
-
 
 #+NAME: other notices given by install
 #+BEGIN_EXAMPLE
@@ -150,10 +151,18 @@ as root:
 
 * kubectl
   Let's check that kubectl works
+  
+Might be good to show the taints, notready status via kubectl commands before untainting and applying network.
   #+NAME: Check Kubectl Works
   #+BEGIN_SRC tmate
     kubectl get nodes 
   #+END_SRC
+  #+NAME: untaint the master
+  #+BEGIN_SRC tmate
+    kubectl taint nodes --all node-role.kubernetes.io/master-
+  #+END_SRC
+
+
 * networking
   
 https://docs.projectcalico.org/v3.5/usage/calicoctl/install
@@ -218,14 +227,7 @@ kubectl apply -f ~/hostpath-provisioner.yaml
 
 #+NAME: hostpath-provisioner.yaml
 #+BEGIN_SRC yaml :tangle (concat "/ssh:" ssh-user-host ":hostpath-provisioner.yaml")
-  # vim:set sw=2 ts=2 et:
-  #
-  # Copyright (c) 2017 Torchbox Ltd.
-  #
-  # Permission is granted to anyone to use this software for any purpose,
-  # including commercial applications, and to alter it and redistribute it
-  # freely. This software is provided 'as-is', without any express or implied
-  # warranty.
+  # we added a default storage class and a testpvc
   apiVersion: storage.k8s.io/v1
   kind: StorageClass
   metadata:
@@ -245,7 +247,15 @@ kubectl apply -f ~/hostpath-provisioner.yaml
     - ReadWriteMany
     resources:
       requests:
-        storage: 50Gi
+        storage: 5Gi
+  # vim:set sw=2 ts=2 et:
+  #
+  # Copyright (c) 2017 Torchbox Ltd.
+  #
+  # Permission is granted to anyone to use this software for any purpose,
+  # including commercial applications, and to alter it and redistribute it
+  # freely. This software is provided 'as-is', without any express or implied
+  # warranty.
   ---
   apiVersion: v1
   kind: ServiceAccount
@@ -356,6 +366,56 @@ kubectl apply -f ~/hostpath-provisioner.yaml
 #+BEGIN_SRC tmate
 kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
 #+END_SRC
+* webui
+
+https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
+
+#+BEGIN_SRC tmate
+kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
+#+END_SRC
+
+#+BEGIN_SRC :eval never
+ssh -L 8001:localhost:8001 root@139.178.88.146 kubectl proxy
+#+END_SRC
+
+#+NAME: create service account
+#+BEGIN_SRC tmate
+    cat <<-EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: admin-user
+        namespace: kube-system
+    EOF
+#+END_SRC
+
+#+NAME: create service account
+#+BEGIN_SRC tmate
+    cat <<-EOF | kubectl apply -f -
+      apiVersion: rbac.authorization.k8s.io/v1beta1
+      kind: ClusterRoleBinding
+      metadata:
+        name: admin-user
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: admin-user
+        namespace: kube-system
+    EOF
+#+END_SRC
+
+#+NAME: create service account
+#+BEGIN_SRC tmate
+kubectl get -n kube-system -o json secret \
+  `kubectl get secret -n kube-system | grep admin-user | awk '{print $1}'` \
+  | jq -r .data.token \
+  | base64 --decode
+#+END_SRC
+
+http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
 
 * Alternatives
 ** PVCs
