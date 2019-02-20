@@ -10,122 +10,102 @@
 #+PROPERTY: header-args:shell+ :dir "/ssh:root@139.178.88.146:/home/"
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
-#+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n") 
+#+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
 
-* hiccups
-  For a new box, it won't have tmate yet.  So we need to ssh in first, install tmate.
-  Tmate requires ssh keys to work properly.  We needed to run =ssh-keygen= on the remote box for it to work properly.
-  if the tmate is not working, check if tmate is not forwarding due to sockets.  When that is the case, you need to rm the socket from your remote box and from your local box.  It is likely in =/tmp/$username.packet.ii.socket=
-* test
-  #+BEGIN_SRC tmate
-pwd
-  #+END_SRC
-  
-  #+BEGIN_SRC shell
-    pwd
-    hostname
-  #+END_SRC
-
-We need to take a look at the remote home folder:
-[[/ssh:kind@arm.cncf.ci:/home/kind]]
-  #+RESULTS:
-  #+BEGIN_EXAMPLE :noeval t
-  /home/kind
-  arm.kind.cncf.ci
-  #+END_EXAMPLE
-
-#+BEGIN_SRC sh :tangle /ssh:kind@arm.cncf.ci:/home/kind/runme.sh :eval never
-echo hello remote world
-#+END_SRC  
-#+BEGIN_SRC tmate
-echo "hello devan"
-#+END_SRC
 * Guide
   We will be using kubeadm to install a single k8s cluster, following this guide: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
-* install kubeadm
-https://kubernetes.io/docs/setup/independent/install-kubeadm/ 
-** Verify Mac Address  
-   This is to make sure each noded is unique...but we only have a single node and so I think we are fine here.
+
+* install
+https://kubernetes.io/docs/setup/independent/install-kubeadm/
+
+** Verify Mac Address
+   This is to make sure each node is unique...
+but we only have a single node and so I think we are fine here.
 ** Check Required ports
- These are our required ports  
- 
-Protocol	Direction	Port Range	Purpose	Used By
-TCP	Inbound	6443*	Kubernetes API server	All
-TCP	Inbound	2379-2380	etcd server client API	kube-apiserver, etcd
-TCP	Inbound	10250	Kubelet API	Self, Control plane
-TCP	Inbound	10251	kube-scheduler	Self
-TCP	Inbound	10252	kube-controller-manager	Self
+
+ These are our required ports
+
+| Protocol | Direction | Port Range | Purpose                 | Used By                 |
+| TCP      | Inbound   |      6443* | Kubernetes API          | serverAll               |
+| TCP      | Inbound   |  2379-2380 | etcd server client      | APIkube-apiserver, etcd |
+| TCP      | Inbound   |      10250 | Kubelet API             | Self, Control plane     |
+| TCP      | Inbound   |      10251 | kube-scheduler          | Self                    |
+| TCP      | Inbound   |      10252 | kube-controller-manager | Self                    |
 
   #+NAME: Check Required Ports
-  #+BEGIN_SRC shell :results table
- netstat -lntu 
-  #+END_SRC 
+  #+BEGIN_SRC shell :results replace table drawer :wrap (symbol-value 'nil) :exports both
+  netstat -lntu \
+    | grep Proto\\\|LISTEN \
+    | grep -v tcp6\\\|127.0.0 \
+    | sed 's:Local.*Address:Local Foreign:'
+  #+END_SRC
 
   #+RESULTS: Check Required Ports
-  #+BEGIN_EXAMPLE :noeval t
-  Active Internet connections (only servers)
-  Proto Recv-Q Send-Q Local Address           Foreign Address         State      
-  tcp        0      0 127.0.0.53:53           0.0.0.0:*               LISTEN     
-  tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
-  tcp        0      0 127.0.0.1:6010          0.0.0.0:*               LISTEN     
-  tcp6       0      0 :::22                   :::*                    LISTEN     
-  tcp6       0      0 ::1:6010                :::*                    LISTEN     
-  udp     1792      0 0.0.0.0:35584           0.0.0.0:*                          
-  udp      896      0 0.0.0.0:38559           0.0.0.0:*                          
-  udp        0      0 127.0.0.53:53           0.0.0.0:*                          
-  #+END_EXAMPLE
+  #+BEGIN_RESULTS
+  | Proto | Recv-Q | Send-Q |            Local | Foreign   | State  |
+  | tcp   |      0 |      0 | 10.88.190.1:2379 | 0.0.0.0:* | LISTEN |
+  | tcp   |      0 |      0 | 10.88.190.1:2380 | 0.0.0.0:* | LISTEN |
+  | tcp   |      0 |      0 |       0.0.0.0:22 | 0.0.0.0:* | LISTEN |
+  #+END_RESULTS
+
 ** Install runtime
-   This is listed as a step, but also says that its built into kubelet.  So i thik i can just install kubelet and be good.
-** Install kubeadm, kubelet, and kubectl 
-   #+NAME: Install kubeadm, kubelet, and kubectl
+   We could install CRI or just use docker. We'll go with docker for now.
+** Install kubeadm, kubelet, and kubectl
+   #+NAME: Install kubeadm, kubelet, and kubectl, disable swap
    #+BEGIN_SRC tmate
-     apt-get update && apt-get install -y apt-transport-https
-     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-     echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" >> /etc/apt/sources.list.d/kubernetes.list
-     apt-get update && apt-get install -y docker.io kubelet kubeadm kubectl kubernetes-cni
-     swapoff -a && apt-get install linux-image-$(uname -r)
+     apt-get update \
+       && apt-get install -y apt-transport-https
+     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+       | apt-key add -
+     echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
+       >> /etc/apt/sources.list.d/kubernetes.list
+     apt-get update \
+       && apt-get install -y docker.io kubelet kubeadm kubectl kubernetes-cni
+     swapoff -a \
+       && apt-get install linux-image-$(uname -r)
    #+END_SRC
    
    Verify it worked
    #+NAME: kubectl, kubeadm, kubelet versions
    #+BEGIN_SRC shell :results output verbatim
-     kubelet --version 
-     echo "kubectl:"
-     kubectl
+     echo "==kubelet=="
+     kubelet --version
+     echo "==kubectl=="
+     kubectl version
+     echo "==kubeadm=="
      kubeadm version
    #+END_SRC
 
    #+RESULTS: kubectl, kubeadm, kubelet versions
    #+BEGIN_EXAMPLE :noeval t
+   ==kubelet==
    Kubernetes v1.13.3
-   kubectl:
+   ==kubectl==
    Client Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:08:12Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
-   The connection to the server localhost:8080 was refused - did you specify the right host or port?
+   Server Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:00:57Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
+   ==kubeadm==
    kubeadm version: &version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:05:53Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
    #+END_EXAMPLE
 
-   If these don't show anything, try running the install script again as it might have installed curl and then stopped...so try again now that curl is installed.
+   If these don't show anything, try running the install script again.
+   It might have installed curl and then stopped...so try again now that curl is installed.
 ** Configure cgroup driver
-   According to documentation, you only need to do this if you're not using the default docker runtime.  We are using that, so I think we're fine.
+   According to documentation, you only need to do this if you're not using the default docker runtime.
 
-It says to restart kubelet...so we'll just do that to be safe.
+  It says to restart kubelet...so we'll just do that to be safe.
 
-#+NAME: Restart kubelet
-#+BEGIN_SRC tmate
-systemctl daemon-reload
-systemctl restart kubelet
-#+END_SRC
-* Initialize Master
+  #+NAME: Restart kubelet
+  #+BEGIN_SRC tmate
+  systemctl daemon-reload
+  systemctl restart kubelet
+  #+END_SRC
+
+* configure
   
   We'll use this guide's init script: https://www.packet.com/developers/guides/kubeless-on-packet-cloud/
   
-#+NAME: setup
-#+BEGIN_SRC tmate
-swapoff -a && apt-get install linux-image-$(uname -r)
-#+END_SRC
-
 #+NAME: Reset Master  
 #+BEGIN_SRC tmate
 kubeadm reset
@@ -148,6 +128,13 @@ mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 #+END_SRC
+  https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
+
+  #+NAME: untaint the master
+  #+BEGIN_SRC tmate
+    kubectl taint nodes --all node-role.kubernetes.io/master-
+  #+END_SRC
+
 
 #+NAME: other notices given by install
 #+BEGIN_EXAMPLE
@@ -167,25 +154,24 @@ as root:
   #+BEGIN_SRC tmate
     kubectl get nodes 
   #+END_SRC
-* Ensure networking works
+* networking
   
 https://docs.projectcalico.org/v3.5/usage/calicoctl/install
+
 TODO add other options linked in our dm channel (flannel, weaver)
   We were able to look at all our nodes but =coredns= was still pending, and not ready.  As long as =coredns= is down, we cannot schedule or have nodes talk to one another.  In other words, nothing will work.
-** flannel
+
+~flannel~
   Flannel is a CNI (container network interface) that essentially helps get our network up.  So let's install it. 
   
 #+BEGIN_SRC tmate
 FLANNEL_RELEASE=v0.11.0
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEASE/Documentation/kube-flannel.yml
 #+END_SRC
-* Untaint the Master
-  https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 
-#+BEGIN_SRC tmate
-kubectl taint nodes --all node-role.kubernetes.io/master-
-#+END_SRC
 * helm
+
+#+NAME: install helm
 #+BEGIN_SRC tmate
 curl -L \
   https://storage.googleapis.com/kubernetes-helm/helm-v2.12.3-linux-amd64.tar.gz \
@@ -202,26 +188,20 @@ curl -L \
 #+BEGIN_SRC tmate
   helm init --service-account tiller
 #+END_SRC
-* ingress 
-#+BEGIN_SRC tmate
-helm install --name nginx-ingress \
-  stable/nginx-ingress \
-  --set rbac.create=true,controller.service.type=NodePort,controller.service.nodePorts.http=30080
-#+END_SRC
 
-* PVC / Dynamic config
-** hostpath-provisioner
+* disks
+
+~hostpath-provisioner~
+
 Uses local directories, created dynamically, to serve up PVs to PVCs
 https://github.com/rimusz/hostpath-provisioner#dynamic-provisioning-of-kubernetes-hostpath-volumes
 https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner
 
-*** mazdermind (updated 18 days ago, unmaintained)
-https://github.com/MaZderMind/hostpath-provisioner
-*** torchbox (claims it's intended for production use)
+- torchbox (claims it's intended for production use)
 https://github.com/torchbox/k8s-hostpath-provisioner
-**** format
+
 #+NAME: format and mount a drive under /volumes
-#+BEGIN_SRC tmate
+#+BEGIN_SRC tmate :eval query
 echo "Are you sure? if not C-c!!! Next step formats a drive!"
 sleep 5
 mkdir /volumes
@@ -230,128 +210,156 @@ echo /dev/nvme0n1 /volumes ext4 errors=remount-ro 0 1 >> /etc/fstab
 mount /volumes
 #+END_SRC
 
-**** hostpath-provisioner
+Ensure you tangle / write ~hostpath-provisioner.yaml~ file to the host then run the following command:
 
 #+BEGIN_SRC tmate
 kubectl apply -f ~/hostpath-provisioner.yaml
 #+END_SRC
 
-#+NAME: Hostpath Provisioner
+#+NAME: hostpath-provisioner.yaml
 #+BEGIN_SRC yaml :tangle (concat "/ssh:" ssh-user-host ":hostpath-provisioner.yaml")
-# vim:set sw=2 ts=2 et:
-#
-# Copyright (c) 2017 Torchbox Ltd.
-#
-# Permission is granted to anyone to use this software for any purpose,
-# including commercial applications, and to alter it and redistribute it
-# freely. This software is provided 'as-is', without any express or implied
-# warranty.
+  # vim:set sw=2 ts=2 et:
+  #
+  # Copyright (c) 2017 Torchbox Ltd.
+  #
+  # Permission is granted to anyone to use this software for any purpose,
+  # including commercial applications, and to alter it and redistribute it
+  # freely. This software is provided 'as-is', without any express or implied
+  # warranty.
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: default
+    annotations:
+      storageclass.kubernetes.io/is-default-class: "true"
+  provisioner: torchbox.com/hostpath
+  parameters:
+    pvDir: /volumes
+  ---
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: testpvc
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: 50Gi
+  ---
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    namespace: kube-system
+    name: hostpath-provisioner
 
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  namespace: kube-system
-  name: hostpath-provisioner
+  ---
 
----
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  kind: ClusterRoleBinding
+  metadata:
+    name: hostpath-provisioner
+  subjects:
+  - kind: ServiceAccount
+    name: hostpath-provisioner
+    namespace: kube-system
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:persistent-volume-provisioner
 
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  name: hostpath-provisioner
-subjects:
-- kind: ServiceAccount
-  name: hostpath-provisioner
-  namespace: kube-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
+  ---
+
+  # The default system:persistent-volume-provisioner role in Kubernetes 1.8 is
+  # insufficient:
+  #
+  # I1007 18:09:10.073558       1 controller.go:874] cannot start watcher for PVC default/testpvc: events is forbidden: User "system:serviceaccount:kube-system:hostpath-provisioner" cannot list events in the namespace "default": access denied
+
+  apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole
-  name: system:persistent-volume-provisioner
+  metadata:
+    name: hostpath-provisioner-extra
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - create
+    - patch
+    - update
+    - list
+    - get
+    - watch
 
----
+  ---
 
-# The default system:persistent-volume-provisioner role in Kubernetes 1.8 is
-# insufficient:
-#
-# I1007 18:09:10.073558       1 controller.go:874] cannot start watcher for PVC default/testpvc: events is forbidden: User "system:serviceaccount:kube-system:hostpath-provisioner" cannot list events in the namespace "default": access denied
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: hostpath-provisioner-extra
+  subjects:
+  - kind: ServiceAccount
+    namespace: kube-system
+    name: hostpath-provisioner
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: hostpath-provisioner-extra
 
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: hostpath-provisioner-extra
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - update
-  - list
-  - get
-  - watch
+  ---
 
----
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: hostpath-provisioner-extra
-subjects:
-- kind: ServiceAccount
-  namespace: kube-system
-  name: hostpath-provisioner
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: hostpath-provisioner-extra
-
----
-
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: hostpath-provisioner
-  namespace: kube-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hostpath-provisioner
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      labels:
+  apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    name: hostpath-provisioner
+    namespace: kube-system
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
         app: hostpath-provisioner
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: hostpath-provisioner
 
-    spec:
-      serviceAccountName: hostpath-provisioner
+      spec:
+        serviceAccountName: hostpath-provisioner
 
-      volumes:
-      - name: volumes
-        hostPath:
-          path: /volumes
-
-      containers:
-      - name: hostpath-provisioner
-        image: torchbox/k8s-hostpath-provisioner:latest
-
-        volumeMounts:
+        volumes:
         - name: volumes
-          mountPath: /volumes
+          hostPath:
+            path: /volumes
 
-        resources:
-          limits:
-            cpu: 100m
-            memory: 64Mi
-          requests:
-            cpu: 100m
-            memory: 64Mi
+        containers:
+        - name: hostpath-provisioner
+          image: torchbox/k8s-hostpath-provisioner:latest
+
+          volumeMounts:
+          - name: volumes
+            mountPath: /volumes
+
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 100m
+              memory: 64Mi
 
 #+END_SRC
-** rook =~ ceph (but managed natively by k8s)
+
+#+NAME: inspect hostpath-provisioner logs
+#+BEGIN_SRC tmate
+kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
+#+END_SRC
+
+* Alternatives
+** PVCs
+*** rook =~ ceph (but managed natively by k8s)
   
 #+NAME: Add rook helm repo
 #+BEGIN_SRC tmate
@@ -365,10 +373,7 @@ spec:
        rook-stable/rook-ceph 
 #+END_SRC
 
-** Research
-#+BEGIN_SRC yaml :tangle
-#+END_SRC
-** Alternative CNI's
+** CNI's
 *** calico
  #+NAME: install calicoctl
  #+BEGIN_SRC tmate
@@ -376,9 +381,8 @@ spec:
  #+END_SRC
 
  #+BEGIN_SRC tmate
- kubectl apply -f \
- https://docs.projectcalico.org/v3.5/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calicoctl.yaml
-
+   kubectl apply -f \
+https://docs.projectcalico.org/v3.5/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calicoctl.yaml
  #+END_SRC
 
  #+BEGIN_SRC tmate
@@ -399,8 +403,11 @@ spec:
   - service-account :: 
   - tiller ::
 
-
 * Footer
+** hiccups
+  For a new box, it won't have tmate yet.  So we need to ssh in first, install tmate.
+  Tmate requires ssh keys to work properly.  We needed to run =ssh-keygen= on the remote box for it to work properly.
+  if the tmate is not working, check if tmate is not forwarding due to sockets.  When that is the case, you need to rm the socket from your remote box and from your local box.  It is likely in =/tmp/$username.packet.ii.socket=
 
 #+NAME: start documentation session
 #+BEGIN_SRC shell :noeval yes
