@@ -30,7 +30,6 @@ curl -4 https://ifconfig.co
 #+BEGIN_EXAMPLE :noeval t
 139.178.88.146
 #+END_EXAMPLE
-
 * Deploy Using the Gitlab Chart
   
 ** Get Chart for gitlab
@@ -96,6 +95,7 @@ We use mailgun for now, until there is a smtp.ii.nz
 
 
 ** Configure the Chart
+
 #+NAME: tramp link to recode.ii.nz.yaml
 #+BEGIN_SRC elisp :results raw
 (concat "[[/ssh:" ssh-user-host ":/root/recode.ii.nz.yaml]]")
@@ -106,91 +106,90 @@ We use mailgun for now, until there is a smtp.ii.nz
 
 #+NAME: The Config
 #+BEGIN_SRC yaml :noweb yes :tangle (concat "/ssh:" ssh-user-host ":recode.ii.nz.yaml")
-# Global chart properties
-global:
-  hosts:
-    domain: recode.ii.nz
-    externalIP: 139.178.88.146
-  # Outgoing email server settings
-  smtp:
-    enabled: true
-    address: smtp.mailgun.org
-    port: 2525
-    user_name: "<<smtp_user_name()>>"
-    password:
-      secret: "FOOBARBAZ"
-      key: "<<smtp_password()>>"
-    domain: recode.ii.nz
-    authentication: "plain"
-    starttls_auto: false
-    openssl_verify_mode: "peer"
-# Email persona used in email sent by GitLab
-  email:
-   from: 'gitlab@recode.ii.nz'
-   display_name: GitLab@recode.ii.nz
-   reply_to: 'hh@ii.coop'
-   subject_suffix: ' | ii.nz'
-  time_zone: NZST
-  timeout: 600
-certmanager-issuer:
-  email: recode@ii.nz
-gitlab:
-  migrations:
-    image:
-      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
-  sidekiq:
-    image:
-      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
-  sidekiq:
-    image:
-     repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ce
-  sidekiq:
-    image:
-      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
-  omniauth:
-    enabled: yes
-    autoSignInWithProvider: 
-    allowSingleSignOn: ['github', 'google_oauth2']
-    blockAutoCreatedUsers: false
-    providers:
-      - key: 'github'
-        app_id: "<<omniauth_github_app_id()>>"
-        app_secret: "<<omniauth_github_app_secret()>>"
-      - key: 'google_oauth2'
-        app_id: "<<omniauth_google_app_id()>>"
-        app_secret: "<<omniauth_google_app_secret()>>"
-    syncProfileAttributes: ['email']
+  # Global chart properties
+  global:
+    hosts:
+      domain: recode.ii.nz
+      externalIP: 139.178.88.146
+    # Outgoing email server settings
+    # smtp:
+    #   enabled: true
+    #   address: smtp.mailgun.org
+    #   port: 2525
+    #   user_name: "<<smtp_user_name()>>"
+    #   password:
+    #     secret: "FOOBARBAZ"
+    #     key: "<<smtp_password()>>"
+    #   domain: recode.ii.nz
+    #   authentication: "plain"
+    #   starttls_auto: false
+    #   openssl_verify_mode: "peer"
+  # Email persona used in email sent by GitLab
+    email:
+     from: 'gitlab@recode.ii.nz'
+     display_name: GitLab@recode.ii.nz
+     reply_to: 'hh@ii.coop'
+     subject_suffix: ' | ii.nz'
+    time_zone: Pacific/Auckland
+    timeout: 600
+  certmanager-issuer:
+    email: recode@ii.nz
+  gitlab:
+    migrations:
+      image:
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
+    sidekiq:
+      image:
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
+    sidekiq:
+      image:
+       repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ce
+    sidekiq:
+      image:
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
+    omniauth:
+      enabled: yes
+      autoSignInWithProvider: 
+      allowSingleSignOn: ['github', 'google_oauth2']
+      blockAutoCreatedUsers: false
+      providers:
+        - key: 'github'
+          app_id: "<<omniauth_github_app_id()>>"
+          app_secret: "<<omniauth_github_app_secret()>>"
+        - key: 'google_oauth2'
+          app_id: "<<omniauth_google_app_id()>>"
+          app_secret: "<<omniauth_google_app_secret()>>"
+      syncProfileAttributes: ['email']
 #+END_SRC
+
 ** Verify cluster
 
 We could run other commands, but this is enough for now.
 
 #+NAME: Verify Cluster
 #+BEGIN_SRC shell :results code
-(
 kubectl get pods --all-namespaces
-) 2>&1
 #+END_SRC
 
 #+RESULTS: Verify Cluster
 #+BEGIN_EXAMPLE :noeval t
 NAMESPACE     NAME                                    READY   STATUS    RESTARTS   AGE
-kube-system   coredns-86c58d9df4-dfgxj                1/1     Running   0          3m2s
-kube-system   coredns-86c58d9df4-r5rzb                1/1     Running   0          3m2s
-kube-system   etcd-ci.ii.coop                         1/1     Running   0          2m8s
-kube-system   hostpath-provisioner-7b79cb99f7-kjtvv   1/1     Running   0          81s
-kube-system   kube-apiserver-ci.ii.coop               1/1     Running   0          2m6s
-kube-system   kube-controller-manager-ci.ii.coop      1/1     Running   0          2m2s
-kube-system   kube-flannel-ds-amd64-gzn6s             1/1     Running   0          2m44s
-kube-system   kube-proxy-rv8jl                        1/1     Running   0          3m2s
-kube-system   kube-scheduler-ci.ii.coop               1/1     Running   0          2m
-kube-system   tiller-deploy-dbb85cb99-8wld6           1/1     Running   0          2m1s
+kube-system   coredns-86c58d9df4-74j2x                1/1     Running   0          14m
+kube-system   coredns-86c58d9df4-cf6rm                1/1     Running   0          14m
+kube-system   etcd-ci.ii.coop                         1/1     Running   0          13m
+kube-system   hostpath-provisioner-7b79cb99f7-x4lwx   1/1     Running   0          7m41s
+kube-system   kube-apiserver-ci.ii.coop               1/1     Running   0          13m
+kube-system   kube-controller-manager-ci.ii.coop      1/1     Running   0          13m
+kube-system   kube-flannel-ds-amd64-lh9wr             1/1     Running   0          10m
+kube-system   kube-proxy-cbszg                        1/1     Running   0          14m
+kube-system   kube-scheduler-ci.ii.coop               1/1     Running   0          13m
+kube-system   tiller-deploy-dbb85cb99-v4ddp           1/1     Running   0          9m50s
 #+END_EXAMPLE
 
 ** Deploy Gitlab on Kubernetes 
 #+NAME: Deploy Gitlab on Kubernetes
 #+BEGIN_SRC tmate
-helm upgrade --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
+helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
 #+END_SRC
 * Monitor the Progress of your gitlab installation
 
@@ -215,17 +214,18 @@ kubectl get pod -l app=minio -l component=app --all-namespaces -o jsonpath='{..m
 
 #+RESULTS: minio_pod
 #+BEGIN_EXAMPLE :noeval t
-gitlab-minio-c64f9694b-c7thl
+gitlab-minio-c64f9694b-wcwln
 #+END_EXAMPLE
+
 #+NAME: inspect hostpath-provisioner logs
 #+BEGIN_SRC tmate
 kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces
 #+END_SRC
 
 
-#+NAME: inspect hostpath-provisioner logs
+#+NAME: inspect minio logs
 #+BEGIN_SRC tmate
-echo kubectl logs pod/`kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces` -c minio
+kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces` -c minio
 #+END_SRC
 
 #+RESULTS: inspect hostpath-provisioner logs
