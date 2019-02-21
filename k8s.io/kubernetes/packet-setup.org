@@ -4,7 +4,7 @@
 #+CREATOR: ii.coop
 #+DATE: 19th of February, 2019
 #+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
+#+NOPROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
 #+PROPERTY: header-args:shell+ :epilogue ":\n"
 #+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
 #+PROPERTY: header-args:shell+ :dir "/ssh:root@139.178.88.146:/home/"
@@ -14,15 +14,168 @@
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
 
-* Guide
-  We will be using kubeadm to install a single k8s cluster, following this guide: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
+* Objectives
+  This article runs through deploying a kubernetes cluster onto a remote machine running Ubuntu 18, and then deploying gitlab to that cluster.
+  By the end of this you should be able to access your own instance of gitlab at a domain of your choosing, and know that it's running with the scale and resilience advantage of kubernetes.
+* External Requirements
+  - A remote machine running Ubuntu 18.
+    - we are using machines created through [[packet.com][Packet]]
+  - A local machine running the ii version of spacemacs.
+    - You'll need our specific configuration, and packages, to be able to run the code commands in the rest of this article.
+  - A domain name you own, or have admin rights to its registry.
+  - Dev accounts set up with...mailgun, google, and gitlab? (this is for our secrets.env later, and am not sure where those secrets come from.)
+* Document Setup
+  This document is designed so you can simply tap on the code blocks you read here, and they will execute on your specific remote machine.
+  You will also be able to _see_ the code executing (and answer any prompts that come up or errors that appear) through a convenient tmate session.  To make this work well, there's some pre-setup that you'll need to do.
 
-* install
-https://kubernetes.io/docs/setup/independent/install-kubeadm/
+You'll only do this setup at the creation of the machine, or start of a new project, you won't have to do this setup for just iterating over and refining this setup, or if you take down and bring k8s back up on the same machine.
 
-** Verify Mac Address
-   This is to make sure each node is unique...
-but we only have a single node and so I think we are fine here.
+** Install and setup tmate on your remote machine.
+   
+   First, we need to bring in tmate.
+   
+  #+NAME: Installing tmate on remote machine 
+  #+BEGIN_EXAMPLE shell
+  sudo apt install tmate xclip
+  #+END_EXAMPLE
+  
+  Tmate requires having SSH keys that it can use just to setup the pairing sessions.  So generate some new ones now.
+  (NOTE: Create new ones, dont' copy your personal SSH keys over.)
+  
+  #+NAME: Generate SSH keys
+  #+BEGIN_EXAMPLE shell
+  # on your remote machine 
+  ssh-keygen -o -a 100 -t ed25519
+  #+END_EXAMPLE
+
+  QUESTION: How Secure does this need to be? We just did =ssh-keygen=, but I am unsure if that was just to quickly get to the meat of the project, or if that followed best practice.  I'd like whatever we document to best practice.
+
+  ANSWER: This ssh-key will likely only be used by tmate. The public side is never stored any where for auth. It looks like it's nesessary as an artifact of the way tmate uses ssh to connect to the tmate.io (or pair.ii.nz) server.
+  
+  Then, let's check it works.
+  #+NAME: Start up TMATE
+  #+BEGIN_EXAMPLE shell
+  # on your remote machine 
+  tmate
+  #+END_EXAMPLE
+  
+  This should bring up a tmux session, but with an ssh link shown at the bottom. Success!  Kill it by pressing =Ctrl-d=
+  
+
+** tmate config
+
+We could use tangle + ssh shell's to setup the remote box.
+
+#+NAME: tmate config
+#+BEGIN_SRC sh :eval never
+set-option -g set-clipboard on
+set-option -g mouse on
+set-option -g history-limit 50000
+set -g tmate-identity ""
+set -s escape-time 0
+#+END_SRC
+
+The default tmate.io server supports https/web urls. pair.ii.nz does not, but it's faster for us (and run by ii)
+
+#+NAME: tmate config
+#+BEGIN_SRC sh :eval never
+;set -g tmate-server-host pair.ii.nz
+;set -g tmate-server-port 22
+;set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
+;set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
+#+END_SRC
+
+
+** Add the IP address of your remote machine to this document.
+You'll need to add the address to two parts of this document.  This will ensure the commands we run happen in the place you want.
+
+- [[#+PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IP_ADDRESS:/home/"][Line 10-- PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IPADDRESS:/home/"]]
+- [[# eval: (set (make-local-variable 'ssh-user-host) "root@139.178.88.146")][In the eval section at bottom of doc: (set (make-local-variable 'ssh-user-host) "USERNAME@IPADDRESS")]]
+
+You can also add extra IPs to your Packet box, and enable them in /etc/network/interfaces
+With a /29 you can allocate the next 4 ip addresses beyond your bond0 IP.
+
+I was originally adding them to a loopback:
+
+#+NAME: /etc/network/interfaces
+#+BEGIN_SRC config
+auto lo:1
+iface lo:1 inet static
+    address 139.178.88.147
+    netmask 255.255.255.248
+auto lo:2
+iface lo:2 inet static
+    address 139.178.88.148
+    netmask 255.255.255.248
+auto lo:3
+iface lo:3 inet static
+    address 139.178.88.149
+    netmask 255.255.255.248
+auto lo:4
+iface lo:4 inet static
+    address 139.178.88.150
+    netmask 255.255.255.248
+#+END_SRC
+
+Second approach added aliases to bond interface
+
+#+NAME: /etc/network/interfaces
+#+BEGIN_SRC text
+  auto bond0:1
+  iface bond0:1 inet static
+      address 139.178.88.147
+      netmask 255.255.255.248
+  auto bond0:2
+  iface bond0:2 inet static
+      address 139.178.88.148
+      netmask 255.255.255.248
+  auto bond0:3
+  iface bond0:3 inet static
+      address 139.178.88.149
+      netmask 255.255.255.248
+  auto bond0:4
+  iface bond0:4 inet static
+      address 139.178.88.150
+      netmask 255.255.255.248
+#+END_SRC
+
+#+BEGIN_SRC shell :eval never
+ifup bond0:1
+ifup bond0:2
+ifup bond0:3
+ifup bond0:4
+#+END_SRC
+   
+**  Refresh this document and test it works
+*** Refresh Document
+   The easiest way to refresh is to type =SPC SPC normal-mode= (alternately =M-x normal-mode=). Spacemacs should prompt you, asking if you want to evaluate the variables.  Say yes.  
+
+Then, open a new terminal window and paste (however you paste on your machine).  You should see a command given to you like:
+
+#+BEGIN_EXAMPLE shell
+ssh -tAX root@REMOTEIP \
+-L /tmp/USERNAME.packet-setup.iisocket:/tmp/USERNAME.packet-setup.iisocket \
+tmate -S /tmp/zz.packet-setup.iisocket new-session -A \
+-s zz -n main \"tmate wait tmate-ready \&\& tmate display \
+-p \'#{tmate_ssh}\' \| xclip -i -sel p -f \| xclip -i -sel c \&\& bash --login\"
+#+END_EXAMPLE
+
+Press enter.  This will bring you into a tmate session on your remote machine.  Once this has started up, the sharable link to this session gets copied to your clipboard.  So you can paste that to a friend, if you are pairing.
+*** Test Tmate Works
+Lastly!  Let's make sure it works.  Run this code block by pressing =,,= while your cursor is anywhere on it.
+
+#+NAME: Test that Tmate Works
+#+BEGIN_SRC tmate
+echo "it worked!"
+pwd
+#+END_SRC
+ 
+Check your remote machine, you'll see a new window called "Check TMATe Worked" and you'll see the echo and pwd commands executed.
+
+If that's the case, you're good to go!
+* Pre-Kubernetes Sanity Checks
+  Before we dive into installing Kubernetes, we want to double-check our box has available ports, so that all the various kubernetes pods can talk to each other (and we can talk to them)
+
 ** Check Required ports
 
  These are our required ports
@@ -34,6 +187,9 @@ but we only have a single node and so I think we are fine here.
 | TCP      | Inbound   |      10251 | kube-scheduler          | Self                    |
 | TCP      | Inbound   |      10252 | kube-controller-manager | Self                    |
 
+Run this netstat and check for software listening on these ports.
+If you see the LISTENing ports that match the port ranges listed above, youll need to reconfigure the host or k8s.
+
   #+NAME: Check Required Ports
   #+BEGIN_SRC shell :results replace table drawer :wrap (symbol-value 'nil) :exports both
   netstat -lntu \
@@ -42,16 +198,21 @@ but we only have a single node and so I think we are fine here.
     | sed 's:Local.*Address:Local Foreign:'
   #+END_SRC
 
+QUESTION: They don't for us, what is 6443* and 10250-10252 used for, and is it okay that they don't show up in this netstat command?
+ANSWER: We don't want them to at this point, we want to make sure we can use those ports later.
+
   #+RESULTS: Check Required Ports
   #+BEGIN_RESULTS
-  | Proto | Recv-Q | Send-Q |            Local | Foreign   | State  |
-  | tcp   |      0 |      0 | 10.88.190.1:2379 | 0.0.0.0:* | LISTEN |
-  | tcp   |      0 |      0 | 10.88.190.1:2380 | 0.0.0.0:* | LISTEN |
-  | tcp   |      0 |      0 |       0.0.0.0:22 | 0.0.0.0:* | LISTEN |
+  | Proto | Recv-Q | Send-Q |      Local | Foreign   | State  |
+  | tcp   |      0 |      0 | 0.0.0.0:22 | 0.0.0.0:* | LISTEN |
   #+END_RESULTS
 
-** Install runtime
-   We could install CRI or just use docker. We'll go with docker for now.
+* install Kubernetes Tools
+https://kubernetes.io/docs/setup/independent/install-kubeadm/
+
+Before anything else, we want our remote machine to have kubeadm, kubelet, and kubectl.
+
+
 ** Install kubeadm, kubelet, and kubectl
    #+NAME: Install kubeadm, kubelet, and kubectl, disable swap
    #+BEGIN_SRC tmate
@@ -63,11 +224,9 @@ but we only have a single node and so I think we are fine here.
        >> /etc/apt/sources.list.d/kubernetes.list
      apt-get update \
        && apt-get install -y docker.io kubelet kubeadm kubectl kubernetes-cni
-     swapoff -a \
-       && apt-get install linux-image-$(uname -r)
    #+END_SRC
    
-   Verify it worked
+   Verify it worked.  The results should largely match our example included below
    #+NAME: kubectl, kubeadm, kubelet versions
    #+BEGIN_SRC shell :results output verbatim
      echo "==kubelet=="
@@ -84,48 +243,83 @@ but we only have a single node and so I think we are fine here.
    Kubernetes v1.13.3
    ==kubectl==
    Client Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:08:12Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
-   Server Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:00:57Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
    ==kubeadm==
    kubeadm version: &version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:05:53Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
    #+END_EXAMPLE
 
-   If these don't show anything, try running the install script again.
-   It might have installed curl and then stopped...so try again now that curl is installed.
-** Configure cgroup driver
-   According to documentation, you only need to do this if you're not using the default docker runtime.
+   #+NAME: Example Working versions of kubectl, kubeadm, kubelet
+   #+BEGIN_EXAMPLE :noeval t
+   ==kubelet==
+   Kubernetes v1.13.3
+   ==kubectl==
+   Client Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:08:12Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
+   ==kubeadm==
+   kubeadm version: &version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:05:53Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
+   #+END_EXAMPLE
 
-  It says to restart kubelet...so we'll just do that to be safe.
+   NOTE: If these don't show anything, try running the install script again. It might have installed curl and then stopped...so try again now that curl is installed.
+** Connfigure kubectl defaults / completion
 
-  #+NAME: Restart kubelet
-  #+BEGIN_SRC tmate
-  systemctl daemon-reload
-  systemctl restart kubelet
-  #+END_SRC
+#+BEGIN_SRC tmate
+  # add autocomplete permanently to your bash shell.
+  echo "source <(kubectl completion bash)" >> ~/.bashrc
+  # use k as an alias to kubectl
+  echo alias k=kubectl >> ~/.bashrc 
+  echo complete -F __start_kubectl k >> ~/.bashrc 
+#+END_SRC
+** Disable Swap
 
-* configure
-  
-  We'll use this guide's init script: https://www.packet.com/developers/guides/kubeless-on-packet-cloud/
-  
+#+BEGIN_SRC tmate
+  swapoff -a
+  # Comment out any swap to disable automounting
+  sed -e '/swap/ s/^#*/#/' -i /etc/fstab
+#+END_SRC
+** Install Docker
+
+We are using docker.io from ubuntu, should possibly switch to upstream docker-ce
+
+#+BEGIN_SRC tmate
+  apt-get update \
+    && apt-get install -y docker.io
+  systemctl restart docker
+  systemctl enable docker
+  systemctl status docker
+#+END_SRC
+
+* Configure and Deploy Kubernetes
+ Our setup is largely insired by [[https://www.packet.com/developers/guides/kubeless-on-packet-cloud/][Packet's Guide to deploying on kubernetes]]
+** Reset Kubernetes
+  This is here for iteration. 
 #+NAME: Reset Master  
 #+BEGIN_SRC tmate
 kubeadm reset
 #+END_SRC
-
+** Delete PVCS
+   Also for iteration loops. Not necessary if this is the first time, as you have not created any storage yet.
 #+NAME: delete pvcs
 #+BEGIN_SRC tmate
 rm -rf /volumes/pvc-*
 #+END_SRC
 
+** Initialize Master K8s Node
+   NOTE: This script is relevant as of k8s version 1.13.  If you get an error about mismatching versions, it's likely that there's a new stable version of k8s.  Look to waht that is and then adjust the last line in this script accordingly.
+   
+#+NAME: Pull down kubernets containers
+#+BEGIN_SRC tmate
+kubeadm config images pull \
+ --kubernetes-version stable-1.13
+#+END_SRC
 
 #+NAME: Initialize Master  
 #+BEGIN_SRC tmate
 kubeadm init \
  --pod-network-cidr=10.244.0.0/16 \
  --apiserver-advertise-address=$(\
-   ip address show label bond0:0 | sed -n 's/[ ]*inet \([^\/]*\).*/\1/p') \
+   ip address show label bond0:1 | sed -n 's/[ ]*inet \([^\/]*\).*/\1/p') \
  --kubernetes-version stable-1.13
 #+END_SRC
 
+** Configure kubectl
 When it is installed, you can check it with the following
 
 #+NAME: Configure kubectl
@@ -136,32 +330,97 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 #+END_SRC
   https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 
-
-#+NAME: other notices given by install
-#+BEGIN_EXAMPLE
-You should now deploy a pod network to the cluster.
-Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-  https://kubernetes.io/docs/concepts/cluster-administration/addons/
-
-You can now join any number of machines by running the following on each node
-as root:
-
-  kubeadm join 10.88.190.1:6443 --token qr*******************x --discovery-token-ca-cert-hash sha256:7cda5e6c92e79875ba96987b8a88311edf0a88b28d5cb4a26afee4f91a2f83e2
-#+END_EXAMPLE
-
 * kubectl
-  Let's check that kubectl works
+  Let's check that kubectl works.  A good way to do that is to ask it to run commands against our cluster.
   
-Might be good to show the taints, notready status via kubectl commands before untainting and applying network.
   #+NAME: Check Kubectl Works
-  #+BEGIN_SRC tmate
+  #+BEGIN_SRC shell
     kubectl get nodes 
   #+END_SRC
+
+  #+RESULTS: Check Kubectl Works
+  #+BEGIN_EXAMPLE :noeval t
+  NAME         STATUS     ROLES    AGE   VERSION
+  ci.ii.coop   NotReady   master   38s   v1.13.3
+  #+END_EXAMPLE
+  
+  
+Might be good to show the taints, notready status via kubectl commands before untainting and applying network.
+
+#+NAME: master node taints
+#+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
+  kubectl get node \
+    $(kubectl get node \
+      -l node-role.kubernetes.io/master \
+      --namespace=kube-system \
+      -o jsonpath='{.items[*].metadata.name}')\
+    -o json \
+  | jq -M .spec.taints
+  #+END_SRC
+
+  #+RESULTS: master node taints
+  #+BEGIN_SRC json
+  [
+    {
+      "effect": "NoSchedule",
+      "key": "node-role.kubernetes.io/master"
+    },
+    {
+      "effect": "NoSchedule",
+      "key": "node.kubernetes.io/not-ready"
+    }
+  ]
+  #+END_SRC
+
+Usually pods don't get scheduled on the master, due to the NoSchedule taint
+
   #+NAME: untaint the master
   #+BEGIN_SRC tmate
     kubectl taint nodes --all node-role.kubernetes.io/master-
   #+END_SRC
 
+#+NAME: master node taints after untaint for master role
+#+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
+  kubectl get node \
+    $(kubectl get node \
+      -l node-role.kubernetes.io/master \
+      --namespace=kube-system \
+      -o jsonpath='{.items[*].metadata.name}')\
+    -o json \
+  | jq -M .spec.taints
+  #+END_SRC
+
+  #+RESULTS: master node taints after untaint for master role
+  #+BEGIN_SRC json
+  [
+    {
+      "effect": "NoSchedule",
+      "key": "node.kubernetes.io/not-ready"
+    }
+  ]
+  #+END_SRC
+
+  #+NAME: Status Ready Condition of Master Node
+  #+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
+  kubectl get node \
+    $(kubectl get node -l node-role.kubernetes.io/master --namespace=kube-system -o jsonpath='{.items[*].metadata.name}')\
+     -o json \
+  | jq -M '.status.conditions[] | select(.type=="Ready")'
+  #+END_SRC
+
+We likely haven't setup a CNI / network layer yet, no our node doesn't have a status.condition["Ready"} of True.
+
+  #+RESULTS: Status Ready Condition of Master Node
+  #+BEGIN_SRC json
+  {
+    "lastHeartbeatTime": "2019-02-21T01:42:42Z",
+    "lastTransitionTime": "2019-02-21T01:41:57Z",
+    "message": "runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized",
+    "reason": "KubeletNotReady",
+    "status": "False",
+    "type": "Ready"
+  }
+  #+END_SRC
 
 * networking
   
@@ -177,6 +436,37 @@ TODO add other options linked in our dm channel (flannel, weaver)
 FLANNEL_RELEASE=v0.11.0
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEASE/Documentation/kube-flannel.yml
 #+END_SRC
+
+  #+NAME: Status Ready Condition of Master Node after networking
+  #+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
+  kubectl get node \
+    $(kubectl get node -l node-role.kubernetes.io/master --namespace=kube-system -o jsonpath='{.items[*].metadata.name}')\
+     -o json \
+  | jq -M '.status.conditions[] | select(.type=="Ready")'
+  #+END_SRC
+
+  #+RESULTS: Status Ready Condition of Master Node after networking
+  #+BEGIN_SRC json
+  {
+    "lastHeartbeatTime": "2019-02-21T07:32:38Z",
+    "lastTransitionTime": "2019-02-21T07:32:38Z",
+    "message": "kubelet is posting ready status. AppArmor enabled",
+    "reason": "KubeletReady",
+    "status": "True",
+    "type": "Ready"
+  }
+  #+END_SRC
+
+#+NAME: node should be ready
+#+BEGIN_SRC shell
+  kubectl get nodes
+#+END_SRC	
+
+#+RESULTS: node should be ready
+#+BEGIN_EXAMPLE :noeval t
+NAME         STATUS   ROLES    AGE     VERSION
+ci.ii.coop   Ready    master   3m52s   v1.13.3
+#+END_EXAMPLE
 
 * helm
 
@@ -199,7 +489,7 @@ curl -L \
 #+END_SRC
 
 * disks
-
+  
 ~hostpath-provisioner~
 
 Uses local directories, created dynamically, to serve up PVs to PVCs
@@ -362,10 +652,13 @@ kubectl apply -f ~/hostpath-provisioner.yaml
 
 #+END_SRC
 
-#+NAME: inspect hostpath-provisioner logs
-#+BEGIN_SRC tmate
+#+name: inspect hostpath-provisioner logs
+#+begin_src tmate
+
+kubectl get pvc testpvc
 kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
 #+END_SRC
+
 * webui
 
 https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
@@ -374,6 +667,7 @@ https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
 kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
 #+END_SRC
 
+Forward your localhost:8001 to the remote localhost:8001 (start the proxy once, other folks/hosts will connect to the one proxy)
 #+BEGIN_SRC :eval never
 ssh -L 8001:localhost:8001 root@139.178.88.146 kubectl proxy
 #+END_SRC
@@ -407,13 +701,18 @@ ssh -L 8001:localhost:8001 root@139.178.88.146 kubectl proxy
     EOF
 #+END_SRC
 
-#+NAME: create service account
-#+BEGIN_SRC tmate
+#+NAME: admin_token
+#+BEGIN_SRC shell
 kubectl get -n kube-system -o json secret \
   `kubectl get secret -n kube-system | grep admin-user | awk '{print $1}'` \
   | jq -r .data.token \
   | base64 --decode
 #+END_SRC
+
+#+RESULTS: admin_token
+#+BEGIN_EXAMPLE :noeval t
+eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi11c2VyLXRva2VuLXc5cnFqIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImFkbWluLXVzZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJjNjQ1MDExZS0zNWZjLTExZTktYWFhMy05ODAzOWIzMDIzODYiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06YWRtaW4tdXNlciJ9.l4Njhars0ri5JtJuD2e1bk3BFMmkWvBsgqmgkmAUG4wy7469-g96a86IpsFkzh5LfnJXRjWoP0fEphyE_yjHVkkvpuzUyr4mXLbIUSshS3cIgyi4swc6_UMuIS0pwFupdrOvRc7UYDP4UmEOVcBxmo3psATP0Zb9F_-5Pcedlja4fD6QVc5F46owjpqUoMPPrwdlcEsNF586-Yg2IzN4Ku5SppUl7q9l2zFvdhkIQDWNhzZyBoJfRqoRGJKxiokIz-t-xjSjk1U7q3u1uuY0bDCLHEgxPZwhZNsnm6C0ENn5t2Gh67Oquz33eQCauagbLgCNdKI_B1YacJo-L_O6VQ
+#+END_EXAMPLE
 
 http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
 
@@ -488,6 +787,7 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
   \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
   bash --login\"
 #+END_SRC
+* Footnotes
 
 # xclip on then off, due to this being a remote box
 # eval: (xclip-mode 1) 
@@ -499,7 +799,7 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
 # eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& sleep 2 \\&\\& tmate display -p \'\\\#{tmate_ssh}\\ \\\\#\\ right\\ \\\\#\\ \\\#{tmate_web}\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
 # eval: (xclip-mode 1) 
 # eval: (gui-select-text (concat "ssh -tAX " ssh-user-host " -L " socket ":" socket " " start-tmate-command))
 # eval: (xclip-mode 0) 
