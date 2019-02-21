@@ -5,4 +5,4 @@ GitLab training - understanding a little more about how it works from Zach and h
 * Wednesday
 I started to go through tickets and update or action - moving the issue to another project via the right hand side bar. 
 * Thursday
-Continued moving Issues from one Project to another, learned how to use sidebar to set status' and labels etc. In process of note-taking for questions related to set up of GitLab - to go over with Zach.
+Continued moving Issues from one Project to another, learned how to use sidebar to set status' and labels etc. In process of note-taking for questions related to set up of GitLab - to go over with Zach. Also found how to edit projects under their Settings tab.
