@@ -244,9 +244,10 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
 # eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& sleep 2 \\&\\& echo \\\\\\\`tmate display -p \'\\\#{tmate_ssh}\'\\\\\\\` \\\\\\\# right \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& sleep 2 \\&\\& echo \\\\\\\`tmate display -p \'\\\#{tmate_ssh}\\ \\\\\\#\\ right\\ \\\\\\#\\ \\\#{tmate_web}\'\\\\\\\` \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& sleep 2 \\&\\& tmate display -p \'\\\#{tmate_ssh}\\ \\\\#\\ right\\ \\\\#\\ \\\#{tmate_web}\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
 # eval: (xclip-mode 1) 
-# eval: (gui-select-text (concat "ssh -tAX root@147.75.109.113 -L " socket ":" socket " " start-tmate-command))
+# eval: (gui-select-text (concat "ssh -tAX root@139.178.88.146 -L " socket ":" socket " " start-tmate-command))
 # eval: (xclip-mode 0) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
