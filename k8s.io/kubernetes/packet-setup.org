@@ -158,18 +158,7 @@ Before anything else, we want our remote machine to have kubeadm, kubelet, and k
      kubeadm version
    #+END_SRC
 
-   #+RESULTS: kubectl, kubeadm, kubelet versions
-   #+BEGIN_EXAMPLE :noeval t
-   ==kubelet==
-   Kubernetes v1.13.3
-   ==kubectl==
-   Client Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:08:12Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
-   Server Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:00:57Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
-   ==kubeadm==
-   kubeadm version: &version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.3", GitCommit:"721bfa751924da8d1680787490c54b9179b1fed0", GitTreeState:"clean", BuildDate:"2019-02-01T20:05:53Z", GoVersion:"go1.11.5", Compiler:"gc", Platform:"linux/amd64"}
-   #+END_EXAMPLE
-
-   #+RESULTS: Example Working versions of kubectl, kubeadm, kubelet
+   #+NAME: Example Working versions of kubectl, kubeadm, kubelet
    #+BEGIN_EXAMPLE :noeval t
    ==kubelet==
    Kubernetes v1.13.3
@@ -204,7 +193,7 @@ kubeadm reset
 rm -rf /volumes/pvc-*
 #+END_SRC
 
-** Initialize Master K8s (pod|node|cluster?)
+** Initialize Master K8s Node
    NOTE: This script is relevant as of k8s version 1.13.  If you get an error about mismatching versions, it's likely that there's a new stable version of k8s.  Look to waht that is and then adjust the last line in this script accordingly.
    
 #+NAME: Initialize Master  
@@ -237,34 +226,11 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
   #+RESULTS: Check Kubectl Works
   #+BEGIN_EXAMPLE :noeval t
-  NAME         STATUS     ROLES    AGE     VERSION
-  ci.ii.coop   NotReady   master   2m16s   v1.13.3
+  NAME         STATUS     ROLES    AGE   VERSION
+  ci.ii.coop   NotReady   master   34s   v1.13.3
   #+END_EXAMPLE
   
   
-  #+NAME: Status Ready Condition of Master Node
-  #+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
-  kubectl get node \
-    $(kubectl get node -l node-role.kubernetes.io/master --namespace=kube-system -o jsonpath='{.items[*].metadata.name}')\
-     -o json \
-  | jq -M '.status.conditions[] | select(.type=="Ready")'
-  #+END_SRC
-
-We likely haven't setup a CNI / network layer yet, no our node doesn't have a status.condition["Ready"} of True.
-
-  #+RESULTS: Status Ready Condition of Master Node
-  #+BEGIN_SRC json
-  {
-    "lastHeartbeatTime": "2019-02-21T01:26:05Z",
-    "lastTransitionTime": "2019-02-21T00:52:39Z",
-    "message": "runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized",
-    "reason": "KubeletNotReady",
-    "status": "False",
-    "type": "Ready"
-  }
-  #+END_SRC
-
-
 Might be good to show the taints, notready status via kubectl commands before untainting and applying network.
 
 #+NAME: master node taints
@@ -320,6 +286,28 @@ Usually pods don't get scheduled on the master, due to the NoSchedule taint
   ]
   #+END_SRC
 
+  #+NAME: Status Ready Condition of Master Node
+  #+BEGIN_SRC shell :wrap "SRC json" :prologue (symbol-value nil) :epilogue (symbol-value nil)
+  kubectl get node \
+    $(kubectl get node -l node-role.kubernetes.io/master --namespace=kube-system -o jsonpath='{.items[*].metadata.name}')\
+     -o json \
+  | jq -M '.status.conditions[] | select(.type=="Ready")'
+  #+END_SRC
+
+We likely haven't setup a CNI / network layer yet, no our node doesn't have a status.condition["Ready"} of True.
+
+  #+RESULTS: Status Ready Condition of Master Node
+  #+BEGIN_SRC json
+  {
+    "lastHeartbeatTime": "2019-02-21T01:42:42Z",
+    "lastTransitionTime": "2019-02-21T01:41:57Z",
+    "message": "runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized",
+    "reason": "KubeletNotReady",
+    "status": "False",
+    "type": "Ready"
+  }
+  #+END_SRC
+
 * networking
   
 https://docs.projectcalico.org/v3.5/usage/calicoctl/install
@@ -346,8 +334,8 @@ kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEA
   #+RESULTS: Status Ready Condition of Master Node after networking
   #+BEGIN_SRC json
   {
-    "lastHeartbeatTime": "2019-02-21T01:28:05Z",
-    "lastTransitionTime": "2019-02-21T01:28:05Z",
+    "lastHeartbeatTime": "2019-02-21T01:44:42Z",
+    "lastTransitionTime": "2019-02-21T01:44:32Z",
     "message": "kubelet is posting ready status. AppArmor enabled",
     "reason": "KubeletReady",
     "status": "True",
@@ -362,10 +350,9 @@ kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEA
 
 #+RESULTS: node should be ready
 #+BEGIN_EXAMPLE :noeval t
-NAME         STATUS   ROLES    AGE   VERSION
-ci.ii.coop   Ready    master   37m   v1.13.3
+NAME         STATUS   ROLES    AGE     VERSION
+ci.ii.coop   Ready    master   2m53s   v1.13.3
 #+END_EXAMPLE
-
 
 * helm
 
@@ -551,10 +538,13 @@ kubectl apply -f ~/hostpath-provisioner.yaml
 
 #+END_SRC
 
-#+NAME: inspect hostpath-provisioner logs
-#+BEGIN_SRC tmate
+#+name: inspect hostpath-provisioner logs
+#+begin_src tmate
+
+kubectl get pvc testpvc
 kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
 #+END_SRC
+
 * webui
 
 https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
@@ -563,6 +553,7 @@ https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
 kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
 #+END_SRC
 
+Forward your localhost:8001 to the remote localhost:8001 (start the proxy once, other folks/hosts will connect to the one proxy)
 #+BEGIN_SRC :eval never
 ssh -L 8001:localhost:8001 root@139.178.88.146 kubectl proxy
 #+END_SRC
@@ -677,7 +668,6 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
   \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
   bash --login\"
 #+END_SRC
-
 * Footnotes
 # xclip on then off, due to this being a remote box
 # eval: (xclip-mode 1) 
