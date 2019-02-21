@@ -9,9 +9,11 @@
 #+PROPERTY: header-args:shell+ :epilogue ":\n"
 #+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
 #+PROPERTY: header-args:shell+ :dir "/ssh:root@139.178.88.146:/root/"
-#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:shell+ :eval no-export
+#+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
 #+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
+#+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
 
