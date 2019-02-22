@@ -797,10 +797,17 @@ kubectl get -n kube-system -o json secret \
 
 #+RESULTS: admin_token
 #+BEGIN_EXAMPLE :noeval t
-eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi11c2VyLXRva2VuLXc5cnFqIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImFkbWluLXVzZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJjNjQ1MDExZS0zNWZjLTExZTktYWFhMy05ODAzOWIzMDIzODYiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06YWRtaW4tdXNlciJ9.l4Njhars0ri5JtJuD2e1bk3BFMmkWvBsgqmgkmAUG4wy7469-g96a86IpsFkzh5LfnJXRjWoP0fEphyE_yjHVkkvpuzUyr4mXLbIUSshS3cIgyi4swc6_UMuIS0pwFupdrOvRc7UYDP4UmEOVcBxmo3psATP0Zb9F_-5Pcedlja4fD6QVc5F46owjpqUoMPPrwdlcEsNF586-Yg2IzN4Ku5SppUl7q9l2zFvdhkIQDWNhzZyBoJfRqoRGJKxiokIz-t-xjSjk1U7q3u1uuY0bDCLHEgxPZwhZNsnm6C0ENn5t2Gh67Oquz33eQCauagbLgCNdKI_B1YacJo-L_O6VQ
 #+END_EXAMPLE
 
 http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+* tui
+
+#+BEGIN_SRC tmate
+KUBEXP_RELEASE="0.8.1"
+wget https://github.com/alitari/kubexp/releases/download/${KUBEXP_RELEASE}/kubexp
+chmod +x kubexp
+kubectl apply -f https://github.com/alitari/kubexp/raw/master/rbac-default-clusteradmin.yaml
+ #+END_SRC
 
 * Alternatives
 ** PVCs
