@@ -15,15 +15,19 @@
 #+STARTUP: showeverything
 * TLDR
 
+[[/ssh:root@139.178.88.146:/root/]]
+
+Comma b s
 #+NAME: write remote config files
 #+BEGIN_SRC elisp :results none
 (org-babel-tangle)
 #+END_SRC
 
 #+NAME: read kubeadm config from existing cluster
-#+BEGIN_SRC shell :wrap "SRC yaml" :eval ask
+#+BEGIN_SRC shell :wrap "SRC yaml" :eval never
 kubectl -n kube-system get cm kubeadm-config -oyaml
 #+END_SRC
+
 
 #+NAME: reset master
 #+BEGIN_SRC tmate :noweb yes

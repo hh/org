@@ -20,7 +20,7 @@
 * TLDR
 
 Type , b s to evaluate this subtree:
-** TODO fix this
+ TODO fix this
 Error: release gitlab failed: Deployment.apps "gitlab-sidekiq-all-in-1" is invalid: [spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value, spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value, spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
 
 #+NAME: write remote config files
