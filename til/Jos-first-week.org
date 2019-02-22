@@ -5,4 +5,9 @@ GitLab training - understanding a little more about how it works from Zach and h
 * Wednesday
 I started to go through tickets and update or action - moving the issue to another project via the right hand side bar. 
 * Thursday
-Continued moving Issues from one Project to another, learned how to use sidebar to set status' and labels etc. In process of note-taking for questions related to set up of GitLab - to go over with Zach. Also found how to edit projects under their Settings tab.
+* Friday
+Continued moving Issues from one Project to another, learned how to use sidebar to set status' and labels etc. In process of note-taking for questions related to set up of GitLab - to go over with Zach. Also found how to edit projects under their Settings tab. At present, it seems that the way to organise tasks/issues in terms of urgency would be either to create an Urgent label and/or use filtering. Yet to see how efficient this is in the way I work. Discussed (screen) notifications that pop up but seems that other than Due Dates, it would have to be something with a calendar. Suggestion is Next Cloud which I need to log on and look at.
+ Need to find a way for me to set a new project up or work differently. For me it work is about different areas/departments and within that I will have both tasks/projects and documents/information.Some will be spreadsheet/style, some PDF, some Word doc style etc. Looked at idea of using Boards - will look at this more to see if will work. Zach will look at how we can manage this.
+ Highlighted my need to look at Milestones which I haven't focussed on yet. Long story!
+
+
