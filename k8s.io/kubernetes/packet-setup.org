@@ -275,6 +275,27 @@ Before anything else, we want our remote machine to have kubeadm, kubelet, and k
   # Comment out any swap to disable automounting
   sed -e '/swap/ s/^#*/#/' -i /etc/fstab
 #+END_SRC
+** reconfigure_ssh
+
+Configure SSH to only listen on the primary IP
+
+We need to be able to use port 22 on the other IPs for tmate/gitlab instances
+
+#+BEGIN_SRC tmate
+  sed -e '/ListenAddress 0.0.0.0/ s/0.0.0.0/139.178.88.146/' -i /etc/ssh/sshd_config
+  grep ListenAddress /etc/ssh/sshd_config
+#+END_SRC
+
+#+NAME: ssh listening only on one IP
+#+BEGIN_SRC shell
+lsof -i -n -P | grep LISTEN | grep IPv4 | grep -v 127.0.0.1 | grep ssh
+#+END_SRC
+
+#+RESULTS: ssh listening only on one IP
+#+BEGIN_EXAMPLE :noeval t
+sshd      235392            root    3u  IPv4 8983782      0t0  TCP 139.178.88.146:22 (LISTEN)
+#+END_EXAMPLE
+
 ** Install Docker
 
 We are using docker.io from ubuntu, should possibly switch to upstream docker-ce
@@ -345,11 +366,26 @@ If set it to a non-zero IP block, kube-proxy will filter that down to just the I
 An empty string slice is meant to select all network interfaces.
   NodePortAddresses []string
 #+END_QUOTE
+#+BEGIN_QUOTE
+Range of host ports (
+
+beginPort-endPort,
+single port or
+beginPort+offset,
+inclusive
+
+)
+
+that may be consumed in order to proxy service traffic.
+If (unspecified, 0, or 0-0) then ports will be randomly chosen.
+#+END_QUOTE
 
 #+NAME: kubeadm defaults
 #+BEGIN_SRC tmate
 kubeadm config print init-defaults --component-configs KubeProxyConfiguration,KubeletConfiguration
 #+END_SRC
+[[https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1#ClusterConfiguration]]
+extraArgs, audit policy etc
 
 #+NAME: kubeadm config
 #+BEGIN_SRC yaml :tangle (concat "/ssh:" ssh-user-host ":kubeadm-config.yaml")
@@ -367,11 +403,15 @@ kubeadm config print init-defaults --component-configs KubeProxyConfiguration,Ku
   networking:
     podSubnet: "10.244.0.0/16"
     serviceSubnet: "10.96.0.0/12"
+  apiServer:
+    extraArgs:
+      service-node-port-range: "22-10000" # allow more ports via API
   ---
   apiVersion: kubeproxy.config.k8s.io/v1alpha1
   kind: KubeProxyConfiguration
-  nodePortAddresses: [] # "" # default is null
-  portRange: "22-60000"
+  nodePortAddresses:
+    - "139.178.88.144/29" # default is null
+  portRange: "22-10000" # Proxy also needs port range to ensure we can use 22,80,443,and friends
 #+END_SRC
 
 #+NAME: using a config file to set kubeadm config options
@@ -427,8 +467,54 @@ kubectl get nodes
   NAME         STATUS     ROLES    AGE     VERSION
   ci.ii.coop   NotReady   master   3m42s   v1.13.3
   #+END_EXAMPLE
-  
-  
+
+Look inside the kube-proxy pod to see the rendered config file:
+
+#+NAME: apiserver cmdline
+#+BEGIN_SRC shell
+kubectl exec -ti --namespace=kube-system \
+  `kubectl get pods \
+    --namespace=kube-system \
+    -l component=kube-apiserver \
+    -o jsonpath='{.items[].metadata.name}'` \
+   cat /proc/1/cmdline \
+   | sed s/--/\\n--/g \
+   | sed s/.\$//g \
+   | grep -C2 service-node-port-range
+#+END_SRC 
+
+#+RESULTS: apiserver cmdline
+#+BEGIN_EXAMPLE :noeval t
+kube-apiserver
+--authorization-mode=Node,RBAC
+--service-node-port-range=22-10000
+--advertise-address=139.178.88.146
+--allow-privileged=true
+#+END_EXAMPLE
+
+#+NAME: proxy-config 
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl exec -ti --namespace=kube-system \
+  `kubectl get pods --namespace=kube-system \
+    -l k8s-app=kube-proxy \
+    -o jsonpath='{.items[].metadata.name}'` \
+   cat /var/lib/kube-proxy/config.conf \
+   | grep -C3 portRange\\\|nodePort
+#+END_SRC 
+
+#+RESULTS: proxy-config
+#+BEGIN_SRC yaml
+kind: KubeProxyConfiguration
+metricsBindAddress: 127.0.0.1:10249
+mode: ""
+nodePortAddresses:
+- 139.178.88.144/29
+oomScoreAdj: -999
+portRange: 22+10000
+resourceContainer: /kube-proxy
+udpIdleTimeout: 250ms
+#+END_SRC
+
 Might be good to show the taints, notready status via kubectl commands before untainting and applying network.
 
 #+NAME: master node taints
@@ -599,6 +685,8 @@ Ensure you tangle / write ~hostpath-provisioner.yaml~ file to the host then run 
 
 #+BEGIN_SRC tmate
 kubectl apply -f ~/hostpath-provisioner.yaml
+kubectl get pvc testpvc
+kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
 #+END_SRC
 
 #+NAME: hostpath-provisioner.yaml

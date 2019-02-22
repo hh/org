@@ -105,9 +105,14 @@ We use mailgun for now, until there is a smtp.ii.nz
 
 #+RESULTS: tramp link to recode.ii.nz.yaml
 [[/ssh:root@139.178.88.146:/root/recode.ii.nz.yaml]]
-
 [[http://localhost:8001/api/v1/namespaces/gitlab/services/https:gitlab-nginx-ingress-controller:/]]
 
+
+*** Services
+[[https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service]]
+[[https://gitlab.com/charts/gitlab/blob/master/charts/nginx/templates/controller-service.yaml]]
+controller.service.nodePorts.http
+controller.service.nodePorts.https
 Our chart has some very nice documentation:
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/command-line-options.md]]
 
@@ -126,7 +131,8 @@ Our chart has some very nice documentation:
 
 * TODO set valid rang
 #+BEGIN_SRC error
-Error: release gitlab failed: Service "gitlab-nginx-ingress-controller" is invalid: spec.ports[0].nodePort: Invalid value: 80: provided port is not in the valid range. The range of valid ports is 30000-32767
+Error: release gitlab failed: Service "gitlab-nginx-ingress-controller" is invalid: spec.ports[0].nodePort:
+Invalid value: 80: provided port is not in the valid range. The range of valid ports is 30000-32767
 #+END_SRC
 
 #+NAME: The Config
@@ -246,6 +252,8 @@ kube-system   tiller-deploy-dbb85cb99-f84vr           1/1     Running   0       
 #+NAME: Deploy Gitlab on Kubernetes
 #+BEGIN_SRC tmate
 helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
+MINIO_PVC=$(kubectl get pvc --namespace=gitlab gitlab-minio -o jsonpath='{.spec.volumeName}')
+chown 1000.1000 /volumes/$MINIO_PVC
 #+END_SRC
 
 #+NAME: Delete Gitlab Fully
@@ -254,19 +262,182 @@ helm delete --purge gitlab
 #+END_SRC
 
 * Monitor the Progress of your gitlab installation
+** monitor
+#+NAME: ingress IP and ports
+#+BEGIN_SRC shell
+kubectl get service --namespace gitlab gitlab-nginx-ingress-controller
+#+END_SRC
+
+#+RESULTS: ingress IP and ports
+#+BEGIN_EXAMPLE :noeval t
+NAME                              TYPE       CLUSTER-IP       EXTERNAL-IP      PORT(S)                             AGE
+gitlab-nginx-ingress-controller   NodePort   10.110.226.218   139.178.88.148   80:80/TCP,443:443/TCP,22:1819/TCP   90s
+#+END_EXAMPLE
 
 ** See how the run
-   
-#+NAME: see how the run
+** pods   
+#+NAME: pods
 #+BEGIN_SRC tmate
-helm status gitlab
+watch kubectl get pods --namespace=gitlab
 #+END_SRC
 
-#+NAME: see how the run
-#+BEGIN_SRC tmate
-helm status gitlab
+#+NAME: ingresses
+#+BEGIN_SRC shell
+kubectl get ingresses --namespace=gitlab
 #+END_SRC
 
+#+RESULTS: ingresses
+#+BEGIN_EXAMPLE :noeval t
+NAME                        HOSTS                   ADDRESS          PORTS     AGE
+cm-acme-http-solver-km7gb   gitlab.recode.ii.nz     139.178.88.148   80        6m21s
+cm-acme-http-solver-mflf2   minio.recode.ii.nz      139.178.88.148   80        6m21s
+cm-acme-http-solver-tw5zg   registry.recode.ii.nz   139.178.88.148   80        6m21s
+gitlab-minio                minio.recode.ii.nz      139.178.88.148   80, 443   6m30s
+gitlab-registry             registry.recode.ii.nz   139.178.88.148   80, 443   6m30s
+gitlab-unicorn              gitlab.recode.ii.nz     139.178.88.148   80, 443   6m30s
+#+END_EXAMPLE
+
+#+NAME: services
+#+BEGIN_SRC shell
+kubectl get services --namespace=gitlab
+#+END_SRC
+
+#+RESULTS: services
+#+BEGIN_EXAMPLE :noeval t
+NAME                                      TYPE        CLUSTER-IP       EXTERNAL-IP      PORT(S)                             AGE
+cm-acme-http-solver-5f6b5                 NodePort    10.102.109.23    <none>           8089:3392/TCP                       6m51s
+cm-acme-http-solver-64gxg                 NodePort    10.101.202.118   <none>           8089:4835/TCP                       6m51s
+cm-acme-http-solver-jlhvq                 NodePort    10.99.36.51      <none>           8089:5329/TCP                       6m51s
+gitlab-gitaly                             ClusterIP   None             <none>           8075/TCP,9236/TCP                   7m2s
+gitlab-gitlab-shell                       ClusterIP   10.106.254.236   <none>           22/TCP                              7m2s
+gitlab-minio-svc                          ClusterIP   10.100.31.15     <none>           9000/TCP                            7m2s
+gitlab-nginx-ingress-controller           NodePort    10.104.25.12     139.178.88.148   80:80/TCP,443:443/TCP,22:9166/TCP   7m2s
+gitlab-nginx-ingress-controller-metrics   ClusterIP   10.109.168.214   <none>           9913/TCP                            7m2s
+gitlab-nginx-ingress-controller-stats     ClusterIP   10.110.103.9     <none>           18080/TCP                           7m2s
+gitlab-nginx-ingress-default-backend      ClusterIP   10.102.151.3     <none>           80/TCP                              7m2s
+gitlab-postgresql                         ClusterIP   10.97.118.220    <none>           5432/TCP                            7m2s
+gitlab-prometheus-server                  ClusterIP   10.97.122.130    <none>           80/TCP                              7m2s
+gitlab-redis                              ClusterIP   10.101.93.233    <none>           6379/TCP,9121/TCP                   7m2s
+gitlab-registry                           ClusterIP   10.101.172.24    <none>           5000/TCP                            7m2s
+gitlab-unicorn                            ClusterIP   10.98.201.112    <none>           8080/TCP,8181/TCP                   7m2s
+#+END_EXAMPLE
+
+#+NAME: External NodePort
+#+BEGIN_SRC shell :wrap "SRC json"
+kubectl get services gitlab-nginx-ingress-controller --namespace=gitlab -o json \
+  | jq -M .spec
+#+END_SRC
+
+First time around we notices that SSH was likely listening on all ports, so we weren't given port 22.
+So we went back and configured SSH to only listen on the first IP.
+
+#+RESULTS: External NodePort
+#+BEGIN_SRC json
+{
+  "clusterIP": "10.101.230.167",
+  "externalIPs": [
+    "139.178.88.148"
+  ],
+  "externalTrafficPolicy": "Local",
+  "ports": [
+    {
+      "name": "http",
+      "nodePort": 80,
+      "port": 80,
+      "protocol": "TCP",
+      "targetPort": "http"
+    },
+    {
+      "name": "https",
+      "nodePort": 443,
+      "port": 443,
+      "protocol": "TCP",
+      "targetPort": "https"
+    },
+    {
+      "name": "gitlab-shell",
+      "nodePort": 6519,
+      "port": 22,
+      "protocol": "TCP",
+      "targetPort": "gitlab-shell"
+    }
+  ],
+  "selector": {
+    "app": "nginx-ingress",
+    "component": "controller",
+    "release": "gitlab"
+  },
+  "sessionAffinity": "None",
+  "type": "NodePort"
+}
+#+END_SRC
+
+#+NAME: nginx-ingress-tcp configmap
+#+BEGIN_SRC shell :wrap "SRC json"
+kubectl get configmaps gitlab-nginx-ingress-tcp --namespace=gitlab -o json \
+  | jq -M .data
+#+END_SRC
+
+#+RESULTS: nginx-ingress-tcp configmap
+#+BEGIN_SRC json
+{
+  "22": "gitlab/gitlab-gitlab-shell:22"
+}
+#+END_SRC
+* Redis Permissions
+
+Some how /data/redis is created as root when redis loads.
+We need to set the permissions for the volume (/data) and the /data/redis as it's created as owner root.
+
+#+NAME: redis logs
+#+BEGIN_SRC shell
+kubectl logs --namespace=gitlab gitlab-redis-7577d89db9-f77t6  -c redis | tail -4
+#+END_SRC  
+
+#+RESULTS: redis logs
+#+BEGIN_EXAMPLE :noeval t
+1:M 22 Feb 09:45:05.021 * 10 changes in 300 seconds. Saving...
+1:M 22 Feb 09:45:05.022 * Background saving started by pid 154
+154:C 22 Feb 09:45:05.022 # Failed opening the RDB file gitlab-redis.rdb (in server root dir /data/redis) for saving: Permission denied
+1:M 22 Feb 09:45:05.122 # Background saving error
+#+END_EXAMPLE
+
+#+NAME: redis run as uid
+#+BEGIN_SRC shell
+kubectl exec -ti --namespace=gitlab gitlab-redis-7577d89db9-f77t6  -c redis id
+#+END_SRC
+
+#+RESULTS: redis run as uid
+#+BEGIN_EXAMPLE :noeval t
+Unable to use a TTY - input is not a terminal or the right kind of file
+uid=999(redis) gid=999(redis) groups=999(redis)
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
+chown -R 999.999 /volumes/$REDIS_PVC
+#+END_SRC
+* pvc repo-data-gitlab-gitaly-0
+
+#+BEGIN_SRC shell
+REPO_PVC=$(kubectl get pvc --namespace=gitlab repo-data-gitlab-gitaly-0 -o jsonpath='{.spec.volumeName}')
+ls -la /volumes/$REPO_PVC
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+total 12
+drwxrwxrwx 3  999  999 4096 Feb 22 10:06 .
+drwxr-xr-x 8  999  999 4096 Feb 22 09:25 ..
+drwxr-x--- 4 1000 1000 4096 Feb 22 10:06 root
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
+chown -R 1000.1000 /volumes/$REDIS_PVC
+#+END_SRC
+
+* Minio Permissions
 If minio is working, it will not have any output, but we've been finding it complains that it can't write to .minio.sys.
 We also noted that when we set perms on it's volume to 777, .minio.sys is written as uid 1000.
 There is likely an issue with minio needing to set the perms on the volume / folder before starting.
@@ -278,133 +449,12 @@ kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=minio -l component=a
 
 #+RESULTS: inspect minio logs
 #+BEGIN_EXAMPLE :noeval t
-time="2019-02-21T02:13:23Z" level=error msg="Initializing object layer failed" cause="Unable to initialize '.minio.sys' meta volume, mkdir /export/.minio.sys: permission denied" source="[server-main.go:214:serverMain()]" 
+time="2019-02-22T08:57:23Z" level=error msg="Initializing object layer failed" cause="Unable to initialize '.minio.sys' meta volume, mkdir /export/.minio.sys: permission denied" source="[server-main.go:214:serverMain()]" 
 #+END_EXAMPLE
 
 #+NAME: describe minio pod/container
-#+BEGIN_SRC shell :wrap "SRC config"
+#+BEGIN_SRC shell :wrap "SRC config" :eval ask
 kubectl describe pod/`kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces` --namespace=gitlab
-#+END_SRC
-
-#+RESULTS: describe minio pod/container
-#+BEGIN_SRC config
-Name:               gitlab-minio-c64f9694b-58fr5
-Namespace:          gitlab
-Priority:           0
-PriorityClassName:  <none>
-Node:               ci.ii.coop/139.178.88.146
-Start Time:         Thu, 21 Feb 2019 15:11:43 +1300
-Labels:             app=minio
-                    chart=minio-0.4.3
-                    component=app
-                    heritage=Tiller
-                    pod-template-hash=c64f9694b
-                    release=gitlab
-Annotations:        <none>
-Status:             Running
-IP:                 10.244.0.193
-Controlled By:      ReplicaSet/gitlab-minio-c64f9694b
-Init Containers:
-  configure:
-    Container ID:  docker://0cda30ea9d76cab33a93c8c3b7a9452e267901cf179402a0359369dcf0f562bb
-    Image:         busybox:latest
-    Image ID:      docker-pullable://busybox@sha256:061ca9704a714ee3e8b80523ec720c64f6209ad3f97c0ff7cb9ec7d19f15149f
-    Port:          <none>
-    Host Port:     <none>
-    Command:
-      sh
-      /config/configure
-    State:          Terminated
-      Reason:       Completed
-      Exit Code:    0
-      Started:      Thu, 21 Feb 2019 15:11:49 +1300
-      Finished:     Thu, 21 Feb 2019 15:11:49 +1300
-    Ready:          True
-    Restart Count:  0
-    Requests:
-      cpu:        50m
-    Environment:  <none>
-    Mounts:
-      /config from minio-configuration (rw)
-      /minio from minio-server-config (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
-Containers:
-  minio:
-    Container ID:  docker://10245427884e3e964bb982da4bebc4c8c5bd24aad2616cd2a4c4c6445073d052
-    Image:         minio/minio:RELEASE.2017-12-28T01-21-00Z
-    Image ID:      docker-pullable://minio/minio@sha256:3611f1644cf5447e2f3639b4212ade26155f6a0632bef155c4d6510811c1fe1d
-    Port:          9000/TCP
-    Host Port:     0/TCP
-    Args:
-      -C
-      /tmp/.minio
-      --quiet
-      server
-      /export
-    State:          Waiting
-      Reason:       CrashLoopBackOff
-    Last State:     Terminated
-      Reason:       Error
-      Exit Code:    1
-      Started:      Thu, 21 Feb 2019 15:14:48 +1300
-      Finished:     Thu, 21 Feb 2019 15:14:48 +1300
-    Ready:          False
-    Restart Count:  5
-    Requests:
-      cpu:        100m
-      memory:     128Mi
-    Liveness:     tcp-socket :9000 delay=0s timeout=1s period=10s #success=1 #failure=3
-    Environment:  <none>
-    Mounts:
-      /export from export (rw)
-      /podinfo from podinfo (rw)
-      /tmp/.minio from minio-server-config (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
-Conditions:
-  Type              Status
-  Initialized       True 
-  Ready             False 
-  ContainersReady   False 
-  PodScheduled      True 
-Volumes:
-  podinfo:
-    Type:  DownwardAPI (a volume populated by information about the pod)
-    Items:
-      metadata.labels -> labels
-  export:
-    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
-    ClaimName:  gitlab-minio
-    ReadOnly:   false
-  minio-configuration:
-    Type:                Projected (a volume that contains injected data from multiple sources)
-    ConfigMapName:       gitlab-minio-config-cm
-    ConfigMapOptional:   <nil>
-    SecretName:          gitlab-minio-secret
-    SecretOptionalName:  <nil>
-  minio-server-config:
-    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
-    Medium:  Memory
-  default-token-tfwcn:
-    Type:        Secret (a volume populated by a Secret)
-    SecretName:  default-token-tfwcn
-    Optional:    false
-QoS Class:       Burstable
-Node-Selectors:  <none>
-Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
-                 node.kubernetes.io/unreachable:NoExecute for 300s
-Events:
-  Type     Reason            Age                     From                 Message
-  ----     ------            ----                    ----                 -------
-  Warning  FailedScheduling  5m19s (x12 over 5m21s)  default-scheduler    pod has unbound immediate PersistentVolumeClaims
-  Normal   Scheduled         5m19s                   default-scheduler    Successfully assigned gitlab/gitlab-minio-c64f9694b-58fr5 to ci.ii.coop
-  Normal   Pulled            5m13s                   kubelet, ci.ii.coop  Container image "busybox:latest" already present on machine
-  Normal   Created           5m13s                   kubelet, ci.ii.coop  Created container
-  Normal   Started           5m13s                   kubelet, ci.ii.coop  Started container
-  Normal   Pulling           4m28s (x4 over 5m12s)   kubelet, ci.ii.coop  pulling image "minio/minio:RELEASE.2017-12-28T01-21-00Z"
-  Normal   Pulled            4m27s (x4 over 5m7s)    kubelet, ci.ii.coop  Successfully pulled image "minio/minio:RELEASE.2017-12-28T01-21-00Z"
-  Normal   Created           4m27s (x4 over 5m6s)    kubelet, ci.ii.coop  Created container
-  Normal   Started           4m27s (x4 over 5m6s)    kubelet, ci.ii.coop  Started container
-  Warning  BackOff           4s (x28 over 4m53s)     kubelet, ci.ii.coop  Back-off restarting failed container
 #+END_SRC
 
 #+BEGIN_SRC tmate
@@ -434,13 +484,11 @@ drwxr-xr-x 9 root root 4096 Feb 21 17:35 ..
 
 #+NAME: get root password
 #+BEGIN_SRC shell
-kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.password} | base64 --decode ; echo
+kubectl get secret --namespace=gitlab gitlab-gitlab-initial-root-password -ojsonpath={.data.password} | base64 --decode ; echo
 #+END_SRC
 
 #+RESULTS: get root password
 #+BEGIN_EXAMPLE :noeval t
-Error from server (NotFound): secrets "gitlab-gitlab-initial-root-password" not found
-
 #+END_EXAMPLE
 
 ** TODO email
