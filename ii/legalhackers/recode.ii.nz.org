@@ -140,7 +140,11 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
   # https://gitlab.com/charts/gitlab/blob/master/doc/installation/command-line-options.md#advanced-nginx-ingress-configuration
   # https://gitlab.com/charts/gitlab/blob/master/charts/nginx/index.md#configuration
   # we have multiple IPs on the single box packet master
-  #hostNetwork: true
+  # https://gitlab.com/charts/gitlab/blob/master/values.yaml
+
+  ## doc/charts/nginx/index.md
+  ## doc/architecture/decisions.md#nginx-ingress
+  ## Installation & configuration of charts/nginx
   nginx-ingress:
     controller:
       # hostNetwork: true #?
@@ -170,28 +174,74 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
       #externalIP: 139.178.88.148 
       #loadBalancerIP: 139.178.88.148 
       domain: recode.ii.nz
-    # Outgoing email server settings
-    # smtp:
-    #   enabled: true
-    #   address: smtp.mailgun.org
-    #   port: 2525
-    #   user_name: "<<smtp_user_name()>>"
-    #   password:
-    #     secret: "smtp_password"
-    #     key: "<<smtp_password()>>"
-    #   domain: recode.ii.nz
-    #   authentication: "plain"
-    #   starttls_auto: false
-    #   openssl_verify_mode: "peer"
-    # Email persona used in email sent by GitLab
-    # application:
-    #   create: true
-    email:
-      from: 'gitlab@recode.ii.nz'
-      display_name: GitLab@recode.ii.nz
-      reply_to: 'hh@ii.coop'
-      subject_suffix: ' | ii.nz'
-    time_zone: Pacific/Auckland
+    ## doc/charts/globals.md#configure-appconfig-settings
+    ## Rails based portions of this chart share many settings
+    appConfig:
+      ## doc/charts/globals.md#general-application-settings
+      enableUsagePing: true
+      enableImpersonation: true
+      defaultCanCreateGroup: true
+      usernameChangingEnabled: true
+      issueClosingPattern:
+      defaultTheme:
+      defaultProjectsFeatures:
+        issues: true
+        mergeRequests: true
+        wiki: true
+        snippets: true
+        builds: true
+
+      ## doc/charts/globals.md#incoming-email-settings
+      ## doc/installation/deployment.md#incoming-email
+      # incomingEmail:
+      #   enabled: true
+      #   address: ""
+      #   host: "imap.gmail.com"
+      #   port: 993
+      #   ssl: true
+      #   startTls: false
+      #   user: ""
+      #   password:
+      #     secret: ""
+      #     key: password
+      #   mailbox: inbox
+      #   idleTimeout: 60
+
+      omniauth:
+        enabled: true
+        autoSignInWithProvider: 
+        allowSingleSignOn: ['github', 'google_oauth2']
+        blockAutoCreatedUsers: false
+        providers:
+          - key: 'github'
+            app_id: "<<omniauth_github_app_id()>>"
+            app_secret: "<<omniauth_github_app_secret()>>"
+          - key: 'google_oauth2'
+            app_id: "<<omniauth_google_app_id()>>"
+            app_secret: "<<omniauth_google_app_secret()>>"
+        syncProfileAttributes: ['email']
+      # Outgoing email server settings
+      # smtp:
+      #   enabled: true
+      #   address: smtp.mailgun.org
+      #   port: 2525
+      #   user_name: "<<smtp_user_name()>>"
+      #   password:
+      #     secret: "smtp_password"
+      #     key: "<<smtp_password()>>"
+      #   domain: recode.ii.nz
+      #   authentication: "plain"
+      #   starttls_auto: false
+      #   openssl_verify_mode: "peer"
+      # Email persona used in email sent by GitLab
+      # application:
+      #   create: true
+      email:
+        from: 'gitlab@recode.ii.nz'
+        display_name: GitLab@recode.ii.nz
+        reply_to: 'hh@ii.coop'
+        subject_suffix: ' | ii.nz'
+      time_zone: Pacific/Auckland
     # We set email timout to 600 at some point
     #  timeout: 600
   certmanager-issuer:
@@ -208,19 +258,6 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
     migrations:
       image:
         repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
-    omniauth:
-      enabled: yes
-      autoSignInWithProvider: 
-      allowSingleSignOn: ['github', 'google_oauth2']
-      blockAutoCreatedUsers: false
-      providers:
-        - key: 'github'
-          app_id: "<<omniauth_github_app_id()>>"
-          app_secret: "<<omniauth_github_app_secret()>>"
-        - key: 'google_oauth2'
-          app_id: "<<omniauth_google_app_id()>>"
-          app_secret: "<<omniauth_google_app_secret()>>"
-      syncProfileAttributes: ['email']
 #+END_SRC
 
 ** Verify cluster
@@ -254,11 +291,17 @@ kube-system   tiller-deploy-dbb85cb99-f84vr           1/1     Running   0       
 helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
 MINIO_PVC=$(kubectl get pvc --namespace=gitlab gitlab-minio -o jsonpath='{.spec.volumeName}')
 chown 1000.1000 /volumes/$MINIO_PVC
+REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
+chown -R 999.999 /volumes/$REDIS_PVC
+#gitaly / repo-data takes a while to be created
+REPO_PVC=$(kubectl get pvc --namespace=gitlab repo-data-gitlab-gitaly-0 -o jsonpath='{.spec.volumeName}')
+echo $REPO_PVC
+#chown 1000.1000 /volumes/$REPO_PVC
 #+END_SRC
 
 #+NAME: Delete Gitlab Fully
 #+BEGIN_SRC tmate
-helm delete --purge gitlab
+helm delete --purge gitlab && kubectl delete namespace gitlab
 #+END_SRC
 
 * Monitor the Progress of your gitlab installation
