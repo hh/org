@@ -13,6 +13,49 @@
 #+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
+* TLDR
+
+#+NAME: write remote config files
+#+BEGIN_SRC elisp :results none
+(org-babel-tangle)
+#+END_SRC
+
+#+NAME: read kubeadm config from existing cluster
+#+BEGIN_SRC shell :wrap "SRC yaml" :eval ask
+kubectl -n kube-system get cm kubeadm-config -oyaml
+#+END_SRC
+
+#+NAME: reset master
+#+BEGIN_SRC tmate :noweb yes
+  <<Reset Master>> -f
+  <<delete pvcs>>
+#+END_SRC
+
+#+NAME: install k8s
+#+BEGIN_SRC tmate :noweb yes
+  <<kubeadm pull images>>
+  <<kubeadm init>>
+  <<configure kubectl>>
+#+END_SRC  
+
+#+NAME: foo
+#+BEGIN_SRC tmate :noweb yes
+#+END_SRC
+
+#+NAME: configure k8s
+#+BEGIN_SRC tmate :noweb yes
+  <<flannel setup>>
+  <<create tiller service account>>
+  <<helm init w/ tiller>>
+  <<setup hostpath-provisioner>>
+  <<install dashboard>>
+  <<create admin service account>>
+  <<create admin cluster role binding>>
+  <<configure kubeexp>>
+  k get pods --all-namespaces          
+#+END_SRC
+
+http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
 
 * Objectives
   This article runs through deploying a kubernetes cluster onto a remote machine running Ubuntu 18, and then deploying gitlab to that cluster.
@@ -314,7 +357,7 @@ We are using docker.io from ubuntu, should possibly switch to upstream docker-ce
   This is here for iteration. 
 #+NAME: Reset Master  
 #+BEGIN_SRC tmate
-kubeadm reset
+kubeadm reset --force
 #+END_SRC
 ** Delete PVCS
    Also for iteration loops. Not necessary if this is the first time, as you have not created any storage yet.
@@ -326,7 +369,7 @@ rm -rf /volumes/pvc-*
 ** Initialize Master K8s Node
    NOTE: This script is relevant as of k8s version 1.13.  If you get an error about mismatching versions, it's likely that there's a new stable version of k8s.  Look to waht that is and then adjust the last line in this script accordingly.
    
-#+NAME: Pull down kubernets containers
+#+NAME: kubeadm pull images
 #+BEGIN_SRC tmate
 kubeadm config images pull \
  --kubernetes-version stable-1.13
@@ -414,12 +457,9 @@ extraArgs, audit policy etc
   portRange: "22-10000" # Proxy also needs port range to ensure we can use 22,80,443,and friends
 #+END_SRC
 
-#+NAME: using a config file to set kubeadm config options
+#+NAME: kubeadm init
 #+BEGIN_SRC tmate :eval ask
-  kubeadm reset --force
   kubeadm init --config kubeadm-config.yaml
-  # --kube-proxy-nodeport-addresses=139.178.88.144/29 \
-  # --kube-proxy-nodeport-addresses="[]" \
 #+END_SRC
 
 Might be worth looking into kube-proxy IPVS mode:
@@ -437,7 +477,7 @@ kubeadm init \
 ** Configure kubectl
 When it is installed, you can check it with the following
 
-#+NAME: Configure kubectl
+#+NAME: configure kubectl
 #+BEGIN_SRC tmate
 mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -604,6 +644,7 @@ TODO add other options linked in our dm channel (flannel, weaver)
 ~flannel~
   Flannel is a CNI (container network interface) that essentially helps get our network up.  So let's install it. 
   
+#+NAME: flannel setup
 #+BEGIN_SRC tmate
 FLANNEL_RELEASE=v0.11.0
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEASE/Documentation/kube-flannel.yml
@@ -649,13 +690,13 @@ curl -L \
   | tar xvz -f - --strip-components 1 -C /usr/local/bin linux-amd64/helm linux-amd64/tiller
 #+END_SRC
 
-#+NAME: Setup a Service Account
+#+NAME: create tiller service account
 #+BEGIN_SRC tmate
   kubectl --namespace kube-system create serviceaccount tiller
   kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
 #+END_SRC
 
-#+NAME: Initialize tiller
+#+NAME: helm init w/ tiller
 #+BEGIN_SRC tmate
   helm init --service-account tiller
 #+END_SRC
@@ -683,10 +724,9 @@ mount /volumes
 
 Ensure you tangle / write ~hostpath-provisioner.yaml~ file to the host then run the following command:
 
+#+NAME: setup hostpath-provisioner
 #+BEGIN_SRC tmate
 kubectl apply -f ~/hostpath-provisioner.yaml
-kubectl get pvc testpvc
-kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o jsonpath='{..metadata.name}'` --namespace=kube-system
 #+END_SRC
 
 #+NAME: hostpath-provisioner.yaml
@@ -837,42 +877,38 @@ kubectl logs -f `kubectl get pod -l app=hostpath-provisioner --all-namespaces -o
 
 https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
 
+#+NAME: install dashboard
 #+BEGIN_SRC tmate
 kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
+kubectl apply -f admin-serviceaccount.yaml
 #+END_SRC
 
 Forward your localhost:8001 to the remote localhost:8001 (start the proxy once, other folks/hosts will connect to the one proxy)
+
 #+BEGIN_SRC :eval never
 ssh -L 8001:localhost:8001 root@139.178.88.146 kubectl proxy
 #+END_SRC
 
-#+NAME: create service account
-#+BEGIN_SRC tmate
-    cat <<-EOF | kubectl apply -f -
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: admin-user
-        namespace: kube-system
-    EOF
-#+END_SRC
-
-#+NAME: create service account
-#+BEGIN_SRC tmate
-    cat <<-EOF | kubectl apply -f -
-      apiVersion: rbac.authorization.k8s.io/v1beta1
-      kind: ClusterRoleBinding
-      metadata:
-        name: admin-user
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: cluster-admin
-      subjects:
-      - kind: ServiceAccount
-        name: admin-user
-        namespace: kube-system
-    EOF
+#+NAME: admin-serviceaccount.yaml
+#+BEGIN_SRC yaml :tangle (concat "/ssh:" ssh-user-host ":admin-serviceaccount.yaml")
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: admin-user
+    namespace: kube-system
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1beta1
+  kind: ClusterRoleBinding
+  metadata:
+    name: admin-user
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cluster-admin
+  subjects:
+  - kind: ServiceAccount
+    name: admin-user
+    namespace: kube-system
 #+END_SRC
 
 #+NAME: admin_token
@@ -890,13 +926,17 @@ kubectl get -n kube-system -o json secret \
 http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
 * tui
 
+#+NAME: install kubexp
 #+BEGIN_SRC tmate
 KUBEXP_RELEASE="0.8.1"
 wget https://github.com/alitari/kubexp/releases/download/${KUBEXP_RELEASE}/kubexp
 chmod +x kubexp
-kubectl apply -f https://github.com/alitari/kubexp/raw/master/rbac-default-clusteradmin.yaml
- #+END_SRC
+#+END_SRC
 
+#+NAME: configure kubexp
+#+BEGIN_SRC tmate
+kubectl apply -f https://github.com/alitari/kubexp/raw/master/rbac-default-clusteradmin.yaml
+#+END_SRC
 * Alternatives
 ** PVCs
 *** rook =~ ceph (but managed natively by k8s)

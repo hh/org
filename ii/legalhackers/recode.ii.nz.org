@@ -17,6 +17,34 @@
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
 
+* TLDR
+
+Type , b s to evaluate this subtree:
+** TODO fix this
+Error: release gitlab failed: Deployment.apps "gitlab-sidekiq-all-in-1" is invalid: [spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value, spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value, spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
+
+#+NAME: write remote config files
+#+BEGIN_SRC elisp :results none
+(org-babel-tangle)
+#+END_SRC
+
+#+NAME: deploy gitlab
+#+BEGIN_SRC tmate :noweb yes
+  <<Deploy Gitlab on Kubernetes>>
+#+END_SRC
+**  helm dump
+#+BEGIN_SRC tmate
+helm get gitlab > helm-gitlab.yaml
+#+END_SRC
+
+[[/ssh:root@139.178.88.146:/root/helm-gitlab.yaml]]
+
+* TLDR undo
+#+NAME: Delete Gitlab Fully
+#+BEGIN_SRC tmate
+helm delete --purge gitlab && kubectl delete namespace gitlab
+#+END_SRC
+
 * Preparing to use the Gitlab Chart
 
 We found some decent documentation over 
