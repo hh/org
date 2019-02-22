@@ -223,7 +223,7 @@ Before anything else, we want our remote machine to have kubeadm, kubelet, and k
      echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
        >> /etc/apt/sources.list.d/kubernetes.list
      apt-get update \
-       && apt-get install -y docker.io kubelet kubeadm kubectl kubernetes-cni
+       && apt-get install -y kubelet kubeadm kubectl kubernetes-cni
    #+END_SRC
    
    Verify it worked.  The results should largely match our example included below
@@ -270,6 +270,7 @@ Before anything else, we want our remote machine to have kubeadm, kubelet, and k
 ** Disable Swap
 
 #+BEGIN_SRC tmate
+  # disable currently enabled swap
   swapoff -a
   # Comment out any swap to disable automounting
   sed -e '/swap/ s/^#*/#/' -i /etc/fstab
@@ -310,7 +311,81 @@ kubeadm config images pull \
  --kubernetes-version stable-1.13
 #+END_SRC
 
-#+NAME: Initialize Master  
+We need to be able to specify a particular IP for services of type NodePort.
+https://kubernetes.io/docs/concepts/services-networking/service/#nodeport
+https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/#options
+
+#+BEGIN_QUOTE
+ If you want to specify particular IP(s) to proxy the port, you can set the
+ --nodeport-addresses flag in kube-proxy to particular IP block(s)
+
+  (which is supported since Kubernetes v1.10).
+
+  A comma-delimited list of IP blocks (e.g. 10.0.0.0/8, 1.2.3.4/32) is used to
+ filter addresses local to this node.
+#+END_QUOTE
+
+https://godoc.org/k8s.io/kubernetes/pkg/proxy/apis/config#KubeProxyConfiguration
+
+#+BEGIN_QUOTE
+nodePortAddresses is the --nodeport-addresses value for kube-proxy process.
+
+Values must be valid IP blocks.
+
+These values are as a parameter to select the interfaces where nodeport works.
+
+In case someone would like to expose a service on localhost for local visit
+ and some other interfaces for particular purpose,
+ a list of IP blocks would do that.
+
+If set it to "127.0.0.0/8", kube-proxy will only select the loopback interface for NodePort.
+
+If set it to a non-zero IP block, kube-proxy will filter that down to just the IPs that applied to the node.
+
+An empty string slice is meant to select all network interfaces.
+  NodePortAddresses []string
+#+END_QUOTE
+
+#+NAME: kubeadm defaults
+#+BEGIN_SRC tmate
+kubeadm config print init-defaults --component-configs KubeProxyConfiguration,KubeletConfiguration
+#+END_SRC
+
+#+NAME: kubeadm config
+#+BEGIN_SRC yaml :tangle (concat "/ssh:" ssh-user-host ":kubeadm-config.yaml")
+  apiVersion: kubeadm.k8s.io/v1beta1
+  kind: InitConfiguration
+  localAPIEndpoint:
+    advertiseAddress: "139.178.88.146"
+  nodeRegistration:
+    taints: [] # defaults to NoSchedule on role=master
+  ---
+  apiVersion: kubeadm.k8s.io/v1beta1
+  kind: ClusterConfiguration
+  kubernetesVersion: v1.13.3
+  controlPlaneEndpoint: ""
+  networking:
+    podSubnet: "10.244.0.0/16"
+    serviceSubnet: "10.96.0.0/12"
+  ---
+  apiVersion: kubeproxy.config.k8s.io/v1alpha1
+  kind: KubeProxyConfiguration
+  nodePortAddresses: [] # "" # default is null
+  portRange: "22-60000"
+#+END_SRC
+
+#+NAME: using a config file to set kubeadm config options
+#+BEGIN_SRC tmate :eval ask
+  kubeadm reset --force
+  kubeadm init --config kubeadm-config.yaml
+  # --kube-proxy-nodeport-addresses=139.178.88.144/29 \
+  # --kube-proxy-nodeport-addresses="[]" \
+#+END_SRC
+
+Might be worth looking into kube-proxy IPVS mode:
+https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md
+
+#+NAME: Initialize Master
 #+BEGIN_SRC tmate
 kubeadm init \
  --pod-network-cidr=10.244.0.0/16 \
@@ -330,6 +405,15 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 #+END_SRC
   https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 
+Since we are using public IPs, we can now use the file we create here to manage this k8s from anywhere.
+
+#+NAME: get kubectl working locally
+#+BEGIN_SRC shell :eval never
+export KUBECONFIG=~/kubeconfig
+ssh root@139.178.88.146 kubectl config view --merge --minify --flatten > ~/kubeconfig
+kubectl get nodes
+#+END_SRC
+
 * kubectl
   Let's check that kubectl works.  A good way to do that is to ask it to run commands against our cluster.
   
@@ -340,8 +424,8 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
   #+RESULTS: Check Kubectl Works
   #+BEGIN_EXAMPLE :noeval t
-  NAME         STATUS     ROLES    AGE   VERSION
-  ci.ii.coop   NotReady   master   38s   v1.13.3
+  NAME         STATUS     ROLES    AGE     VERSION
+  ci.ii.coop   NotReady   master   3m42s   v1.13.3
   #+END_EXAMPLE
   
   
@@ -372,7 +456,9 @@ Might be good to show the taints, notready status via kubectl commands before un
   ]
   #+END_SRC
 
-Usually pods don't get scheduled on the master, due to the NoSchedule taint
+Usually pods don't get scheduled on the master, due to the NoSchedule taint.
+If we overrode the defalut ~nodeRegistration: taints: [{key: node-role.kubernetes.io/master}]~
+Setting the default taints to an empty list.
 
   #+NAME: untaint the master
   #+BEGIN_SRC tmate
@@ -413,8 +499,8 @@ We likely haven't setup a CNI / network layer yet, no our node doesn't have a st
   #+RESULTS: Status Ready Condition of Master Node
   #+BEGIN_SRC json
   {
-    "lastHeartbeatTime": "2019-02-21T01:42:42Z",
-    "lastTransitionTime": "2019-02-21T01:41:57Z",
+    "lastHeartbeatTime": "2019-02-22T01:19:56Z",
+    "lastTransitionTime": "2019-02-22T01:10:52Z",
     "message": "runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:docker: network plugin is not ready: cni config uninitialized",
     "reason": "KubeletNotReady",
     "status": "False",
@@ -448,8 +534,8 @@ kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$FLANNEL_RELEA
   #+RESULTS: Status Ready Condition of Master Node after networking
   #+BEGIN_SRC json
   {
-    "lastHeartbeatTime": "2019-02-21T07:32:38Z",
-    "lastTransitionTime": "2019-02-21T07:32:38Z",
+    "lastHeartbeatTime": "2019-02-22T01:20:16Z",
+    "lastTransitionTime": "2019-02-22T01:20:16Z",
     "message": "kubelet is posting ready status. AppArmor enabled",
     "reason": "KubeletReady",
     "status": "True",
