@@ -106,6 +106,7 @@ We use mailgun for now, until there is a smtp.ii.nz
 #+RESULTS: tramp link to recode.ii.nz.yaml
 [[/ssh:root@139.178.88.146:/root/recode.ii.nz.yaml]]
 
+[[http://localhost:8001/api/v1/namespaces/gitlab/services/https:gitlab-nginx-ingress-controller:/]]
 
 Our chart has some very nice documentation:
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/command-line-options.md]]
@@ -122,19 +123,46 @@ Our chart has some very nice documentation:
 | gitlab.migrations.image.repository                  | Migrations image repository                    | registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ee   |
 #+END_EXAMPLE
 
+
+* TODO set valid rang
+#+BEGIN_SRC error
+Error: release gitlab failed: Service "gitlab-nginx-ingress-controller" is invalid: spec.ports[0].nodePort: Invalid value: 80: provided port is not in the valid range. The range of valid ports is 30000-32767
+#+END_SRC
+
 #+NAME: The Config
 #+BEGIN_SRC yaml :noweb yes :tangle (concat "/ssh:" ssh-user-host ":recode.ii.nz.yaml")
   # https://gitlab.com/charts/gitlab/blob/master/doc/installation/command-line-options.md#advanced-nginx-ingress-configuration
   # https://gitlab.com/charts/gitlab/blob/master/charts/nginx/index.md#configuration
   # we have multiple IPs on the single box packet master
+  #hostNetwork: true
   nginx-ingress:
     controller:
-      hostNetwork: true
+      # hostNetwork: true #?
+      clusterIP: 139.178.88.148 
+      minAvailable: 1
+      daemonset:
+        hostPorts:
+          http: 80
+          https: 443
+        useHostPort: false
+      service:
+        clusterIP: ""
+        loadBalancerIP: ""
+        externalIPs: ["139.178.88.148"]
+        externalTrafficPolicy: Local
+        healthCheckNodePort: 0
+        nodePorts:
+          http: "80"
+          https: "443"
+        targetPorts:
+          http: http
+          https: https
+        type: NodePort
   # Global chart properties
   global:
     hosts:
-      externalIP: 139.178.88.148 
-      # my ip in a comment: "<<my_ip()>>"
+      #externalIP: 139.178.88.148 
+      #loadBalancerIP: 139.178.88.148 
       domain: recode.ii.nz
     # Outgoing email server settings
     # smtp:
@@ -417,7 +445,9 @@ Error from server (NotFound): secrets "gitlab-gitlab-initial-root-password" not 
 
 ** TODO email
 ** TODO SMTP OUTGOING
-
+* TODO ingress
+for our new IP on 22,80,443
+  
 * Init Conainer Debug
 
   #+NAME: sidekiq pod
