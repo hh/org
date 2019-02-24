@@ -1,0 +1,113 @@
+#+TITLE: Using SSH Keys and Agents
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 25th of February, 2019
+#+STARTUP: showeverything
+
+* Research: Using SSH keys and agents
+
+Using SSH keys is the default practice with linux systems, hopefully with a passphrase. Entering the passphrase for every connection is tedious.
+Running a SSH agent can avoid this issue, though there are some risks when using an agent.
+
+Refer to [[https://www.digitalocean.com/community/tutorials/ssh-essentials-working-with-ssh-servers-clients-and-keys][SSH Essentials: Working with SSH Servers, Clients, and Keys]] for a good introduction from Digital Ocean.
+
+
+* ssh-agent
+
+As stated from the man page, ssh-agent is a program to hold private keys used for public key authentication. 
+ssh-agent is usually started in the beginning of an X-session or a login session, and all other windows or programs are started as clients to the ssh-agent program. 
+Through use of environment variables the agent can be located and automatically used for authentication when logging in to other machines using ssh.
+
+#+BEGIN_SRC shell :eval no
+$ env | grep SSH
+SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413
+SSH_AGENT_PID=3495
+#+END_SRC
+
+The agent initially does not have any private keys. Keys are added using ssh (see AddKeysToAgent in ssh_config) or ssh-add.
+ssh-add(1) is also used to remove keys from ssh-agent and to query the keys that are held in one.
+
+
+* ssh-add
+
+The key task for ssh-add is to add private key identities to the authentication agent. 
+Other tasks it can perform is to list fingerprints of all identities currently represented by the agent or delete all identities from the agent.
+
+#+BEGIN_SRC shell :eval no
+heyste@iiBox0:~$ ssh-add -l
+The agent has no identities.
+
+heyste@iiBox0:~$ ssh-add 
+Enter passphrase for /home/heyste/.ssh/id_rsa: 
+Identity added: /home/heyste/.ssh/id_rsa (/home/heyste/.ssh/id_rsa)
+
+heyste@iiBox0:~$ ssh-add -l
+4096 SHA256:8fyoqzwAbTRukUCUGYmrBAM6ctrnLqFuHFVPkZbl0uU /home/heyste/.ssh/id_rsa (RSA)
+
+heyste@iiBox0:~$ ssh-add -D
+All identities removed.
+
+heyste@iiBox0:~$ ssh-add -l
+The agent has no identities.
+#+END_SRC
+
+
+* Troubleshooting
+
+- Step 1: Check that there is an agent running
+
+#+BEGIN_SRC shell :eval no
+$ env | grep SSH
+SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413
+SSH_AGENT_PID=3495
+#+END_SRC
+
+- Step 2: Check the agent has an identity 
+
+#+BEGIN_SRC shell :eval no
+heyste@iiBox0:~$ ssh-add -l
+4096 SHA256:8fyoqzwAbTRukUCUGYmrBAM6ctrnLqFuHFVPkZbl0uU /home/heyste/.ssh/id_rsa (RSA)
+#+END_SRC
+
+- Step 3: Locating existing SSH compatible agent processes 
+
+#+BEGIN_SRC shell :eval no
+$ ssh-find-agent 
+export SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413 	#1)
+#+END_SRC
+
+
+* Pinentry
+
+The primary goal of pinentry is to give a GUI prompt that requests the passphrase from the user.
+Various versions are used depending on the window manager being used by the system.
+
+#+BEGIN_SRC shell :eval no
+$ apt-cache search pinentry
+...
+pinentry-gnome3 - GNOME 3 PIN or pass-phrase entry dialog for GnuPG
+pinentry-gtk2 - GTK+-2-based PIN or pass-phrase entry dialog for GnuPG
+pinentry-qt4 - Qt-based PIN or pass-phrase entry dialog for GnuPG (transitional dummy package)
+#+END_SRC
+
+*** Further research
+
+To mitigate some of the risks of using an agent for a SSH request there needs to be a way of prompting the user for any unknown hosts.
+Next step is review options using ssh_config and how to create a 'whitelist' of safe hosts.
+
+
+* References
+
+- Environment variables
+  - SSH_AUTH_SOCK: Identifies the path of a UNIX-domain socket used to communicate with the agent.
+  - SSH_AGENT_PID: Holds the agent's process ID
+
+- [[https://www.digitalocean.com/community/tutorials/ssh-essentials-working-with-ssh-servers-clients-and-keys][SSH Essentials: Working with SSH Servers, Clients, and Keys]]
+- [[https://github.com/wwalker/ssh-find-agent][Tool to find already running ssh-agent compatible agents]]
+- [[http://rabexc.org/posts/using-ssh-agent][Understanding ssh-agent and ssh-add]]
+- [[http://rabexc.org/posts/using-ssh-agent][Using an ssh-agent, or how to type your ssh password once, safely]]
+- [[https://ebzzry.io/en/gsk/][Setting up GPG and SSH in KDE]]
+- [[https://linux.die.net/man/1/ssh-agent][Linux man page: ssh-agent]]
+- [[https://linux.die.net/man/1/ssh-add][Linux man page: ssh-add]]
+
