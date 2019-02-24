@@ -5,8 +5,8 @@
 #+CREATOR: ii.coop
 #+DATE: 20th of February, 2019
 #+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
-#+PROPERTY: header-args:shell+ :epilogue ":\n"
+#+NOPROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
+#+NOPROPERTY: header-args:shell+ :epilogue ":\n"
 #+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
 #+PROPERTY: header-args:shell+ :dir "/ssh:root@139.178.88.146:/root/"
 #+PROPERTY: header-args:shell+ :eval no-export
@@ -17,17 +17,159 @@
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
 
-* TLDR
+* Generate Secrets
+  :PROPERTIES:
+  :header-args:shell+: :dir .
+  :END:
 
-Type , b s to evaluate this subtree:
- TODO fix this
+#+BEGIN_SRC tmate :noweb yes
+  <<global.smtp.password.secret>>
+  <<global.appConfig.incomingEmail.password.secret>>
+  <<global.shell.hostKeys.secret>>
+  <<global.shell.authToken.secret>>
+  <<global.railsSecret.secret>>
+  <<global.workhorse.secret>>
+  <<global.minio.credentials.secret>>
+#+END_SRC
+
+** global.smtp.password.secret
+
+#+NAME: global.smtp.password.secret 
+#+BEGIN_SRC shell :noweb yes
+kubectl create secret generic ${RELEASE}-smtp-password --from-literal=password="$SMTP_PASSWORD"
+#+END_SRC
+
+** global.appConfig.incomingEmail.password.secret
+
+#+NAME: global.appConfig.incomingEmail.password.secret
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-incoming-email-password --from-literal="$INCOMING_EMAIL_PASSWORD"
+#+END_SRC
+
+** global.shell.hostKeys.secret
+
+#+BEGIN_SRC shell
+mkdir -p hostKeys
+ssh-keygen -t rsa  -f hostKeys/ssh_host_rsa_key -N ""
+ssh-keygen -t dsa  -f hostKeys/ssh_host_dsa_key -N ""
+ssh-keygen -t ecdsa  -f hostKeys/ssh_host_ecdsa_key -N ""
+ssh-keygen -t ed25519  -f hostKeys/ssh_host_ed25519_key -N ""
+#+END_SRC
+
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitlab-shell-host-keys --from-file hostKeys
+#+END_SRC
+** global.shell.authToken.secret
+GitLab Shell secret
+
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitlab-shell-secret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+
+** global.gitaly.authToken.secret
+
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitaly-secret --from-literal=token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+
+** global.railsSecret.secret
+
+#+BEGIN_SRC shell
+cat << EOF > secrets.yml
+production:
+  secret_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
+  otp_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
+  db_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
+  openid_connect_signing_key: |
+$(openssl genrsa 2048 | awk '{print "    " $0}')
+EOF
+
+kubectl create secret generic ${RELEASE}-rails-secret --from-file=secrets.yml
+#+END_SRC
+
+** global.workhorse.key
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitlab-workhorse-secret --from-literal=shared_secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32 | base64)
+#+END_SRC
+** global.minio.credentials.secret
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-minio-secret --from-literal=accesskey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 20) --from-literal=secretkey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+** ROOT PASS
+
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitlab-initial-root-password --from-literal=password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32)
+#+END_SRC
+
+** REDIS PASS
+
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-redis-secret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+
+** Gitlab RUNNER
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-gitlab-runner-secret --from-literal=runner-registration-token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+** POSTGRESQL PASSWORD
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-postgresql-password --from-literal=postgres-password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+END_SRC
+** Registry HTTP secret
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-registry-httpsecret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64 | base64)
+#+END_SRC
+* TODO fix this
+
+When doing ~helm upgrade --install gitlab gitlab/gitlab~ we get the following error:
+
+#+BEGIN_EXAMPLE
 Error: release gitlab failed:
 Deployment.apps "gitlab-sidekiq-all-in-1"
  is invalid:
  [spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value,
   spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value,
   spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
+#+END_EXAMPLE
+
+** Breakdown / exploration of error:
+
+==Deployment.apps "gitlab-sidekiq-all-in-1" is invalid==
+
+There is a [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::#%20Source:%20gitlab/charts/gitlab/charts/sidekiq/templates/configmap-queue.yaml][sidekiq-configmap]] that is probably related and the deployment is
+defined at [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml][deployment/app/gitlab-sidekiq-all-in-1]]
+*** spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value
+ [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20github][github secret name missing]]
+*** spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value
+ [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20google_oauth2][google_oauth2 secret name missing]]
+*** spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
+  [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20name:%20init-sidekiq-secrets][volumeMount volume name init-sidekiq-secrets]] 
+** issues
+
+
+#+NAME: secret names missing
+#+BEGIN_SRC yaml
+          - secret:
+              name: 
+              items:
+                - key: github
+                  path: "omniauth/%!s(<nil>)/github"
+          - secret:
+              name: 
+              items:
+                - key: google_oauth2
+                  path: "omniauth/%!s(<nil>)/google_oauth2"
+#+END_SRC
+
+[[file:gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml::{{-%20include%20"gitlab.appConfig.omniauth.mountSecrets"%20$%20|%20nindent%2010%20}}][gitlab.appConfig.omniauth.mountSecrets
+ - include line from helm template]]
+
+* TLDR
+
+Type , b s to evaluate this subtree:
 ** tangle
+   :PROPERTIES:
+   :END:
 
 :PROPERTIES:
 :header-args:shell+: :dir "."
@@ -98,6 +240,8 @@ IN this section, we setup a secrets.env that looks similar to this:
 #+BEGIN_SRC shell :noeval
 SMTP_USER_NAME="postmaster@recode.ii.nz"
 SMTP_PASSWORD="apassword"
+IMAP_USER_NAME="postmaster@recode.ii.nz"
+IMAP_PASSWORD="apassword"
 OMNIAUTH_GITHUB_APP_ID=dexxxxxxxxxxxxxxxx888a
 OMNIAUTH_GITHUB_APP_SECRET=27exxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx814
 OMNIAUTH_GOOGLE_APP_ID=75xxxxxxx011-mo0xxxxxxxxxxxxxxxxxxv77vo.apps.googleusercontent.com
@@ -173,7 +317,7 @@ Our chart has some very nice documentation:
 | gitlab.migrations.image.repository                  | Migrations image repository                    | registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ee   |
 #+END_EXAMPLE
 
-* TODO set valid rang
+* TODO set valid port range
 #+BEGIN_SRC error
 Error: release gitlab failed: Service "gitlab-nginx-ingress-controller" is invalid: spec.ports[0].nodePort:
 Invalid value: 80: provided port is not in the valid range. The range of valid ports is 30000-32767
@@ -234,7 +378,31 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
         wiki: true
         snippets: true
         builds: true
+      time_zone: Pacific/Auckland
+      # application:
+      #   create: true
+    # We set email timout to 600 at some point
+    #  timeout: 600
 
+      # Email persona used in email sent by GitLab
+      email:
+        from: 'gitlab@recode.ii.nz'
+        display_name: GitLab@recode.ii.nz
+        reply_to: 'hh@ii.coop'
+        subject_suffix: ' | recode.ii.nz'
+      # Outgoing email server settings
+      smtp:
+        enabled: true
+        address: smtp.mailgun.org
+        port: 2525
+        user_name: "<<smtp_user_name()>>"
+        password:
+          secret: "gitlab-smtp-password"
+          key: password
+        domain: recode.ii.nz
+        authentication: "plain"
+        starttls_auto: false
+        openssl_verify_mode: "peer"
       ## doc/charts/globals.md#incoming-email-settings
       ## doc/installation/deployment.md#incoming-email
       # incomingEmail:
@@ -246,59 +414,39 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
       #   startTls: false
       #   user: ""
       #   password:
-      #     secret: ""
+      #     secret: "gitlab-incoming-email-password"
       #     key: password
       #   mailbox: inbox
       #   idleTimeout: 60
 
-      omniauth:
-        enabled: true
-        autoSignInWithProvider: 
-        allowSingleSignOn: ['github', 'google_oauth2']
+      # omniauth:
+      #   ena
+        bled: true
+        autoSignInWithProvider: "github"
+        syncProfileFromProvider: ["google_oauth2", "github" ]
+        allowSingleSignOn: ["github", "google_oauth2"]
         blockAutoCreatedUsers: false
         providers:
-          - key: 'github'
+          - key: "github"
+            secret: "gitlab-github"
             app_id: "<<omniauth_github_app_id()>>"
             app_secret: "<<omniauth_github_app_secret()>>"
-          - key: 'google_oauth2'
+          - key: "google_oauth2"
+            secret: "gitlab-google-oauth2"
             app_id: "<<omniauth_google_app_id()>>"
             app_secret: "<<omniauth_google_app_secret()>>"
         syncProfileAttributes: ['email']
-      # Outgoing email server settings
-      # smtp:
-      #   enabled: true
-      #   address: smtp.mailgun.org
-      #   port: 2525
-      #   user_name: "<<smtp_user_name()>>"
-      #   password:
-      #     secret: "smtp_password"
-      #     key: "<<smtp_password()>>"
-      #   domain: recode.ii.nz
-      #   authentication: "plain"
-      #   starttls_auto: false
-      #   openssl_verify_mode: "peer"
-      # Email persona used in email sent by GitLab
-      # application:
-      #   create: true
-      email:
-        from: 'gitlab@recode.ii.nz'
-        display_name: GitLab@recode.ii.nz
-        reply_to: 'hh@ii.coop'
-        subject_suffix: ' | ii.nz'
-      time_zone: Pacific/Auckland
-    # We set email timout to 600 at some point
-    #  timeout: 600
   certmanager-issuer:
     email: recode@ii.nz
   gitlab:
-    sidekiq:
-      image:
-        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
     unicorn:
       image:
         repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ce
       workhorse:
         image: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
+    sidekiq:
+      image:
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
     migrations:
       image:
         repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
