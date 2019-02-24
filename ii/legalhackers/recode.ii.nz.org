@@ -16,6 +16,15 @@
 #+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
+* Load this file locally
+#+BEGIN_SRC shell
+tmate -S /tmp/local.recode.ii.nz.iisocket \
+  new-session -A -s $USER -n emacs \
+  "tmate wait tmate-ready && sleep 2 && \
+  tmate display -p '#{tmate_ssh} # $USER.emacs.recode.ii.nz\ # #{tmate_web}' \
+  | xclip -i -sel p -f | xclip -i -sel c && \
+  emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
+#+END_SRC
 
 * Generate Secrets
   :PROPERTIES:
@@ -43,11 +52,13 @@ kubectl create secret generic ${RELEASE}-smtp-password --from-literal=password="
 
 #+NAME: global.appConfig.incomingEmail.password.secret
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-incoming-email-password --from-literal="$INCOMING_EMAIL_PASSWORD"
+kubectl create secret generic ${RELEASE}-incoming-email-password \
+  --from-literal="$INCOMING_EMAIL_PASSWORD"
 #+END_SRC
 
 ** global.shell.hostKeys.secret
 
+#+NAME: global.shell.hostKeys.secret generate hostKeys/
 #+BEGIN_SRC shell
 mkdir -p hostKeys
 ssh-keygen -t rsa  -f hostKeys/ssh_host_rsa_key -N ""
@@ -56,24 +67,31 @@ ssh-keygen -t ecdsa  -f hostKeys/ssh_host_ecdsa_key -N ""
 ssh-keygen -t ed25519  -f hostKeys/ssh_host_ed25519_key -N ""
 #+END_SRC
 
+#+NAME: global.shell.hostKeys.secret from hostKeys/
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-shell-host-keys --from-file hostKeys
+kubectl create secret generic ${RELEASE}-gitlab-shell-host-keys \
+  --from-file hostKeys
 #+END_SRC
 ** global.shell.authToken.secret
 GitLab Shell secret
 
+#+NAME: global.shell.authToken.secret
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-shell-secret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-gitlab-shell-secret \
+  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
 #+END_SRC
 
 ** global.gitaly.authToken.secret
 
+#+NAME: global.gitaly.authToken.secret
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitaly-secret --from-literal=token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-gitaly-secret \
+  --from-literal=token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
 #+END_SRC
 
 ** global.railsSecret.secret
 
+#+NAME: global.railsSecret.secret generate secrets.yaml
 #+BEGIN_SRC shell
 cat << EOF > secrets.yml
 production:
@@ -83,42 +101,61 @@ production:
   openid_connect_signing_key: |
 $(openssl genrsa 2048 | awk '{print "    " $0}')
 EOF
+#+END_SRC
 
-kubectl create secret generic ${RELEASE}-rails-secret --from-file=secrets.yml
+#+NAME: global.railsSecret.secret from secrets.yaml
+#+BEGIN_SRC shell
+kubectl create secret generic ${RELEASE}-rails-secret \
+  --from-file=secrets.yml
 #+END_SRC
 
 ** global.workhorse.key
+
+#+NAME: global.workhorse.key
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-workhorse-secret --from-literal=shared_secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32 | base64)
+kubectl create secret generic ${RELEASE}-gitlab-workhorse-secret \
+  --from-literal=shared_secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32 | base64)
 #+END_SRC
+
 ** global.minio.credentials.secret
+
+#+NAME: global.minio.credentials.secret
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-minio-secret --from-literal=accesskey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 20) --from-literal=secretkey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-minio-secret \
+  --from-literal=accesskey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 20)
 #+END_SRC
+
 ** ROOT PASS
 
+#+NAME: ROOT PASS
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-initial-root-password --from-literal=password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32)
+kubectl create secret generic ${RELEASE}-gitlab-initial-root-password \
+  --from-literal=password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32)
 #+END_SRC
 
 ** REDIS PASS
 
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-redis-secret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-redis-secret \
+  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
 #+END_SRC
 
 ** Gitlab RUNNER
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-runner-secret --from-literal=runner-registration-token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-gitlab-runner-secret \
+  --from-literal=runner-registration-token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
 #+END_SRC
 ** POSTGRESQL PASSWORD
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-postgresql-password --from-literal=postgres-password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+kubectl create secret generic ${RELEASE}-postgresql-password \
+  --from-literal=postgres-password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
 #+END_SRC
 ** Registry HTTP secret
 #+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-registry-httpsecret --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64 | base64)
+kubectl create secret generic ${RELEASE}-registry-httpsecret \
+  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64 | base64)
 #+END_SRC
+
 * TODO fix this
 
 When doing ~helm upgrade --install gitlab gitlab/gitlab~ we get the following error:
