@@ -16,6 +16,7 @@
 #+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
+
 * Load this file locally
 #+BEGIN_SRC shell
 tmate -S /tmp/local.recode.ii.nz.iisocket \
@@ -26,191 +27,295 @@ tmate -S /tmp/local.recode.ii.nz.iisocket \
   emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
 #+END_SRC
 
-* Generate Secrets
+* Internal Secrets
   :PROPERTIES:
   :header-args:shell+: :dir .
   :END:
 
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md]]
+
+#+NAME: generate secrets
+#+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
+  set -x
+  set -e
+  export RELEASE=gitlab
+  export NAMESPACE=gitlab
+  . secrets.env
+  kubectl create namespace $NAMESPACE || true
+  mkdir -p secrets
+  pushd secrets
+  popd
+#+END_SRC
+Pulling out these for now, and just generating external
+  <<global.shell.hostKeys.generate>>
+  <<global.shell.authToken.generate>>
+  <<global.gitaly.authToken.generate>>
+  <<global.railsSecret.generate>>
+  <<global.workhorse.generate>>
+  <<global.minio.credentials.generate>>
+  <<global.initialRootPassword.generate>>
+  <<global.redis.password.generate>>
+  <<global.runner.registrationToken.generate>>
+  <<global.psql.password.generate>>
+  <<global.registry.httpSecret.generate>>
+
+#+NAME: load secrets
+#+BEGIN_SRC sh :noweb yes 
+# :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
+  pushd secrets
+  ls \
+  | xargs -IX \
+  kubectl secret create --namespace=$NAMESPACE $RELEASE-X --from-file X
+#+END_SRC
+
+#+NAME: list secrets
 #+BEGIN_SRC tmate :noweb yes
-  <<global.smtp.password.secret>>
-  <<global.appConfig.incomingEmail.password.secret>>
-  <<global.shell.hostKeys.secret>>
-  <<global.shell.authToken.secret>>
-  <<global.railsSecret.secret>>
-  <<global.workhorse.secret>>
-  <<global.minio.credentials.secret>>
+  kubectl get secrets --namespace=$NAMESPACE
 #+END_SRC
 
-** global.smtp.password.secret
+** global.shell.hostKeys
 
-#+NAME: global.smtp.password.secret 
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#ssh-host-keys]]
+
+#+NAME: global.shell.hostKeys.generate
+#+BEGIN_SRC shell
+mkdir -p gitlab-shell-host-keys
+ssh-keygen -t rsa  -f gitlab-shell-host-keys/ssh_host_rsa_key -N ""
+ssh-keygen -t dsa  -f gitlab-shell-host-keys/ssh_host_dsa_key -N ""
+ssh-keygen -t ecdsa  -f gitlab-shell-host-keys/ssh_host_ecdsa_key -N ""
+ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
+#+END_SRC
+
+** global.shell.authToken
+
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-shell-secret]]
+
+#+NAME: global.shell.authToken.generate 
 #+BEGIN_SRC shell :noweb yes
-kubectl create secret generic ${RELEASE}-smtp-password --from-literal=password="$SMTP_PASSWORD"
+  mkdir -p gitlab-shell-secret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > gitlab-shell-secret/secret
 #+END_SRC
 
-** global.appConfig.incomingEmail.password.secret
+** global.gitaly.authToken
 
-#+NAME: global.appConfig.incomingEmail.password.secret
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-incoming-email-password \
-  --from-literal="$INCOMING_EMAIL_PASSWORD"
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitaly-secret]]
+
+#+NAME: global.gitaly.authToken.generate
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p gitaly-secret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > gitaly-secret/token
 #+END_SRC
 
-** global.shell.hostKeys.secret
+** global.railsSecret
 
-#+NAME: global.shell.hostKeys.secret generate hostKeys/
-#+BEGIN_SRC shell
-mkdir -p hostKeys
-ssh-keygen -t rsa  -f hostKeys/ssh_host_rsa_key -N ""
-ssh-keygen -t dsa  -f hostKeys/ssh_host_dsa_key -N ""
-ssh-keygen -t ecdsa  -f hostKeys/ssh_host_ecdsa_key -N ""
-ssh-keygen -t ed25519  -f hostKeys/ssh_host_ed25519_key -N ""
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-rails-secret]]
+
+#+NAME: global.railsSecret.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p rails-secret/production
+  pushd rails-secret/production
+  head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128 > secret_key_base
+  head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128 > otp_key_base
+  head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128 > db_key_base
+  openssl genrsa 2048 | awk '{print "    " $0}' > openid_connect_signing_key
+  popd
 #+END_SRC
 
-#+NAME: global.shell.hostKeys.secret from hostKeys/
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-shell-host-keys \
-  --from-file hostKeys
-#+END_SRC
-** global.shell.authToken.secret
-GitLab Shell secret
+** global.workhorse
 
-#+NAME: global.shell.authToken.secret
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-shell-secret \
-  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
-#+END_SRC
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-workhorse-secret]]
 
-** global.gitaly.authToken.secret
-
-#+NAME: global.gitaly.authToken.secret
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitaly-secret \
-  --from-literal=token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+#+NAME: global.workhorse.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p gitlab-workhorse-secret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 32 \
+  | base64 > gitlab-workhorse-secret/shared_secret
 #+END_SRC
 
-** global.railsSecret.secret
+** global.minio.credentials
 
-#+NAME: global.railsSecret.secret generate secrets.yaml
-#+BEGIN_SRC shell
-cat << EOF > secrets.yml
-production:
-  secret_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
-  otp_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
-  db_key_base: $(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 128)
-  openid_connect_signing_key: |
-$(openssl genrsa 2048 | awk '{print "    " $0}')
-EOF
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#minio-secret]]
+
+#+NAME: global.minio.credentials.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p minio-secret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > minio-secret/accesskey
 #+END_SRC
 
-#+NAME: global.railsSecret.secret from secrets.yaml
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-rails-secret \
-  --from-file=secrets.yml
+** global.initialRootPassword
+
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#initial-root-password]]
+
+#+NAME: global.initialRootPassword.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p gitlab-initial-root-password
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 32 > gitlab-initial-root-password/password
 #+END_SRC
 
-** global.workhorse.key
+** global.redis.password
 
-#+NAME: global.workhorse.key
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-workhorse-secret \
-  --from-literal=shared_secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32 | base64)
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#initial-root-password]]
+
+#+NAME: global.redis.password.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p redis-secret 
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > redis-secret/secret
 #+END_SRC
 
-** global.minio.credentials.secret
+** global.runner.registrationToken
 
-#+NAME: global.minio.credentials.secret
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-minio-secret \
-  --from-literal=accesskey=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 20)
+https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-runner-secret
+
+
+#+NAME: global.runner.registrationToken.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p gitlab-runner-secret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > gitlab-runner-secret/runner-registration-token
 #+END_SRC
 
-** ROOT PASS
+** global.psql.password
 
-#+NAME: ROOT PASS
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-initial-root-password \
-  --from-literal=password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 32)
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#postgresql-password]]
+
+#+NAME: global.psql.password.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p postgresql-password
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > postgresql-password/postgresql-password
 #+END_SRC
 
-** REDIS PASS
+** global.registry.httpSecret
+   
+https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#registry-http-secret
 
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-redis-secret \
-  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+# secret,key,value,generation
+
+#+NAME: global.registry.httpSecret.generate 
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p registry-httpsecret
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 \
+  | base64 > registry-httpsecret/secret
 #+END_SRC
 
-** Gitlab RUNNER
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-gitlab-runner-secret \
-  --from-literal=runner-registration-token=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
+* External Secrets
+  :PROPERTIES:
+  :header-args:shell+: :dir .
+  :END:
+
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md]]
+
+#+NAME: set external secrets
+#+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
+  pushd secrets
+  <<global.smtp.password.set>>
+  popd
 #+END_SRC
-** POSTGRESQL PASSWORD
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-postgresql-password \
-  --from-literal=postgres-password=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64)
-#+END_SRC
-** Registry HTTP secret
-#+BEGIN_SRC shell
-kubectl create secret generic ${RELEASE}-registry-httpsecret \
-  --from-literal=secret=$(head -c 512 /dev/urandom | LC_CTYPE=C tr -cd 'a-zA-Z0-9' | head -c 64 | base64)
-#+END_SRC
+These also are not working... maybe just try smtp for now
+  <<global.appConfig.incomingEmail.password.set>>
+  <<global.appConfig.omniauth.providers.github.set>>
+  <<global.appConfig.omniauth.providers.google.set>>
 
-* TODO fix this
+#+RESULTS: set external secrets
 
-When doing ~helm upgrade --install gitlab gitlab/gitlab~ we get the following error:
-
-#+BEGIN_EXAMPLE
-Error: release gitlab failed:
-Deployment.apps "gitlab-sidekiq-all-in-1"
- is invalid:
- [spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value,
-  spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value,
-  spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
-#+END_EXAMPLE
-
-** Breakdown / exploration of error:
-
-==Deployment.apps "gitlab-sidekiq-all-in-1" is invalid==
-
-There is a [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::#%20Source:%20gitlab/charts/gitlab/charts/sidekiq/templates/configmap-queue.yaml][sidekiq-configmap]] that is probably related and the deployment is
-defined at [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml][deployment/app/gitlab-sidekiq-all-in-1]]
-*** spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value
- [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20github][github secret name missing]]
-*** spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value
- [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20google_oauth2][google_oauth2 secret name missing]]
-*** spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
-  [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20name:%20init-sidekiq-secrets][volumeMount volume name init-sidekiq-secrets]] 
-** issues
-
-
-#+NAME: secret names missing
-#+BEGIN_SRC yaml
-          - secret:
-              name: 
-              items:
-                - key: github
-                  path: "omniauth/%!s(<nil>)/github"
-          - secret:
-              name: 
-              items:
-                - key: google_oauth2
-                  path: "omniauth/%!s(<nil>)/google_oauth2"
+#+NAME: load secrets
+#+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
+  pushd secrets
+  ls \
+  | xargs -IX \
+  kubectl create secret generic --namespace=$NAMESPACE $RELEASE-X --from-file X
+  popd
 #+END_SRC
 
-[[file:gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml::{{-%20include%20"gitlab.appConfig.omniauth.mountSecrets"%20$%20|%20nindent%2010%20}}][gitlab.appConfig.omniauth.mountSecrets
- - include line from helm template]]
+#+RESULTS: load secrets
+
+** global.smtp.password
+
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#smtp-password]]
+
+#+NAME: global.smtp.password.generate
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p smtp-password
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 32 > smtp-password/password
+#+END_SRC
+
+#+NAME: global.smtp.password.set
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p smtp-password
+  echo  $SMTP_PASSWORD > smtp-password/password
+#+END_SRC
+
+** global.appConfig.incomingEmail.password
+   
+[[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#imap-password-for-incoming-emails]]
+
+#+NAME: global.appConfig.incomingEmail.password.generate
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p incoming-email-password
+  head -c 512 /dev/urandom \
+  | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
+  | head -c 64 > incoming-email-password/password
+#+END_SRC
+
+#+NAME: global.appConfig.incomingEmail.password.set
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p incoming-email-password
+  echo  $IMAP_PASSWORD > incoming-email-password/password
+#+END_SRC
+
+** global.appConfig.omniauth.providers
+
+#+NAME: global.appConfig.omniauth.providers.github.set
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p github-oauth
+  echo  $OMNIAUTH_GITHUB_APP_ID > github-oauth/key
+  echo  $OMNIAUTH_GITHUB_APP_SECRET > github-oauth/secret
+#+END_SRC
+
+#+NAME: global.appConfig.omniauth.providers.google.set
+#+BEGIN_SRC shell :noweb yes
+  mkdir -p google-oauth
+  echo  $OMNIAUTH_GOOGLE_APP_ID > google-oauth/key
+  echo  $OMNIAUTH_GOOGLE_APP_SECRET > google-oauth/secret
+#+END_SRC
 
 * TLDR
 
 Type , b s to evaluate this subtree:
 ** tangle
-   :PROPERTIES:
-   :END:
-
 :PROPERTIES:
 :header-args:shell+: :dir "."
 :END:
+
+#+NAME: get secrets
+#+BEGIN_SRC shell :dir "/ssh:root@139.178.88.146:/root/"
+kubectl get secrets --namespace gitlab
+#+END_SRC
+
+#+RESULTS: get secrets
+#+BEGIN_EXAMPLE :noeval t
+NAME                   TYPE                                  DATA   AGE
+default-token-pkcdh    kubernetes.io/service-account-token   3      117s
+gitlab-smtp-password   Opaque                                1      117s
+#+END_EXAMPLE
 
 #+NAME: write remote config files
 #+BEGIN_SRC elisp :results none
@@ -245,7 +350,6 @@ helm delete --purge gitlab && kubectl delete namespace gitlab
 
 We found some decent documentation over 
 
-https://gitlab.com/charts/gitlab/blob/master/doc/installation/README.md
 ** find my_ip
 #+NAME: my_ip
 #+BEGIN_SRC shell
@@ -284,43 +388,6 @@ OMNIAUTH_GITHUB_APP_SECRET=27exxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx814
 OMNIAUTH_GOOGLE_APP_ID=75xxxxxxx011-mo0xxxxxxxxxxxxxxxxxxv77vo.apps.googleusercontent.com
 OMNIAUTH_GOOGLE_APP_SECRET=gcPxxxxxxxxxxxxxoJaOM
 #+END_SRC
-
-*** User Name for SMTP
-
-We use mailgun for now, until there is a smtp.ii.nz
-
-#+NAME: smtp_user_name
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $SMTP_USER_NAME
-#+END_SRC
-
-#+NAME: smtp_password
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $SMTP_PASSWORD
-#+END_SRC
-
-*** Github Oauth
-#+NAME: omniauth_github_app_id
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $OMNIAUTH_GITHUB_APP_ID
-#+END_SRC
-
-#+NAME: omniauth_github_app_secret
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $OMNIAUTH_GITHUB_APP_SECRET
-#+END_SRC
-
-*** Google Oauth
-#+NAME: omniauth_google_app_id
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $OMNIAUTH_GOOGLE_APP_ID
-#+END_SRC
-
-#+NAME: omniauth_google_app_secret
-#+BEGIN_SRC shell :results output silent
-. secrets.env ; echo -n $OMNIAUTH_GOOGLE_APP_SECRET
-#+END_SRC
-
 
 ** Configure the Chart
 
@@ -432,7 +499,7 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
         enabled: true
         address: smtp.mailgun.org
         port: 2525
-        user_name: "<<smtp_user_name()>>"
+        user_name: "postmaster@recode.ii.nz"
         password:
           secret: "gitlab-smtp-password"
           key: password
@@ -456,25 +523,23 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
       #   mailbox: inbox
       #   idleTimeout: 60
 
-      # omniauth:
-      #   ena
-        bled: true
-        autoSignInWithProvider: "github"
-        syncProfileFromProvider: ["google_oauth2", "github" ]
-        allowSingleSignOn: ["github", "google_oauth2"]
-        blockAutoCreatedUsers: false
-        providers:
-          - key: "github"
-            secret: "gitlab-github"
-            app_id: "<<omniauth_github_app_id()>>"
-            app_secret: "<<omniauth_github_app_secret()>>"
-          - key: "google_oauth2"
-            secret: "gitlab-google-oauth2"
-            app_id: "<<omniauth_google_app_id()>>"
-            app_secret: "<<omniauth_google_app_secret()>>"
-        syncProfileAttributes: ['email']
+      #  omniauth:
+      #   enabled: true
+      #   autoSignInWithProvider: "github"
+      #   syncProfileFromProvider: ["google_oauth2", "github" ]
+      #   allowSingleSignOn: ["github", "google_oauth2"]
+      #   blockAutoCreatedUsers: false
+      #   providers:
+      #     - key: "github"
+      #       secret: "gitlab-github-oauth"
+      #     - key: "google_oauth2"
+      #       secret: "gitlab-google-oauth"
+      #   syncProfileAttributes: ['email']
+  # https://letsencrypt.org/docs/staging-environment/
   certmanager-issuer:
     email: recode@ii.nz
+    # server: https://acme-v02.api.letsencrypt.org/directory
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
   gitlab:
     unicorn:
       image:
@@ -517,15 +582,16 @@ kube-system   tiller-deploy-dbb85cb99-f84vr           1/1     Running   0       
 ** Deploy Gitlab on Kubernetes 
 #+NAME: Deploy Gitlab on Kubernetes
 #+BEGIN_SRC tmate
-helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
-MINIO_PVC=$(kubectl get pvc --namespace=gitlab gitlab-minio -o jsonpath='{.spec.volumeName}')
-chown 1000.1000 /volumes/$MINIO_PVC
-REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
-chown -R 999.999 /volumes/$REDIS_PVC
-#gitaly / repo-data takes a while to be created
-REPO_PVC=$(kubectl get pvc --namespace=gitlab repo-data-gitlab-gitaly-0 -o jsonpath='{.spec.volumeName}')
-echo $REPO_PVC
-#chown 1000.1000 /volumes/$REPO_PVC
+  helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
+  sleep 10
+  MINIO_PVC=$(kubectl get pvc --namespace=gitlab gitlab-minio -o jsonpath='{.spec.volumeName}')
+  chown 1000.1000 /volumes/$MINIO_PVC
+  REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
+  chown -R 999.999 /volumes/$REDIS_PVC
+  #gitaly / repo-data takes a while to be created
+  REPO_PVC=$(kubectl get pvc --namespace=gitlab repo-data-gitlab-gitaly-0 -o jsonpath='{.spec.volumeName}')
+  echo $REPO_PVC
+  chown 1000.1000 /volumes/$REPO_PVC
 #+END_SRC
 
 #+NAME: Delete Gitlab Fully
@@ -708,6 +774,24 @@ drwxr-x--- 4 1000 1000 4096 Feb 22 10:06 root
 REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
 chown -R 1000.1000 /volumes/$REDIS_PVC
 #+END_SRC
+* Certs
+
+Over using the public servers is helped by rate limiting.
+In dev we should use the test endpoint.
+
+#+NAME: inspect certmanager logs
+#+BEGIN_SRC shell
+kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=certmanager -o jsonpath='{..metadata.name}' --all-namespaces` \
+| grep "Error issuing certificate" | head -3
+#+END_SRC
+
+#+RESULTS: inspect certmanager logs
+#+BEGIN_EXAMPLE :noeval t
+I0225 02:02:03.586033       1 sync.go:273] Error issuing certificate for gitlab/gitlab-minio-tls: error getting certificate from acme server: acme: urn:ietf:params:acme:error:rateLimited: Error finalizing order :: too many certificates already issued for exact set of domains: minio.recode.ii.nz: see https://letsencrypt.org/docs/rate-limits/
+I0225 02:02:05.784831       1 sync.go:273] Error issuing certificate for gitlab/gitlab-gitlab-tls: error getting certificate from acme server: acme: urn:ietf:params:acme:error:rateLimited: Error finalizing order :: too many certificates already issued for exact set of domains: gitlab.recode.ii.nz: see https://letsencrypt.org/docs/rate-limits/
+I0225 02:02:06.198424       1 sync.go:273] Error issuing certificate for gitlab/gitlab-registry-tls: error getting certificate from acme server: acme: urn:ietf:params:acme:error:rateLimited: Error finalizing order :: too many certificates already issued for exact set of domains: registry.recode.ii.nz: see https://letsencrypt.org/docs/rate-limits/
+#+END_EXAMPLE
+
 
 * Minio Permissions
 If minio is working, it will not have any output, but we've been finding it complains that it can't write to .minio.sys.
@@ -716,17 +800,131 @@ There is likely an issue with minio needing to set the perms on the volume / fol
 
 #+NAME: inspect minio logs
 #+BEGIN_SRC shell
-kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces` -c minio
+kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=minio -o jsonpath='{..metadata.name}' --all-namespaces` 
 #+END_SRC
 
 #+RESULTS: inspect minio logs
 #+BEGIN_EXAMPLE :noeval t
-time="2019-02-22T08:57:23Z" level=error msg="Initializing object layer failed" cause="Unable to initialize '.minio.sys' meta volume, mkdir /export/.minio.sys: permission denied" source="[server-main.go:214:serverMain()]" 
 #+END_EXAMPLE
 
 #+NAME: describe minio pod/container
 #+BEGIN_SRC shell :wrap "SRC config" :eval ask
 kubectl describe pod/`kubectl get pod -l app=minio -l component=app -o jsonpath='{..metadata.name}' --all-namespaces` --namespace=gitlab
+#+END_SRC
+
+#+RESULTS: describe minio pod/container
+#+BEGIN_SRC config
+Name:               gitlab-minio-c64f9694b-dn9c6
+Namespace:          gitlab
+Priority:           0
+PriorityClassName:  <none>
+Node:               ci.ii.coop/139.178.88.146
+Start Time:         Mon, 25 Feb 2019 01:36:29 +0000
+Labels:             app=minio
+                    chart=minio-0.4.3
+                    component=app
+                    heritage=Tiller
+                    pod-template-hash=c64f9694b
+                    release=gitlab
+Annotations:        <none>
+Status:             Running
+IP:                 10.244.0.165
+Controlled By:      ReplicaSet/gitlab-minio-c64f9694b
+Init Containers:
+  configure:
+    Container ID:  docker://c5bc731cbb7d1f571bf83c4e981502b4d791e2d4d37f29c9eb25feb4f219567b
+    Image:         busybox:latest
+    Image ID:      docker-pullable://busybox@sha256:061ca9704a714ee3e8b80523ec720c64f6209ad3f97c0ff7cb9ec7d19f15149f
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      /config/configure
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Mon, 25 Feb 2019 01:36:35 +0000
+      Finished:     Mon, 25 Feb 2019 01:36:35 +0000
+    Ready:          True
+    Restart Count:  0
+    Requests:
+      cpu:        50m
+    Environment:  <none>
+    Mounts:
+      /config from minio-configuration (rw)
+      /minio from minio-server-config (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-7bjht (ro)
+Containers:
+  minio:
+    Container ID:  docker://a253fda9a768b396bfc6dbca046d0c56e4269b1a85ed38a5e1c32730edf84fa1
+    Image:         minio/minio:RELEASE.2017-12-28T01-21-00Z
+    Image ID:      docker-pullable://minio/minio@sha256:3611f1644cf5447e2f3639b4212ade26155f6a0632bef155c4d6510811c1fe1d
+    Port:          9000/TCP
+    Host Port:     0/TCP
+    Args:
+      -C
+      /tmp/.minio
+      --quiet
+      server
+      /export
+    State:          Running
+      Started:      Mon, 25 Feb 2019 01:36:39 +0000
+    Ready:          True
+    Restart Count:  0
+    Requests:
+      cpu:        100m
+      memory:     128Mi
+    Liveness:     tcp-socket :9000 delay=0s timeout=1s period=10s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /export from export (rw)
+      /podinfo from podinfo (rw)
+      /tmp/.minio from minio-server-config (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-7bjht (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  podinfo:
+    Type:  DownwardAPI (a volume populated by information about the pod)
+    Items:
+      metadata.labels -> labels
+  export:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  gitlab-minio
+    ReadOnly:   false
+  minio-configuration:
+    Type:                Projected (a volume that contains injected data from multiple sources)
+    ConfigMapName:       gitlab-minio-config-cm
+    ConfigMapOptional:   <nil>
+    SecretName:          gitlab-minio-secret
+    SecretOptionalName:  <nil>
+  minio-server-config:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:  Memory
+  default-token-7bjht:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-7bjht
+    Optional:    false
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+Events:
+  Type     Reason            Age                From                 Message
+  ----     ------            ----               ----                 -------
+  Warning  FailedScheduling  58s (x8 over 60s)  default-scheduler    pod has unbound immediate PersistentVolumeClaims
+  Normal   Scheduled         58s                default-scheduler    Successfully assigned gitlab/gitlab-minio-c64f9694b-dn9c6 to ci.ii.coop
+  Normal   Pulled            52s                kubelet, ci.ii.coop  Container image "busybox:latest" already present on machine
+  Normal   Created           52s                kubelet, ci.ii.coop  Created container
+  Normal   Started           52s                kubelet, ci.ii.coop  Started container
+  Normal   Pulling           51s                kubelet, ci.ii.coop  pulling image "minio/minio:RELEASE.2017-12-28T01-21-00Z"
+  Normal   Pulled            49s                kubelet, ci.ii.coop  Successfully pulled image "minio/minio:RELEASE.2017-12-28T01-21-00Z"
+  Normal   Created           48s                kubelet, ci.ii.coop  Created container
+  Normal   Started           48s                kubelet, ci.ii.coop  Started container
 #+END_SRC
 
 #+BEGIN_SRC tmate
@@ -788,58 +986,52 @@ kubectl describe `kubectl get pod -l app=sidekiq --namespace=gitlab -o name` --n
 
 #+RESULTS: describe broken pod
 #+BEGIN_EXAMPLE :noeval t
-Name:               gitlab-sidekiq-all-in-1-64c87c795b-wrx22
+Name:               gitlab-sidekiq-all-in-1-578b77bdcc-99rb8
 Namespace:          gitlab
 Priority:           0
 PriorityClassName:  <none>
 Node:               ci.ii.coop/139.178.88.146
-Start Time:         Thu, 21 Feb 2019 15:38:24 +1300
+Start Time:         Mon, 25 Feb 2019 01:52:30 +0000
 Labels:             app=sidekiq
-                    pod-template-hash=64c87c795b
+                    pod-template-hash=578b77bdcc
                     release=gitlab
-Annotations:        checksum/configmap: d60eb12282fc9d74a04175ae12359ebd94a522ade74cef0053dfc601116849d3
-                    checksum/configmap-pod: 31b99a4a71c3ab443a22b879ad69dfa437edf33f8292b0ae3835c02cbf1047ea
+Annotations:        checksum/configmap: 1bf796e563208f6ffb3bf584df6b82704fca9f9b89891184aed120f0054ad2fa
+                    checksum/configmap-pod: 796a23c12ccf82c66516daba2a19f3156be1e2711898fa17d8c8faf9c78785b9
                     cluster-autoscaler.kubernetes.io/safe-to-evict: true
                     prometheus.io/port: 3807
                     prometheus.io/scrape: true
 Status:             Pending
-IP:                 10.244.0.209
-Controlled By:      ReplicaSet/gitlab-sidekiq-all-in-1-64c87c795b
+IP:                 
+Controlled By:      ReplicaSet/gitlab-sidekiq-all-in-1-578b77bdcc
 Init Containers:
   certificates:
-    Container ID:   docker://4a74cf95f171347de42433cb2dab7527995aa1e328172bcea405f1e6ec75ff5b
+    Container ID:   
     Image:          registry.gitlab.com/gitlab-org/build/cng/alpine-certificates:20171114-r3
-    Image ID:       docker-pullable://registry.gitlab.com/gitlab-org/build/cng/alpine-certificates@sha256:bf07c7b34ef86f22370e5a3e0e2a0f7e51a24e0ad6c27108cae59c64e244e2c3
+    Image ID:       
     Port:           <none>
     Host Port:      <none>
-    State:          Terminated
-      Reason:       Completed
-      Exit Code:    0
-      Started:      Thu, 21 Feb 2019 15:38:28 +1300
-      Finished:     Thu, 21 Feb 2019 15:38:28 +1300
-    Ready:          True
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
     Restart Count:  0
     Requests:
       cpu:        50m
     Environment:  <none>
     Mounts:
       /etc/ssl/certs from etc-ssl-certs (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-kcfkx (ro)
   configure:
-    Container ID:  docker://d79546e8f95b925f86a81b288fc8541af440a39af5cb8a79864de38121198827
+    Container ID:  
     Image:         busybox:latest
-    Image ID:      docker-pullable://busybox@sha256:061ca9704a714ee3e8b80523ec720c64f6209ad3f97c0ff7cb9ec7d19f15149f
+    Image ID:      
     Port:          <none>
     Host Port:     <none>
     Command:
       sh
       /config/configure
-    State:          Terminated
-      Reason:       Completed
-      Exit Code:    0
-      Started:      Thu, 21 Feb 2019 15:38:30 +1300
-      Finished:     Thu, 21 Feb 2019 15:38:30 +1300
-    Ready:          True
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
     Restart Count:  0
     Requests:
       cpu:        50m
@@ -848,24 +1040,19 @@ Init Containers:
       /config from sidekiq-config (ro)
       /init-secrets from init-sidekiq-secrets (ro)
       /sidekiq-secrets from sidekiq-secrets (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-kcfkx (ro)
   dependencies:
-    Container ID:  docker://bb2d3af29db91640865de5572a7cb92eb5215ba6736f384d41aa708508fafc0e
-    Image:         registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce:v11.7.5
-    Image ID:      docker-pullable://registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce@sha256:df2c7329c885f002a1e941e08838736e6714829d80460eb59c05f9b4066e6724
+    Container ID:  
+    Image:         registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce:v11.8.0
+    Image ID:      
     Port:          <none>
     Host Port:     <none>
     Args:
       /scripts/wait-for-deps
     State:          Waiting
-      Reason:       CrashLoopBackOff
-    Last State:     Terminated
-      Reason:       Error
-      Exit Code:    1
-      Started:      Thu, 21 Feb 2019 16:15:11 +1300
-      Finished:     Thu, 21 Feb 2019 16:15:11 +1300
+      Reason:       PodInitializing
     Ready:          False
-    Restart Count:  12
+    Restart Count:  0
     Requests:
       cpu:  50m
     Environment:
@@ -877,11 +1064,11 @@ Init Containers:
     Mounts:
       /etc/gitlab from sidekiq-secrets (ro)
       /var/opt/gitlab/templates from sidekiq-config (ro)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-kcfkx (ro)
 Containers:
   sidekiq:
     Container ID:   
-    Image:          registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce:v11.7.5
+    Image:          registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce:v11.8.0
     Image ID:       
     Port:           3807/TCP
     Host Port:      0/TCP
@@ -909,7 +1096,7 @@ Containers:
       /srv/gitlab/config/initializers/smtp_settings.rb from sidekiq-config (rw)
       /srv/gitlab/config/secrets.yml from sidekiq-secrets (rw)
       /var/opt/gitlab/templates from sidekiq-config (ro)
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-tfwcn (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-kcfkx (ro)
 Conditions:
   Type              Status
   Initialized       False 
@@ -940,36 +1127,30 @@ Volumes:
     SecretOptionalName:  <nil>
     SecretName:          gitlab-minio-secret
     SecretOptionalName:  <nil>
+    SecretName:          gitlab-github-oauth
+    SecretOptionalName:  <nil>
+    SecretName:          gitlab-google-oauth
+    SecretOptionalName:  <nil>
   sidekiq-secrets:
     Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
     Medium:  Memory
   etc-ssl-certs:
     Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
     Medium:  Memory
-  default-token-tfwcn:
+  default-token-kcfkx:
     Type:        Secret (a volume populated by a Secret)
-    SecretName:  default-token-tfwcn
+    SecretName:  default-token-kcfkx
     Optional:    false
 QoS Class:       Burstable
 Node-Selectors:  <none>
 Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
                  node.kubernetes.io/unreachable:NoExecute for 300s
 Events:
-  Type     Reason       Age                 From                 Message
-  ----     ------       ----                ----                 -------
-  Normal   Scheduled    37m                 default-scheduler    Successfully assigned gitlab/gitlab-sidekiq-all-in-1-64c87c795b-wrx22 to ci.ii.coop
-  Warning  FailedMount  37m                 kubelet, ci.ii.coop  MountVolume.SetUp failed for volume "sidekiq-config" : couldn't propagate object cache: timed out waiting for the condition
-  Normal   Pulled       37m                 kubelet, ci.ii.coop  Container image "registry.gitlab.com/gitlab-org/build/cng/alpine-certificates:20171114-r3" already present on machine
-  Normal   Created      37m                 kubelet, ci.ii.coop  Created container
-  Normal   Started      37m                 kubelet, ci.ii.coop  Started container
-  Normal   Pulling      37m                 kubelet, ci.ii.coop  pulling image "busybox:latest"
-  Normal   Created      37m                 kubelet, ci.ii.coop  Created container
-  Normal   Pulled       37m                 kubelet, ci.ii.coop  Successfully pulled image "busybox:latest"
-  Normal   Started      37m                 kubelet, ci.ii.coop  Started container
-  Normal   Pulled       36m (x4 over 37m)   kubelet, ci.ii.coop  Container image "registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce:v11.7.5" already present on machine
-  Normal   Created      36m (x4 over 37m)   kubelet, ci.ii.coop  Created container
-  Normal   Started      36m (x4 over 37m)   kubelet, ci.ii.coop  Started container
-  Warning  BackOff      2m (x163 over 37m)  kubelet, ci.ii.coop  Back-off restarting failed container
+  Type     Reason       Age                From                 Message
+  ----     ------       ----               ----                 -------
+  Normal   Scheduled    52s                default-scheduler    Successfully assigned gitlab/gitlab-sidekiq-all-in-1-578b77bdcc-99rb8 to ci.ii.coop
+  Warning  FailedMount  50s                kubelet, ci.ii.coop  MountVolume.SetUp failed for volume "sidekiq-config" : couldn't propagate object cache: timed out waiting for the condition
+  Warning  FailedMount  18s (x7 over 50s)  kubelet, ci.ii.coop  MountVolume.SetUp failed for volume "init-sidekiq-secrets" : [references non-existent secret key, references non-existent secret key]
 #+END_EXAMPLE
 
   #+NAME: Init Container Statuses of gitlab sidekiq
@@ -1147,6 +1328,51 @@ echo // errors should appear above this
 #+BEGIN_SRC tmate
 
 #+END_SRC
+* Debugging init-sidekiq-secrets
+
+When doing ~helm upgrade --install gitlab gitlab/gitlab~ we get the following error:
+
+#+BEGIN_EXAMPLE
+Error: release gitlab failed:
+Deployment.apps "gitlab-sidekiq-all-in-1"
+ is invalid:
+ [spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value,
+  spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value,
+  spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
+#+END_EXAMPLE
+
+** Breakdown / exploration of error:
+
+==Deployment.apps "gitlab-sidekiq-all-in-1" is invalid==
+
+There is a [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::#%20Source:%20gitlab/charts/gitlab/charts/sidekiq/templates/configmap-queue.yaml][sidekiq-configmap]] that is probably related and the deployment is
+defined at [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml][deployment/app/gitlab-sidekiq-all-in-1]]
+*** spec.template.spec.volumes[2].projected.sources[6].secret.name: Required value
+ [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20github][github secret name missing]]
+*** spec.template.spec.volumes[2].projected.sources[7].secret.name: Required value
+ [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20key:%20google_oauth2][google_oauth2 secret name missing]]
+*** spec.template.spec.initContainers[1].volumeMounts[1].name: Not found: "init-sidekiq-secrets"]
+  [[file:/ssh:root@139.178.88.146:/root/helm-gitlab-manifests.yaml::-%20name:%20init-sidekiq-secrets][volumeMount volume name init-sidekiq-secrets]] 
+** issues
+
+
+#+NAME: secret names missing
+#+BEGIN_SRC yaml
+          - secret:
+              name: 
+              items:
+                - key: github
+                  path: "omniauth/%!s(<nil>)/github"
+          - secret:
+              name: 
+              items:
+                - key: google_oauth2
+                  path: "omniauth/%!s(<nil>)/google_oauth2"
+#+END_SRC
+
+[[file:gitlab/charts/gitlab/charts/sidekiq/templates/deployment.yaml::{{-%20include%20"gitlab.appConfig.omniauth.mountSecrets"%20$%20|%20nindent%2010%20}}][gitlab.appConfig.omniauth.mountSecrets
+ - include line from helm template]]
+
 
 * Footnotes
 # Local Variables:
