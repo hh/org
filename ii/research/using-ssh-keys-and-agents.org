@@ -15,8 +15,8 @@ Refer to [[https://www.digitalocean.com/community/tutorials/ssh-essentials-worki
 
 * ssh-agent
 
-As stated from the man page, ssh-agent is a program to hold private keys used for public key authentication. 
-ssh-agent is usually started in the beginning of an X-session or a login session, and all other windows or programs are started as clients to the ssh-agent program. 
+As stated from the man page, ~ssh-agent~ is a program to hold private keys used for public key authentication. 
+~ssh-agent~ is usually started in the beginning of an X-session or a login session, and all other windows or programs are started as clients to the ~ssh-agent~ program. 
 Through use of environment variables the agent can be located and automatically used for authentication when logging in to other machines using ssh.
 
 #+BEGIN_SRC shell :eval no
@@ -25,13 +25,13 @@ SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413
 SSH_AGENT_PID=3495
 #+END_SRC
 
-The agent initially does not have any private keys. Keys are added using ssh (see AddKeysToAgent in ssh_config) or ssh-add.
-ssh-add(1) is also used to remove keys from ssh-agent and to query the keys that are held in one.
+The agent initially does not have any private keys. Keys are added using ssh (see AddKeysToAgent in ssh_config) or ~ssh-add~.
+~ssh-add~ is also used to remove keys from ~ssh-agent~ and to query the keys that are held in one.
 
 
 * ssh-add
 
-The key task for ssh-add is to add private key identities to the authentication agent. 
+The key task for ~ssh-add~ is to add private key identities to the authentication agent. 
 Other tasks it can perform is to list fingerprints of all identities currently represented by the agent or delete all identities from the agent.
 
 #+BEGIN_SRC shell :eval no
