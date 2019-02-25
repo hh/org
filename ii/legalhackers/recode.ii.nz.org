@@ -792,6 +792,21 @@ I0225 02:02:05.784831       1 sync.go:273] Error issuing certificate for gitlab/
 I0225 02:02:06.198424       1 sync.go:273] Error issuing certificate for gitlab/gitlab-registry-tls: error getting certificate from acme server: acme: urn:ietf:params:acme:error:rateLimited: Error finalizing order :: too many certificates already issued for exact set of domains: registry.recode.ii.nz: see https://letsencrypt.org/docs/rate-limits/
 #+END_EXAMPLE
 
+#+NAME: inspect new certmanager logs
+#+BEGIN_SRC shell
+kubectl logs --namespace=gitlab pod/`kubectl get pod -l app=certmanager -o jsonpath='{..metadata.name}' --all-namespaces` \
+| grep "successfully obtained certificate"
+# \
+# | grep "Error issuing certificate" | head -3
+#+END_SRC
+
+#+RESULTS: inspect new certmanager logs
+#+BEGIN_EXAMPLE :noeval t
+I0225 02:38:42.280857       1 issue.go:104] successfully obtained certificate: cn="registry.recode.ii.nz" altNames=[registry.recode.ii.nz] url="https://acme-staging-v02.api.letsencrypt.org/acme/order/8349070/24280111"
+I0225 02:39:39.082432       1 issue.go:104] successfully obtained certificate: cn="gitlab.recode.ii.nz" altNames=[gitlab.recode.ii.nz] url="https://acme-staging-v02.api.letsencrypt.org/acme/order/8349070/24280110"
+I0225 02:39:40.761063       1 issue.go:104] successfully obtained certificate: cn="minio.recode.ii.nz" altNames=[minio.recode.ii.nz] url="https://acme-staging-v02.api.letsencrypt.org/acme/order/8349070/24280109"
+#+END_EXAMPLE
+
 
 * Minio Permissions
 If minio is working, it will not have any output, but we've been finding it complains that it can't write to .minio.sys.
