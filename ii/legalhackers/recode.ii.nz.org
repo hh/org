@@ -16,18 +16,15 @@
 #+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: showeverything
-
 * Load this file locally
 #+BEGIN_SRC shell
-tmate -S /tmp/local.recode.ii.nz.iisocket \
-  new-session -A -s $USER -n emacs \
-  "tmate wait tmate-ready && sleep 2 && \
-  tmate display -p '#{tmate_ssh} # $USER.emacs.recode.ii.nz\ # #{tmate_web}' \
-  | xclip -i -sel p -f | xclip -i -sel c && \
-  emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
-#+END_SRC
-#+BEGIN_SRC shell :wrap "SRC json"
-kubectl get secret gitlab-google-oauth --namespace=gitlab -o json
+  # requires working tmate, xclip, (and ii+emacs), and ~/ii/org checked out
+  tmate -S /tmp/local.recode.ii.nz.iisocket \
+    new-session -A -s $USER -n emacs \
+    "tmate wait tmate-ready && sleep 2 && \
+    tmate display -p '#{tmate_ssh} # $USER.emacs.recode.ii.nz\ # #{tmate_web}' \
+    | xclip -i -sel p -f | xclip -i -sel c && \
+    emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
 #+END_SRC
 
 * Internal Secrets
@@ -53,6 +50,7 @@ kubectl get secret gitlab-google-oauth --namespace=gitlab -o json
 #+RESULTS: generate secrets
 
 Pulling out these for now, and just generating external
+
   <<global.shell.hostKeys.generate>>
   <<global.shell.authToken.generate>>
   <<global.gitaly.authToken.generate>>
@@ -360,7 +358,6 @@ These also are not working... maybe just try smtp for now
       approval_prompt: "Recode.ii.nz GitLab"
   EOF
 #+END_SRC
-
 
 * TLDR
 
