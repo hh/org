@@ -26,6 +26,9 @@ tmate -S /tmp/local.recode.ii.nz.iisocket \
   | xclip -i -sel p -f | xclip -i -sel c && \
   emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
 #+END_SRC
+#+BEGIN_SRC shell :wrap "SRC json"
+kubectl get secret gitlab-google-oauth --namespace=gitlab -o json
+#+END_SRC
 
 * Internal Secrets
   :PROPERTIES:
@@ -46,6 +49,9 @@ tmate -S /tmp/local.recode.ii.nz.iisocket \
   pushd secrets
   popd
 #+END_SRC
+
+#+RESULTS: generate secrets
+
 Pulling out these for now, and just generating external
   <<global.shell.hostKeys.generate>>
   <<global.shell.authToken.generate>>
@@ -65,7 +71,7 @@ Pulling out these for now, and just generating external
   pushd secrets
   ls \
   | xargs -IX \
-  kubectl secret create --namespace=$NAMESPACE $RELEASE-X --from-file X
+  kubectl secret create --namespace=$NAMESPACE $RELEASE-X --from-file X.yaml
 #+END_SRC
 
 #+NAME: list secrets
@@ -73,9 +79,12 @@ Pulling out these for now, and just generating external
   kubectl get secrets --namespace=$NAMESPACE
 #+END_SRC
 
+A script to generate them exists here:
+[[https://gitlab.com/charts/gitlab/blob/master/charts/shared-secrets/templates/_generate_secrets.sh]]
 ** global.shell.hostKeys
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#ssh-host-keys]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_shell.tpl#L16]]
 
 #+NAME: global.shell.hostKeys.generate
 #+BEGIN_SRC shell
@@ -89,6 +98,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.shell.authToken
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-shell-secret]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_shell.tpl]]
 
 #+NAME: global.shell.authToken.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -101,7 +111,8 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.gitaly.authToken
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitaly-secret]]
-
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_gitaly.tpl
+]]
 #+NAME: global.gitaly.authToken.generate
 #+BEGIN_SRC shell :noweb yes
   mkdir -p gitaly-secret
@@ -113,6 +124,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.railsSecret
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-rails-secret]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_rails.tpl]]
 
 #+NAME: global.railsSecret.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -128,7 +140,8 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.workhorse
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-workhorse-secret]]
-
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_workhorse.tpl
+]]
 #+NAME: global.workhorse.generate 
 #+BEGIN_SRC shell :noweb yes
   mkdir -p gitlab-workhorse-secret
@@ -141,6 +154,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.minio.credentials
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#minio-secret]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_minio.tpl]]
 
 #+NAME: global.minio.credentials.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -153,6 +167,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.initialRootPassword
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#initial-root-password]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_migrations.tpl]]
 
 #+NAME: global.initialRootPassword.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -165,6 +180,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.redis.password
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#initial-root-password]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_redis.tpl]]
 
 #+NAME: global.redis.password.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -177,7 +193,7 @@ ssh-keygen -t ed25519  -f gitlab-shell-host-keys/ssh_host_ed25519_key -N ""
 ** global.runner.registrationToken
 
 https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-runner-secret
-
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_runner.tpl]]
 
 #+NAME: global.runner.registrationToken.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -190,6 +206,7 @@ https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-
 ** global.psql.password
 
 [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#postgresql-password]]
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_helpers.tpl#L169]]
 
 #+NAME: global.psql.password.generate 
 #+BEGIN_SRC shell :noweb yes
@@ -202,6 +219,7 @@ https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#gitlab-
 ** global.registry.httpSecret
    
 https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#registry-http-secret
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_registry.tpl]]
 
 # secret,key,value,generation
 
@@ -225,21 +243,26 @@ https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#registr
 #+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
   pushd secrets
   <<global.smtp.password.set>>
+  <<global.appConfig.omniauth.providers.github.set>>
+  <<global.appConfig.omniauth.providers.google.set>>
   popd
 #+END_SRC
 These also are not working... maybe just try smtp for now
   <<global.appConfig.incomingEmail.password.set>>
-  <<global.appConfig.omniauth.providers.github.set>>
-  <<global.appConfig.omniauth.providers.google.set>>
 
 #+RESULTS: set external secrets
 
 #+NAME: load secrets
 #+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":secret-gen.sh")
   pushd secrets
-  ls \
+  ls -d * \
+  | grep -v yaml \
   | xargs -IX \
   kubectl create secret generic --namespace=$NAMESPACE $RELEASE-X --from-file X
+  ls *.yaml \
+  | sed s:.yaml::g \
+  | xargs -IX \
+  kubectl create secret generic --namespace=$NAMESPACE $RELEASE-X --from-file X.yaml
   popd
 #+END_SRC
 
@@ -283,19 +306,61 @@ These also are not working... maybe just try smtp for now
 
 ** global.appConfig.omniauth.providers
 
+[[https://gitlab.com/charts/gitlab/blob/master/templates/_deprecations.tpl#L126][gitlab.unicorn.omniauth.* deprecation]]
+[[https://gitlab.com/charts/gitlab/blob/c4f67961b2f2ef3a97704180ec8b3c4b902fe8a9/doc/charts/gitlab/unicorn/README.md#providers][https://gitlab.com/charts/gitlab/OLDCOMMIT/doc/charts/gitlab/unicorn/README.md#providers]]
+
+#+BEGIN_NOTES
+    Chart-local configuration of Omniauth has been moved to global. Please remove `unicorn.omniauth.*` settings from your properties, and set `global.appConfig.omniauth.*` instead.
+#+END_NOTES
+
 #+NAME: global.appConfig.omniauth.providers.github.set
 #+BEGIN_SRC shell :noweb yes
-  mkdir -p github-oauth
-  echo  $OMNIAUTH_GITHUB_APP_ID > github-oauth/key
-  echo  $OMNIAUTH_GITHUB_APP_SECRET > github-oauth/secret
+  # PROVIDER=github-oauth/provider
+  # mkdir -p $PROVIDER/args
+  # # so kubectl create secret --from-file works on dir
+  # touch github-oauth/empty
+  # echo github > $PROVIDER/name
+  # echo GitHub > $PROVIDER/label
+  # echo $OMNIAUTH_GITHUB_APP_ID > $PROVIDER/app_id
+  # echo $OMNIAUTH_GITHUB_APP_SECRET > $PROVIDER/app_secret
+  # echo "user:email" > $PROVIDER/args/scope
+  # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
+  mkdir github-oauth 
+  cat <<-EOF > github-oauth/provider
+    name: github
+    label: GitHub
+    app_id: $OMNIAUTH_GITHUB_APP_ID
+    app_secret: $OMNIAUTH_GITHUB_APP_SECRET
+    args:
+      scope: "user:email"
+      approval_prompt: "Recode.ii.nz GitLab"
+  EOF
 #+END_SRC
 
 #+NAME: global.appConfig.omniauth.providers.google.set
 #+BEGIN_SRC shell :noweb yes
-  mkdir -p google-oauth
-  echo  $OMNIAUTH_GOOGLE_APP_ID > google-oauth/key
-  echo  $OMNIAUTH_GOOGLE_APP_SECRET > google-oauth/secret
+  # PROVIDER=google-oauth/provider
+  # mkdir -p $PROVIDER/args
+  # # so kubectl create secret --from-file works on dir
+  # touch google-oauth/empty
+  # echo google_oauth2 > $PROVIDER/name
+  # echo Google > $PROVIDER/label
+  # echo $OMNIAUTH_GOOGLE_APP_ID > $PROVIDER/app_id
+  # echo $OMNIAUTH_GOOGLE_APP_SECRET > $PROVIDER/app_secret
+  # echo "offline" > $PROVIDER/args/access_type
+  # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
+  mkdir google-oauth 
+  cat <<-EOF > google-oauth/provider
+    name: google_oauth2
+    label: Google
+    app_id: $OMNIAUTH_GOOGLE_APP_ID
+    app_secret: $OMNIAUTH_GOOGLE_APP_SECRET
+    args:
+      access_type: "offline"
+      approval_prompt: "Recode.ii.nz GitLab"
+  EOF
 #+END_SRC
+
 
 * TLDR
 
@@ -313,8 +378,10 @@ kubectl get secrets --namespace gitlab
 #+RESULTS: get secrets
 #+BEGIN_EXAMPLE :noeval t
 NAME                   TYPE                                  DATA   AGE
-default-token-pkcdh    kubernetes.io/service-account-token   3      117s
-gitlab-smtp-password   Opaque                                1      117s
+default-token-wkdnn    kubernetes.io/service-account-token   3      61s
+gitlab-github-oauth    Opaque                                1      61s
+gitlab-google-oauth    Opaque                                1      61s
+gitlab-smtp-password   Opaque                                1      61s
 #+END_EXAMPLE
 
 #+NAME: write remote config files
@@ -466,11 +533,12 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
       #externalIP: 139.178.88.148 
       #loadBalancerIP: 139.178.88.148 
       domain: recode.ii.nz
+      ssh: git.recode.ii.nz
     ## doc/charts/globals.md#configure-appconfig-settings
     ## Rails based portions of this chart share many settings
     appConfig:
       ## doc/charts/globals.md#general-application-settings
-      enableUsagePing: true
+      enableUsagePing: false
       enableImpersonation: true
       defaultCanCreateGroup: true
       usernameChangingEnabled: true
@@ -522,19 +590,18 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
       #     key: password
       #   mailbox: inbox
       #   idleTimeout: 60
-
-      #  omniauth:
-      #   enabled: true
-      #   autoSignInWithProvider: "github"
-      #   syncProfileFromProvider: ["google_oauth2", "github" ]
-      #   allowSingleSignOn: ["github", "google_oauth2"]
-      #   blockAutoCreatedUsers: false
-      #   providers:
-      #     - key: "github"
-      #       secret: "gitlab-github-oauth"
-      #     - key: "google_oauth2"
-      #       secret: "gitlab-google-oauth"
-      #   syncProfileAttributes: ['email']
+      omniauth:
+       enabled: true
+       # While interesting for a team where everyone is on github or google
+       # it might make sense to let folks choose most of the time
+       # autoSignInWithProvider: "github"
+       syncProfileFromProvider: ["google_oauth2", "github" ]
+       allowSingleSignOn: ["github", "google_oauth2"]
+       blockAutoCreatedUsers: false
+       providers:
+         - secret: "gitlab-github-oauth"
+         - secret: "gitlab-google-oauth"
+       syncProfileAttributes: ['email']
   # https://letsencrypt.org/docs/staging-environment/
   certmanager-issuer:
     email: recode@ii.nz
@@ -543,15 +610,19 @@ Invalid value: 80: provided port is not in the valid range. The range of valid p
   gitlab:
     unicorn:
       image:
-        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ce
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ee
+        # repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-unicorn-ce
       workhorse:
-        image: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
+        image: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ee
+        # image: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
     sidekiq:
       image:
-        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ee
+        # repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
     migrations:
       image:
-        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
+        repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ee
+        # repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-rails-ce
 #+END_SRC
 
 ** Verify cluster
@@ -806,7 +877,6 @@ I0225 02:38:42.280857       1 issue.go:104] successfully obtained certificate: c
 I0225 02:39:39.082432       1 issue.go:104] successfully obtained certificate: cn="gitlab.recode.ii.nz" altNames=[gitlab.recode.ii.nz] url="https://acme-staging-v02.api.letsencrypt.org/acme/order/8349070/24280110"
 I0225 02:39:40.761063       1 issue.go:104] successfully obtained certificate: cn="minio.recode.ii.nz" altNames=[minio.recode.ii.nz] url="https://acme-staging-v02.api.letsencrypt.org/acme/order/8349070/24280109"
 #+END_EXAMPLE
-
 
 * Minio Permissions
 If minio is working, it will not have any output, but we've been finding it complains that it can't write to .minio.sys.
