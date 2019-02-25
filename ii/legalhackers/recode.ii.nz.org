@@ -25,7 +25,7 @@
   tmate -S /tmp/local.recode.ii.nz.iisocket \
     new-session -A -s $USER -n emacs \
     "tmate wait tmate-ready && sleep 2 && \
-    tmate display -p '#{tmate_ssh} # $USER.emacs.recode.ii.nz\ # #{tmate_web}' \
+    tmate display -p '#{tmate_ssh} # $USER.emacs.recode.ii.nz # #{tmate_web}' \
     | xclip -i -sel p -f | xclip -i -sel c && \
     emacs -nw ~/ii/org/ii/legalhackers/recode.ii.nz.org"
 #+END_SRC
@@ -370,8 +370,8 @@ helm repo update
   # https://letsencrypt.org/docs/staging-environment/
   certmanager-issuer:
     email: recode@ii.nz
-    # server: https://acme-v02.api.letsencrypt.org/directory
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # server: https://acme-staging-v02.api.letsencrypt.org/directory
   gitlab:
     unicorn:
       image:
