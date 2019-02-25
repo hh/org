@@ -53,6 +53,18 @@ The agent has no identities.
 #+END_SRC
 
 
+* ~/.ssh/config
+
+The config file within the users' ~.ssh~ folder holds various configuration options that are used with ~ssh~.
+In the current scope of working with an agent, we can use an option to add the users' ssh key automatically to the agent.
+
+#+BEGIN_SRC shell :eval no
+AddKeysToAgent yes
+#+END_SRC
+
+Refer to the [[https://linux.die.net/man/5/ssh_config][man page]] for more information on how to use this configuration file.
+
+
 * Troubleshooting
 
 - Step 1: Check that there is an agent running
@@ -110,4 +122,4 @@ Next step is review options using ssh_config and how to create a 'whitelist' of 
 - [[https://ebzzry.io/en/gsk/][Setting up GPG and SSH in KDE]]
 - [[https://linux.die.net/man/1/ssh-agent][Linux man page: ssh-agent]]
 - [[https://linux.die.net/man/1/ssh-add][Linux man page: ssh-add]]
-
+- [[https://linux.die.net/man/5/ssh_config][Linux man page: ssh_config]]
