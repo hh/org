@@ -15,8 +15,7 @@
 #+NOPROPERTY: header-args:tmate+ :prologue (concat "cd " org-file-dir "\n")
 #+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
-#+STARTUP: showeverything
-
+#+STARTUP: content
 
 * How to use
 ** Start emacs session
@@ -31,7 +30,6 @@
 #+END_SRC
 
 ** deploy
-
 Type , b s to evaluate this subtree:
 *** tangle
 #+NAME: write remote config files
@@ -41,19 +39,40 @@ Type , b s to evaluate this subtree:
 
 Our rendered files:
 [[/ssh:root@139.178.88.146:/root/recode.ii.nz.yaml]]
+[[/ssh:root@139.178.88.146:/root/secrets.env]]
+
 *** deploy
 Create namespace and load external secrets
 
 #+NAME: deploy gitlab
 #+BEGIN_SRC tmate :noweb yes
-bash ./secret-gen.sh
-kubectl get secrets --namespace=gitlab
+. secrets.env
+bash ./external-secrets.sh
+kubectl get secrets --namespace=$NAMESPACE
 #+END_SRC
 
-#+NAME: deploy gitlab
-#+BEGIN_SRC tmate :noweb yes
-  <<Deploy Gitlab on Kubernetes>>
+#+NAME: restore secrets
+#+BEGIN_SRC tmate
+  . secrets.env
+  kubectl create namespace $NAMESPACE || true
+  kubectl apply -f $NAMESPACE-secrets.yaml
 #+END_SRC
+
+  #+NAME: Deploy Gitlab on Kubernetes
+  #+BEGIN_SRC tmate
+    . secrets.env
+    helm upgrade --namespace=$NAMESPACE --install $RELEASE \
+      gitlab/gitlab --values ~/recode.ii.nz.yaml
+    sleep 10
+    MINIO_PVC=$(kubectl get pvc --namespace=$NAMESPACE $RELEASE-minio -o jsonpath='{.spec.volumeName}')
+    chown 1000.1000 /volumes/$MINIO_PVC
+    REDIS_PVC=$(kubectl get pvc --namespace=$NAMESPACE $RELEASE-redis -o jsonpath='{.spec.volumeName}')
+    chown -R 999.999 /volumes/$REDIS_PVC
+    #gitaly / repo-data takes a while to be created
+    REPO_PVC=$(kubectl get pvc --namespace=$NAMESPACE repo-data-$RELEASE-gitaly-0 -o jsonpath='{.spec.volumeName}')
+    echo $REPO_PVC
+    chown 1000.1000 /volumes/$REPO_PVC
+  #+END_SRC
 
 ** inspect secrets
 :PROPERTIES:
@@ -73,6 +92,11 @@ gitlab-github-oauth    Opaque                                1      61s
 gitlab-google-oauth    Opaque                                1      61s
 gitlab-smtp-password   Opaque                                1      61s
 #+END_EXAMPLE
+
+#+NAME: save secrets
+#+BEGIN_SRC tmate
+kubectl get secrets --namespace=$NAMESPACE -o yaml > $NAMESPACE-secrets.yaml
+#+END_SRC
 ** helm dump
 #+BEGIN_SRC tmate
 helm get manifest gitlab > helm-gitlab-manifests.yaml
@@ -89,9 +113,10 @@ helm get gitlab manifests is the wrong order
 ** purge
 #+NAME: Delete Gitlab Fully
 #+BEGIN_SRC tmate
-helm delete --purge gitlab \
-; kubectl delete namespace gitlab \
-; rm -rf secrets ; rm -rf /volumes/pvc-*
+  . secrets.env
+  helm delete --purge $RELEASE \
+  ; kubectl delete namespace $NAMESPACE \
+  ; rm -rf secrets ; rm -rf /volumes/pvc-*
 #+END_SRC
 
 * Secrets
@@ -127,17 +152,17 @@ This script will use a secrets.env file and create the secrets in k8s.
 #+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":external-secrets.sh")
   set -x
   set -e
-  export RELEASE=gitlab
-  export NAMESPACE=gitlab
   . secrets.env
   kubectl create namespace $NAMESPACE || true
   mkdir -p secrets
-  pushd secret
+  pushd secrets
   <<global.smtp.password.set>>
   <<global.appConfig.omniauth.providers.github.set>>
   <<global.appConfig.omniauth.providers.google.set>>
   popd
 #+END_SRC
+
+#+RESULTS: set external secrets
 
 #+NAME: load secrets
 #+BEGIN_SRC sh :noweb yes :tangle (concat "/ssh:" ssh-user-host ":external-secrets.sh")
@@ -148,6 +173,8 @@ This script will use a secrets.env file and create the secrets in k8s.
   kubectl create secret generic --namespace=$NAMESPACE $RELEASE-X --from-file X
   popd
 #+END_SRC
+
+#+RESULTS: load secrets
 
 ** global.smtp.password
 
@@ -196,16 +223,6 @@ This script will use a secrets.env file and create the secrets in k8s.
 
 #+NAME: global.appConfig.omniauth.providers.github.set
 #+BEGIN_SRC shell :noweb yes
-  # PROVIDER=github-oauth/provider
-  # mkdir -p $PROVIDER/args
-  # # so kubectl create secret --from-file works on dir
-  # touch github-oauth/empty
-  # echo github > $PROVIDER/name
-  # echo GitHub > $PROVIDER/label
-  # echo $OMNIAUTH_GITHUB_APP_ID > $PROVIDER/app_id
-  # echo $OMNIAUTH_GITHUB_APP_SECRET > $PROVIDER/app_secret
-  # echo "user:email" > $PROVIDER/args/scope
-  # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
   mkdir github-oauth 
   cat <<-EOF > github-oauth/provider
     name: github
@@ -220,16 +237,6 @@ This script will use a secrets.env file and create the secrets in k8s.
 
 #+NAME: global.appConfig.omniauth.providers.google.set
 #+BEGIN_SRC shell :noweb yes
-  # PROVIDER=google-oauth/provider
-  # mkdir -p $PROVIDER/args
-  # # so kubectl create secret --from-file works on dir
-  # touch google-oauth/empty
-  # echo google_oauth2 > $PROVIDER/name
-  # echo Google > $PROVIDER/label
-  # echo $OMNIAUTH_GOOGLE_APP_ID > $PROVIDER/app_id
-  # echo $OMNIAUTH_GOOGLE_APP_SECRET > $PROVIDER/app_secret
-  # echo "offline" > $PROVIDER/args/access_type
-  # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
   mkdir google-oauth 
   cat <<-EOF > google-oauth/provider
     name: google_oauth2
@@ -273,7 +280,7 @@ helm repo update
   nginx-ingress:
     controller:
       # hostNetwork: true #?
-      clusterIP: 139.178.88.148 
+      clusterIP: 139.178.88.150
       minAvailable: 1
       daemonset:
         hostPorts:
@@ -283,7 +290,7 @@ helm repo update
       service:
         clusterIP: ""
         loadBalancerIP: ""
-        externalIPs: ["139.178.88.148"]
+        externalIPs: ["139.178.88.150"]
         externalTrafficPolicy: Local
         healthCheckNodePort: 0
         nodePorts:
@@ -298,8 +305,8 @@ helm repo update
     hosts:
       #externalIP: 139.178.88.148 
       #loadBalancerIP: 139.178.88.148 
-      domain: recode.ii.nz
-      ssh: git.recode.ii.nz
+      domain: dev.ii.coop
+      ssh: git.dev.ii.coop
     ## doc/charts/globals.md#configure-appconfig-settings
     ## Rails based portions of this chart share many settings
     appConfig:
@@ -364,14 +371,14 @@ helm repo update
        allowSingleSignOn: ["github", "google_oauth2"]
        blockAutoCreatedUsers: false
        providers:
-         - secret: "gitlab-github-oauth"
-         - secret: "gitlab-google-oauth"
+         - secret: "gitlab-dev-ii-coop-github-oauth"
+         - secret: "gitlab-dev-ii-coop-google-oauth"
        syncProfileAttributes: ['email']
   # https://letsencrypt.org/docs/staging-environment/
   certmanager-issuer:
-    email: recode@ii.nz
-    # server: https://acme-v02.api.letsencrypt.org/directory
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: gitlab-dev-ii-nz@ii.coop
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # server: https://acme-staging-v02.api.letsencrypt.org/directory
   gitlab:
     unicorn:
       image:
@@ -614,99 +621,6 @@ A script to generate them exists here:
    | base64 > registry-httpsecret/secret
  #+END_SRC
 
-*** global.smtp.password
-
- [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#smtp-password]]
-
- #+NAME: global.smtp.password.generate
- #+BEGIN_SRC shell :noweb yes
-   mkdir -p smtp-password
-   head -c 512 /dev/urandom \
-   | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
-   | head -c 32 > smtp-password/password
- #+END_SRC
-
- #+NAME: global.smtp.password.set
- #+BEGIN_SRC shell :noweb yes
-   mkdir -p smtp-password
-   echo  $SMTP_PASSWORD > smtp-password/password
- #+END_SRC
-
-*** global.appConfig.incomingEmail.password
-   
- [[https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#imap-password-for-incoming-emails]]
-
- #+NAME: global.appConfig.incomingEmail.password.generate
- #+BEGIN_SRC shell :noweb yes
-   mkdir -p incoming-email-password
-   head -c 512 /dev/urandom \
-   | LC_CTYPE=C tr -cd 'a-zA-Z0-9' \
-   | head -c 64 > incoming-email-password/password
- #+END_SRC
-
- #+NAME: global.appConfig.incomingEmail.password.set
- #+BEGIN_SRC shell :noweb yes
-   mkdir -p incoming-email-password
-   echo  $IMAP_PASSWORD > incoming-email-password/password
- #+END_SRC
-
-*** global.appConfig.omniauth.providers
-
- [[https://gitlab.com/charts/gitlab/blob/master/templates/_deprecations.tpl#L126][gitlab.unicorn.omniauth.* deprecation]]
- [[https://gitlab.com/charts/gitlab/blob/c4f67961b2f2ef3a97704180ec8b3c4b902fe8a9/doc/charts/gitlab/unicorn/README.md#providers][https://gitlab.com/charts/gitlab/OLDCOMMIT/doc/charts/gitlab/unicorn/README.md#providers]]
-
- #+BEGIN_NOTES
-     Chart-local configuration of Omniauth has been moved to global. Please remove `unicorn.omniauth.*` settings from your properties, and set `global.appConfig.omniauth.*` instead.
- #+END_NOTES
-
- #+NAME: global.appConfig.omniauth.providers.github.set
- #+BEGIN_SRC shell :noweb yes
-   # PROVIDER=github-oauth/provider
-   # mkdir -p $PROVIDER/args
-   # # so kubectl create secret --from-file works on dir
-   # touch github-oauth/empty
-   # echo github > $PROVIDER/name
-   # echo GitHub > $PROVIDER/label
-   # echo $OMNIAUTH_GITHUB_APP_ID > $PROVIDER/app_id
-   # echo $OMNIAUTH_GITHUB_APP_SECRET > $PROVIDER/app_secret
-   # echo "user:email" > $PROVIDER/args/scope
-   # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
-   mkdir github-oauth 
-   cat <<-EOF > github-oauth/provider
-     name: github
-     label: GitHub
-     app_id: $OMNIAUTH_GITHUB_APP_ID
-     app_secret: $OMNIAUTH_GITHUB_APP_SECRET
-     args:
-       scope: "user:email"
-       approval_prompt: "Recode.ii.nz GitLab"
-   EOF
- #+END_SRC
-
- #+NAME: global.appConfig.omniauth.providers.google.set
- #+BEGIN_SRC shell :noweb yes
-   # PROVIDER=google-oauth/provider
-   # mkdir -p $PROVIDER/args
-   # # so kubectl create secret --from-file works on dir
-   # touch google-oauth/empty
-   # echo google_oauth2 > $PROVIDER/name
-   # echo Google > $PROVIDER/label
-   # echo $OMNIAUTH_GOOGLE_APP_ID > $PROVIDER/app_id
-   # echo $OMNIAUTH_GOOGLE_APP_SECRET > $PROVIDER/app_secret
-   # echo "offline" > $PROVIDER/args/access_type
-   # echo "Recode.ii.nz GitLab" > $PROVIDER/args/approval_prompt
-   mkdir google-oauth 
-   cat <<-EOF > google-oauth/provider
-     name: google_oauth2
-     label: Google
-     app_id: $OMNIAUTH_GOOGLE_APP_ID
-     app_secret: $OMNIAUTH_GOOGLE_APP_SECRET
-     args:
-       access_type: "offline"
-       approval_prompt: "Recode.ii.nz GitLab"
-   EOF
- #+END_SRC
-
 *** find my_ip
  #+NAME: my_ip
  #+BEGIN_SRC shell
@@ -748,20 +662,6 @@ A script to generate them exists here:
   kube-system   tiller-deploy-dbb85cb99-f84vr           1/1     Running   0          82m
   #+END_EXAMPLE
 
-**** Deploy Gitlab on Kubernetes 
-  #+NAME: Deploy Gitlab on Kubernetes
-  #+BEGIN_SRC tmate
-    helm upgrade --namespace=gitlab --install gitlab gitlab/gitlab --values ~/recode.ii.nz.yaml
-    sleep 10
-    MINIO_PVC=$(kubectl get pvc --namespace=gitlab gitlab-minio -o jsonpath='{.spec.volumeName}')
-    chown 1000.1000 /volumes/$MINIO_PVC
-    REDIS_PVC=$(kubectl get pvc --namespace=gitlab gitlab-redis -o jsonpath='{.spec.volumeName}')
-    chown -R 999.999 /volumes/$REDIS_PVC
-    #gitaly / repo-data takes a while to be created
-    REPO_PVC=$(kubectl get pvc --namespace=gitlab repo-data-gitlab-gitaly-0 -o jsonpath='{.spec.volumeName}')
-    echo $REPO_PVC
-    chown 1000.1000 /volumes/$REPO_PVC
-  #+END_SRC
 
   #+NAME: Delete Gitlab Fully
   #+BEGIN_SRC tmate
