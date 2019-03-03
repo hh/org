@@ -1,0 +1,24 @@
+#+TITLE: Documentation Objectives
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 4th of March, 2019
+#+STARTUP: showeverything
+
+* Documentation Objectives:
+
+Even though the definition of documentation is /"material that provides official information or evidence or that serves as a record"/, there are a number of factors that help future readers of the documentation.
+
+- Does this document help me understand a clear outcome and why it's important?
+- What helps the reader foucs on what's important and what can be left out of the current document? 
+- Remember that reader may or not have the same [[https://sites.educ.ualberta.ca/staff/olenka.bilash/Best%2520of%2520Bilash/cognitive%2520capacity.html][cognitive capacity/load]] as the writer while they are reading/processing the document.
+- Make sure to include references to supporting documents so if the reader has any knowledge /"gaps"/ the reader can decide /when/ they need to fill the "gap", either now or later.
+
+  
+* Getting Inspiration
+
+The goal of the following links is to help creators of documentation explore/see new possibilities.
+
+- Video: [[https://www.youtube.com/watch?v=HRa3bbaUpSc][A Dozen Ways to Hack Your Brain to Write Fluently by Dan Allen]] (31 mins)
+- Blog Post: [[https://opendevise.com/blog/content-is-sovereign/][Content is Sovereign]]
+- Video: [[https://www.youtube.com/watch?v=vWsWU6Igmhc][Antora: Documentation Sites for Software Teams by Dan Allen]] (17mins) 
