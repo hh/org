@@ -5,7 +5,7 @@
 #+DATE: 4th of March, 2019
 #+STARTUP: showeverything
 
-* Documentation Objectives:
+* Objectives:
 
 Even though the definition of documentation is /"material that provides official information or evidence or that serves as a record"/, there are a number of factors that help future readers of the documentation.
 
