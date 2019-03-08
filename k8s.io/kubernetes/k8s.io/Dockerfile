@@ -53,7 +53,7 @@ RUN cd /usr/local/src/emacs \
     && ./configure --prefix=/usr/local \
     && make -j $(nproc) install
 
-RUN go get sigs.k8s.io/kind && cp /root/gopath/bin/kind /usr/local/bin
+#RUN go get sigs.k8s.io/kind && cp /root/gopath/bin/kind /usr/local/bin
 
 RUN curl -L \
   https://storage.googleapis.com/kubernetes-helm/helm-v2.13.0-linux-amd64.tar.gz \
