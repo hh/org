@@ -4,6 +4,7 @@
 #+CREATOR: ii.coop
 #+DATE: 8th of March, 2019
 #+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
 #+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
 #+PROPERTY: header-args:shell+ :eval no-export
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
@@ -13,7 +14,7 @@
 
 * iam dump
 ** exploring
-
+*** list org projects
 #+NAME: list org projects
 #+BEGIN_SRC shell
 gcloud projects list --filter "parent.id=758905017065" --format "value(name, projectId, projectNumber)"
@@ -244,12 +245,6 @@ writing this from scratch MAY be fine, but a quick check might be nice if this g
 [[https://github.com/marcin-kolda/gcp-iam-collector#features]]
 ** TODO: iterate over enabled APIs per project
 identify each resource, them dump iam
-* tmate
-** iam
-#+BEGIN_SRC tmate :noweb yes
-<<custom roles>>
-<<ServiceAccountLister permissions>>
-#+END_SRC
 * Footnotes
 
 # Local Variables:
