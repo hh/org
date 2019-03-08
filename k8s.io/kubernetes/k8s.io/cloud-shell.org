@@ -136,7 +136,7 @@ RUN cd /usr/local/src/emacs \
     && make -j $(nproc) install
 #+END_SRC
 
-- randomized memory locations prevent emacs from building
+**** randomized memory locations prevent emacs from building
 
 We'll likely be unable to use cloud build services (that are containerized).
 This is due to the way that the lisp state machine (in memory) is probed when the desired final state is reached.
