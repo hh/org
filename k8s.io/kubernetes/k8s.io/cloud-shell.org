@@ -38,17 +38,14 @@ sessions.
 
 ** Dockerfile
    :PROPERTIES:
-   :header-args: dockerfile  :tangle Dockerfile
+   :header-args: dockerfile  :tangle Dockerfile :comments org
    :END:
 
-This is based on cloudshell
-
-#+NAME: wg-k8s-infra Dockerfile
+#+NAME: start from the base Google Cloud-Shell
 #+BEGIN_SRC dockerfile
   FROM gcr.io/cloudshell-images/cloudshell:cloud-shell-v20190304
 #+END_SRC
 *** Base Software
-Ensure en_US.UTF-8 everywhere, for now
  
 #+NAME: wg-k8s-infra Dockerfile
 #+BEGIN_SRC dockerfile
@@ -131,13 +128,6 @@ RUN git clone --depth 1 -b stable \
     /usr/local/src/emacs
 #+END_SRC
 
-- https://stackoverflow.com/questions/37544423/how-to-build-emacs-from-source-in-docker-hub-gap-between-bss-and-heap
-- https://debbugs.gnu.org/cgi/bugreport.cgi?bug=23529
-
-Will likely require building with ~echo 0 > /proc/sys/kernel/randomize_va_space; docker build .~
-
-
-
 #+NAME: compile emacs
 #+BEGIN_SRC dockerfile
 RUN cd /usr/local/src/emacs \
@@ -145,6 +135,32 @@ RUN cd /usr/local/src/emacs \
     && ./configure --prefix=/usr/local \
     && make -j $(nproc) install
 #+END_SRC
+
+- randomized memory locations prevent emacs from building
+
+We'll likely be unable to use cloud build services (that are containerized).
+This is due to the way that the lisp state machine (in memory) is probed when the desired final state is reached.
+The probing allows this state to be saved directly to the 'emacs' binary itself...
+
+- https://stackoverflow.com/questions/37544423/how-to-build-emacs-from-source-in-docker-hub-gap-between-bss-and-heap
+- https://debbugs.gnu.org/cgi/bugreport.cgi?bug=23529
+
+#+BEGIN_EXAMPLE
+Dumping under the name emacs
+**************************************************
+Warning: Your system has a gap between BSS and the
+heap (32861823 bytes).  This usually means that exec-shield
+or something similar is in effect.  The dump may
+fail because of this.  See the section about
+exec-shield in etc/PROBLEMS for more information.
+**************************************************
+20758176 of 33554432 static heap bytes used
+Makefile:749: recipe for target 'bootstrap-emacs' failed
+make[1]: *** [bootstrap-emacs] Segmentation fault (core dumped)
+make[1]: Leaving directory '/usr/local/src/emacs/src'
+#+END_EXAMPLE
+
+Will likely require building with ~echo 0 > /proc/sys/kernel/randomize_va_space; docker build .~
 
 *** kind
 
@@ -205,6 +221,9 @@ RUN  ln -sf /etc/skel/.emacs.d /root/.emacs.d \
 #+END_SRC
 
 * Footnotes
+
+Some of these layers are 2GB, and quite a few are over 1GB.
+
 # Local Variables:
 # eval: (set (make-local-variable 'ssh-user-host) "root@139.178.88.146")
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
