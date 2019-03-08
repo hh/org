@@ -1,0 +1,270 @@
+#+TITLE: #wg-k8s-infra
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 8th of March, 2019
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+
+* iam dump
+** exploring
+
+#+NAME: list org projects
+#+BEGIN_SRC shell
+gcloud projects list --filter "parent.id=758905017065" --format "value(name, projectId, projectNumber)"
+#+END_SRC
+
+#+RESULTS: list org projects
+#+BEGIN_EXAMPLE :noeval t
+kubernetes-public	kubernetes-public	127754664067
+#+END_EXAMPLE
+
+** iam dump
+*** CNCF org
+#+NAME: iam dump CNCF org
+#+BEGIN_SRC shell :wrap SRC yaml
+gcloud organizations get-iam-policy 758905017065
+#+END_SRC
+
+#+RESULTS: iam dump CNCF org
+#+BEGIN_SRC yaml
+bindings:
+- members:
+  - user:ihor@cncf.io
+  - user:thockin@google.com
+  - user:twaggoner@linuxfoundation.org
+  role: roles/billing.admin
+- members:
+  - domain:kubernetes.io
+  - user:ihor@cncf.io
+  - user:thockin@google.com
+  role: roles/billing.creator
+- members:
+  - user:hh@ii.coop
+  role: roles/iam.securityReviewer
+- members:
+  - user:domain-admin-lf@kubernetes.io
+  - user:ihor@cncf.io
+  - user:thockin@google.com
+  - user:twaggoner@linuxfoundation.org
+  role: roles/resourcemanager.organizationAdmin
+- members:
+  - domain:kubernetes.io
+  - user:thockin@google.com
+  role: roles/resourcemanager.projectCreator
+- members:
+  - user:thockin@google.com
+  role: roles/resourcemanager.projectDeleter
+etag: BwWDl6w4hzc=
+#+END_SRC
+
+*** kubernetes-public
+#+NAME: iam dump
+#+BEGIN_SRC shell :wrap SRC yaml
+gcloud projects get-iam-policy kubernetes-public
+#+END_SRC
+
+#+RESULTS: iam dump
+#+BEGIN_SRC yaml
+bindings:
+- members:
+  - group:k8s-infra-cluster-admins@googlegroups.com
+  role: projects/kubernetes-public/roles/ServiceAccountLister
+- members:
+  - group:k8s-infra-bigquery-admins@googlegroups.com
+  role: roles/bigquery.admin
+- members:
+  - serviceAccount:service-127754664067@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - group:k8s-infra-cluster-admins@googlegroups.com
+  role: roles/compute.viewer
+- members:
+  - group:k8s-infra-cluster-admins@googlegroups.com
+  role: roles/container.admin
+- members:
+  - serviceAccount:service-127754664067@container-engine-robot.iam.gserviceaccount.com
+  role: roles/container.serviceAgent
+- members:
+  - group:k8s-infra-dns-admins@googlegroups.com
+  role: roles/dns.admin
+- members:
+  - serviceAccount:127754664067-compute@developer.gserviceaccount.com
+  - serviceAccount:127754664067@cloudservices.gserviceaccount.com
+  - serviceAccount:service-127754664067@containerregistry.iam.gserviceaccount.com
+  role: roles/editor
+- members:
+  - serviceAccount:k8s-nodes@kubernetes-public.iam.gserviceaccount.com
+  role: roles/logging.logWriter
+- members:
+  - serviceAccount:k8s-nodes@kubernetes-public.iam.gserviceaccount.com
+  role: roles/monitoring.metricWriter
+- members:
+  - serviceAccount:k8s-nodes@kubernetes-public.iam.gserviceaccount.com
+  role: roles/monitoring.viewer
+- members:
+  - user:domain-admin-lf@kubernetes.io
+  - user:ihor@cncf.io
+  - user:thockin@google.com
+  role: roles/owner
+etag: BwWBY6sq2cc=
+version: 1
+#+END_SRC
+** TODO: which GROUPS have ROLES
+*** CNCF org
+
+#+NAME: CNCF roles
+#+BEGIN_SRC shell
+  (
+  gcloud iam roles list --organization=758905017065
+  ) 2>&1
+#+END_SRC
+
+#+RESULTS: CNCF roles
+#+BEGIN_EXAMPLE :noeval t
+Listed 0 items.
+#+END_EXAMPLE
+
+*** kubernetes-public project
+#+NAME: custom roles
+#+BEGIN_SRC shell
+gcloud --project=kubernetes-public iam roles list --format "value(name)"
+#+END_SRC
+
+#+RESULTS: custom roles
+#+BEGIN_EXAMPLE :noeval t
+projects/kubernetes-public/roles/ServiceAccountLister
+#+END_EXAMPLE
+
+#+NAME: ServiceAccountLister permissions
+#+BEGIN_SRC shell
+gcloud --project=kubernetes-public iam roles describe ServiceAccountLister --format "value(includedPermissions)"
+#+END_SRC
+
+#+RESULTS: ServiceAccountLister permissions
+#+BEGIN_EXAMPLE :noeval t
+iam.serviceAccounts.list
+#+END_EXAMPLE
+
+** TODO: list buckets
+
+#+NAME: project buckets
+#+BEGIN_SRC shell
+gsutil ls -p kubernetes-public
+#+END_SRC
+
+#+RESULTS: project buckets
+#+BEGIN_EXAMPLE :noeval t
+gs://kubernetes_public_billing/
+#+END_EXAMPLE
+
+#+NAME: kubernetes_public_billing files
+#+BEGIN_SRC shell
+gsutil ls -r gs://kubernetes_public_billing/
+#+END_SRC
+
+#+RESULTS: kubernetes_public_billing files
+#+BEGIN_EXAMPLE :noeval t
+gs://kubernetes_public_billing/billing--2019-01-10.csv
+gs://kubernetes_public_billing/billing--2019-01-11.csv
+gs://kubernetes_public_billing/billing--2019-01-12.csv
+gs://kubernetes_public_billing/billing--2019-01-13.csv
+gs://kubernetes_public_billing/billing--2019-01-14.csv
+gs://kubernetes_public_billing/billing--2019-01-15.csv
+gs://kubernetes_public_billing/billing--2019-01-16.csv
+gs://kubernetes_public_billing/billing--2019-01-17.csv
+gs://kubernetes_public_billing/billing--2019-01-18.csv
+gs://kubernetes_public_billing/billing--2019-01-19.csv
+gs://kubernetes_public_billing/billing--2019-01-20.csv
+gs://kubernetes_public_billing/billing--2019-01-21.csv
+gs://kubernetes_public_billing/billing--2019-01-22.csv
+gs://kubernetes_public_billing/billing--2019-01-23.csv
+gs://kubernetes_public_billing/billing--2019-01-24.csv
+gs://kubernetes_public_billing/billing--2019-01-25.csv
+gs://kubernetes_public_billing/billing--2019-01-26.csv
+gs://kubernetes_public_billing/billing--2019-01-27.csv
+gs://kubernetes_public_billing/billing--2019-01-28.csv
+gs://kubernetes_public_billing/billing--2019-01-29.csv
+gs://kubernetes_public_billing/billing--2019-01-30.csv
+gs://kubernetes_public_billing/billing--2019-01-31.csv
+gs://kubernetes_public_billing/billing--2019-02-01.csv
+gs://kubernetes_public_billing/billing--2019-02-02.csv
+gs://kubernetes_public_billing/billing--2019-02-03.csv
+gs://kubernetes_public_billing/billing--2019-02-04.csv
+gs://kubernetes_public_billing/billing--2019-02-05.csv
+gs://kubernetes_public_billing/billing--2019-02-06.csv
+gs://kubernetes_public_billing/billing--2019-02-07.csv
+gs://kubernetes_public_billing/billing--2019-02-08.csv
+gs://kubernetes_public_billing/billing--2019-02-09.csv
+gs://kubernetes_public_billing/billing--2019-02-10.csv
+gs://kubernetes_public_billing/billing--2019-02-11.csv
+gs://kubernetes_public_billing/billing--2019-02-12.csv
+gs://kubernetes_public_billing/billing--2019-02-13.csv
+gs://kubernetes_public_billing/billing--2019-02-14.csv
+gs://kubernetes_public_billing/billing--2019-02-15.csv
+gs://kubernetes_public_billing/billing--2019-02-16.csv
+gs://kubernetes_public_billing/billing--2019-02-17.csv
+gs://kubernetes_public_billing/billing--2019-02-18.csv
+gs://kubernetes_public_billing/billing--2019-02-19.csv
+gs://kubernetes_public_billing/billing--2019-02-20.csv
+gs://kubernetes_public_billing/billing--2019-02-21.csv
+gs://kubernetes_public_billing/billing--2019-02-22.csv
+gs://kubernetes_public_billing/billing--2019-02-23.csv
+gs://kubernetes_public_billing/billing--2019-02-24.csv
+gs://kubernetes_public_billing/billing--2019-02-25.csv
+gs://kubernetes_public_billing/billing--2019-02-26.csv
+gs://kubernetes_public_billing/billing--2019-02-27.csv
+gs://kubernetes_public_billing/billing--2019-02-28.csv
+gs://kubernetes_public_billing/billing--2019-03-01.csv
+gs://kubernetes_public_billing/billing--2019-03-02.csv
+gs://kubernetes_public_billing/billing--2019-03-03.csv
+gs://kubernetes_public_billing/billing--2019-03-04.csv
+gs://kubernetes_public_billing/billing--2019-03-05.csv
+gs://kubernetes_public_billing/billing--2019-03-06.csv
+gs://kubernetes_public_billing/billing--2019-03-07.csv
+#+END_EXAMPLE
+
+** TODO: dump iam for GCS buckets
+for each GCS bucket in each project:
+   dump IAM
+** TODO: list bigquer
+
+** TODO: dump iam for bigquery
+for each bigquery dataset in each project:
+   dump IAM
+** TODO: look at tools that iterate over permissions
+writing this from scratch MAY be fine, but a quick check might be nice if this gets too hairy
+
+
+[[https://github.com/marcin-kolda/gcp-iam-collector#features]]
+** TODO: iterate over enabled APIs per project
+identify each resource, them dump iam
+* tmate
+** iam
+#+BEGIN_SRC tmate :noweb yes
+<<custom roles>>
+<<ServiceAccountLister permissions>>
+#+END_SRC
+* Footnotes
+
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-tmate-command)
+# eval: (xclip-mode 1) 
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
