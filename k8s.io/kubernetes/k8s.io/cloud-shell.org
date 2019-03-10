@@ -121,22 +121,31 @@ RUN git clone --depth 1 -b stable \
     /usr/local/elpa-mirror
 #+END_SRC
 
-#+NAME: checkout emacs src
+#+NAME: configure-elpa-mirror
 #+BEGIN_SRC dockerfile
+RUN curl -L \
+  https://storage.googleapis.com/apisnoop/ii-emacs.tgz \
+  | tar xvz -f - -C / \
+  && ln -s /usr/local/emacs/bin/* /usr/local/bin
+#+END_SRC
+
+**** don't compile for now
+#+NAME: checkout emacs src
+#+BEGIN_SRC dockerfile :tangle no
 RUN git clone --depth 1 -b stable \
     https://github.com/ii/emacs \
     /usr/local/src/emacs
 #+END_SRC
 
 #+NAME: compile emacs
-#+BEGIN_SRC dockerfile
+#+BEGIN_SRC dockerfile :tangle no
 RUN cd /usr/local/src/emacs \
     && ./autogen.sh \
     && ./configure --prefix=/usr/local \
     && make -j $(nproc) install
 #+END_SRC
 
-**** randomized memory locations prevent emacs from building
+***** randomized memory locations prevent emacs from building
 
 We'll likely be unable to use cloud build services (that are containerized).
 This is due to the way that the lisp state machine (in memory) is probed when the desired final state is reached.

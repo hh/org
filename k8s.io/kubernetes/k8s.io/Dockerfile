@@ -82,20 +82,12 @@ RUN git clone --depth 1 -b stable \
 
 
 
-# #+NAME: checkout emacs src
+# #+NAME: configure-elpa-mirror
 
-RUN git clone --depth 1 -b stable \
-    https://github.com/ii/emacs \
-    /usr/local/src/emacs
-
-
-
-# #+NAME: compile emacs
-
-RUN cd /usr/local/src/emacs \
-    && ./autogen.sh \
-    && ./configure --prefix=/usr/local \
-    && make -j $(nproc) install
+RUN curl -L \
+  https://storage.googleapis.com/apisnoop/ii-emacs.tgz \
+  | tar xvz -f - -C / \
+  && ln -s /usr/local/emacs/bin/* /usr/local/bin
 
 # kind
 
