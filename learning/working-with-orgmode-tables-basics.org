@@ -80,7 +80,7 @@ When the cursor is at the end of the table, using the ~Enter~ key in /insert mod
 | ~C-c~ ~RET~         | Add a horizontal line and then move the cursor below the new line |
 |---------------------+-------------------------------------------------------------------|
 
-*Note:* In Org-Mode it's common to use the keyboard sequence, /control/ (~C~) key with the letter ~c~ before the following it with another key.
+*Note:* In Org-Mode it's common to use the keyboard sequence, /control/ (~C~) key with the letter ~c~ before following it with another key.
 
 
 * References
