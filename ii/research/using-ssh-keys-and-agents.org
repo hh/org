@@ -15,8 +15,8 @@ Refer to [[https://www.digitalocean.com/community/tutorials/ssh-essentials-worki
 
 * ssh-agent
 
-As stated from the man page, ~ssh-agent~ is a program to hold private keys used for public key authentication. 
-~ssh-agent~ is usually started in the beginning of an X-session or a login session, and all other windows or programs are started as clients to the ~ssh-agent~ program. 
+As stated from the man page, ~ssh-agent~ is a program to hold private keys used for public key authentication.
+~ssh-agent~ is usually started in the beginning of an X-session or a login session, and all other windows or programs are started as clients to the ~ssh-agent~ program.
 Through use of environment variables the agent can be located and automatically used for authentication when logging in to other machines using ssh.
 
 #+BEGIN_SRC shell :eval no
@@ -31,15 +31,15 @@ The agent initially does not have any private keys. Keys are added using ssh (se
 
 * ssh-add
 
-The key task for ~ssh-add~ is to add private key identities to the authentication agent. 
+The key task for ~ssh-add~ is to add private key identities to the authentication agent.
 Other tasks it can perform is to list fingerprints of all identities currently represented by the agent or delete all identities from the agent.
 
 #+BEGIN_SRC shell :eval no
 heyste@iiBox0:~$ ssh-add -l
 The agent has no identities.
 
-heyste@iiBox0:~$ ssh-add 
-Enter passphrase for /home/heyste/.ssh/id_rsa: 
+heyste@iiBox0:~$ ssh-add
+Enter passphrase for /home/heyste/.ssh/id_rsa:
 Identity added: /home/heyste/.ssh/id_rsa (/home/heyste/.ssh/id_rsa)
 
 heyste@iiBox0:~$ ssh-add -l
@@ -75,17 +75,17 @@ SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413
 SSH_AGENT_PID=3495
 #+END_SRC
 
-- Step 2: Check the agent has an identity 
+- Step 2: Check the agent has an identity
 
 #+BEGIN_SRC shell :eval no
 heyste@iiBox0:~$ ssh-add -l
 4096 SHA256:8fyoqzwAbTRukUCUGYmrBAM6ctrnLqFuHFVPkZbl0uU /home/heyste/.ssh/id_rsa (RSA)
 #+END_SRC
 
-- Step 3: Locating existing SSH compatible agent processes 
+- Step 3: Locating existing SSH compatible agent processes
 
 #+BEGIN_SRC shell :eval no
-$ ssh-find-agent 
+$ ssh-find-agent
 export SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413 	#1)
 #+END_SRC
 
