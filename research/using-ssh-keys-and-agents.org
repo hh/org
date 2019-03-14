@@ -86,7 +86,7 @@ heyste@iiBox0:~$ ssh-add -l
 
 #+BEGIN_SRC shell :eval no
 $ ssh-find-agent
-export SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413 	#1)
+export SSH_AUTH_SOCK=/tmp/ssh-DE8apTgeKoJp/agent.3413
 #+END_SRC
 
 
@@ -103,10 +103,16 @@ pinentry-gtk2 - GTK+-2-based PIN or pass-phrase entry dialog for GnuPG
 pinentry-qt4 - Qt-based PIN or pass-phrase entry dialog for GnuPG (transitional dummy package)
 #+END_SRC
 
-*** Further research
+
+* Explore Further
 
 To mitigate some of the risks of using an agent for a SSH request there needs to be a way of prompting the user for any unknown hosts.
 Next step is review options using ssh_config and how to create a 'whitelist' of safe hosts.
+
+- [[https://puri.sm/products/librem-key/][Librem Key]]
+- [[https://www.preining.info/blog/2016/04/gnupg-subkeys-yubikey/][GnuPG notes: subkeys, yubikey, gpg1 vs gpg2]]
+- [[https://medium.com/@chasinglogic/the-definitive-guide-to-password-store-c337a8f023a1][The Definitive Guide to password-store]]
+- [[https://medium.com/@jmarhee/using-kubernetes-to-provide-ipxe-infrastructure-for-up-to-date-smartos-platform-897bf4f2cb4][Using pass in a team]]
 
 
 * References
