@@ -1,0 +1,4 @@
+plugins:
+  cncf/apisnoop:
+  - size
+  - trigger
