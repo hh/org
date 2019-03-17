@@ -1,0 +1,468 @@
+#+TITLE: #Prow for cncf-ci
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 8th of March, 2019
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+
+* Deploying Prow
+
+Following [[https://github.com/kubernetes/test-infra/blob/master/prow/getting_started_deploy.md][prow/getting_started#Deploying Prow]]:
+
+#+NAME: go get tackle
+#+BEGIN_SRC shell :noweb yes :var tmpdir=(symbol-value 'tmpdir)
+go get -u k8s.io/test-infra/prow/cmd/tackle
+#+END_SRC
+
+** cluster
+:PROPERTIES:
+:noheader-args:tmate: :socket "/tmp/hippie.packet-setup.iisocket"
+:noheader-args:tmate: :session main:prow
+:noheader-args:shell+: :dir "/ssh:root@139.178.88.146:"
+:END:
+[[file:~/ii/org/k8s.io/kubernetes/packet-setup.org::*TLDR][After following the TLDR to setup k8s on Packet]]:
+
+*** ensure GCP user has cluster-admin-binding
+#+NAME: giving gcloud account cluster-admin
+#+BEGIN_SRC shell
+kubectl create clusterrolebinding cluster-admin-binding \
+  --clusterrole cluster-admin --user $(gcloud config get-value account)
+#+END_SRC
+
+#+RESULTS: giving gcloud account cluster-admin
+#+BEGIN_EXAMPLE :noeval t
+clusterrolebinding.rbac.authorization.k8s.io/cluster-admin-binding created
+#+END_EXAMPLE
+
+*** service account
+#+NAME: Setup a Service Account
+#+BEGIN_SRC shell
+  kubectl --namespace kube-system create serviceaccount cncf-ci
+  kubectl create clusterrolebinding cncf-ci \
+    --clusterrole cluster-admin \
+    --serviceaccount=kube-system:cncf-ci
+#+END_SRC
+
+#+RESULTS: Setup a Service Account
+#+BEGIN_EXAMPLE :noeval t
+serviceaccount/cncf-ci created
+clusterrolebinding.rbac.authorization.k8s.io/cncf-ci created
+#+END_EXAMPLE
+*** github secrets
+**** hmac-token
+#+NAME: create github hmac-token
+#+BEGIN_SRC shell
+  kubectl create secret generic hmac-token \
+    --from-literal=hmac=$(openssl rand -hex 20)
+#+END_SRC
+
+#+RESULTS: create github hmac-token
+#+BEGIN_EXAMPLE :noeval t
+secret/hmac-token created
+#+END_EXAMPLE
+
+#+NAME: github hmac-token
+#+BEGIN_SRC shell :results silent
+  kubectl get secret hmac-token  -o json | jq -r .data.hmac | base64 -d
+#+END_SRC
+
+**** github oauth-token to cluster
+
+Set GITHUB_OATH_TOKEN with a token created at https://github.com/settings/tokens
+
+#+NAME: save github oauth-token to cluster
+#+BEGIN_SRC shell
+  GITHUB_OAUTH_TOKEN=SET_ME
+  kubectl create secret generic oauth-token \
+    --from-literal=oauth=$GITHUB_OAUTH_TOKEN
+#+END_SRC
+
+#+RESULTS: save github oauth-token to cluster
+#+BEGIN_EXAMPLE :noeval t
+secret/oauth-token created
+#+END_EXAMPLE
+
+#+NAME: gihub oauth-token
+#+BEGIN_SRC shell :results silent
+kubectl get secret oauth-token  -o json | jq -r .data.oauth | base64 -d
+#+END_SRC
+*** deploy basic prow components
+**** starter.yaml
+[[https://github.com/kubernetes/test-infra/blob/master/prow/cluster/starter.yaml][prow/cluster/starter.yaml]]
+
+#+NAME: basic prow components
+#+BEGIN_SRC shell
+  kubectl apply -f \
+    https://raw.githubusercontent.com/kubernetes/test-infra/master/prow/cluster/starter.yaml 2>&1
+  echo $?
+#+END_SRC
+
+#+RESULTS: basic prow components
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins created
+configmap/config created
+customresourcedefinition.apiextensions.k8s.io/prowjobs.prow.k8s.io created
+deployment.extensions/hook created
+service/hook created
+deployment.extensions/plank created
+deployment.extensions/sinker created
+deployment.extensions/deck created
+service/deck created
+deployment.extensions/horologium created
+deployment.extensions/tide created
+service/tide created
+ingress.extensions/ing created
+serviceaccount/deck created
+rolebinding.rbac.authorization.k8s.io/deck created
+role.rbac.authorization.k8s.io/deck created
+serviceaccount/horologium created
+role.rbac.authorization.k8s.io/horologium created
+rolebinding.rbac.authorization.k8s.io/horologium created
+serviceaccount/plank created
+role.rbac.authorization.k8s.io/plank created
+rolebinding.rbac.authorization.k8s.io/plank created
+serviceaccount/sinker created
+role.rbac.authorization.k8s.io/sinker created
+rolebinding.rbac.authorization.k8s.io/sinker created
+serviceaccount/hook created
+role.rbac.authorization.k8s.io/hook created
+rolebinding.rbac.authorization.k8s.io/hook created
+serviceaccount/tide created
+role.rbac.authorization.k8s.io/tide created
+rolebinding.rbac.authorization.k8s.io/tide created
+0
+#+END_EXAMPLE
+**** get deployments
+#+NAME: prow components
+#+BEGIN_SRC shell
+  kubectl get deployments
+#+END_SRC
+
+#+RESULTS: prow components
+#+BEGIN_EXAMPLE :noeval t
+NAME         DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deck         2         2         2            2           1m
+hook         2         2         2            2           1m
+horologium   1         1         1            1           1m
+plank        1         1         1            1           1m
+sinker       1         1         1            1           1m
+tide         1         1         1            1           1m
+#+END_EXAMPLE
+
+**** ingress ip
+#+NAME: ingress ip
+#+BEGIN_SRC shell
+kubectl get ingress ing
+#+END_SRC
+
+#+RESULTS: ingress ip
+#+BEGIN_EXAMPLE :noeval t
+NAME   HOSTS   ADDRESS        PORTS   AGE
+ing    *       35.241.26.71   80      2m
+#+END_EXAMPLE
+
+#+NAME: ingress ip oneliner
+#+BEGIN_SRC shell
+  kubectl get ingress ing -o=jsonpath='{.status.loadBalancer.ingress[0].ip}'
+#+END_SRC
+
+#+RESULTS: ingress ip oneliner
+#+BEGIN_EXAMPLE :noeval t
+35.241.26.71
+#+END_EXAMPLE
+
+**** ingress status
+Note the status: loadbalancer:
+#+NAME: ingress ing
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC yaml"
+kubectl get ingress ing -o yaml
+#+END_SRC
+
+#+RESULTS: ingress ing
+#+BEGIN_SRC yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"extensions/v1beta1","kind":"Ingress","metadata":{"annotations":{},"name":"ing","namespace":"default"},"spec":{"rules":[{"http":{"paths":[{"backend":{"serviceName":"deck","servicePort":80},"path":"/*"},{"backend":{"serviceName":"hook","servicePort":8888},"path":"/hook"}]}}]}}
+  creationTimestamp: "2019-03-17T17:19:31Z"
+  generation: 1
+  name: ing
+  namespace: default
+  resourceVersion: "407666"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/ingresses/ing
+  uid: d3c8960c-48d8-11e9-87ef-42010a98000e
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: deck
+          servicePort: 80
+        path: /*
+      - backend:
+          serviceName: hook
+          servicePort: 8888
+        path: /hook
+status:
+  loadBalancer: {}
+#+END_SRC
+
+**** get ingress yaml
+     
+I suspect we are not getting ingress IP's because the Ingress is looking for a loadBalancer.
+
+https://github.com/kubernetes/test-infra/blob/master/prow/cluster/starter.yaml#L400
+
+#+NAME: ing yaml
+#+BEGIN_SRC yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  namespace: default
+  name: ing
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /* # Correct for GKE, need / on many other distros
+        backend:
+          serviceName: deck
+          servicePort: 80
+      - path: /hook
+        backend:
+          serviceName: hook
+          servicePort: 8888
+#+END_SRC
+
+*** add the webhook to github
+
+#+NAME: install add-hook
+#+BEGIN_SRC shell
+  go get -u k8s.io/test-infra/experiment/add-hook
+#+END_SRC
+
+#+NAME: add-hook
+#+BEGIN_SRC tmate
+  kubectl get secret oauth-token  -o json | jq -r .data.oauth | base64 -d > oauth-token
+  kubectl get secret hmac-token  -o json | jq -r .data.hmac | base64 -d > hmac-token
+  HOOK_URL=http://$(kubectl get ingress ing -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')/hook
+  add-hook \
+    --hmac-path=hmac-token \
+    --github-token-path=oauth-token\
+    --hook-url=$HOOK_URL \
+    --repo cncf/apisnoop \
+    --confirm=true #confirm=false to dry run
+#+END_SRC
+** enable some plugins
+
+Initially config is empty and plugins only contains size:
+
+#+NAME: setup size plugin
+#+BEGIN_SRC yaml :tangle config.yaml
+# https://github.com/kubernetes/test-infra/issues/11729
+#time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
+# component=checkconfig error="no default decoration config provided for plank"
+plank:
+  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+  report_template: '[Full PR test history](https://prow.k8s.io/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.k8s.io/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+  job_url_prefix: https://prow.k8s.io/view/gcs/
+  pod_pending_timeout: 60m
+  default_decoration_config:
+    timeout: 7200000000000 # 2h
+    grace_period: 15000000000 # 15s
+    utility_images:
+      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+      initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
+      sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+    gcs_configuration:
+      bucket: "kubernetes-jenkins"
+      path_strategy: "legacy"
+      default_org: "kubernetes"
+      default_repo: "kubernetes"
+    gcs_credentials_secret: "service-account"
+periodics:
+- interval: 10m
+  name: echo-test
+  decorate: true
+  spec:
+    containers:
+    - image: alpine
+      command: ["/bin/date"]
+postsubmits:
+  cncf/apisnoop:
+  - name: test-postsubmit
+    decorate: true
+    spec:
+      containers:
+      - image: alpine
+        command: ["/bin/printenv"]
+presubmits:
+  cncf/apisnoop:
+  - name: test-presubmit
+    decorate: true
+    always_run: true
+    skip_report: true
+    spec:
+      containers:
+      - image: alpine
+        command: ["/bin/printenv"]
+#+END_SRC
+
+#+NAME: setup size plugin
+#+BEGIN_SRC yaml :tangle plugins.yaml
+plugins:
+  cncf/apisnoop:
+  - size
+  - trigger
+#+END_SRC
+
+#+NAME: ensure checkconfig is installed
+#+BEGIN_SRC shell
+go get -u k8s.io/test-infra/prow/cmd/checkconfig
+#+END_SRC
+
+#+NAME: check-config to test files
+#+BEGIN_SRC shell :results silent
+  checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
+#+END_SRC
+
+#+NAME: generate the plugin config map
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl create configmap plugins \
+  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
+#  | kubectl replace configmap plugins -f -
+#+END_SRC
+
+#+RESULTS: generate the plugin config map
+#+BEGIN_SRC yaml
+apiVersion: v1
+data:
+  plugins.yaml: |
+    plugins:
+      cncf/apisnoop:
+      - size
+      - trigger
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: plugins
+#+END_SRC
+
+#+NAME: update-uplugins
+#+BEGIN_SRC shell
+kubectl create configmap plugins \
+  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
+  | kubectl replace configmap plugins -f -
+#+END_SRC
+
+#+RESULTS: update-uplugins
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins replaced
+#+END_EXAMPLE
+
+#+NAME: generate the config configmap
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl create configmap config \
+  --from-file=config.yaml=config.yaml --dry-run -o yaml
+#+END_SRC
+
+#+RESULTS: generate the config configmap
+#+BEGIN_SRC yaml
+apiVersion: v1
+data:
+  config.yaml: |
+    # https://github.com/kubernetes/test-infra/issues/11729
+    #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
+    # component=checkconfig error="no default decoration config provided for plank"
+    plank:
+      job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+      report_template: '[Full PR test history](https://prow.k8s.io/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.k8s.io/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+      job_url_prefix: https://prow.k8s.io/view/gcs/
+      pod_pending_timeout: 60m
+      default_decoration_config:
+        timeout: 7200000000000 # 2h
+        grace_period: 15000000000 # 15s
+        utility_images:
+          clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+          initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+          entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
+          sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+        gcs_configuration:
+          bucket: "kubernetes-jenkins"
+          path_strategy: "legacy"
+          default_org: "kubernetes"
+          default_repo: "kubernetes"
+        gcs_credentials_secret: "service-account"
+    periodics:
+    - interval: 10m
+      name: echo-test
+      decorate: true
+      spec:
+        containers:
+        - image: alpine
+          command: ["/bin/date"]
+    postsubmits:
+      cncf/apisnoop:
+      - name: test-postsubmit
+        decorate: true
+        spec:
+          containers:
+          - image: alpine
+            command: ["/bin/printenv"]
+    presubmits:
+      cncf/apisnoop:
+      - name: test-presubmit
+        decorate: true
+        always_run: true
+        skip_report: true
+        spec:
+          containers:
+          - image: alpine
+            command: ["/bin/printenv"]
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: config
+#+END_SRC
+
+#+NAME: update-config
+#+BEGIN_SRC shell
+kubectl create configmap config \
+  --from-file=config.yaml=config.yaml --dry-run -o yaml \
+  | kubectl replace configmap config -f -
+#+END_SRC
+
+#+RESULTS: update-config
+#+BEGIN_EXAMPLE :noeval t
+configmap/config replaced
+#+END_EXAMPLE
+
+
+* Footnotes
+
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text start-tmate-command)
+# eval: (xclip-mode 1) 
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
