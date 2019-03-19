@@ -42,7 +42,7 @@ clusterrolebinding.rbac.authorization.k8s.io/cluster-admin-binding created
 #+END_EXAMPLE
 
 *** service account
-#+NAME: Setup a Service Account
+#+NAME: Setup a Kubernetes Service Account
 #+BEGIN_SRC shell
   kubectl --namespace kube-system create serviceaccount cncf-ci
   kubectl create clusterrolebinding cncf-ci \
@@ -50,11 +50,57 @@ clusterrolebinding.rbac.authorization.k8s.io/cluster-admin-binding created
     --serviceaccount=kube-system:cncf-ci
 #+END_SRC
 
-#+RESULTS: Setup a Service Account
+#+RESULTS: Setup a Kubernetes Service Account
 #+BEGIN_EXAMPLE :noeval t
 serviceaccount/cncf-ci created
 clusterrolebinding.rbac.authorization.k8s.io/cncf-ci created
 #+END_EXAMPLE
+
+#+NAME: GCLOUD_SERVICE_ACCOUNT
+#+BEGIN_SRC shell
+  gcloud iam service-accounts create cncf-ci || true
+  gcloud iam service-accounts describe cncf-ci@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+
+#+RESULTS: GCLOUD_SERVICE_ACCOUNT
+#+BEGIN_EXAMPLE :noeval t
+email: cncf-ci@apisnoop.iam.gserviceaccount.com
+etag: MDEwMjE5MjA=
+name: projects/apisnoop/serviceAccounts/cncf-ci@apisnoop.iam.gserviceaccount.com
+oauth2ClientId: '117158085094240977692'
+projectId: apisnoop
+uniqueId: '117158085094240977692'
+#+END_EXAMPLE
+
+#+RESULTS: Setup a GCloud Service Account Secret Key
+#+BEGIN_SRC shell :results silent
+  SERVICE_ACCOUNT=cncf-ci@apisnoop.iam.gserviceaccount.com
+  gcloud projects add-iam-policy-binding apisnoop \
+           --member serviceAccount:${SERVICE_ACCOUNT} \
+           --role=roles/storage.admin
+#+END_SRC
+
+#+RESULTS: Export service account key into file
+#+BEGIN_SRC shell :results silent
+  SERVICE_ACCOUNT=cncf-ci@apisnoop.iam.gserviceaccount.com
+  gcloud iam service-accounts keys \
+         create ./service-account.json \
+         --iam-account=$SERVICE_ACCOUNT \
+         --key-file-type=json
+#+END_SRC
+
+#+NAME: create gcloud service account k8s secret
+#+BEGIN_SRC shell
+  SERVICE_ACCOUNT=cncf-ci@apisnoop.iam.gserviceaccount.com
+  kubectl create secret generic service-account \
+    --from-file=service-account.json
+#+END_SRC
+
+#+RESULTS: create gcloud service account k8s secret
+#+BEGIN_EXAMPLE :noeval t
+secret/service-account created
+#+END_EXAMPLE
+
 *** github secrets
 **** hmac-token
 #+NAME: create github hmac-token
@@ -251,79 +297,111 @@ spec:
 #+END_SRC
 
 #+NAME: add-hook
-#+BEGIN_SRC tmate
+#+BEGIN_SRC shell
   kubectl get secret oauth-token  -o json | jq -r .data.oauth | base64 -d > oauth-token
   kubectl get secret hmac-token  -o json | jq -r .data.hmac | base64 -d > hmac-token
-  HOOK_URL=http://$(kubectl get ingress ing -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')/hook
+  # HOOK_URL=http://$(kubectl get ingress ing -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')/hook
+  HOOK_URL=http://prow.cncf.ci/hook
   add-hook \
     --hmac-path=hmac-token \
     --github-token-path=oauth-token\
     --hook-url=$HOOK_URL \
-    --repo cncf/apisnoop \
+    --repo ii/apisnoop \
     --confirm=true #confirm=false to dry run
 #+END_SRC
+
+#+RESULTS: add-hook
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
 ** enable some plugins
 
 Initially config is empty and plugins only contains size:
 
 #+NAME: setup size plugin
 #+BEGIN_SRC yaml :tangle config.yaml
-# https://github.com/kubernetes/test-infra/issues/11729
-#time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
-# component=checkconfig error="no default decoration config provided for plank"
-plank:
-  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-  report_template: '[Full PR test history](https://prow.k8s.io/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.k8s.io/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-  job_url_prefix: https://prow.k8s.io/view/gcs/
-  pod_pending_timeout: 60m
-  default_decoration_config:
-    timeout: 7200000000000 # 2h
-    grace_period: 15000000000 # 15s
-    utility_images:
-      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
-      initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
-      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-      sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
-    gcs_configuration:
-      bucket: "kubernetes-jenkins"
-      path_strategy: "legacy"
-      default_org: "kubernetes"
-      default_repo: "kubernetes"
-    gcs_credentials_secret: "service-account"
-periodics:
-- interval: 10m
-  name: echo-test
-  decorate: true
-  spec:
-    containers:
-    - image: alpine
-      command: ["/bin/date"]
-postsubmits:
-  cncf/apisnoop:
-  - name: test-postsubmit
+  # https://github.com/kubernetes/test-infra/issues/11729
+  #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
+  # component=checkconfig error="no default decoration config provided for plank"
+  plank:
+    job_url_template: 'https://job_url_template/'
+  #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+    report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+    job_url_prefix: http://prow.cncf.ci/view/gcs/
+    pod_pending_timeout: 60m
+    # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
+    default_decoration_config:
+      timeout: 7200000000000 # 2h
+      grace_period: 15000000000 # 15s
+      utility_images:
+        sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+        clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+        initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+        entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
+      gcs_configuration:
+        bucket: "apisnoop"
+        path_strategy: "legacy"
+        default_org: "cncf"
+        default_repo: "apisnoop"
+      gcs_credentials_secret: "service-account"
+  periodics:
+  - interval: 10m
+    name: echo-test
     decorate: true
     spec:
       containers:
       - image: alpine
-        command: ["/bin/printenv"]
-presubmits:
-  cncf/apisnoop:
-  - name: test-presubmit
-    decorate: true
-    always_run: true
-    skip_report: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
+        command: ["/bin/date"]
+  postsubmits:
+    cncf/apisnoop:
+    - name: test-postsubmit
+      decorate: true
+      spec:
+        containers:
+        - image: alpine
+          command: ["/bin/printenv"]
+  presubmits:
+    cncf/apisnoop:
+    - name: test-presubmit
+      decorate: true
+      always_run: true
+      skip_report: true
+      spec:
+        containers:
+        - image: alpine
+          command: ["/bin/printenv"]
 #+END_SRC
 
 #+NAME: setup size plugin
 #+BEGIN_SRC yaml :tangle plugins.yaml
-plugins:
-  cncf/apisnoop:
-  - size
-  - trigger
+  plugins:
+    cncf/apisnoop:
+    - size
+    - trigger
+    - cat
+    - dog
+    - pony
+    ii/apisnoop:
+    - size
+    - trigger
+    - cat
+    - dog
+    - pony
+    # - assign
+    # - cla
+    # - heart
+    # - hold
+    # - help
+    # - release-note
+    # - approve
+    # - shrug
+    # - verify-owners
+    # - owners-label
+    # - branchcleaner
+    # - label
+    # - welcome
+    # - wip
+    # - yuks
 #+END_SRC
 
 #+NAME: ensure checkconfig is installed
@@ -352,6 +430,30 @@ data:
       cncf/apisnoop:
       - size
       - trigger
+      - cat
+      - dog
+      - pony
+      ii/apisnoop:
+      - size
+      - trigger
+      - cat
+      - dog
+      - pony
+      # - assign
+      # - cla
+      # - heart
+      # - hold
+      # - help
+      # - release-note
+      # - approve
+      # - shrug
+      # - verify-owners
+      # - owners-label
+      # - branchcleaner
+      # - label
+      # - welcome
+      # - wip
+      # - yuks
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -385,23 +487,25 @@ data:
     #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
     # component=checkconfig error="no default decoration config provided for plank"
     plank:
-      job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-      report_template: '[Full PR test history](https://prow.k8s.io/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.k8s.io/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-      job_url_prefix: https://prow.k8s.io/view/gcs/
+      job_url_template: 'https://job_url_template/'
+    #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+      report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+      job_url_prefix: http://prow.cncf.ci/view/gcs/
       pod_pending_timeout: 60m
+      # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
       default_decoration_config:
         timeout: 7200000000000 # 2h
         grace_period: 15000000000 # 15s
         utility_images:
+          sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
           clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
           initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
           entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-          sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
         gcs_configuration:
-          bucket: "kubernetes-jenkins"
+          bucket: "apisnoop"
           path_strategy: "legacy"
-          default_org: "kubernetes"
-          default_repo: "kubernetes"
+          default_org: "cncf"
+          default_repo: "apisnoop"
         gcs_credentials_secret: "service-account"
     periodics:
     - interval: 10m

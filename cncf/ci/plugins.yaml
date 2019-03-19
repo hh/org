@@ -2,3 +2,27 @@ plugins:
   cncf/apisnoop:
   - size
   - trigger
+  - cat
+  - dog
+  - pony
+  ii/apisnoop:
+  - size
+  - trigger
+  - cat
+  - dog
+  - pony
+  # - assign
+  # - cla
+  # - heart
+  # - hold
+  # - help
+  # - release-note
+  # - approve
+  # - shrug
+  # - verify-owners
+  # - owners-label
+  # - branchcleaner
+  # - label
+  # - welcome
+  # - wip
+  # - yuks
