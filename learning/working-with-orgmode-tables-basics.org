@@ -1,0 +1,88 @@
+#+TITLE: Working with Org-Mode Tables: Basics
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 9th of March, 2019
+#+STARTUP: showeverything
+
+* Overview
+
+Tables are a great way to document related information in a format that's easy to scan.
+This document is an introduction to how to create/edit tables with Org-Mode.
+
+
+* Table Structure
+
+Using the ~|~ character, Org-Mode uses it to form the various cells (fields) within a table.
+
+#+BEGIN_EXAMPLE
+| Name  | Phone | Age |
+|-------+-------+-----|
+| Peter |  1234 |  17 |
+| Anna  |  4321 |  25 |
+#+END_EXAMPLE
+
+* Table Navigation
+
+Navigating around the table is simple. The ~TAB~ key will move the cursor forward, while using ~Shift-TAB~ combination will move the cursor backwards through the table.
+To remove any concerns about the layout of the table, using the ~TAB~ key will normally /re-align/ the table automatically.
+While in the /insert mode/ you can use the ~Enter~ key, also called the /return/ key (~RET~) to move to the next row of the table.
+
+* Working with Columns
+
+In the following tables, the keyboard sequence ~M~ is for the /meta/ key, which is normally the ~Alt~ key on the standard PC keyboard. The ~S~ is shorthand for the ~Shift~ key.
+References to ~LEFT~, ~RIGHT~, ~UP~, ~DOWN~ relate to the arrow keys.
+
+
+** Moving columns around
+
+| *Keyboard Sequence* | *Effect*                      |
+|---------------------+-------------------------------|
+| ~M-LEFT~            | Move the current column left  |
+| ~M-RIGHT~           | Move the current column right |
+|---------------------+-------------------------------|
+
+** Add/Remove a column
+
+| *Keyboard Sequence* | *Effect*                          |
+|---------------------+-----------------------------------|
+| ~M-S-LEFT~          | Add another column to the table   |
+| ~M-S-RIGHT~         | Remove the current focused column |
+|---------------------+-----------------------------------|
+
+
+* Working with Rows
+
+** Moving them around
+
+| *Keyboard Sequence* | *Effect*                  |
+|---------------------+---------------------------|
+| ~M-UP~              | Move the current row up   |
+| ~M-DOWN~            | Move the current row down |
+|---------------------+---------------------------|
+
+** Add/Remove a row
+
+| *Keyboard Sequence* | *Effect*                       |
+|---------------------+--------------------------------|
+| ~M-S-UP~            | Remove the current focused row |
+| ~M-S-DOWN~          | Add another row to the table   |
+|---------------------+--------------------------------|
+
+When the cursor is at the end of the table, using the ~Enter~ key in /insert mode/ *or* ~TAB~ key will add another row to the table.
+
+
+* Horizontal lines
+
+| *Keyboard Sequence* | *Effect*                                                          |
+|---------------------+-------------------------------------------------------------------|
+| ~C-c~ ~-~           | Add a horizontal line and keep the cursor at the current position |
+| ~C-c~ ~RET~         | Add a horizontal line and then move the cursor below the new line |
+|---------------------+-------------------------------------------------------------------|
+
+*Note:* In Org-Mode it's common to use the keyboard sequence, /control/ (~C~) key with the letter ~c~ before following it with another key.
+
+
+* References
+
+- [[https://orgmode.org/manual/Built_002din-table-editor.html][Orgmode.org: The built-in table editor]] 
