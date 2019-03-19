@@ -1,31 +1,32 @@
 # This file contains Kubernetes YAML files for the most important prow
 # components. Don't edit resources in this file. Instead, pull them out into
 # their own files.
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: default
-  name: plugins
-data:
-  plugins.yaml: ""
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: default
-  name: config
-data:
-  config.yaml: |
-    periodics:
-    - interval: 10m
-      agent: kubernetes
-      name: echo-test
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/date"]
----
+# We generate these in our org file
+# ---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   namespace: default
+#   name: plugins
+# data:
+#   plugins.yaml: ""
+# ---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   namespace: default
+#   name: config
+# data:
+#   config.yaml: |
+#     periodics:
+#     - interval: 10m
+#       agent: kubernetes
+#       name: echo-test
+#       spec:
+#         containers:
+#         - image: alpine
+#           command: ["/bin/date"]
+# ---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -256,11 +257,11 @@ spec:
         configMap:
           name: config
       - name: oauth-config
-        configMap:
-          name: github-oauth-config
+        secret:
+          secretName: github-oauth-config
       - name: cookie-secret
-        configMap:
-          name: cookie
+        secret:
+          secretName: cookie
 ---
 apiVersion: v1
 kind: Service

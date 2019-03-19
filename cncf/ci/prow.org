@@ -185,6 +185,20 @@ role.rbac.authorization.k8s.io/tide created
 rolebinding.rbac.authorization.k8s.io/tide created
 0
 #+END_EXAMPLE
+
+#+NAME: our customized prow deployment
+#+BEGIN_SRC shell
+  kubectl apply -f prow.yaml | grep -v unchaned 2>&1
+  echo $?
+#+END_SRC
+
+#+RESULTS: our customized prow deployment
+#+BEGIN_EXAMPLE :noeval t
+deployment.extensions/deck configured
+0
+#+END_EXAMPLE
+
+
 **** get deployments
 #+NAME: prow components
 #+BEGIN_SRC shell
