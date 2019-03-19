@@ -649,6 +649,53 @@ presubmits:
 * OWNERS
 [[https://go.k8s.io/owners]]
 [[https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md]]
+* PR Status
+[[https://github.com/kubernetes/test-infra/blob/master/prow/docs/pr_status_setup.md#how-to-setup-pr-status]]
+*** github oauth app
+**** secret/cookie
+
+#+NAME: create github oauth cookie
+#+BEGIN_SRC shell
+  kubectl create secret generic cookie \
+    --from-literal=secret=$(openssl rand -base64 64 | tr -d "\n")
+#+END_SRC
+
+#+RESULTS: create github oauth cookie
+#+BEGIN_EXAMPLE :noeval t
+secret/cookie created
+#+END_EXAMPLE
+
+#+NAME: get secret/cookie
+#+BEGIN_SRC shell :results silent
+  kubectl get secret cookie  -o json | jq -r .data.secret | base64 -d
+#+END_SRC
+
+**** secret/github-oauth-config
+
+#+NAME: github-oauth-config
+#+BEGIN_SRC conf :tangle github-oauth-config
+client_id: e4d9651867ae7a0f2d21
+client_secret: XXXXX
+redirect_url: http://prow.cncf.ci/github-login/redirect
+final_redirect_url: http://prow.cncf.ci/pr
+#+END_SRC
+
+#+NAME: create secret/github-oauth-config
+#+BEGIN_SRC shell
+  kubectl create secret generic github-oauth-config \
+    --from-file=secret=github-oauth-config
+#+END_SRC
+
+#+RESULTS: create secret/github-oauth-config
+#+BEGIN_EXAMPLE :noeval t
+secret/github-oauth-config created
+#+END_EXAMPLE
+
+#+NAME: gihub oauth-token
+#+BEGIN_SRC shell :results silent
+kubectl get secret github-oauth-config -o json | jq -r .data.secret | base64 -d
+#+END_SRC
+
 * Footnotes
 
 # Local Variables:
