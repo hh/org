@@ -188,7 +188,7 @@ rolebinding.rbac.authorization.k8s.io/tide created
 
 #+NAME: our customized prow deployment
 #+BEGIN_SRC shell
-  kubectl apply -f prow.yaml | grep -v unchaned 2>&1
+  kubectl apply -f prow.yaml | grep -v unchanged 2>&1
   echo $?
 #+END_SRC
 
@@ -277,7 +277,7 @@ status:
 #+END_SRC
 
 **** get ingress yaml
-     
+
 I suspect we are not getting ingress IP's because the Ingress is looking for a loadBalancer.
 
 https://github.com/kubernetes/test-infra/blob/master/prow/cluster/starter.yaml#L400
@@ -320,7 +320,7 @@ spec:
     --hmac-path=hmac-token \
     --github-token-path=oauth-token\
     --hook-url=$HOOK_URL \
-    --repo ii/apisnoop \
+    --repo ii/RapuTure \
     --confirm=true #confirm=false to dry run
 #+END_SRC
 
@@ -670,8 +670,12 @@ presubmits:
 
 #+NAME: create github oauth cookie
 #+BEGIN_SRC shell
+  openssl rand -base64 64 > cookie
   kubectl create secret generic cookie \
-    --from-literal=secret=$(openssl rand -base64 64 | tr -d "\n")
+    --from-file=secret=cookie
+  # one liner attempt, that removes newlines to get a simple secret
+  # kubectl create secret generic cookie \
+  #   --from-literal=secret=$(openssl rand -base64 64 | tr -d "\n")
 #+END_SRC
 
 #+RESULTS: create github oauth cookie
@@ -709,6 +713,68 @@ secret/github-oauth-config created
 #+BEGIN_SRC shell :results silent
 kubectl get secret github-oauth-config -o json | jq -r .data.secret | base64 -d
 #+END_SRC
+** Fix Oauth secret state
+
+When visiting http://prow.cncf.ci/pr when we return from github/oauth to /github-login/redirect?code=X&state=Y we get the following error:
+
+> 500 Internal server error Get secret state: empty string or cannot convert to string
+
+Looking at the logs it might be related to the secrets:
+
+#+BEGIN_EXAMPLE
+kubectl log -f $(kubectl get pods --namespace=default -l app=deck -o name | tail -1 )
+log is DEPRECATED and will be removed in a future version. Use logs instead.
+time="2019-03-19T17:55:40Z" level=info msg="Spyglass registered viewer build-log-viewer with title Build Log." 
+time="2019-03-19T17:55:40Z" level=info msg="Spyglass registered viewer junit-viewer with title JUnit." 
+time="2019-03-19T17:55:40Z" level=info msg="Spyglass registered viewer metadata-viewer with title Metadata." 
+{"client":"githuboauth","component":"deck","error":"empty string or cannot convert to string","level":"error","msg":"Error Get secret state.","time":"2019-03-19T17:56:48Z"}
+{"client":"githuboauth","component":"deck","error":"empty string or cannot convert to string","level":"error","msg":"Error Get secret state.","time":"2019-03-19T17:56:53Z"}
+^C
+#+END_EXAMPLE
+
+I ensured the secrets relating to oauth are in the correct place (as documented)
+
+#+BEGIN_EXAMPLE
+$ kubectl exec -ti $(kubectl get pods --namespace=default -l app=deck -o name | tail -1 | sed s:pod/::) /bin/sh
+/app/prow/cmd/deck/app.binary.runfiles/test_infra # cat /etc/github/secret 
+client_id: e4d9651867ae7a0f2d21
+client_secret: 47XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXbb1
+redirect_url: http://prow.cncf.ci/github-login/redirect
+final_redirect_url: http://prow.cncf.ci/pr
+/app/prow/cmd/deck/app.binary.runfiles/test_infra # cat /etc/cookie/secret 
+wVXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXIX
+sXXXXXXXXXXXXXXXXXXXXXXXXXXXXX==
+#+END_EXAMPLE
+
+Then I wanted to ensure it was looking in the locations I mounted them at.
+(There are some command lines args for deck that enable it)
+
+#+BEGIN_SRC yaml
+      containers:
+      - name: deck
+        image: gcr.io/k8s-prow/deck:v20181109-1a84354
+        args:
+        - --tide-url=http://tide/
+        - --hook-url=http://hook:8888/plugin-help
+        - --oauth-url=/github-login
+        - --github-oauth-config-file=/etc/github/secret
+        - --cookie-secret=/etc/cookie/secret
+        - --spyglass
+#+END_SRC
+
+After the Deployment recreated the pods with now args, I verified, but still got the same error:
+
+#+BEGIN_EXAMPLE
+/app/prow/cmd/deck/app.binary.runfiles/test_infra
+# cat /proc/1/cmdline | sed s/--/\\n--/g
+/app/prow/cmd/deck/app.binary
+--tide-url=http://tide/
+--hook-url=http://hook:8888/plugin-help
+--oauth-url=/github-login
+--github-oauth-config-file=/etc/github/secret
+--cookie-secret=/etc/cookie/secret
+--spyglass
+#+END_EXAMPLE
 
 * Footnotes
 

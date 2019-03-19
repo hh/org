@@ -238,6 +238,8 @@ spec:
         - --tide-url=http://tide/
         - --hook-url=http://hook:8888/plugin-help
         - --oauth-url=/github-login
+        - --github-oauth-config-file=/etc/github/secret
+        - --cookie-secret=/etc/cookie/secret
         - --spyglass
         ports:
           - name: http
