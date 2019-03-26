@@ -1,45 +1,39 @@
 - [Overview](#sec-1)
-  - [Using a review/BRANCH deployment](#sec-1-1)
-- [Mirror => Pipelines => Jobs => Environments](#sec-2)
-  - [example](#sec-2-1)
-- [Kubernetes Cluster Overview](#sec-3)
-  - [namespaces](#sec-3-1)
-  - [gitlab-managed-apps namespace](#sec-3-2)
-    - [everything](#sec-3-2-1)
-  - [our project namespace](#sec-3-3)
-  - [project pods](#sec-3-4)
-    - [current review pod](#sec-3-4-1)
-- [Digging into an environment / deployment](#sec-4)
-  - [gitlab environments => k8s deployments](#sec-4-1)
-  - [gitlab environment => pod](#sec-4-2)
-    - [executing commands / listing data within pod](#sec-4-2-1)
-    - [review pod details](#sec-4-2-2)
-  - [kubectl exec shell](#sec-4-3)
-- [Debugging a build](#sec-5)
-  - [retrieving the trace](#sec-5-1)
-  - [build container](#sec-5-2)
-  - [repository image](#sec-5-3)
-- [TIL](#sec-6)
-  - [retreving cluster creds](#sec-6-1)
-  - [retreiving a job trace](#sec-6-2)
-  - [retrieving a job ENV](#sec-6-3)
-  - [run kubectl commands within deploy job](#sec-6-4)
-- [<code>[0/1]</code> Future Features](#sec-7)
+  - [Mirror => Pipelines => Jobs => Environments](#sec-1-1)
+  - [Example](#sec-1-2)
+  - [Basics of using review/BRANCH deployment](#sec-1-3)
+- [Kubernetes Cluster Overview](#sec-2)
+  - [namespaces](#sec-2-1)
+  - [gitlab-managed-apps namespace](#sec-2-2)
+    - [everything](#sec-2-2-1)
+  - [our project namespace](#sec-2-3)
+  - [project pods](#sec-2-4)
+    - [current review pod](#sec-2-4-1)
+- [Digging into an environment / deployment](#sec-3)
+  - [gitlab environments => k8s deployments](#sec-3-1)
+  - [gitlab environment => pod](#sec-3-2)
+    - [executing commands / listing data within pod](#sec-3-2-1)
+    - [review pod details](#sec-3-2-2)
+  - [kubectl exec shell](#sec-3-3)
+- [Debugging a build](#sec-4)
+  - [retrieving the trace](#sec-4-1)
+  - [build container](#sec-4-2)
+  - [repository image](#sec-4-3)
+- [TIL](#sec-5)
+  - [retreving cluster creds](#sec-5-1)
+  - [retreiving a job trace](#sec-5-2)
+  - [retrieving a job ENV](#sec-5-3)
+  - [run kubectl commands within deploy job](#sec-5-4)
+- [<code>[0/1]</code> Future Features](#sec-6)
 
 
 # Overview<a id="sec-1"></a>
 
 Our software developers needed to work on multiple issues / branches at the same time. We needed to be able to compare different data generation methods and visualizations. We have explored a few options (static sites via netflify, and various CI providers), but feel our workflow with GitLab worth sharing.
 
-## Using a review/BRANCH deployment<a id="sec-1-1"></a>
+## Mirror => Pipelines => Jobs => Environments<a id="sec-1-1"></a>
 
--   [X] Create a PR
--   [X] Wait for @cncf-ci to respond with your pipeline results
--   [X] Inspect Pipeline logs and visit deployment url
-
-# Mirror => Pipelines => Jobs => Environments<a id="sec-2"></a>
-
-Mirroring from our repo to a CI Only gitlab project:
+We mirror from our repo to a CI-only Gitlab project:
 
 -   [settings/repository/mirroring](https://gitlab.ii.coop/apisnoop/ci/settings/repository)
 
@@ -51,7 +45,7 @@ The deploy jobs create environments per branch:
 
 -   [environments](https://gitlab.ii.coop/apisnoop/ci/environments) => [review/\*branch\*](https://gitlab.ii.coop/apisnoop/ci/environments/folders/review)
 
-## example<a id="sec-2-1"></a>
+## Example<a id="sec-1-2"></a>
 
 Example commit pipeline to deploy
 
@@ -62,11 +56,21 @@ Example commit pipeline to deploy
 -   [console](https://gitlab.ii.coop/apisnoop/ci/environments/42/terminal)
 -   [apisnoop-ci-review-BRANCHNAME.apisnoop.cncf.ci](https://apisnoop-ci-review-tix-121-ltf42v.apisnoop.cncf.ci/)
 
-# Kubernetes Cluster Overview<a id="sec-3"></a>
+## Basics of using review/BRANCH deployment<a id="sec-1-3"></a>
+
+We also have a Prow bot (@cncf-ci) watching our upstream repo on Github. When a new pull request is created, the bot will respond with pipeline results.
+
+Flow is as follows:
+
+-   [X] Create a PR
+-   [X] Wait for @cncf-ci to respond with your pipeline results
+-   [X] Inspect Pipeline logs and visit deployment url
+
+# Kubernetes Cluster Overview<a id="sec-2"></a>
 
 <https://gitlab.ii.coop/apisnoop/ci/clusters/23>
 
-## namespaces<a id="sec-3-1"></a>
+## namespaces<a id="sec-2-1"></a>
 
 Jobs running in the `gitlab-managed-apps` namespace created/manage the `apisnoop-ci` namespace.
 
@@ -83,7 +87,7 @@ kubectl get namespaces
     openfisca-aotearoa    Active   7d
     raputure              Active   7d
 
-## gitlab-managed-apps namespace<a id="sec-3-2"></a>
+## gitlab-managed-apps namespace<a id="sec-2-2"></a>
 
 The job runners and CI infrastructure not specific to our project run in the `gitlab-managed-apps` namespace.
 
@@ -100,7 +104,7 @@ kubectl --namespace=gitlab-managed-apps get pods | grep -v rror
     runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          11d
     tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          11d
 
-### everything<a id="sec-3-2-1"></a>
+### everything<a id="sec-2-2-1"></a>
 
 ```shell
 kubectl --namespace=gitlab-managed-apps get all | grep -v Error
@@ -138,7 +142,7 @@ kubectl --namespace=gitlab-managed-apps get all | grep -v Error
     replicaset.apps/runner-gitlab-runner-9df899f44                     1         1         1       11d
     replicaset.apps/tiller-deploy-9768f6964                            1         1         1       11d
 
-## our project namespace<a id="sec-3-3"></a>
+## our project namespace<a id="sec-2-3"></a>
 
 Our `apisnoop-ci` namespace contains our deployments based on environment/branches.
 
@@ -173,7 +177,7 @@ kubectl --namespace=apisnoop-ci get all
     replicaset.apps/staging-85df9ccbb9                 0         0         0       15h
     replicaset.apps/staging-dccc64786                  1         1         1       13h
 
-## project pods<a id="sec-3-4"></a>
+## project pods<a id="sec-2-4"></a>
 
 ```shell
 kubectl --namespace=apisnoop-ci get pods 
@@ -186,7 +190,7 @@ kubectl --namespace=apisnoop-ci get pods
     review-tix-121-ltf42v-7cfd94d94c-qcbmv   1/1     Running   0          15h
     staging-dccc64786-bhhhj                  1/1     Running   0          16h
 
-### current review pod<a id="sec-3-4-1"></a>
+### current review pod<a id="sec-2-4-1"></a>
 
 \#+NAME review pod
 
@@ -249,7 +253,7 @@ kubectl describe --namespace=apisnoop-ci pod/review-tix-121-ltf42v-7cfd94d94c-qc
       Normal  Scheduled  5m1s   default-scheduler                                    Successfully assigned apisnoop-ci/review-download-f-5nlwri-688f86cc9c-vk22s to gke-apisnoop-ci-default-pool-3fb18c85-whd7
       Normal  Pulling    4m57s  kubelet, gke-apisnoop-ci-default-pool-3fb18c85-whd7  pulling image "registry.ii.coop/apisnoop/ci/download-fix:50db9d03ac86e85a5f5dcf1d5a6a11a7ce65c16d"
 
-# Digging into an environment / deployment<a id="sec-4"></a>
+# Digging into an environment / deployment<a id="sec-3"></a>
 
 -   Production, Staging, Review/Branch
 
@@ -267,7 +271,7 @@ kubectl describe --namespace=apisnoop-ci pod/review-tix-121-ltf42v-7cfd94d94c-qc
 
 <https://gitlab.ii.coop/apisnoop/ci/environments/42/terminal>
 
-## gitlab environments => k8s deployments<a id="sec-4-1"></a>
+## gitlab environments => k8s deployments<a id="sec-3-1"></a>
 
 ```shell
 kubectl --namespace=apisnoop-ci get deployments
@@ -278,7 +282,7 @@ kubectl --namespace=apisnoop-ci get deployments
     review-tix-121-ltf42v   1         1         1            1           15h
     staging                 1         1         1            1           21h
 
-## gitlab environment => pod<a id="sec-4-2"></a>
+## gitlab environment => pod<a id="sec-3-2"></a>
 
 ```shell
 kubectl --namespace=apisnoop-ci get pods -o=name | grep review
@@ -286,7 +290,7 @@ kubectl --namespace=apisnoop-ci get pods -o=name | grep review
 
     pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv
 
-### executing commands / listing data within pod<a id="sec-4-2-1"></a>
+### executing commands / listing data within pod<a id="sec-3-2-1"></a>
 
 ```shell
 kubectl --namespace=apisnoop-ci exec \
@@ -301,7 +305,7 @@ kubectl --namespace=apisnoop-ci exec \
     /app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sbeta-default/10141/apisnoop.json
     /app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable3-default/507/apisnoop.json
 
-### review pod details<a id="sec-4-2-2"></a>
+### review pod details<a id="sec-3-2-2"></a>
 
 ```shell
 kubectl --namespace=apisnoop-ci describe pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv
@@ -358,7 +362,7 @@ kubectl --namespace=apisnoop-ci describe pod/review-tix-121-ltf42v-7cfd94d94c-qc
                      node.kubernetes.io/unreachable:NoExecute for 300s
     Events:          <none>
 
-## kubectl exec shell<a id="sec-4-3"></a>
+## kubectl exec shell<a id="sec-3-3"></a>
 
 ```tmate
 kubectl --namespace=apisnoop-ci exec -ti \
@@ -370,9 +374,9 @@ kubectl --namespace=apisnoop-ci exec -ti \
 cd /app/data-gen/processed
 ```
 
-# Debugging a build<a id="sec-5"></a>
+# Debugging a build<a id="sec-4"></a>
 
-## retrieving the trace<a id="sec-5-1"></a>
+## retrieving the trace<a id="sec-4-1"></a>
 
 These files look to be in the wrong location:
 
@@ -404,7 +408,7 @@ curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" "https://gitlab.ii.coop/api
     error: You must be logged in to the server (Unauthorized)
     error: You must be logged in to the server (Unauthorized)
 
-## build container<a id="sec-5-2"></a>
+## build container<a id="sec-4-2"></a>
 
 ```shell
 kubectl --namespace=gitlab-managed-apps get pods | grep 142 | awk '{print $1}'
@@ -435,7 +439,7 @@ We need to choose a specific container:
     a container name must be specified for pod runner-zf8zf8jb-project-142-concurrent-0csdmb,
      choose one of: [build helper svc-0]
 
-## repository image<a id="sec-5-3"></a>
+## repository image<a id="sec-4-3"></a>
 
 The build job log will contain the registry + tag the image was pushed to.
 
@@ -447,7 +451,7 @@ If you want to poke around the resulting image you can run the following:
 docker pull registry.ii.coop/apisnoop/ci/master:c2351d87cc36f0a1ef117c4caff3851312d514e6
 ```
 
-# TIL<a id="sec-6"></a>
+# TIL<a id="sec-5"></a>
 
 Delete Environments
 
@@ -457,7 +461,7 @@ curl --request DELETE --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" \
   "https://gitlab.ii.coop/api/v4/projects/142/environments/40"
 ```
 
-## retreving cluster creds<a id="sec-6-1"></a>
+## retreving cluster creds<a id="sec-5-1"></a>
 
 ```shell
 kubectl config view --merge --minify --flatten \
@@ -492,7 +496,7 @@ users:
       name: gcp
 ```
 
-## retreiving a job trace<a id="sec-6-2"></a>
+## retreiving a job trace<a id="sec-5-2"></a>
 
 <https://docs.gitlab.com/ee/api/jobs.html#get-a-trace-file> <https://docs.gitlab.com/ee/api/README.html#namespaced-path-encoding>
 
@@ -501,7 +505,7 @@ users:
 curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" "https://gitlab.ii.coop/api/v4/projects/apisnoop%2Fci/jobs/1786/trace"
 ```
 
-## retrieving a job ENV<a id="sec-6-3"></a>
+## retrieving a job ENV<a id="sec-5-3"></a>
 
 We inspect the environment of pid 1 and use grep to sort it nicely
 
@@ -651,7 +655,7 @@ kubectl --namespace=gitlab-managed-apps exec -ti \
     TILLER_DEPLOY_SERVICE_PORT=44134
     TILLER_DEPLOY_SERVICE_PORT_TILLER=44134
 
-## run kubectl commands within deploy job<a id="sec-6-4"></a>
+## run kubectl commands within deploy job<a id="sec-5-4"></a>
 
 I deleted the namespace, and apparently that was bad.
 
@@ -670,7 +674,7 @@ We wrap it in () and redirect stderr '2>&1' followed by : to ensure output stagi
     Error from server (Forbidden): namespaces is forbidden: User "system:serviceaccount:gitlab-managed-apps:default" cannot list namespaces at the cluster scope
     command terminated with exit code 1
 
-# <code>[0/1]</code> Future Features<a id="sec-7"></a>
+# <code>[0/1]</code> Future Features<a id="sec-6"></a>
 
 -   [ ] gitlab should provide the kubectl exec command to get a shell on a pod / container combo for a deploy
 -   [ ] gitlab should provide links to line numbers in job output
