@@ -6,56 +6,60 @@
 #+PROPERTY: header-args:shell :results output code verbatim replace
 #+PROPERTY: header-args:shell+ :exports both
 #+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
-#+PROPERTY: header-args:shell+ :eval no-export
-#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+NOPROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:tmate+ :eval no-export
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: content
 
 * Overview
-[[https://gitlab.ii.coop/apisnoop/ci/settings/repository][settings/repository/mirroring]]
-[[https://gitlab.ii.coop/apisnoop/ci/branches][branches]]
-[[https://gitlab.ii.coop/apisnoop/ci/pipelines][pipelines]]
-[[https://gitlab.ii.coop/apisnoop/ci/environments][environments/top]]
-[[https://gitlab.ii.coop/apisnoop/ci/environments/folders/review][environments/review]]
-* Kubernetes Cluster
+
+Our software developers needed to work on multiple issues / branches at the same
+time. We needed to be able to compare different data generation methods and
+visualizations. We have explored a few options (static sites via netflify, and various CI providers),
+but feel our workflow with GitLab worth sharing.
+
+** Using a review/BRANCH deployment
+
+- [X] Create a PR
+- [X] Wait for @cncf-ci to respond with your pipeline results
+- [X] Inspect Pipeline logs and visit deployment url
+
+* Mirror => Pipelines => Jobs => Environments
+
+Mirroring from our repo to a CI Only gitlab project:
+
+- [[https://gitlab.ii.coop/apisnoop/ci/settings/repository][settings/repository/mirroring]]
+
+Each commit on a branch triggers a pipeline, and a set of jobs:
+
+- [[https://gitlab.ii.coop/apisnoop/ci/branches][branches]] => [[https://gitlab.ii.coop/apisnoop/ci/pipelines][pipelines]] => [[https://gitlab.ii.coop/apisnoop/ci/-/jobs][jobs]]
+
+The deploy jobs create environments per branch:
+
+- [[https://gitlab.ii.coop/apisnoop/ci/environments][environments]] => [[https://gitlab.ii.coop/apisnoop/ci/environments/folders/review][review/*branch*]]
+
+** example  
+
+Example commit pipeline to deploy
+
+- [[https://gitlab.ii.coop/apisnoop/ci/commit/eccfa3ce17d457754ee1d544910aeea22d2af600][UAFilter-commit]] 
+- [[https://gitlab.ii.coop/apisnoop/ci/pipelines/281][pipeline#281]] 
+- [[https://gitlab.ii.coop/apisnoop/ci/-/jobs/1871][build]] and [[https://gitlab.ii.coop/apisnoop/ci/-/jobs/1872][deploy]]  jobs
+- [[https://gitlab.ii.coop/apisnoop/ci/environments/42][environment]]
+- [[https://gitlab.ii.coop/apisnoop/ci/environments/42/terminal][console]]
+- [[https://apisnoop-ci-review-tix-121-ltf42v.apisnoop.cncf.ci/][apisnoop-ci-review-BRANCHNAME.apisnoop.cncf.ci]]
+
+* Kubernetes Cluster Overview
   
 [[https://gitlab.ii.coop/apisnoop/ci/clusters/23]]
-#+NAME: use admin creds locally
-#+BEGIN_SRC shell :wrap "SRC yaml"
-  kubectl config view --merge --minify --flatten \
-  | grep -v access-token
-#+END_SRC
 
-#+RESULTS: use admin creds locally
-#+BEGIN_SRC yaml
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDekNDQWZPZ0F3SUJBZ0lRT0J3VEwvck15ZWNDczRyTFk5WTRRVEFOQmdrcWhraUc5dzBCQVFzRkFEQXYKTVMwd0t3WURWUVFERXlSbU9UUm1OelZoTnkxa04yWmtMVFJoTURrdE9UYzBZeTAyT0RGa01qVTBOR0pqTWpjdwpIaGNOTVRrd016RTFNVFl4TWpBMFdoY05NalF3TXpFek1UY3hNakEwV2pBdk1TMHdLd1lEVlFRREV5Um1PVFJtCk56VmhOeTFrTjJaa0xUUmhNRGt0T1RjMFl5MDJPREZrTWpVME5HSmpNamN3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURBWnJIeUllbnBDUERZcmdmTjFYNFd0NmYvUTF1K2doUm5OTFdhaDBtaAp5L29YdDJtQmk4VWU2anpQeXJzdkRWd3FpSGVrMkoxTjJOT0hKWW1RQjdiRCs1ekVERWVaQnc5b2dBcWI3REtFClNVUCtsaE5FTGhTYUF0dHpRVzBEUjdPUlRlRmp0V0pJejNZZmg4dVlMMy9kTWFCa0xMNHlNMjhPb0YyRjN2YzcKL1dLUmdsNDUvd2VleUwvc0NjVmQwYW50R1BlUDZJNXRyRC9kRVZpRUo2UWkzYzlIU01CTkE0MFFBcTRuSFpZZAozV01QWkhoRmNKZ2hTTjZxZmVkMUdzc25XdmFMWGNBL2VlVUowVVI0ZnFkTUJVQU5zd0VTS1lLQTg4M1ZNczdJCjUrZHljdHFPbUcvd29LUUJzcFpDcHI3RXJybDlTcktOUHJXNDlTRXF4eU9oQWdNQkFBR2pJekFoTUE0R0ExVWQKRHdFQi93UUVBd0lDQkRBUEJnTlZIUk1CQWY4RUJUQURBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFCdgoybzZqQ285TDcyZFllSUFCS1JsQlAxQU9VdzcrOXFtYjV0Y0JyTU11aW5pOEc1Y1lzaDRzUXNGZnZERVNMaldnCmFBSU1uVHEySm4yUnZOUTVJdkhZNllVU3k3MXh3bndBUnhGN2wyVHptVUZ3NFhlVG0xWTMzakFobmhnNE5GNWgKblRoek4wc2dSbVJrRzkwL1BuTUdTYkpYTzFob0pTL1ViWTVsbkU2ak93WFlWNnVTREM4cE41dHZ4MTlSWS9JVQo5TlBKRUp5a2I4VWF3WWIzS2pzV1JVdXBJTVprKzNIZ1lrT3lsbzE5SU9IRzdyTTNQV2pMbngrSTdGRlk3OXM1CnA1K3RUWUhhbDdyVEpIQTN1dFdzODJRc1J0RE9XbFczN0JKcEk5VWRCb1U3UmJYR3Z0VjcrV1NEM0dnbTNrZ20Kd2NiTEx2eUhWbnMycjRiWU9mbmoKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
-    server: https://35.201.3.241
-  name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-contexts:
-- context:
-    cluster: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-    user: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-  name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-current-context: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-kind: Config
-preferences: {}
-users:
-- name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
-  user:
-    auth-provider:
-      config:
-        cmd-args: config config-helper --format=json
-        cmd-path: /usr/lib/google-cloud-sdk/bin/gcloud
-        expiry: "2019-03-25T18:59:55Z"
-        expiry-key: '{.credential.token_expiry}'
-        token-key: '{.credential.access_token}'
-      name: gcp
-#+END_SRC
+** namespaces
 
+Jobs running in the ~gitlab-managed-apps~ namespace created/manage the
+~apisnoop-ci~ namespace.
+   
 #+NAME: namespaces
 #+BEGIN_SRC shell
   kubectl get namespaces
@@ -64,31 +68,19 @@ users:
 #+RESULTS: namespaces
 #+BEGIN_EXAMPLE :noeval t
 NAME                  STATUS   AGE
-apisnoop-ci           Active   1h
-default               Active   10d
-gitlab-managed-apps   Active   10d
-kube-public           Active   10d
-kube-system           Active   10d
-openfisca-aotearoa    Active   6d
-raputure              Active   6d
+apisnoop-ci           Active   1d
+default               Active   11d
+gitlab-managed-apps   Active   11d
+kube-public           Active   11d
+kube-system           Active   11d
+openfisca-aotearoa    Active   7d
+raputure              Active   7d
 #+END_EXAMPLE
 
-Note the project namespace.
+** gitlab-managed-apps namespace
 
-#+NAME: apisnoop-ci pods
-#+BEGIN_SRC shell
-(
-  kubectl --namespace=apisnoop-ci get pods 
-) 2>&1
-:
-#+END_SRC
-
-#+RESULTS: apisnoop-ci pods
-#+BEGIN_EXAMPLE :noeval t
-NAME                                        READY   STATUS              RESTARTS   AGE
-review-download-f-5nlwri-688f86cc9c-vk22s   0/1     ContainerCreating   0          1m
-staging-7d78c78465-w628j                    1/1     Running             0          2h
-#+END_EXAMPLE
+The job runners and CI infrastructure not specific to our project run in the
+~gitlab-managed-apps~ namespace.
 
 #+NAME: runner / certmgr / ingress / prometheus pods
 #+BEGIN_SRC shell
@@ -98,19 +90,115 @@ staging-7d78c78465-w628j                    1/1     Running             0       
 #+RESULTS: runner / certmgr / ingress / prometheus pods
 #+BEGIN_EXAMPLE :noeval t
 NAME                                                     READY   STATUS    RESTARTS   AGE
-certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          10d
-ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          10d
-ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          10d
-prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          10d
-prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          10d
-runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          10d
-runner-zf8zf8jb-project-142-concurrent-1td9pn            2/2     Running   0          58m
-tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          10d
+certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          11d
+ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          11d
+ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          11d
+prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          11d
+prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          11d
+runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          11d
+tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          11d
+#+END_EXAMPLE
+*** everything
+#+NAME: all gitlab-managed-app namespace k8s objects
+#+BEGIN_SRC shell
+  kubectl --namespace=gitlab-managed-apps get all | grep -v Error
+#+END_SRC
+
+#+RESULTS: all gitlab-managed-app namespace k8s objects
+#+BEGIN_EXAMPLE :noeval t
+NAME                                                         READY   STATUS    RESTARTS   AGE
+pod/certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          11d
+pod/ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          11d
+pod/ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          11d
+pod/prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          11d
+pod/prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          11d
+pod/runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          11d
+pod/tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          11d
+NAME                                             TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)                      AGE
+service/ingress-nginx-ingress-controller         LoadBalancer   10.15.251.145   35.244.71.53   80:32363/TCP,443:30587/TCP   11d
+service/ingress-nginx-ingress-controller-stats   ClusterIP      10.15.240.235   <none>         18080/TCP                    11d
+service/ingress-nginx-ingress-default-backend    ClusterIP      10.15.243.113   <none>         80/TCP                       11d
+service/prometheus-kube-state-metrics            ClusterIP      None            <none>         80/TCP                       11d
+service/prometheus-prometheus-server             ClusterIP      10.15.254.80    <none>         80/TCP                       11d
+service/tiller-deploy                            ClusterIP      10.15.253.242   <none>         44134/TCP                    11d
+NAME                                                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/certmanager-cert-manager                1         1         1            1           11d
+deployment.apps/ingress-nginx-ingress-controller        1         1         1            1           11d
+deployment.apps/ingress-nginx-ingress-default-backend   1         1         1            1           11d
+deployment.apps/prometheus-kube-state-metrics           1         1         1            1           11d
+deployment.apps/prometheus-prometheus-server            1         1         1            1           11d
+deployment.apps/runner-gitlab-runner                    1         1         1            1           11d
+deployment.apps/tiller-deploy                           1         1         1            1           11d
+NAME                                                               DESIRED   CURRENT   READY   AGE
+replicaset.apps/certmanager-cert-manager-6c8cd9f9bf                1         1         1       11d
+replicaset.apps/ingress-nginx-ingress-controller-ff666c548         1         1         1       11d
+replicaset.apps/ingress-nginx-ingress-default-backend-6679dd498c   1         1         1       11d
+replicaset.apps/prometheus-kube-state-metrics-8668948654           1         1         1       11d
+replicaset.apps/prometheus-prometheus-server-746bb67956            1         1         1       11d
+replicaset.apps/runner-gitlab-runner-9df899f44                     1         1         1       11d
+replicaset.apps/tiller-deploy-9768f6964                            1         1         1       11d
 #+END_EXAMPLE
 
+** our project namespace
 
+Our ~apisnoop-ci~ namespace contains our deployments based on
+environment/branches.
+
+#+NAME: apisnoop-ci namespace
 #+BEGIN_SRC shell
-kubectl describe --namespace=apisnoop-ci pod/review-download-f-5nlwri-688f86cc9c-vk22s
+  kubectl --namespace=apisnoop-ci get all 
+#+END_SRC
+
+#+RESULTS: apisnoop-ci namespace
+#+BEGIN_EXAMPLE :noeval t
+NAME                                         READY   STATUS    RESTARTS   AGE
+pod/cm-acme-http-solver-f7cz7                1/1     Running   0          15h
+pod/cm-acme-http-solver-qb8lg                1/1     Running   0          13h
+pod/production-fb874dbcc-h5z7s               1/1     Running   0          15h
+pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv   1/1     Running   0          12h
+pod/staging-dccc64786-bhhhj                  1/1     Running   0          13h
+NAME                                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+service/cm-acme-http-solver-b24bq           NodePort    10.15.252.244   <none>        8089:32093/TCP   15h
+service/cm-acme-http-solver-qj9wq           NodePort    10.15.255.153   <none>        8089:32489/TCP   13h
+service/production-auto-deploy              ClusterIP   10.15.246.231   <none>        5000/TCP         15h
+service/review-tix-121-ltf42v-auto-deploy   ClusterIP   10.15.245.117   <none>        5000/TCP         14h
+service/staging-auto-deploy                 ClusterIP   10.15.250.73    <none>        5000/TCP         21h
+NAME                                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/production              1         1         1            1           15h
+deployment.apps/review-tix-121-ltf42v   1         1         1            1           14h
+deployment.apps/staging                 1         1         1            1           21h
+NAME                                               DESIRED   CURRENT   READY   AGE
+replicaset.apps/production-fb874dbcc               1         1         1       15h
+replicaset.apps/review-tix-121-ltf42v-567ccfb9dc   0         0         0       12h
+replicaset.apps/review-tix-121-ltf42v-588c574d9f   0         0         0       14h
+replicaset.apps/review-tix-121-ltf42v-7cfd94d94c   1         1         1       12h
+replicaset.apps/review-tix-121-ltf42v-8f4c798c6    0         0         0       13h
+replicaset.apps/staging-56b4657fbd                 0         0         0       18h
+replicaset.apps/staging-7d78c78465                 0         0         0       21h
+replicaset.apps/staging-85df9ccbb9                 0         0         0       15h
+replicaset.apps/staging-dccc64786                  1         1         1       13h
+#+END_EXAMPLE
+
+** project pods
+
+#+NAME: apisnoop-ci pods
+#+BEGIN_SRC shell
+  kubectl --namespace=apisnoop-ci get pods 
+#+END_SRC
+
+#+RESULTS: apisnoop-ci pods
+#+BEGIN_EXAMPLE :noeval t
+NAME                                     READY   STATUS    RESTARTS   AGE
+cm-acme-http-solver-f7cz7                1/1     Running   0          18h
+cm-acme-http-solver-qb8lg                1/1     Running   0          16h
+production-fb874dbcc-h5z7s               1/1     Running   0          18h
+review-tix-121-ltf42v-7cfd94d94c-qcbmv   1/1     Running   0          15h
+staging-dccc64786-bhhhj                  1/1     Running   0          16h
+#+END_EXAMPLE
+*** current review pod
+#+NAME review pod
+#+BEGIN_SRC shell
+kubectl describe --namespace=apisnoop-ci pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv
 #+END_SRC
 
 #+RESULTS:
@@ -171,50 +259,133 @@ Events:
   Normal  Pulling    4m57s  kubelet, gke-apisnoop-ci-default-pool-3fb18c85-whd7  pulling image "registry.ii.coop/apisnoop/ci/download-fix:50db9d03ac86e85a5f5dcf1d5a6a11a7ce65c16d"
 #+END_EXAMPLE
 
-* Debugging an environment / deployment
-  Locate the specific URL
+* Digging into an environment / deployment
 
-[[https://gitlab.ii.coop/apisnoop/ci/environments/40]]
+- Production, Staging, Review/Branch
+[[https://gitlab.ii.coop/apisnoop/ci/environments]]
+- Focus on Review/Branch
+[[https://gitlab.ii.coop/apisnoop/ci/environments/folders/review]]
+- Choose your environment, rollback to prior deployments if need be
+[[https://gitlab.ii.coop/apisnoop/ci/environments/42]]
+- If you been designated access, you can get a shell
+[[https://gitlab.ii.coop/apisnoop/ci/environments/42/terminal]]
 
-** Try the terminal:
-[[https://gitlab.ii.coop/apisnoop/ci/environments/40/terminal]]
-** shell commands via kubectl
+** gitlab environments => k8s deployments
+
+#+NAME: apisnoop-ci deployments
+#+BEGIN_SRC shell
+  kubectl --namespace=apisnoop-ci get deployments
+#+END_SRC
+
+#+RESULTS: apisnoop-ci deployments
+#+BEGIN_EXAMPLE :noeval t
+NAME                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+production              1         1         1            1           15h
+review-tix-121-ltf42v   1         1         1            1           15h
+staging                 1         1         1            1           21h
+#+END_EXAMPLE
+
+** gitlab environment => pod
+   
+#+NAME: review pod
+#+BEGIN_SRC shell
+  kubectl --namespace=apisnoop-ci get pods -o=name | grep review
+#+END_SRC
+
+#+RESULTS: review pod
+#+BEGIN_EXAMPLE :noeval t
+pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv
+#+END_EXAMPLE
+
+*** executing commands / listing data within pod
 
 #+NAME: commands inside deploy container
 #+BEGIN_SRC shell
-  (
-      kubectl --namespace=apisnoop-ci exec \
-          staging-7d78c78465-w628j \
-          -- \
-         ls -la /app/data-gen/processed
-  ) 2>&1
-  :
+  kubectl --namespace=apisnoop-ci exec \
+      review-tix-121-ltf42v-7cfd94d94c-qcbmv \
+      -- \
+     find /app/data-gen/processed/ -name apisnoop.json
 #+END_SRC
 
 #+RESULTS: commands inside deploy container
 #+BEGIN_EXAMPLE :noeval t
-total 1304
-drwxr-xr-x 7 u28014 u28014    4096 Mar 22 03:26 .
-drwxr-xr-x 4 u28014 u28014    4096 Mar 22 03:26 ..
-drwxr-xr-x 2 u28014 u28014    4096 Mar 22 03:26 1814
-drwxr-xr-x 2 u28014 u28014    4096 Mar 22 03:26 34681
-drwxr-xr-x 2 u28014 u28014    4096 Mar 22 03:26 460
-drwxr-xr-x 2 u28014 u28014    4096 Mar 22 03:26 5403
-drwxr-xr-x 2 u28014 u28014    4096 Mar 22 03:26 9058
--rw-r--r-- 1 u28014 u28014 1297913 Mar 22 03:26 apisnoop.json
--rw-r--r-- 1 u28014 u28014     489 Mar 22 03:26 finished.json
--rw-r--r-- 1 u28014 u28014     183 Mar 22 03:26 metadata.json
+/app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable2-default/2010/apisnoop.json
+/app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable1-default/5953/apisnoop.json
+/app/data-gen/processed/ci-kubernetes-e2e-gci-gce/36092/apisnoop.json
+/app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sbeta-default/10141/apisnoop.json
+/app/data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable3-default/507/apisnoop.json
 #+END_EXAMPLE
 
-** interactive shell via kubectl
+*** review pod details
+#+NAME: apisnoop-ci review pod 
+#+BEGIN_SRC shell :noweb yes
+  kubectl --namespace=apisnoop-ci describe pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv
+#+END_SRC
+
+#+RESULTS: apisnoop-ci review pod
+#+BEGIN_EXAMPLE :noeval t
+Name:               review-tix-121-ltf42v-7cfd94d94c-qcbmv
+Namespace:          apisnoop-ci
+Priority:           0
+PriorityClassName:  <none>
+Node:               gke-apisnoop-ci-default-pool-3fb18c85-whd7/10.152.0.13
+Start Time:         Tue, 26 Mar 2019 16:27:03 +1300
+Labels:             app=review-tix-121-ltf42v
+                    pod-template-hash=3798508507
+                    release=review-tix-121-ltf42v
+                    tier=web
+                    track=stable
+Annotations:        checksum/application-secrets: 
+Status:             Running
+IP:                 10.12.0.63
+Controlled By:      ReplicaSet/review-tix-121-ltf42v-7cfd94d94c
+Containers:
+  auto-deploy-app:
+    Container ID:   docker://ed96e9bf14e98d0209eddf37441cc6247bbdb7fa8bb2f276a40a2dcf952c0526
+    Image:          registry.ii.coop/apisnoop/ci/tix-121:eccfa3ce17d457754ee1d544910aeea22d2af600
+    Image ID:       docker-pullable://registry.ii.coop/apisnoop/ci/tix-121@sha256:e5d9f126cbd605b8ddbdda0d302205fc8fdd1383c4c2c7af177960e1f3d77e1f
+    Port:           5000/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Tue, 26 Mar 2019 16:31:55 +1300
+    Ready:          True
+    Restart Count:  0
+    Liveness:       http-get http://:5000/ delay=15s timeout=15s period=10s #success=1 #failure=3
+    Readiness:      http-get http://:5000/ delay=5s timeout=3s period=10s #success=1 #failure=3
+    Environment Variables from:
+      review-tix-121-ltf42v-secret  Secret  Optional: false
+    Environment:
+      DATABASE_URL:  postgres://user:testing-password@review-tix-121-ltf42v-postgres:5432/review-tix-121-ltf42v
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-xsmbr (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  default-token-xsmbr:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-xsmbr
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+Events:          <none>
+#+END_EXAMPLE
+
+** kubectl exec shell
 
 #+BEGIN_SRC tmate
   kubectl --namespace=apisnoop-ci exec -ti \
-        staging-7d78c78465-w628j \
+        review-tix-121-ltf42v-7cfd94d94c-qcbmv \
         /bin/bash
 #+END_SRC
+
 #+BEGIN_SRC tmate
-su u28014 # how do we find this user?
+cd /app/data-gen/processed
 #+END_SRC
 
 * Debugging a build
@@ -225,7 +396,8 @@ These files look to be in the wrong location:
 
 [[https://gitlab.ii.coop/apisnoop/ci/-/jobs/1802]]
 
-The herokuish runs against a dind, cat /proc/PIDOFDOCKER/envion | grep DOCKER.
+The herokuish runs against a dind:
+
 #+BEGIN_SRC shell
 export DOCKER_HOST=tcp://localhost:2375
 docker exec -ti ci_job_build_1802 /bin/bash
@@ -236,371 +408,6 @@ docker exec -ti ci_job_build_1802 /bin/bash
   . .env
   curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" "https://gitlab.ii.coop/api/v4/projects/apisnoop%2Fci/jobs/1802/trace"
 #+END_SRC
-
-#+RESULTS: build trace
-#+BEGIN_EXAMPLE :noeval t
-[0KRunning with gitlab-runner 11.6.0 (f100a208)
-[0;m[0K  on runner-gitlab-runner-9df899f44-smgtx zF8zF8Jb
-[0;m[0KUsing Kubernetes namespace: gitlab-managed-apps
-[0;m[0KUsing Kubernetes executor with image docker:stable-git ...
-[0;msection_start:1553545969:prepare_script[0KWaiting for pod gitlab-managed-apps/runner-zf8zf8jb-project-142-concurrent-02pzqk to be running, status is Pending
-Running on runner-zf8zf8jb-project-142-concurrent-02pzqk via runner-gitlab-runner-9df899f44-smgtx...
-section_end:1553545972:prepare_script[0Ksection_start:1553545972:get_sources[0K[32;1mCloning repository...[0;m
-Cloning into '/apisnoop/ci'...
-[32;1mChecking out 50db9d03 as download-fix...[0;m
-[32;1mSkipping Git submodules setup[0;m
-section_end:1553546014:get_sources[0Ksection_start:1553546014:restore_cache[0Ksection_end:1553546015:restore_cache[0Ksection_start:1553546015:download_artifacts[0Ksection_end:1553546016:download_artifacts[0Ksection_start:1553546016:build_script[0K[32;1m$ # Auto DevOps variables and functions # collapsed multi-line command[0;m
-[32;1m$ setup_docker[0;m
-[32;1m$ build[0;m
-Logging to GitLab Container Registry with CI credentials...
-WARNING! Using --password via the CLI is insecure. Use --password-stdin.
-WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
-Configure a credential helper to remove this warning. See
-https://docs.docker.com/engine/reference/commandline/login/#credentials-store
-
-Login Succeeded
-
-Building Heroku-based application using gliderlabs/herokuish docker image...
-Unable to find image 'gliderlabs/herokuish:latest' locally
-latest: Pulling from gliderlabs/herokuish
-6cf436f81810: Pulling fs layer
-987088a85b96: Pulling fs layer
-b4624b3efe06: Pulling fs layer
-d42beb8ded59: Pulling fs layer
-ea3549156eeb: Pulling fs layer
-823b9a26dccb: Pulling fs layer
-9a09076638c5: Pulling fs layer
-00983af1e278: Pulling fs layer
-3373d1a5c8b8: Pulling fs layer
-0ea1a1ab15e5: Pulling fs layer
-61926fcdb5a5: Pulling fs layer
-50b2a348b8ef: Pulling fs layer
-0d8c2d103a66: Pulling fs layer
-00983af1e278: Waiting
-3373d1a5c8b8: Waiting
-0ea1a1ab15e5: Waiting
-61926fcdb5a5: Waiting
-50b2a348b8ef: Waiting
-0d8c2d103a66: Waiting
-ea3549156eeb: Waiting
-823b9a26dccb: Waiting
-9a09076638c5: Waiting
-d42beb8ded59: Waiting
-987088a85b96: Download complete
-b4624b3efe06: Download complete
-6cf436f81810: Verifying Checksum
-6cf436f81810: Download complete
-d42beb8ded59: Verifying Checksum
-d42beb8ded59: Download complete
-ea3549156eeb: Verifying Checksum
-ea3549156eeb: Download complete
-9a09076638c5: Verifying Checksum
-9a09076638c5: Download complete
-6cf436f81810: Pull complete
-987088a85b96: Pull complete
-3373d1a5c8b8: Verifying Checksum
-3373d1a5c8b8: Download complete
-b4624b3efe06: Pull complete
-d42beb8ded59: Pull complete
-ea3549156eeb: Pull complete
-823b9a26dccb: Verifying Checksum
-823b9a26dccb: Download complete
-0ea1a1ab15e5: Verifying Checksum
-0ea1a1ab15e5: Download complete
-61926fcdb5a5: Verifying Checksum
-61926fcdb5a5: Download complete
-00983af1e278: Download complete
-50b2a348b8ef: Verifying Checksum
-50b2a348b8ef: Download complete
-0d8c2d103a66: Verifying Checksum
-0d8c2d103a66: Download complete
-823b9a26dccb: Pull complete
-9a09076638c5: Pull complete
-00983af1e278: Pull complete
-3373d1a5c8b8: Pull complete
-0ea1a1ab15e5: Pull complete
-61926fcdb5a5: Pull complete
-50b2a348b8ef: Pull complete
-0d8c2d103a66: Pull complete
-Digest: sha256:1de05c84afa3abf1df66efca6a928d33ea142cd564b31c7e33d09c8104d8534a
-Status: Downloaded newer image for gliderlabs/herokuish:latest
-[1G       [1G-----> Node.js app detected
-[1G       
-[1G-----> Creating runtime environment
-[1G       
-[1G       NPM_CONFIG_LOGLEVEL=error
-[1G       NODE_ENV=production
-[1G       NODE_MODULES_CACHE=true
-[1G       NODE_VERBOSE=false
-[1G       
-[1G-----> Installing binaries
-[1G       engines.node (package.json):  ^9.0.0
-[1G       engines.npm (package.json):   >= 3.0.0
-[1G       
-[1G       Resolving node version ^9.0.0...
-[1G       Downloading and installing node 9.11.2...
-[1G       Bootstrapping npm >= 3.0.0 (replacing 5.6.0)...
-[1G       npm >= 3.0.0 installed
-[1G       
-[1G-----> Installing dependencies
-[1G       Installing node modules (package.json + package-lock)
-[1G       
-[1G       > nodemon@1.18.10 postinstall /tmp/build/node_modules/nodemon
-[1G       > node bin/postinstall || exit 0
-[1G       
-[1G       [32mLove nodemon? You can now support the project via the open collective:[22m[39m
-[1G       > [96m[1mhttps://opencollective.com/nodemon/donate[0m
-[1G       
-[1G       
-[1G       > backend@0.0.0 postinstall /tmp/build
-[1G       > curl https://storage.googleapis.com/pub/gsutil.tar.gz | tar xfz - ; wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64  ; chmod +x ./jq ; mkdir bin ; mv jq bin/ ; curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ;  python get-pip.py --user ; export PATH=$PWD/gsutil:$PWD/bin:/app/.local/bin:$PATH ; pip install --user yq ; ./apisnoop.sh --download-apiusage ; cd client && npm install && npm run build
-[1G       
-[1G       % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-[1G       Dload  Upload   Total   Spent    Left  Speed
-[1G         0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100 3629k  100 3629k    0     0  3886k      0 --:--:-- --:--:-- --:--:-- 3882k
-[1G--2019-03-25 20:34:53-- https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-[1G       Resolving github.com (github.com)... 192.30.255.112, 192.30.255.113
-[1G       Connecting to github.com (github.com)|192.30.255.112|:443... connected.
-[1G       HTTP request sent, awaiting response... 302 Found
-[1G       Location: https://github-production-release-asset-2e65be.s3.amazonaws.com/5101141/6387d980-de1f-11e8-8d3e-4455415aa408?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20190325%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20190325T203454Z&X-Amz-Expires=300&X-Amz-Signature=00c5f093229b2e20180393cddcc5063d754b6add33bc0a27803fa100f52093a3&X-Amz-SignedHeaders=host&actor_id=0&response-content-disposition=attachment%3B%20filename%3Djq-linux64&response-content-type=application%2Foctet-stream [following]
-[1G--2019-03-25 20:34:54-- https://github-production-release-asset-2e65be.s3.amazonaws.com/5101141/6387d980-de1f-11e8-8d3e-4455415aa408?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20190325%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20190325T203454Z&X-Amz-Expires=300&X-Amz-Signature=00c5f093229b2e20180393cddcc5063d754b6add33bc0a27803fa100f52093a3&X-Amz-SignedHeaders=host&actor_id=0&response-content-disposition=attachment%3B%20filename%3Djq-linux64&response-content-type=application%2Foctet-stream
-[1G       Resolving github-production-release-asset-2e65be.s3.amazonaws.com (github-production-release-asset-2e65be.s3.amazonaws.com)... 52.216.8.139
-[1G       Connecting to github-production-release-asset-2e65be.s3.amazonaws.com (github-production-release-asset-2e65be.s3.amazonaws.com)|52.216.8.139|:443... connected.
-[1G       HTTP request sent, awaiting response... 200 OK
-[1G       Length: 3953824 (3.8M) [application/octet-stream]
-[1G       Saving to: 'jq'
-[1G       
-[1G       0K .......... .......... .......... .......... ..........  1%  253K 15s
-[1G       50K .......... .......... .......... .......... ..........  2%  248K 15s
-[1G       100K .......... .......... .......... .......... ..........  3%  257K 15s
-[1G       150K .......... .......... .......... .......... ..........  5%  108M 11s
-[1G       200K .......... .......... .......... .......... ..........  6%  116M 9s
-[1G       250K .......... .......... .......... .......... ..........  7%  253K 9s
-[1G       300K .......... .......... .......... .......... ..........  9%  104M 8s
-[1G       350K .......... .......... .......... .......... .......... 10%  253K 9s
-[1G       400K .......... .......... .......... .......... .......... 11% 49.0M 8s
-[1G       450K .......... .......... .......... .......... .......... 12% 73.8M 7s
-[1G       500K .......... .......... .......... .......... .......... 14% 49.6M 6s
-[1G       550K .......... .......... .......... .......... .......... 15% 21.8M 5s
-[1G       600K .......... .......... .......... .......... .......... 16%  159M 5s
-[1G       650K .......... .......... .......... .......... .......... 18%  259K 5s
-[1G       700K .......... .......... .......... .......... .......... 19% 25.3M 5s
-[1G       750K .......... .......... .......... .......... .......... 20%  120M 5s
-[1G       800K .......... .......... .......... .......... .......... 22% 48.0M 4s
-[1G       850K .......... .......... .......... .......... .......... 23% 23.5M 4s
-[1G       900K .......... .......... .......... .......... .......... 24%  203M 4s
-[1G       950K .......... .......... .......... .......... .......... 25%  100M 3s
-[1G       1000K .......... .......... .......... .......... .......... 27% 26.6M 3s
-[1G       1050K .......... .......... .......... .......... .......... 28% 81.5M 3s
-[1G       1100K .......... .......... .......... .......... .......... 29% 51.9M 3s
-[1G       1150K .......... .......... .......... .......... .......... 31% 45.2M 3s
-[1G       1200K .......... .......... .......... .......... .......... 32% 54.3M 3s
-[1G       1250K .......... .......... .......... .......... .......... 33% 36.0M 2s
-[1G       1300K .......... .......... .......... .......... .......... 34%  269K 3s
-[1G       1350K .......... .......... .......... .......... .......... 36% 46.6M 2s
-[1G       1400K .......... .......... .......... .......... .......... 37% 45.9M 2s
-[1G       1450K .......... .......... .......... .......... .......... 38% 48.7M 2s
-[1G       1500K .......... .......... .......... .......... .......... 40%  133M 2s
-[1G       1550K .......... .......... .......... .......... .......... 41%  126M 2s
-[1G       1600K .......... .......... .......... .......... .......... 42%  145M 2s
-[1G       1650K .......... .......... .......... .......... .......... 44%  124M 2s
-[1G       1700K .......... .......... .......... .......... .......... 45% 78.5M 2s
-[1G       1750K .......... .......... .......... .......... .......... 46% 43.1M 2s
-[1G       1800K .......... .......... .......... .......... .......... 47%  123M 2s
-[1G       1850K .......... .......... .......... .......... .......... 49%  134M 1s
-[1G       1900K .......... .......... .......... .......... .......... 50%  119M 1s
-[1G       1950K .......... .......... .......... .......... .......... 51%  141M 1s
-[1G       2000K .......... .......... .......... .......... .......... 53%  124M 1s
-[1G       2050K .......... .......... .......... .......... .......... 54%  131M 1s
-[1G       2100K .......... .......... .......... .......... .......... 55% 25.8M 1s
-[1G       2150K .......... .......... .......... .......... .......... 56%  168M 1s
-[1G       2200K .......... .......... .......... .......... .......... 58%  157M 1s
-[1G       2250K .......... .......... .......... .......... .......... 59%  205M 1s
-[1G       2300K .......... .......... .......... .......... .......... 60%  106M 1s
-[1G       2350K .......... .......... .......... .......... .......... 62%  192M 1s
-[1G       2400K .......... .......... .......... .......... .......... 63%  127M 1s
-[1G       2450K .......... .......... .......... .......... .......... 64%  168M 1s
-[1G       2500K .......... .......... .......... .......... .......... 66%  168M 1s
-[1G       2550K .......... .......... .......... .......... .......... 67%  270K 1s
-[1G       2600K .......... .......... .......... .......... .......... 68% 55.7M 1s
-[1G       2650K .......... .......... .......... .......... .......... 69%  168M 1s
-[1G       2700K .......... .......... .......... .......... .......... 71% 23.0M 1s
-[1G       2750K .......... .......... .......... .......... .......... 72%  163M 1s
-[1G       2800K .......... .......... .......... .......... .......... 73%  139M 1s
-[1G       2850K .......... .......... .......... .......... .......... 75%  200M 1s
-[1G       2900K .......... .......... .......... .......... .......... 76%  135M 0s
-[1G       2950K .......... .......... .......... .......... .......... 77%  172M 0s
-[1G       3000K .......... .......... .......... .......... .......... 78%  151M 0s
-[1G       3050K .......... .......... .......... .......... .......... 80%  141M 0s
-[1G       3100K .......... .......... .......... .......... .......... 81%  146M 0s
-[1G       3150K .......... .......... .......... .......... .......... 82%  172M 0s
-[1G       3200K .......... .......... .......... .......... .......... 84%  146M 0s
-[1G       3250K .......... .......... .......... .......... .......... 85% 29.1M 0s
-[1G       3300K .......... .......... .......... .......... .......... 86%  127M 0s
-[1G       3350K .......... .......... .......... .......... .......... 88%  199M 0s
-[1G       3400K .......... .......... .......... .......... .......... 89%  155M 0s
-[1G       3450K .......... .......... .......... .......... .......... 90%  181M 0s
-[1G       3500K .......... .......... .......... .......... .......... 91%  176M 0s
-[1G       3550K .......... .......... .......... .......... .......... 93%  172M 0s
-[1G       3600K .......... .......... .......... .......... .......... 94%  142M 0s
-[1G       3650K .......... .......... .......... .......... .......... 95%  177M 0s
-[1G       3700K .......... .......... .......... .......... .......... 97%  158M 0s
-[1G       3750K .......... .......... .......... .......... .......... 98% 22.4M 0s
-[1G       3800K .......... .......... .......... .......... .......... 99%  114M 0s
-[1G       3850K .......... .                                          100%  246M=1.6s
-[1G       
-[1G       2019-03-25 20:34:56 (2.36 MB/s) - 'jq' saved [3953824/3953824]
-[1G       
-[1G       % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-[1G       Dload  Upload   Total   Spent    Left  Speed
-[1G         0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100 1659k  100 1659k    0     0  5531k      0 --:--:-- --:--:-- --:--:-- 5531k
-[1G       DEPRECATION: Python 2.7 will reach the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 won't be maintained after that date. A future version of pip will drop support for Python 2.7.
-[1G       Collecting pip
-[1G       Downloading https://files.pythonhosted.org/packages/d8/f3/413bab4ff08e1fc4828dfc59996d721917df8e8583ea85385d51125dceff/pip-19.0.3-py2.py3-none-any.whl (1.4MB)
-[1G       Collecting setuptools
-[1G       Downloading https://files.pythonhosted.org/packages/d1/6a/4b2fcefd2ea0868810e92d519dacac1ddc64a2e53ba9e3422c3b62b378a6/setuptools-40.8.0-py2.py3-none-any.whl (575kB)
-[1G       Collecting wheel
-[1G       Downloading https://files.pythonhosted.org/packages/96/ba/a4702cbb6a3a485239fbe9525443446203f00771af9ac000fa3ef2788201/wheel-0.33.1-py2.py3-none-any.whl
-[1G       Installing collected packages: pip, setuptools, wheel
-[1G       The script wheel is installed in '/app/.local/bin' which is not on PATH.
-[1G       Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
-[1G       Successfully installed pip-19.0.3 setuptools-40.8.0 wheel-0.33.1
-[1G       DEPRECATION: Python 2.7 will reach the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 won't be maintained after that date. A future version of pip will drop support for Python 2.7.
-[1G       Collecting yq
-[1G       Downloading https://files.pythonhosted.org/packages/5c/2e/1df0a8163e19d3699fb745d56ff7d4c8fb0cbfe1d123609dc13dff6170b3/yq-2.7.2-py2.py3-none-any.whl
-[1G       Collecting xmltodict>=0.11.0 (from yq)
-[1G       Downloading https://files.pythonhosted.org/packages/28/fd/30d5c1d3ac29ce229f6bdc40bbc20b28f716e8b363140c26eff19122d8a5/xmltodict-0.12.0-py2.py3-none-any.whl
-[1G       Collecting PyYAML>=3.11 (from yq)
-[1G       Downloading https://files.pythonhosted.org/packages/9f/2c/9417b5c774792634834e730932745bc09a7d36754ca00acf1ccd1ac2594d/PyYAML-5.1.tar.gz (274kB)
-[1G       Requirement already satisfied: setuptools in /app/.local/lib/python2.7/site-packages (from yq) (40.8.0)
-[1G       Building wheels for collected packages: PyYAML
-[1G       Building wheel for PyYAML (setup.py): started
-[1G       Building wheel for PyYAML (setup.py): finished with status 'done'
-[1G       Stored in directory: /app/.cache/pip/wheels/ad/56/bc/1522f864feb2a358ea6f1a92b4798d69ac783a28e80567a18b
-[1G       Successfully built PyYAML
-[1G       Installing collected packages: xmltodict, PyYAML, yq
-[1G       Successfully installed PyYAML-5.1 xmltodict-0.12.0 yq-2.7.2
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable3-default/460/finished.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable3-default/460/apisnoop.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable3-default/460/metadata.json...
-[1G       / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    / [1/3 files][  493.0 B/  1.2 MiB]   0% Done                                    / [2/3 files][  678.0 B/  1.2 MiB]   0% Done                                    / [3/3 files][  1.2 MiB/  1.2 MiB] 100% Done                                    
-[1G       Operation completed over 3 objects/1.2 MiB.
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable2-default/1814/apisnoop.json...
-[1G       / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable2-default/1814/finished.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable2-default/1814/metadata.json...
-[1G       / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    / [0/3 files][    0.0 B/  1.2 MiB]   0% Done                                    / [1/3 files][  183.0 B/  1.2 MiB]   0% Done                                    / [2/3 files][  672.0 B/  1.2 MiB]   0% Done                                    / [3/3 files][  1.2 MiB/  1.2 MiB] 100% Done                                    
-[1G       Operation completed over 3 objects/1.2 MiB.
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable1-default/5403/apisnoop.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable1-default/5403/metadata.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sstable1-default/5403/finished.json...
-[1G       / [0/3 files][    0.0 B/ 28.4 MiB]   0% Done                                    / [0/3 files][    0.0 B/ 28.4 MiB]   0% Done                                    / [0/3 files][    0.0 B/ 28.4 MiB]   0% Done                                    / [1/3 files][  493.0 B/ 28.4 MiB]   0% Done                                    / [2/3 files][  678.0 B/ 28.4 MiB]   0% Done                                    -- [3/3 files][ 28.4 MiB/ 28.4 MiB] 100% Done                                    
-[1G       Operation completed over 3 objects/28.4 MiB.
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sbeta-default/9058/finished.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sbeta-default/9058/apisnoop.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gce-cos-k8sbeta-default/9058/metadata.json...
-[1G       / [0/3 files][    0.0 B/ 31.7 MiB]   0% Done                                    / [0/3 files][    0.0 B/ 31.7 MiB]   0% Done                                    / [0/3 files][    0.0 B/ 31.7 MiB]   0% Done                                    / [1/3 files][  489.0 B/ 31.7 MiB]   0% Done                                    / [2/3 files][  2.3 MiB/ 31.7 MiB]   7% Done                                    -- [3/3 files][ 31.7 MiB/ 31.7 MiB] 100% Done                                    
-[1G       Operation completed over 3 objects/31.7 MiB.
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gci-gce/34681/apisnoop.json...
-[1G       Copying gs://apisnoop/dev/ci-kubernetes-e2e-gci-gce/34681/finished.json...
-[1G       / [0/3 files][    0.0 B/ 39.0 MiB]   0% Done                                    / [0/3 files][    0.0 B/ 39.0 MiB]   0% Done                                    Copying gs://apisnoop/dev/ci-kubernetes-e2e-gci-gce/34681/metadata.json...
-[1G       / [0/3 files][    0.0 B/ 39.0 MiB]   0% Done                                    / [1/3 files][792.2 KiB/ 39.0 MiB]   1% Done                                    / [2/3 files][  3.9 MiB/ 39.0 MiB]   9% Done                                    -- [3/3 files][ 39.0 MiB/ 39.0 MiB] 100% Done                                    
-[1G       Operation completed over 3 objects/39.0 MiB.
-[1G       mv ./data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sbeta-default/9058 ./data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable1-default/5403 ./data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable2-default/1814 ./data-gen/processed/ci-kubernetes-e2e-gce-cos-k8sstable3-default/460 ./data-gen/processed/ci-kubernetes-e2e-gci-gce/34681 ./data-gen/processed
-[1G       added 1793 packages from 781 contributors and audited 37521 packages in 63.496s
-[1G       found 72 vulnerabilities (63 low, 9 moderate)
-[1G       run `npm audit fix` to fix them, or `npm audit` for details
-[1G       
-[1G       > client@0.1.0 build /tmp/build/client
-[1G       > rm -rf ./build/ && ln -s ../public build && react-scripts build
-[1G       
-[1G       Creating an optimized production build...
-[1G       Compiled with warnings.
-[1G       
-[1G       ./src/bundles/endpoints.js
-[1G       Line 6:  'some' is defined but never used  no-unused-vars
-[1G       
-[1G       Search for the keywords to learn more about each warning.
-[1G       To ignore, add // eslint-disable-next-line to the line before.
-[1G       
-[1G       File sizes after gzip:
-[1G       
-[1G       166.11 KB  build/static/js/2.ea51cd50.chunk.js
-[1G       13.22 KB   build/static/css/main.cb495a03.chunk.css
-[1G       7.43 KB    build/static/js/main.3b000754.chunk.js
-[1G       762 B      build/static/js/runtime~main.a8a9905a.js
-[1G       
-[1G       The project was built assuming it is hosted at the server root.
-[1G       You can control this with the homepage field in your package.json.
-[1G       For example, add this to build it for GitHub Pages:
-[1G       
-[1G       "homepage" : "http://myname.github.io/myapp",
-[1G       
-[1G       The build folder is ready to be deployed.
-[1G       You may serve it with a static server:
-[1G       
-[1G       npm install -g serve
-[1G       serve -s build
-[1G       
-[1G       Find out more about deployment here:
-[1G       
-[1G       https://bit.ly/CRA-deploy
-[1G       
-[1G       added 444 packages from 285 contributors and audited 2663 packages in 332.956s
-[1G       found 0 vulnerabilities
-[1G       
-[1G       
-[1G-----> Build
-[1G       
-[1G-----> Caching build
-[1G       - node_modules
-[1G       
-[1G-----> Pruning devDependencies
-[1G       removed 46 packages and audited 2592 packages in 4.021s
-[1G       found 0 vulnerabilities
-[1G       
-[1G       
-[1G-----> Build succeeded!
-[1G       
-[1G       [1;33m-----> Change to Node.js build process [0m
-[1G       Heroku has begun executing the "build" script defined in package.json
-[1G       during Node.js builds.
-[1G       
-[1G       Read more: https://devcenter.heroku.com/changelog-items/1573
-[1G       
-[1G       [1G-----> Discovering process types
-[1G       Default types for  -> web
-sha256:d71d7ee3f9d38220c69c895854e6b1ddfd47bd711dcb8b672c35caf0567892d0
-
-Configuring registry.ii.coop/apisnoop/ci/download-fix:50db9d03ac86e85a5f5dcf1d5a6a11a7ce65c16d docker image...
-fe9be3f59ea1bdb41be7599e75c038415da13a3222649c27c4c7827f9ca2aec4
-sha256:1dc06e5e9057a8ba627d6c7f2fdb711b04604a31903b67463cc5d0d7d68a8d5a
-
-Pushing to GitLab Container Registry...
-The push refers to repository [registry.ii.coop/apisnoop/ci/download-fix]
-13ba3146eebb: Preparing
-e3fdbd8d5b49: Preparing
-ce4bbc8649d4: Preparing
-f0f343f8a83a: Preparing
-7c22c6e3a89d: Preparing
-462645ce88f2: Preparing
-dde30348de73: Preparing
-07198f772d55: Preparing
-b7faa9db26a3: Preparing
-3adfb4c7d32d: Preparing
-4b7d93055d87: Preparing
-663e8522d78b: Preparing
-283fb404ea94: Preparing
-bebe7ce6215a: Preparing
-462645ce88f2: Waiting
-dde30348de73: Waiting
-07198f772d55: Waiting
-b7faa9db26a3: Waiting
-3adfb4c7d32d: Waiting
-4b7d93055d87: Waiting
-663e8522d78b: Waiting
-283fb404ea94: Waiting
-bebe7ce6215a: Waiting
-#+END_EXAMPLE
 
 For some reason it's showing we aren't logged into the namespace
 
@@ -671,17 +478,58 @@ If you want to poke around the resulting image you can run the following:
 docker pull registry.ii.coop/apisnoop/ci/master:c2351d87cc36f0a1ef117c4caff3851312d514e6
 #+END_SRC
 
-* Understanding ensure_namespace
 * TIL
   Delete Environments
+#+NAME: Delete Environment
 #+BEGIN_SRC shell
   . .env
-curl --request DELETE --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" "https://gitlab.ii.coop/api/v4/projects/142/environments/19"
+  curl --request DELETE --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" \
+    "https://gitlab.ii.coop/api/v4/projects/142/environments/40"
 #+END_SRC
+
+#+RESULTS: Delete Environment
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
 #+END_EXAMPLE
+** retreving cluster creds
+
+#+NAME: use admin creds locally
+#+BEGIN_SRC shell :wrap "SRC yaml"
+  kubectl config view --merge --minify --flatten \
+  | grep -v access-token
+#+END_SRC
+#+RESULTS: use admin creds locally
+#+BEGIN_SRC yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDekNDQWZPZ0F3SUJBZ0lRT0J3VEwvck15ZWNDczRyTFk5WTRRVEFOQmdrcWhraUc5dzBCQVFzRkFEQXYKTVMwd0t3WURWUVFERXlSbU9UUm1OelZoTnkxa04yWmtMVFJoTURrdE9UYzBZeTAyT0RGa01qVTBOR0pqTWpjdwpIaGNOTVRrd016RTFNVFl4TWpBMFdoY05NalF3TXpFek1UY3hNakEwV2pBdk1TMHdLd1lEVlFRREV5Um1PVFJtCk56VmhOeTFrTjJaa0xUUmhNRGt0T1RjMFl5MDJPREZrTWpVME5HSmpNamN3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURBWnJIeUllbnBDUERZcmdmTjFYNFd0NmYvUTF1K2doUm5OTFdhaDBtaAp5L29YdDJtQmk4VWU2anpQeXJzdkRWd3FpSGVrMkoxTjJOT0hKWW1RQjdiRCs1ekVERWVaQnc5b2dBcWI3REtFClNVUCtsaE5FTGhTYUF0dHpRVzBEUjdPUlRlRmp0V0pJejNZZmg4dVlMMy9kTWFCa0xMNHlNMjhPb0YyRjN2YzcKL1dLUmdsNDUvd2VleUwvc0NjVmQwYW50R1BlUDZJNXRyRC9kRVZpRUo2UWkzYzlIU01CTkE0MFFBcTRuSFpZZAozV01QWkhoRmNKZ2hTTjZxZmVkMUdzc25XdmFMWGNBL2VlVUowVVI0ZnFkTUJVQU5zd0VTS1lLQTg4M1ZNczdJCjUrZHljdHFPbUcvd29LUUJzcFpDcHI3RXJybDlTcktOUHJXNDlTRXF4eU9oQWdNQkFBR2pJekFoTUE0R0ExVWQKRHdFQi93UUVBd0lDQkRBUEJnTlZIUk1CQWY4RUJUQURBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFCdgoybzZqQ285TDcyZFllSUFCS1JsQlAxQU9VdzcrOXFtYjV0Y0JyTU11aW5pOEc1Y1lzaDRzUXNGZnZERVNMaldnCmFBSU1uVHEySm4yUnZOUTVJdkhZNllVU3k3MXh3bndBUnhGN2wyVHptVUZ3NFhlVG0xWTMzakFobmhnNE5GNWgKblRoek4wc2dSbVJrRzkwL1BuTUdTYkpYTzFob0pTL1ViWTVsbkU2ak93WFlWNnVTREM4cE41dHZ4MTlSWS9JVQo5TlBKRUp5a2I4VWF3WWIzS2pzV1JVdXBJTVprKzNIZ1lrT3lsbzE5SU9IRzdyTTNQV2pMbngrSTdGRlk3OXM1CnA1K3RUWUhhbDdyVEpIQTN1dFdzODJRc1J0RE9XbFczN0JKcEk5VWRCb1U3UmJYR3Z0VjcrV1NEM0dnbTNrZ20Kd2NiTEx2eUhWbnMycjRiWU9mbmoKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+    server: https://35.201.3.241
+  name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+contexts:
+- context:
+    cluster: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+    user: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+  name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+current-context: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+kind: Config
+preferences: {}
+users:
+- name: gke_apisnoop_australia-southeast1-c_apisnoop-ci
+  user:
+    auth-provider:
+      config:
+        cmd-args: config config-helper --format=json
+        cmd-path: /usr/lib/google-cloud-sdk/bin/gcloud
+        expiry: "2019-03-26T16:41:26Z"
+        expiry-key: '{.credential.token_expiry}'
+        token-key: '{.credential.access_token}'
+      name: gcp
+#+END_SRC
+
 ** retreiving a job trace 
 https://docs.gitlab.com/ee/api/jobs.html#get-a-trace-file
 https://docs.gitlab.com/ee/api/README.html#namespaced-path-encoding
@@ -704,7 +552,6 @@ kubectl --namespace=gitlab-managed-apps exec -ti \
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
 AUTO_DEVOPS_DOMAIN=apisnoop.cncf.ci
-Avqtq6gnE+h1CBXatg==
 CI_API_V4_URL=https://gitlab.ii.coop/api/v4
 CI_BUILD_BEFORE_SHA=ef143bd7e1583068b78cb2cf8d3be16d270e1cb4
 CI_BUILD_ID=1795
@@ -878,7 +725,7 @@ command terminated with exit code 1
 # eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# noeval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
 # eval: (xclip-mode 1) 
 # eval: (gui-select-text start-tmate-command)
 # eval: (xclip-mode 1) 
