@@ -20,15 +20,9 @@ time. We needed to be able to compare different data generation methods and
 visualizations. We have explored a few options (static sites via netflify, and various CI providers),
 but feel our workflow with GitLab worth sharing.
 
-** Using a review/BRANCH deployment
+** Mirror => Pipelines => Jobs => Environments
 
-- [X] Create a PR
-- [X] Wait for @cncf-ci to respond with your pipeline results
-- [X] Inspect Pipeline logs and visit deployment url
-
-* Mirror => Pipelines => Jobs => Environments
-
-Mirroring from our repo to a CI Only gitlab project:
+We mirror from our repo to a CI-only Gitlab project:
 
 - [[https://gitlab.ii.coop/apisnoop/ci/settings/repository][settings/repository/mirroring]]
 
@@ -40,7 +34,7 @@ The deploy jobs create environments per branch:
 
 - [[https://gitlab.ii.coop/apisnoop/ci/environments][environments]] => [[https://gitlab.ii.coop/apisnoop/ci/environments/folders/review][review/*branch*]]
 
-** example  
+** Example  
 
 Example commit pipeline to deploy
 
@@ -50,6 +44,17 @@ Example commit pipeline to deploy
 - [[https://gitlab.ii.coop/apisnoop/ci/environments/42][environment]]
 - [[https://gitlab.ii.coop/apisnoop/ci/environments/42/terminal][console]]
 - [[https://apisnoop-ci-review-tix-121-ltf42v.apisnoop.cncf.ci/][apisnoop-ci-review-BRANCHNAME.apisnoop.cncf.ci]]
+
+** Basics of using review/BRANCH deployment
+
+We also have a Prow bot (@cncf-ci) watching our upstream repo on Github.
+When a new pull request is created, the bot will respond with pipeline results.
+
+Flow is as follows: 
+
+- [X] Create a PR
+- [X] Wait for @cncf-ci to respond with your pipeline results
+- [X] Inspect Pipeline logs and visit deployment url
 
 * Kubernetes Cluster Overview
   
