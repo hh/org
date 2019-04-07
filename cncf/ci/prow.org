@@ -208,12 +208,12 @@ deployment.extensions/deck configured
 #+RESULTS: prow components
 #+BEGIN_EXAMPLE :noeval t
 NAME         DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deck         2         2         2            2           1m
-hook         2         2         2            2           1m
-horologium   1         1         1            1           1m
-plank        1         1         1            1           1m
-sinker       1         1         1            1           1m
-tide         1         1         1            1           1m
+deck         2         2         2            2           21d
+hook         2         2         2            2           21d
+horologium   1         1         1            1           21d
+plank        1         1         1            1           21d
+sinker       1         1         1            1           21d
+tide         1         1         1            1           21d
 #+END_EXAMPLE
 
 **** ingress ip
@@ -343,7 +343,8 @@ Initially config is empty and plugins only contains size:
       viewers:
         "started.json|finished.json": ["metadata"]
         "build-log.txt": ["buildlog"]
-        "artifacts/junit.*\\.xml": ["junit"] # Remember to escape your '\' in yaml strings!
+        "artifacts/junit.*\\.xml": ["junit"]
+        # Remember to escape your '\' in yaml strings!
   plank:
     job_url_template: 'https://job_url_template/'
   #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
@@ -437,11 +438,7 @@ Initially config is empty and plugins only contains size:
 #+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
   plugins:
     cncf/apisnoop:
-    - size
-    - trigger
-    - cat
-    - dog
-    # - pony
+    <<desired_plugins>>
     ii/apisnoop:
     <<desired_plugins>>
     ii/openfisca-aotearoa:
@@ -457,7 +454,10 @@ go get -u k8s.io/test-infra/prow/cmd/checkconfig
 
 #+NAME: check-config to test files
 #+BEGIN_SRC shell :results silent
+  (
   checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
+  ) 2>&1
+  echo -n $?
 #+END_SRC
 
 #+NAME: generate the plugin config map
@@ -488,11 +488,43 @@ kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
 #+BEGIN_SRC yaml
 plugins:
   cncf/apisnoop:
-  - size
-  - trigger
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
   - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
   - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
   # - pony
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
   ii/apisnoop:
   - approve
   - assign
@@ -569,6 +601,44 @@ plugins:
   - welcome
   - wip
   - yuks
+  ii/RapuTure:
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
+  - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
+  - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
+  # - pony
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
 
 #+END_SRC
 
@@ -607,7 +677,8 @@ deck:
     viewers:
       "started.json|finished.json": ["metadata"]
       "build-log.txt": ["buildlog"]
-      "artifacts/junit.*\\.xml": ["junit"] # Remember to escape your '\' in yaml strings!
+      "artifacts/junit.*\\.xml": ["junit"]
+      # Remember to escape your '\' in yaml strings!
 plank:
   job_url_template: 'https://job_url_template/'
 #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
@@ -657,7 +728,6 @@ presubmits:
         command: ["/bin/printenv"]
 
 #+END_SRC
-
 
 
 * OWNERS
@@ -776,6 +846,216 @@ After the Deployment recreated the pods with now args, I verified, but still got
 --spyglass
 #+END_EXAMPLE
 
+* testgrid
+https://k8s-testgrid.appspot.com/
+https://k8s-testgrid.appspot.com/conformance-gce
+[[https://k8s-testgrid.appspot.com/conformance-gce#GCE,%2520master%2520(dev)]]
+Click on see these results in prow:
+
+https://prow.k8s.io/job-history/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance
+ 
+https://github.com/kubernetes/test-infra/tree/master/testgrid#testgrid
+https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml
+
+
+[[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L50][testgrid/config.yaml#testgroups]]
+#+NAME: testgrid test_group ci-kubernetes-gce-conformance
+#+BEGIN_SRC yaml
+  #
+  # Start testgroups
+  #
+  test_groups:
+  # ... skipping lines ...
+  # Prow hosted conformance tests
+  - name: ci-kubernetes-gce-conformance
+    gcs_prefix: kubernetes-jenkins/logs/ci-kubernetes-gce-conformance
+    num_columns_recent: 3
+    alert_stale_results_hours: 24
+    num_failures_to_alert: 1
+#+END_SRC
+
+#+NAME: testgrid dashboard_tab: conformance-gce / GCE, master (dev)
+#+BEGIN_SRC yaml
+- name: conformance-gce
+  dashboard_tab:
+  - name: GCE, master (dev)
+    description: Runs conformance tests using kubetest against latest kubernetes master CI build on GCE
+    test_group_name: ci-kubernetes-gce-conformance
+#+END_SRC
+
+Looks like this runs four times a day.
+
+* prow
+Prow has many binaries and components.
+Most are listed here:
+https://github.com/kubernetes/test-infra/tree/master/prow/cmd
+
+Job History: logs/ci-kubernetes-gce-conformance  
+https://prow.k8s.io/job-history/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance
+https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692
+Gubernator, used to be used, but now we default to spyglass.
+** jobs
+[[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][config/jobs/kubernetes/sig-gcp/gce-conformance.yaml]]
+#+BEGIN_SRC yaml
+  periodics:
+  - interval: 6h
+    name: ci-kubernetes-gce-conformance
+    labels:
+      preset-service-account: "true"
+      preset-k8s-ssh: "true"
+    spec:
+      containers:
+      - args:
+        - --timeout=220
+        - --bare
+        - --scenario=kubernetes_e2e
+        - --
+        - --extract=ci/latest
+        - --gcp-master-image=gci
+        - --gcp-node-image=gci
+        - --gcp-zone=us-west1-b
+        - --provider=gce
+        - --test_args=--ginkgo.focus=\[Conformance\] --ginkgo.skip=Alpha|\[(Disruptive|Feature:[^\]]+|Flaky)\]
+        - --timeout=200m
+        image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-master
+#+END_SRC
+** kubekins
+   Wrapper to kubetest
+[[https://github.com/kubernetes/test-infra/blob/master/images/kubekins-e2e/kops-e2e-runner.sh#L91][images/kubekins-e2e/kops-e2e-runner.sh#L91]]
+** kubetest
+   Used to build, deploy, and run k8s tests
+   https://github.com/kubernetes/test-infra/tree/master/kubetest#kubetest
+** deck uses spyglass to render/view artifacts
+[[https://github.com/kubernetes/test-infra/blob/master/prow/config.yaml#L26][prow/config.yaml#L26]]
+#+BEGIN_SRC yaml
+deck:
+  spyglass:
+    size_limit: 500000000 # 500MB
+    gcs_browser_prefix: https://gcsweb.k8s.io/gcs/
+    testgrid_config: gs://k8s-testgrid/config
+    testgrid_root: https://testgrid.k8s.io/
+    viewers:
+      "started.json|finished.json":
+      - "metadata"
+      "build-log.txt":
+      - "buildlog"
+      "artifacts/junit.*\\.xml":
+      - "junit"
+    announcement: "The old job viewer, Gubernator, has been deprecated in favour of this page, Spyglass.{{if .ArtifactPath}} For now, the old page is <a href='https://gubernator.k8s.io/build/{{.ArtifactPath}}'>still available</a>.{{end}} Please send feedback to sig-testing."
+  tide_update_period: 1s
+  hidden_repos:
+  - kubernetes-security
+  google_analytics: UA-82843984-5
+#+END_SRC
+** spyglass :: pluggable artifact viewer framework for Prow
+   https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#spyglass
+   A general Spyglass query will proceed as follows:
+
+- User provides a job source in the query (usually a job name and build ID).
+- Spyglass finds all artifact names associated with the given job source.
+- Spyglass builds a cache of which artifacts match which lenses via configured regular expressions.
+- Lenses with matching artifacts are pre-rendered in order of descending priority.
+- Spyglass then sends render requests to each registered lens with its matching artifacts.
+- Each lens performs any necessary operations on the artifacts and produces a blob of HTML.
+- Views (HTML) are inserted asynchronously as viewers return.
+[[https://github.com/kubernetes/test-infra/blob/master/prow/cmd/deck/template/spyglass.html][prow/cmd/dock/template/spyglass.html]]
+[[https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#available-views][Available Views]]
+*** Lenses :: set of functions that consume a list of artifacts and produces some HTML.
+[[https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#built-in-viewers][Built In Viewers]]
+**** metadata
+Clicking on more / less info pops down details.
+**** junit
+Shows Tests Skpipped and Passed!
+**** Build Log
+Link to raw build-log.txt
+Default only shows lines with ERROR, but can show more.
+*** Building our own Lense 
+- [ ] Write Boiler Plate
+- [ ] Implement
+- [ ] Add to config
+https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#config
+**** Debugging the prow / deck / spyclass instance
+
+#+NAME: retrieve deck logs
+#+BEGIN_SRC shell
+  #kubectl logs --namespace=default -l app=deck
+  kubectl get pods -l app=deck -o name | xargs -n 1 kubectl logs -f --namespace=default
+#+END_SRC
+
+#+NAME: invalid view names
+#+BEGIN_EXAMPLE
+{"component":"deck","duration":277252565,"level":"info","msg":"Listed 55 artifacts.","time":"2019-04-07T22:52:21Z"}
+{"component":"deck","error":"invalid view name","level":"error","msg":"Could not find artifact viewer","time":"2019-04-07T22:52:21Z",
+"viewName":"junit"}
+{"component":"deck","error":"invalid view name","level":"error","msg":"Could not find artifact viewer","time":"2019-04-07T22:52:21Z",
+"viewName":"buildlog"}
+{"component":"deck","error":"invalid view name","level":"error","msg":"Could not find artifact viewer","time":"2019-04-07T22:52:21Z",
+"viewName":"metadata"}
+{"component":"deck","level":"info","msg":"job history link: /job-history/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance","time":"2019-04-07T22:52:21Z"}
+{"component":"deck","duration":"278.817799ms","level":"info","msg":"Rendered spyglass views.","source":"gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692","time":"2019-04-07T22:52:21Z"}
+{"component":"deck","duration":"279.194765ms","endpoint":"/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692","level":"info","msg":"Loading view completed.","source":"gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692","time":"2019-04-07T22:52:21Z"}
+#+END_EXAMPLE
+**** implement
+    https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#implementa
+
+#+NAME: Lens.Interface
+#+BEGIN_SRC go
+type Lens interface {
+	// Config returns the name, title, priority, and other information about your lens.
+	Config() LensConfig
+	// Header is used to inject content into the lens's <head>. It will only ever be called once per load.
+	Header(artifacts []Artifact, resourceDir string) string
+	// Body is used to generate the contents of the lens's <body>. It will initially be called with empty data, but
+	// the lens front-end code may choose to re-render itself with custom data.
+	Body(artifacts []Artifact, resourceDir string, data string) string
+	// Callback is used for the viewer to exchange arbitrary data with the frontend. It is called with lens-specified
+	// data, and returns data to be passed to the lens. JSON encoding is recommended in both directions.
+	Callback(artifacts []Artifact, resourceDir string, data string) string
+}
+#+END_SRC
+
+In the init method, call lenses.RegisterLens() with an instance of your implementation of the interface.
+Spyglass should now be aware of your lens.
+
+Additionally, some front-end TypeScript code can be provided.
+Configure your BUILD.bazel to build it,
+then emit a <script> tag with a relative reference to it in your Header() implementation.
+See buildlog/BUILD.bazel for an example.
+
+In your typescript code, a global spyglass object will be available, providing the following interface:
+
+#+BEGIN_SRC js
+export interface Spyglass {
+  /**
+   * Replaces the lens display with a new server-rendered page.
+   * The returned promise will be resolved once the page has been updated.
+   */
+  updatePage(data: string): Promise<void>;
+  /**
+   * Requests that the server re-render the lens with the provided data, and
+   * returns a promise that will resolve with that HTML as a string.
+   *
+   * This is equivalent to updatePage(), except that the displayed content is
+   * not automatically changed.
+   */
+  requestPage(data: string): Promise<string>;
+  /**
+   * Sends a request to the server-side lens backend with the provided data, and
+   * returns a promise that will resolve with the response as a string.
+   */
+  request(data: string): Promise<string>;
+  /**
+   * Inform Spyglass that the lens content has updated. This should be called whenever
+   * the visible content changes, so Spyglass can ensure that all content is visible.
+   */
+  contentUpdated(): void;
+}
+#+END_SRC
+** gcsweb
+Allow anyone to browse GCS files / buckets?
+https://gcsweb.k8s.io/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692/
+** build status on source.google.cloud.com
+https://source.cloud.google.com/results/invocations/0b8cf342-71f9-4ede-a665-2ac712beb20a/targets/test/tests;group=Kubernetes%20e2e%20suite%20k8s.io%20LinuxOnly%20NodeConformance%20Conformance;test=KubeletManagedEtcHosts%20should%20test%20kubelet%20managed%20%2Fetc%2Fhosts%20file;row=17
 * Footnotes
 
 # Local Variables:
@@ -794,3 +1074,4 @@ After the Deployment recreated the pods with now args, I verified, but still got
 # org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:
+
