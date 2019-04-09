@@ -1,0 +1,41 @@
+#+TITLE: Go Programming Resources
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE:  9th April, 2019
+#+STARTUP: showeverything
+
+* Core Language
+
+- [[https://golang.org/][The Go Programming Language]]
+- [[https://golang.org/doc/cmd][Command Documentation]]
+- [[https://golang.org/ref/spec][Language Specification]]
+
+* Tutorials
+
+- [[https://tour.golang.org/list][Welcome to a tour of Go]] 
+- [[https://www.youtube.com/watch?v=C8LgvuEBraI][Learn Go in 12 Minutes (video)]] 
+- [[https://www.programming-books.io/essential/go/][Essential Go]]
+- [[https://gobyexample.com/][Go by Example]]
+- [[https://go101.org/][Go 101]]
+
+
+* Best Practices
+
+- [[https://golang.org/doc/effective_go.html][Effective Go]] 
+
+
+* Explore Go
+
+- [[https://glot.io/new/go][Glot.io: Go - Runnable snippets]]
+
+
+* Cheat Sheets
+
+- [[https://devhints.io/go][Devhints: Go cheatsheet]]
+- [[https://github.com/a8m/go-lang-cheat-sheet][Overview of Go syntax and features]]
+
+
+* Extras
+
+- [[https://github.com/udhos/update-golang][Script: Update Go]]
