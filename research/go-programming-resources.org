@@ -39,3 +39,5 @@
 * Extras
 
 - [[https://github.com/udhos/update-golang][Script: Update Go]]
+- [[https://golangweekly.com/issues][Golang Weekly]]
+- [[https://awesome-go.com/][Awesome Go]]
