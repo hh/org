@@ -18,6 +18,7 @@
 - [[https://www.programming-books.io/essential/go/][Essential Go]]
 - [[https://gobyexample.com/][Go by Example]]
 - [[https://go101.org/][Go 101]]
+- [[https://learnxinyminutes.com/docs/go/][Learn Go in Y Minutes]]
 
 
 * Best Practices
