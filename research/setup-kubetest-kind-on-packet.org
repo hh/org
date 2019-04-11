@@ -1,0 +1,77 @@
+#+TITLE: Setup kubetest / kind on packet
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 12th April, 2019
+#+STARTUP: showeverything
+
+* Objective
+
+Get kubetest working with kind on a server located on packet infrastucture.
+
+
+* Install Dependencies
+
+- install docker 
+
+#+BEGIN_SRC shell
+apt-get update
+apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg-agent \
+    software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+   $(lsb_release -cs) \
+   stable"
+apt-get install -y docker-ce docker-ce-cli containerd.io
+#+END_SRC
+
+
+- install git
+
+#+BEGIN_SRC shell
+apt-get install -y git
+#+END_SRC
+
+- install go
+
+#+BEGIN_SRC 
+git clone https://github.com/udhos/update-golang
+cd update-golang
+./update-golang.sh
+#+END_SRC
+
+- install kubetest
+
+#+BEGIN_SRC sheel
+go get -u k8s.io/test-infra/kubetest
+#+END_SRC
+
+
+* Kubernetes
+
+clone kubernetes repo
+
+#+BEGIN_SRC shell
+git clone https://github.com/kubernetes/kubernetes.git
+#+END_SRC
+
+* kubetest
+
+- Following the kubetest syntax listed at https://github.com/kubernetes-sigs/kind/issues/265
+
+#+BEGIN_SRC shell
+cd ~/kubernetes
+kubetest --deployment=kind --provider=skeleton --build --up
+#+END_SRC
+
+* References
+
+
+* Footnotes
+
+
