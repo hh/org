@@ -1,11 +1,119 @@
 plugins:
   cncf/apisnoop:
-  - size
-  - trigger
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
   - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
   - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
   # - pony
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
   ii/apisnoop:
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
+  - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
+  - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
+  # - pony
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
+  ii/openfisca-aotearoa:
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
+  - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
+  - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
+  # - pony
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
+  ii/RapuTure:
   - approve
   - assign
   # - blockade # block pull requests from merging if they touch specific files

@@ -22,9 +22,7 @@ but feel our workflow with GitLab worth sharing.
 
 ** Mirror => Pipelines => Jobs => Environments
 
-We mirror from our repo to a CI-only Gitlab project:
-
-- [[https://gitlab.ii.coop/apisnoop/ci/settings/repository][settings/repository/mirroring]]
+We mirror from our repo to a CI-only Gitlab project.
 
 Each commit on a branch triggers a pipeline, and a set of jobs:
 
@@ -33,6 +31,10 @@ Each commit on a branch triggers a pipeline, and a set of jobs:
 The deploy jobs create environments per branch:
 
 - [[https://gitlab.ii.coop/apisnoop/ci/environments][environments]] => [[https://gitlab.ii.coop/apisnoop/ci/environments/folders/review][review/*branch*]]
+
+Mirror settings:
+
+- [[https://gitlab.ii.coop/apisnoop/ci/settings/repository][settings/repository/mirroring]]
 
 ** Example  
 
@@ -104,44 +106,62 @@ runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0    
 tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          11d
 #+END_EXAMPLE
 *** everything
+#+NAME: helm
+#+BEGIN_SRC shell
+(
+  helm list --namespace=gitlab-managed-apps
+) 2>&1
+:
+#+END_SRC
+
+#+RESULTS: helm
+#+BEGIN_EXAMPLE :noeval t
+Error: configmaps is forbidden: User "system:serviceaccount:kube-system:default" cannot list configmaps in the namespace "kube-system"
+#+END_EXAMPLE
+
 #+NAME: all gitlab-managed-app namespace k8s objects
 #+BEGIN_SRC shell
-  kubectl --namespace=gitlab-managed-apps get all | grep -v Error
+  kubectl --namespace=gitlab-managed-apps get all #| grep -v Error
 #+END_SRC
 
 #+RESULTS: all gitlab-managed-app namespace k8s objects
 #+BEGIN_EXAMPLE :noeval t
 NAME                                                         READY   STATUS    RESTARTS   AGE
-pod/certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          11d
-pod/ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          11d
-pod/ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          11d
-pod/prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          11d
-pod/prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          11d
-pod/runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          11d
-pod/tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          11d
+pod/certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          12d
+pod/ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          12d
+pod/ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          12d
+pod/install-certmanager                                      0/1     Error     0          2d
+pod/install-ingress                                          0/1     Error     0          2d
+pod/install-prometheus                                       0/1     Error     0          2d
+pod/install-runner                                           0/1     Error     0          2d
+pod/prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          12d
+pod/prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          12d
+pod/runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          12d
+pod/runner-zf8zf8jb-project-142-concurrent-0rcwf6            3/3     Running   0          31s
+pod/tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          12d
 NAME                                             TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)                      AGE
-service/ingress-nginx-ingress-controller         LoadBalancer   10.15.251.145   35.244.71.53   80:32363/TCP,443:30587/TCP   11d
-service/ingress-nginx-ingress-controller-stats   ClusterIP      10.15.240.235   <none>         18080/TCP                    11d
-service/ingress-nginx-ingress-default-backend    ClusterIP      10.15.243.113   <none>         80/TCP                       11d
-service/prometheus-kube-state-metrics            ClusterIP      None            <none>         80/TCP                       11d
-service/prometheus-prometheus-server             ClusterIP      10.15.254.80    <none>         80/TCP                       11d
-service/tiller-deploy                            ClusterIP      10.15.253.242   <none>         44134/TCP                    11d
+service/ingress-nginx-ingress-controller         LoadBalancer   10.15.251.145   35.244.71.53   80:32363/TCP,443:30587/TCP   12d
+service/ingress-nginx-ingress-controller-stats   ClusterIP      10.15.240.235   <none>         18080/TCP                    12d
+service/ingress-nginx-ingress-default-backend    ClusterIP      10.15.243.113   <none>         80/TCP                       12d
+service/prometheus-kube-state-metrics            ClusterIP      None            <none>         80/TCP                       12d
+service/prometheus-prometheus-server             ClusterIP      10.15.254.80    <none>         80/TCP                       12d
+service/tiller-deploy                            ClusterIP      10.15.253.242   <none>         44134/TCP                    12d
 NAME                                                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/certmanager-cert-manager                1         1         1            1           11d
-deployment.apps/ingress-nginx-ingress-controller        1         1         1            1           11d
-deployment.apps/ingress-nginx-ingress-default-backend   1         1         1            1           11d
-deployment.apps/prometheus-kube-state-metrics           1         1         1            1           11d
-deployment.apps/prometheus-prometheus-server            1         1         1            1           11d
-deployment.apps/runner-gitlab-runner                    1         1         1            1           11d
-deployment.apps/tiller-deploy                           1         1         1            1           11d
+deployment.apps/certmanager-cert-manager                1         1         1            1           12d
+deployment.apps/ingress-nginx-ingress-controller        1         1         1            1           12d
+deployment.apps/ingress-nginx-ingress-default-backend   1         1         1            1           12d
+deployment.apps/prometheus-kube-state-metrics           1         1         1            1           12d
+deployment.apps/prometheus-prometheus-server            1         1         1            1           12d
+deployment.apps/runner-gitlab-runner                    1         1         1            1           12d
+deployment.apps/tiller-deploy                           1         1         1            1           12d
 NAME                                                               DESIRED   CURRENT   READY   AGE
-replicaset.apps/certmanager-cert-manager-6c8cd9f9bf                1         1         1       11d
-replicaset.apps/ingress-nginx-ingress-controller-ff666c548         1         1         1       11d
-replicaset.apps/ingress-nginx-ingress-default-backend-6679dd498c   1         1         1       11d
-replicaset.apps/prometheus-kube-state-metrics-8668948654           1         1         1       11d
-replicaset.apps/prometheus-prometheus-server-746bb67956            1         1         1       11d
-replicaset.apps/runner-gitlab-runner-9df899f44                     1         1         1       11d
-replicaset.apps/tiller-deploy-9768f6964                            1         1         1       11d
+replicaset.apps/certmanager-cert-manager-6c8cd9f9bf                1         1         1       12d
+replicaset.apps/ingress-nginx-ingress-controller-ff666c548         1         1         1       12d
+replicaset.apps/ingress-nginx-ingress-default-backend-6679dd498c   1         1         1       12d
+replicaset.apps/prometheus-kube-state-metrics-8668948654           1         1         1       12d
+replicaset.apps/prometheus-prometheus-server-746bb67956            1         1         1       12d
+replicaset.apps/runner-gitlab-runner-9df899f44                     1         1         1       12d
+replicaset.apps/tiller-deploy-9768f6964                            1         1         1       12d
 #+END_EXAMPLE
 
 ** our project namespace
@@ -156,32 +176,44 @@ environment/branches.
 
 #+RESULTS: apisnoop-ci namespace
 #+BEGIN_EXAMPLE :noeval t
-NAME                                         READY   STATUS    RESTARTS   AGE
-pod/cm-acme-http-solver-f7cz7                1/1     Running   0          15h
-pod/cm-acme-http-solver-qb8lg                1/1     Running   0          13h
-pod/production-fb874dbcc-h5z7s               1/1     Running   0          15h
-pod/review-tix-121-ltf42v-7cfd94d94c-qcbmv   1/1     Running   0          12h
-pod/staging-dccc64786-bhhhj                  1/1     Running   0          13h
-NAME                                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
-service/cm-acme-http-solver-b24bq           NodePort    10.15.252.244   <none>        8089:32093/TCP   15h
-service/cm-acme-http-solver-qj9wq           NodePort    10.15.255.153   <none>        8089:32489/TCP   13h
-service/production-auto-deploy              ClusterIP   10.15.246.231   <none>        5000/TCP         15h
-service/review-tix-121-ltf42v-auto-deploy   ClusterIP   10.15.245.117   <none>        5000/TCP         14h
-service/staging-auto-deploy                 ClusterIP   10.15.250.73    <none>        5000/TCP         21h
-NAME                                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/production              1         1         1            1           15h
-deployment.apps/review-tix-121-ltf42v   1         1         1            1           14h
-deployment.apps/staging                 1         1         1            1           21h
-NAME                                               DESIRED   CURRENT   READY   AGE
-replicaset.apps/production-fb874dbcc               1         1         1       15h
-replicaset.apps/review-tix-121-ltf42v-567ccfb9dc   0         0         0       12h
-replicaset.apps/review-tix-121-ltf42v-588c574d9f   0         0         0       14h
-replicaset.apps/review-tix-121-ltf42v-7cfd94d94c   1         1         1       12h
-replicaset.apps/review-tix-121-ltf42v-8f4c798c6    0         0         0       13h
-replicaset.apps/staging-56b4657fbd                 0         0         0       18h
-replicaset.apps/staging-7d78c78465                 0         0         0       21h
-replicaset.apps/staging-85df9ccbb9                 0         0         0       15h
-replicaset.apps/staging-dccc64786                  1         1         1       13h
+NAME                                            READY   STATUS    RESTARTS   AGE
+pod/cm-acme-http-solver-fjq6p                   1/1     Running   0          7m
+pod/cm-acme-http-solver-jxhnr                   1/1     Running   0          7m
+pod/production-fb874dbcc-wmrvf                  1/1     Running   0          7m
+pod/review-ci-app-env-nsqkug-965b67d74-2z5r9    1/1     Running   0          1h
+pod/review-local-anim-ebqfjx-7457c97b5c-cmwff   1/1     Running   0          20h
+pod/review-tix-121-ltf42v-6bdcc78c85-jwg8d      1/1     Running   0          20m
+pod/staging-54445f7cd6-lk2c4                    1/1     Running   0          7m
+NAME                                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+service/cm-acme-http-solver-28hw8              NodePort    10.15.246.2     <none>        8089:32658/TCP   7m
+service/cm-acme-http-solver-rtbt7              NodePort    10.15.246.236   <none>        8089:30586/TCP   7m
+service/review-ci-app-env-nsqkug-auto-deploy   ClusterIP   10.15.243.105   <none>        5000/TCP         16h
+service/review-local-anim-ebqfjx-auto-deploy   ClusterIP   10.15.255.49    <none>        5000/TCP         20h
+service/review-tix-121-ltf42v-auto-deploy      ClusterIP   10.15.245.117   <none>        5000/TCP         1d
+NAME                                       DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/production                 1         1         1            1           1d
+deployment.apps/review-ci-app-env-nsqkug   1         1         1            1           16h
+deployment.apps/review-local-anim-ebqfjx   1         1         1            1           20h
+deployment.apps/review-tix-121-ltf42v      1         1         1            1           1d
+deployment.apps/staging                    1         1         1            1           2d
+NAME                                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/production-fb874dbcc                  1         1         1       1d
+replicaset.apps/review-ci-app-env-nsqkug-56dc5fbdd4   0         0         0       16h
+replicaset.apps/review-ci-app-env-nsqkug-965b67d74    1         1         1       1h
+replicaset.apps/review-local-anim-ebqfjx-7457c97b5c   1         1         1       20h
+replicaset.apps/review-tix-121-ltf42v-567ccfb9dc      0         0         0       1d
+replicaset.apps/review-tix-121-ltf42v-588c574d9f      0         0         0       1d
+replicaset.apps/review-tix-121-ltf42v-58f7bf798       0         0         0       19h
+replicaset.apps/review-tix-121-ltf42v-6bdcc78c85      1         1         1       20m
+replicaset.apps/review-tix-121-ltf42v-7cfd94d94c      0         0         0       1d
+replicaset.apps/review-tix-121-ltf42v-8f4c798c6       0         0         0       1d
+replicaset.apps/staging-54445f7cd6                    1         1         1       1h
+replicaset.apps/staging-56b4657fbd                    0         0         0       2d
+replicaset.apps/staging-646978764f                    0         0         0       1h
+replicaset.apps/staging-79bb68df49                    0         0         0       19h
+replicaset.apps/staging-7d78c78465                    0         0         0       2d
+replicaset.apps/staging-85df9ccbb9                    0         0         0       1d
+replicaset.apps/staging-dccc64786                     0         0         0       1d
 #+END_EXAMPLE
 
 ** project pods
@@ -399,7 +431,7 @@ cd /app/data-gen/processed
 
 These files look to be in the wrong location:
 
-[[https://gitlab.ii.coop/apisnoop/ci/-/jobs/1802]]
+[[https://gitlab.ii.coop/apisnoop/ci/-/jobs/1908]]
 
 The herokuish runs against a dind:
 
@@ -411,8 +443,21 @@ docker exec -ti ci_job_build_1802 /bin/bash
 #+NAME: build trace
 #+BEGIN_SRC shell
   . .env
-  curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" "https://gitlab.ii.coop/api/v4/projects/apisnoop%2Fci/jobs/1802/trace"
+  curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" \
+   "https://gitlab.ii.coop/api/v4/projects/apisnoop%2Fci/jobs/1919/trace"
 #+END_SRC
+
+#+RESULTS: build trace
+#+BEGIN_EXAMPLE :noeval t
+[0KRunning with gitlab-runner 11.6.0 (f100a208)
+[0;m[0K  on runner-gitlab-runner-9df899f44-smgtx zF8zF8Jb
+[0;m[0KUsing Kubernetes namespace: gitlab-managed-apps
+[0;m[0KUsing Kubernetes executor with image alpine:latest ...
+[0;msection_start:1553719639:prepare_script[0KWaiting for pod gitlab-managed-apps/runner-zf8zf8jb-project-142-concurrent-04lbqw to be running, status is Pending
+Running on runner-zf8zf8jb-project-142-concurrent-04lbqw via runner-gitlab-runner-9df899f44-smgtx...
+section_end:1553719642:prepare_script[0Ksection_start:1553719642:get_sources[0K[32;1mCloning repository...[0;m
+Cloning into '/apisnoop/ci'...
+#+END_EXAMPLE
 
 For some reason it's showing we aren't logged into the namespace
 
@@ -439,21 +484,45 @@ kubectl --namespace=gitlab-managed-apps get pods | grep 142 | awk '{print $1}'
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
-runner-zf8zf8jb-project-142-concurrent-02pzqk
+runner-zf8zf8jb-project-142-concurrent-0rs9b8
 #+END_EXAMPLE
-
 
 #+BEGIN_SRC shell
   (
-    kubectl --namespace=gitlab-managed-apps logs \
-          runner-zf8zf8jb-project-142-concurrent-02pzqk \
-            -c build
+    kubectl --namespace=gitlab-managed-apps get pods
   ) 2>&1
   :
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
+NAME                                                     READY   STATUS    RESTARTS   AGE
+certmanager-cert-manager-6c8cd9f9bf-kjjsq                1/1     Running   3          12d
+ingress-nginx-ingress-controller-ff666c548-vgcjr         1/1     Running   0          12d
+ingress-nginx-ingress-default-backend-6679dd498c-nqh7p   1/1     Running   0          12d
+install-certmanager                                      0/1     Error     0          2d
+install-ingress                                          0/1     Error     0          2d
+install-prometheus                                       0/1     Error     0          2d
+install-runner                                           0/1     Error     0          2d
+prometheus-kube-state-metrics-8668948654-6qj5m           1/1     Running   0          12d
+prometheus-prometheus-server-746bb67956-dzxz9            2/2     Running   0          12d
+runner-gitlab-runner-9df899f44-smgtx                     1/1     Running   0          12d
+tiller-deploy-9768f6964-qtb9m                            1/1     Running   0          12d
+#+END_EXAMPLE
+
+
+#+BEGIN_SRC shell
+  (
+    kubectl --namespace=gitlab-managed-apps logs \
+          runner-zf8zf8jb-project-142-concurrent-0rs9b8 \
+            -c review
+  ) 2>&1
+  :
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Error from server (NotFound): pods "runner-zf8zf8jb-project-142-concurrent-0rs9b8" not found
 #+END_EXAMPLE
 
 #+BEGIN_SRC tmate
@@ -482,6 +551,129 @@ If you want to poke around the resulting image you can run the following:
 #+BEGIN_SRC shell
 docker pull registry.ii.coop/apisnoop/ci/master:c2351d87cc36f0a1ef117c4caff3851312d514e6
 #+END_SRC
+
+** prodction pod
+#+BEGIN_SRC shell
+kubectl logs production-fb874dbcc-h5z7s --namespace=apisnoop-ci
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+
+> backend@0.0.0 start /app
+> node src/
+
+info: Feathers application started on http://backend-app.feathersjs.com:5000
+[ 'ci-kubernetes-e2e-gce-cos-k8sbeta-default',
+  '9058',
+  'apisnoop.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable1-default',
+  '5403',
+  'apisnoop.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable2-default',
+  '1814',
+  'apisnoop.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable3-default',
+  '460',
+  'apisnoop.json' ]
+[ 'ci-kubernetes-e2e-gci-gce', '34681', 'apisnoop.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sbeta-default',
+  '9058',
+  'metadata.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable1-default',
+  '5403',
+  'metadata.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable2-default',
+  '1814',
+  'metadata.json' ]
+[ 'ci-kubernetes-e2e-gce-cos-k8sstable3-default',
+  '460',
+  'metadata.json' ]
+[ 'ci-kubernetes-e2e-gci-gce', '34681', 'metadata.json' ]
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/Tj7OR8y4WNGfCWNAVfV1er9cqZTdVvVadGUYZ313ifQ"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/DpBgs0io_Q_zrDrhLGtNCWeccJ_d05_88dpCKVpo3cM"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/aXMBUsXg9VLAqHENMVxaTAi62BFx6YhancOZzXWDZSk"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/YzH18rpP72WkPB7HJ69we1oZj5tQcrNBd8TTns8p9uQ"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/-MpKa4NxnCcTY3pb9ogt4UgW3LB6P90jWCiWHDp7xG0"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/mwB2vGdQRwG8aHy2wckoj0Dj6pT1-_gEGODzmmMVjsU"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/ExDmFLtuXwMmQokLlB_rO6QloF4RTyvkrCv2JDrJ8Ks"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/VTjS3l9gtOQTEX_MbeCC3OjB_-VwyLk__SXxiTM9WdI"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/S6fD1G2OSY_t0VRvQRQoAP6muNjlfDFG8d6ZQfrpBkk"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/9AH82jqoQy1BazTmenKcWtKtB7fcZrhCBNmx3HtR1pw"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/67ZAHi-segEa52IJ8HWqjr4Y3tuH3rkMHI4ItCRrqEg"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/Lc_jTKGtWtd3SBRF3b23MUPOAD1fHHitB4bzQIJAAXs"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/robots.txt"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/1ykOSu3FXffPt9wQ1jS311MCJM4tXJcFWpKRTyywr9U"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/Q8ZxsjPpM-9bfXX0e14G7X04YXZDyydSDEvUofCSI_g"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/uKVNbERd-OHYmnS0-VELhMtPp5mmHvsxa7uijyHTHMI"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/jyQyAjuvEmWhlOTk9B2y_9iNTD_kvUJ-SSW7j3Jr4MU"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/Q2al5afy_5Prf6sRlD6AnyLzwM_lT2r-lkPal09QE5E"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/1WIOcSm7WcUAx36reMXIwv0bQ5bQ5qiIPOROI8eFmBI"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/ftPBW51JtCE1SjzF3j0pQfdBYpsj8s_vQxmHyk1iCNM"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/MMSU27IafyKCJ0Oi6_LxJgQgnt0O57ZMGmZda1Smf6s"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/GMdwWQZlgUAvi9G2KuxJAUPjmjCNOKLLlwcGCF5jdVo"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/OH3dtr6L-Mp5Y7UB8MPRfToKF2003BNNnJugpvp3Lmc"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/W9QUlmluWM2z_g-1sCrexSCS4Jrg4vrw_K1Nx2LPoVk"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/nxPefrH_k0KDQXYpDWxupNk6MPKJ4TWgq5r5PllWmUY"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/SSYKfIxeyBOjm0yaq1G_EQLdhkyQQhACSuh4Wb8v-Q4"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/uV6rebzwAYUHnnX3ymx3GlgF-7F63xSvACePefVyPJc"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/9qpg3sHTZha8-LvnguQnfw_dvUepuz7jNfHIWF8oKGo"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/ph8IBEVpp0K9U-8GzZSG1h6uZyVp55k9FvgRnal38VE"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/v86QXDVZ58e-M1WU-RjSXKpzfxYcDtPBRH-kg0FkMU0"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/I4BiMInugfDVLizyP9b8ax3l5BJHw9VWdgN2hy8a8Ec"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/sunburst-apps/index.html"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/e8jhsqqnqj2xMO-0FNfXMmAakvxbpLNXXsmOji8-e5s"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/Q9O8cbIiNNFhez5vfHq85gKRO7CRgLv2N2txsGiq4C4"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/pYBQPajv3mCnzZOoVgNE4qMElV5cGxP1B_oVVYoYCRc"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/rVYDoZ3AnVPvVNindGzmKNu31qNXd9yRHte74ZElARo"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/ZJkbTs6n0O9l0tPDk7WuPWbx1TJ-Sv94GxlvWTVlg_o"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/C2IM0oNNpeClSWQg2Xagp6RRk0HlISOs4pfsTESe6Nw"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/J46dIC5PkUO-jvT2qTdar-iy86WJZd4bIc0v85NUXXA"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/robots.txt"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/pkSnJcMY_Q58wzUD1utrVxwWMxqjuNcpQFSL47Xe_6w"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/qdMn8TMvywV8tRy0ZCXvqLLYMnF4P2WgvRkg8eDLNdw"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/UlTbq12zHHzQ7YT-GN0n1A6SYBvkycp7kq6jH8rLhwI"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/OZMCpLWM0mO0GsnTEQBSPZg7X1eoYCrDoFXy7pyLPDQ"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/robots.txt"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/7zvRRLiIr-6c33_a2NbsKPGk4fdYFGC5QynZUQ9HQSA"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/ci-kubernetes-e2e-gci-gce_34681"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/c4wXHf7KDPfNQ1wGAT1JTdEccwcMxosg7NEaV_sN-NE"},"errors":{}}
+error: Page not found {"type":"FeathersError","name":"NotFound","code":404,"className":"not-found","data":{"url":"/.well-known/acme-challenge/3jYDh9FJgfvzAJ3oukVEWMduQ6drT5Oyx1MY9syevbc"},"errors":{}}
+#+END_EXAMPLE
+
+* Babel
+
+** Environments
+https://docs.gitlab.com/ee/api/environments.html
+
+#+NAME: get environment
+#+BEGIN_SRC shell :var PROJECT="apisnoop%2Fci" ENVIRONMENT="production"
+  . .env
+  curl --header "PRIVATE-TOKEN: $GITLAB_PRIVATE_TOKEN" \
+    https://gitlab.ii.coop/api/v4/projects/$PROJECT/environments \
+  | jq -r -c "map(select(.name | contains(\"$ENVIRONMENT\"))) | .[] .id"
+#+END_SRC
+
+#+RESULTS: get environment
+#+BEGIN_EXAMPLE :noeval t
+41
+#+END_EXAMPLE
+
+#+NAME: get_environment_url
+#+BEGIN_SRC shell :noweb yes :var PROJECT="apisnoop%2Fci" ENVIRONMENT="production"
+echo <<get environment(PROJECT,ENVIRONMENT)>>
+#+END_SRC
+
+#+RESULTS: get foo environment
+#+BEGIN_EXAMPLE :noeval t
+42
+45
+46
+47
+48
+49
+
+#+END_EXAMPLE
 
 * TIL
   Delete Environments

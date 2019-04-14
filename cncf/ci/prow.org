@@ -1056,6 +1056,25 @@ Allow anyone to browse GCS files / buckets?
 https://gcsweb.k8s.io/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692/
 ** build status on source.google.cloud.com
 https://source.cloud.google.com/results/invocations/0b8cf342-71f9-4ede-a665-2ac712beb20a/targets/test/tests;group=Kubernetes%20e2e%20suite%20k8s.io%20LinuxOnly%20NodeConformance%20Conformance;test=KubeletManagedEtcHosts%20should%20test%20kubelet%20managed%20%2Fetc%2Fhosts%20file;row=17
+* Developing spyglass
+Dependencies - Bazel 0.23.0
+
+#+BEGIN_SRC tmate
+cd ~/test-infra/prow/cmd/deck
+./runlocal
+#+END_SRC
+
+#+BEGIN_SRC shell
+sed -i sXhttps://prow.k8s.ioXhttp://localhost:8080Xg ../../config.yaml
+sed -i sXhttps://prow.k8s.ioXhttp://localhost:8080Xg ./localdata/*js
+
+#+END_SRC
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
+Visit http://localhost:8080
+
 * Footnotes
 
 # Local Variables:
