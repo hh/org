@@ -3,6 +3,11 @@
 #+EMAIL: stephen@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 12th April, 2019
+#+PROPERTY: header-args:bash  :tangle ./setup-kubetest.sh
+#+PROPERTY: header-args:bash+ :noweb yes
+#+PROPERTY: header-args:bash+ :noeval
+#+PROPERTY: header-args:bash+ :comments org
+#+PROPERTY: header-args:bash+ :noweb-ref (nth 4 (org-heading-components))
 #+STARTUP: showeverything
 
 * Objective
@@ -14,7 +19,7 @@ Get kubetest working with kind on a server located on packet infrastucture.
 
 - install docker 
 
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
+#+BEGIN_SRC bash
 export TIME_START=$(date)
 apt-get update
 apt-get install -y \
@@ -34,13 +39,13 @@ apt-get install -y docker-ce docker-ce-cli containerd.io
 
 - install git & gcc
 
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
+#+BEGIN_SRC bash
 apt-get install -y git gcc
 #+END_SRC
 
 - install go
 
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
+#+BEGIN_SRC bash
 curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
 
 export GOROOT=/usr/local/go/
@@ -54,7 +59,7 @@ go version
 
 * Get Kubernetes, kubetest & KIND
 
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
+#+BEGIN_SRC bash
 echo "Getting Kubernetes..."
 go get k8s.io/kubernetes
 echo "Getting Kubetest..."
@@ -67,7 +72,7 @@ echo "Getting a cluster up with Kind..."
 
 - Following the kubetest syntax listed at https://github.com/kubernetes-sigs/kind/issues/265
 
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
+#+BEGIN_SRC bash
 cd ~/go/src/k8s.io/test-infra
 go build
 cp kubetest ../kubernetes
@@ -89,6 +94,9 @@ echo $TIME_END
 
 * References
 
+#+BEGIN_SRC bash :tangle test-noweb-ref.sh
+  <<Install Dependencies>>
+#+END_SRC
 
 * Footnotes
 
