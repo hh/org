@@ -1,20 +1,3 @@
-#+TITLE: Setup kubetest / kind on packet
-#+AUTHOR: Stephen Heywood
-#+EMAIL: stephen@ii.coop
-#+CREATOR: ii.coop
-#+DATE: 12th April, 2019
-#+STARTUP: showeverything
-
-* Objective
-
-Get kubetest working with kind on a server located on packet infrastucture.
-
-
-* Install Dependencies
-
-- install docker 
-
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
 export TIME_START=$(date)
 apt-get update
 apt-get install -y \
@@ -29,45 +12,23 @@ add-apt-repository \
    $(lsb_release -cs) \
    stable"
 apt-get install -y docker-ce docker-ce-cli containerd.io
-#+END_SRC
 
-
-- install git & gcc
-
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
 apt-get install -y git gcc
-#+END_SRC
 
-- install go
-
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
 curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
 
 export GOROOT=/usr/local/go/
 export GOPATH=~/go
 export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 go version
-#+END_SRC
 
-- install kubetest
-
-
-* Get Kubernetes, kubetest & KIND
-
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
 echo "Getting Kubernetes..."
 go get k8s.io/kubernetes
 echo "Getting Kubetest..."
 go get k8s.io/test-infra
 echo "Getting Kind..."
 go get sigs.k8s.io/kind
-#+END_SRC
 
-echo "Getting a cluster up with Kind..."
-
-- Following the kubetest syntax listed at https://github.com/kubernetes-sigs/kind/issues/265
-
-#+BEGIN_SRC bash :noeval :tangle ./setup-kubetest.sh
 cd ~/go/src/k8s.io/test-infra
 go build
 cp kubetest ../kubernetes
@@ -85,11 +46,3 @@ export TIME_END=$(date)
 echo "Setup time..."
 echo $TIME_START
 echo $TIME_END
-#+END_SRC
-
-* References
-
-
-* Footnotes
-
-
