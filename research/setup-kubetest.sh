@@ -1,6 +1,4 @@
-# Install Dependencies
-
-# - install docker 
+# Install Docker
 
 
 export TIME_START=$(date)
@@ -18,27 +16,31 @@ add-apt-repository \
    stable"
 apt-get install -y docker-ce docker-ce-cli containerd.io
 
-
-
-
-# - install git & gcc
+# Install git & gcc
 
 
 apt-get install -y git gcc
 
-
-
-# - install go
+# Install go
 
 
 curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-
 export GOROOT=/usr/local/go/
 export GOPATH=~/go
 export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 go version
 
+# Install kubectl
+
+
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
+
 # Get Kubernetes, kubetest & KIND
+
+# - Following feedback from [[https://kubernetes.slack.com/messages/CEKK1KTN2/convo/CEKK1KTN2-1555018633.255400/?thread_ts=1555018633.255400][@neolit123 on kubernetes.slack.com #kind]]
 
 
 echo "Getting Kubernetes..."
@@ -48,27 +50,36 @@ go get k8s.io/test-infra
 echo "Getting Kind..."
 go get sigs.k8s.io/kind
 
+# Build kubetest
 
 
-# echo "Getting a cluster up with Kind..."
-
-# - Following the kubetest syntax listed at https://github.com/kubernetes-sigs/kind/issues/265
-
-
-cd ~/go/src/k8s.io/test-infra
+echo "Build kubetest"
+cd ~/go/src/k8s.io/test-infra/kubetest
 go build
-cp kubetest ../kubernetes
-cd ../kubernetes
-echo "Getting a cluster up with Kind..."echo "Getting a cluster up with Kind..."
-kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+cp kubetest ../../kubernetes
+cd ../../kubernetes
+echo "Getting a cluster up with Kind..."
+./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
 
-echo "Check on the state of the cluster..."
+# Check on Docker
+
+
+echo -e "\nChecking on docker..."
+docker ps -a
+docker images
+
+# Check Cluster State
+
+
+echo -e "\nCheck on the state of the cluster..."
 ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
+kubectl version
 kubectl get nodes
-kubectl get pods --all-namespaces 
+echo "Waiting on all pods to start..."
+sleep 30
+kubectl get pods --all-namespaces
 
-export TIME_END=$(date)
-
-echo "Setup time..."
+export TIME_STOP=$(date)
+echo "Time taken..."
 echo $TIME_START
-echo $TIME_END
+echo $TIME_STOP

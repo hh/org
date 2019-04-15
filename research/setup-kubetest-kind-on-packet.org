@@ -17,85 +17,105 @@ Get kubetest working with kind on a server located on packet infrastucture.
 
 * Install Dependencies
 
-- install docker 
+** Install Docker
 
 #+BEGIN_SRC bash
-export TIME_START=$(date)
-apt-get update
-apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg-agent \
-    software-properties-common
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-   $(lsb_release -cs) \
-   stable"
-apt-get install -y docker-ce docker-ce-cli containerd.io
+  export TIME_START=$(date)
+  apt-get update
+  apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg-agent \
+      software-properties-common
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+  add-apt-repository \
+     "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+     $(lsb_release -cs) \
+     stable"
+  apt-get install -y docker-ce docker-ce-cli containerd.io
 #+END_SRC
 
-
-- install git & gcc
+** Install git & gcc
 
 #+BEGIN_SRC bash
-apt-get install -y git gcc
+  apt-get install -y git gcc
 #+END_SRC
 
-- install go
+** Install go
 
 #+BEGIN_SRC bash
-curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-
-export GOROOT=/usr/local/go/
-export GOPATH=~/go
-export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
-go version
+  curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+  export GOROOT=/usr/local/go/
+  export GOPATH=~/go
+  export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+  go version
 #+END_SRC
 
-- install kubetest
+** Install kubectl
+
+#+BEGIN_SRC bash
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
+#+END_SRC
 
 
 * Get Kubernetes, kubetest & KIND
 
+- Following feedback from [[https://kubernetes.slack.com/messages/CEKK1KTN2/convo/CEKK1KTN2-1555018633.255400/?thread_ts=1555018633.255400][@neolit123 on kubernetes.slack.com #kind]]
+
 #+BEGIN_SRC bash
-echo "Getting Kubernetes..."
-go get k8s.io/kubernetes
-echo "Getting Kubetest..."
-go get k8s.io/test-infra
-echo "Getting Kind..."
-go get sigs.k8s.io/kind
+  echo "Getting Kubernetes..."
+  go get k8s.io/kubernetes
+  echo "Getting Kubetest..."
+  go get k8s.io/test-infra
+  echo "Getting Kind..."
+  go get sigs.k8s.io/kind
 #+END_SRC
 
-echo "Getting a cluster up with Kind..."
-
-- Following the kubetest syntax listed at https://github.com/kubernetes-sigs/kind/issues/265
+** Build kubetest
 
 #+BEGIN_SRC bash
-cd ~/go/src/k8s.io/test-infra
-go build
-cp kubetest ../kubernetes
-cd ../kubernetes
-echo "Getting a cluster up with Kind..."echo "Getting a cluster up with Kind..."
-kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+  echo "Build kubetest"
+  cd ~/go/src/k8s.io/test-infra/kubetest
+  go build
+  cp kubetest ../../kubernetes
+  cd ../../kubernetes
+  echo "Getting a cluster up with Kind..."
+  ./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+#+END_SRC
 
-echo "Check on the state of the cluster..."
-ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
-kubectl get nodes
-kubectl get pods --all-namespaces 
+** Check on Docker
 
-export TIME_END=$(date)
+#+BEGIN_SRC bash
+  echo -e "\nChecking on docker..."
+  docker ps -a
+  docker images
+#+END_SRC
 
-echo "Setup time..."
-echo $TIME_START
-echo $TIME_END
+** Check Cluster State
+
+#+BEGIN_SRC bash
+  echo -e "\nCheck on the state of the cluster..."
+  ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
+  kubectl version
+  kubectl get nodes
+  echo "Waiting on all pods to start..."
+  sleep 30
+  kubectl get pods --all-namespaces
+
+  export TIME_STOP=$(date)
+  echo "Time taken..."
+  echo $TIME_START
+  echo $TIME_STOP
 #+END_SRC
 
 * References
 
 #+BEGIN_SRC bash :tangle test-noweb-ref.sh
-  <<Install Dependencies>>
+  <<Install Docker>>
 #+END_SRC
 
 * Footnotes
