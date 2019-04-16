@@ -1,0 +1,69 @@
+#+TITLE: Pairing Base
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 19th of February, 2019
+#+STARTUP: showeverything
+
+* test
+
+#+BEGIN_SRC shell
+echo hello from `hostname`
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+hello from ii.cncf.ci
+#+END_EXAMPLE
+
+* remote
+
+#+BEGIN_SRC tmate
+<<test>>
+#+END_SRC
+
+* other
+
+#+BEGIN_SRC tmate
+echo hello from nested
+<<test>>
+#+END_SRC
+
+* footer
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE"
+#+PROPERTY: header-args:shell+ :dir (concat "/ssh:" ssh-user "@" ssh-host ":")
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb yes
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :eval no-export
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+UNSETPROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
+#+UNSETPROPERTY: header-args:shell+ :epilogue ":\n"
+#+UNSETPROPERTY: header-args:tmate+ :prologue (concat "cd " ssh-dir "\n") 
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+# xclip on then off, due to this being a remote box
+# eval: (xclip-mode 1) 
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) (user-login-name))
+# eval: (set (make-local-variable 'ssh-host) "ii.cncf.ci")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# eval: (set (make-local-variable 'ssh-user-host) (concat ssh-user "@" ssh-host))
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-over-ssh-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (set (make-local-variable 'start-tmate-locally-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text (concat "ssh -tAX " ssh-user-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
+# eval: (xclip-mode 0) 
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
