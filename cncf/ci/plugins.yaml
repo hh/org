@@ -23,6 +23,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  - projectmanager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -61,6 +63,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  - projectmanager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -99,6 +103,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  - projectmanager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -137,6 +143,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  - projectmanager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig

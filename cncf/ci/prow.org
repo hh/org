@@ -194,7 +194,12 @@ rolebinding.rbac.authorization.k8s.io/tide created
 
 #+RESULTS: our customized prow deployment
 #+BEGIN_EXAMPLE :noeval t
+deployment.extensions/hook configured
+deployment.extensions/plank configured
+deployment.extensions/sinker configured
 deployment.extensions/deck configured
+deployment.extensions/horologium configured
+deployment.extensions/tide configured
 0
 #+END_EXAMPLE
 
@@ -395,43 +400,45 @@ Initially config is empty and plugins only contains size:
 #+END_SRC
 #+NAME: desired_plugins
 #+BEGIN_SRC yaml
-    - approve
-    - assign
-    # - blockade # block pull requests from merging if they touch specific files
-    - blunderbuss
-    # - branchcleaner
-    - cat
-    # - cherry-pick-unapproved
-    - cla
-    # - config-updater # updates config/plugin.yaml for prow
-    - docs-no-retest
-    - dog
-    - golint
-    - heart
-    - help
-    - hold
-    - label
-    - lgtm
-    - lifecycle
-    # - milestone # needs a milestone group to allow setting milestone
-    # - milestonestatus # needs a milestone group configured
-    - override
-    - owners-label
-    # - pony
-    - release-note
-    # - require-maching-label
-    # - require-sig
-    - shrug
-    # - sigmention
-    - size
-    - skip
-    # - slackevents
-    # - stage
-    - trigger
-    - verify-owners
-    - welcome
-    - wip
-    - yuks
+  - approve
+  - assign
+  # - blockade # block pull requests from merging if they touch specific files
+  - blunderbuss
+  # - branchcleaner
+  - cat
+  # - cherry-pick-unapproved
+  - cla
+  # - config-updater # updates config/plugin.yaml for prow
+  - docs-no-retest
+  - dog
+  - golint
+  - heart
+  - help
+  - hold
+  - label
+  - lgtm
+  - lifecycle
+  # - milestone # needs a milestone group to allow setting milestone
+  # - milestonestatus # needs a milestone group configured
+  - override
+  - owners-label
+  # - pony
+  - projectmanager
+  - project
+  - release-note
+  # - require-maching-label
+  # - require-sig
+  - shrug
+  # - sigmention
+  - size
+  - skip
+  # - slackevents
+  # - stage
+  - trigger
+  - verify-owners
+  - welcome
+  - wip
+  - yuks
 #+END_SRC
 
 #+NAME: setup size plugin
