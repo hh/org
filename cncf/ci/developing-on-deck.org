@@ -1,0 +1,101 @@
+#+TITLE: Developing On Deck
+#+AUTHOR: Devan Carpenter
+#+EMAIL: devan@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 17th of April, 2019
+#+STARTUP: showeverything
+
+
+* Install Bazel
+
+** Dependencies
+
+#+BEGIN_SRC tmate
+  sudo apt-get install openjdk-8-jdk -y
+#+END_SRC
+
+** Add Bazel APT repo
+
+#+BEGIN_SRC tmate
+  echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+  curl https://bazel.build/bazel-release.pub.gpg | sudo apt-key add -
+#+END_SRC
+
+** Install Bazel Package
+
+#+BEGIN_SRC tmate
+  sudo apt-get update && sudo apt-get install bazel
+#+END_SRC
+
+* Checkout Prow Source (test-infra.git)
+
+#+BEGIN_SRC shell
+  mkdir -p ~/src
+  git clone https://github.com/kubernetes/test-infra.git ~/src/test-infra
+  # Create and checkout new branch if desired:
+  # cd ~/src/test-infra && git checkout -b $NEW_BRANCH
+#+END_SRC
+
+* Run Deck Locally 
+
+** Start the server
+
+The sed command here makes it so that Deck will use the data from "prow.cncf.ci" instad of "prow.k8s.io"
+
+#+BEGIN_SRC tmate
+  cd ~/src/test-infra/prow/cmd/deck
+  sed -i sXhttps://prow.k8s.ioXhttp://prow.cncf.ciXg ./runlocal
+  ./runlocal
+#+END_SRC
+
+** Final Touches
+
+Then we want the spyglass url's to point to this local instance instead of the remote "prow.cncf.ci"
+So we'll sed again... 
+
+#+BEGIN_SRC shell
+  sed -i sXhttp://prow.cncf.ciXhttp://ii.cncf.ci:8080Xg ~/src/test-infra/prow/cmd/deck/localdata/*js
+#+END_SRC
+
+Now we have a local Deck instance which can be develop on in quick iteration loops, while not having to
+ worry about setting up, or maintaining, the rest of the Prow components; remote cluster. 
+
+
+* org-mode properties
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE"
+#+PROPERTY: header-args:shell+ :dir (concat "/ssh:" ssh-user "@" ssh-host ":")
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb yes
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :eval no-export
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+UNSETPROPERTY: header-args:shell+ :prologue ". /etc/profile.d/homedir-go-path.sh\n. /etc/profile.d/system-go-path.sh\nexec 2>&1\n"
+#+UNSETPROPERTY: header-args:shell+ :epilogue ":\n"
+#+UNSETPROPERTY: header-args:tmate+ :prologue (concat "cd " ssh-dir "\n") 
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+# xclip on then off, due to this being a remote box
+# eval: (xclip-mode 1) 
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) (user-login-name))
+# eval: (set (make-local-variable 'ssh-host) "ii.cncf.ci")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# eval: (set (make-local-variable 'ssh-user-host) (concat ssh-user "@" ssh-host))
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iiisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-over-ssh-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (set (make-local-variable 'start-tmate-locally-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+# eval: (xclip-mode 1) 
+# eval: (gui-select-text (concat "ssh -tAX " ssh-user-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
+# eval: (xclip-mode 0) 
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
