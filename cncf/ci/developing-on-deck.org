@@ -31,9 +31,10 @@
 
 #+BEGIN_SRC shell
   mkdir -p ~/src
-  git clone https://github.com/kubernetes/test-infra.git ~/src/test-infra
+  # git clone https://github.com/kubernetes/test-infra.git ~/src/test-infra
+  git clone https://github.com/ii/test-infra ~/src/test-infra-apisnoop
   # Create and checkout new branch if desired:
-  # cd ~/src/test-infra && git checkout -b $NEW_BRANCH
+  cd ~/src/test-infra-apisnoop && git checkout apisnoop
 #+END_SRC
 
 * Run Deck Locally 
@@ -43,7 +44,7 @@
 The sed command here makes it so that Deck will use the data from "prow.cncf.ci" instad of "prow.k8s.io"
 
 #+BEGIN_SRC tmate
-  cd ~/src/test-infra/prow/cmd/deck
+  cd ~/src/test-infra-apisnoop/prow/cmd/deck
   sed -i sXhttps://prow.k8s.ioXhttp://prow.cncf.ciXg ./runlocal
   ./runlocal
 #+END_SRC
@@ -56,6 +57,10 @@ So we'll sed again...
 #+BEGIN_SRC shell
   sed -i sXhttp://prow.cncf.ciXhttp://ii.cncf.ci:8080Xg ~/src/test-infra/prow/cmd/deck/localdata/*js
 #+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+#+END_EXAMPLE
 
 Now we have a local Deck instance which can be develop on in quick iteration loops, while not having to
  worry about setting up, or maintaining, the rest of the Prow components; remote cluster. 
