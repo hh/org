@@ -1,3 +1,5 @@
+# deck
+
 # https://github.com/kubernetes/test-infra/issues/11729
 #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
 # component=checkconfig error="no default decoration config provided for plank"
@@ -9,6 +11,9 @@ deck:
       "build-log.txt": ["buildlog"]
       "artifacts/junit.*\\.xml": ["junit"]
       # Remember to escape your '\' in yaml strings!
+
+# plank
+
 plank:
   job_url_template: 'https://job_url_template/'
 #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
@@ -30,6 +35,9 @@ plank:
       default_org: "cncf"
       default_repo: "apisnoop"
     gcs_credentials_secret: "service-account"
+
+# periodics
+
 periodics:
 - interval: 10m
   name: echo-test
@@ -38,6 +46,9 @@ periodics:
     containers:
     - image: alpine
       command: ["/bin/date"]
+
+# postsubmits
+
 postsubmits:
   cncf/apisnoop:
   - name: test-postsubmit
@@ -46,6 +57,9 @@ postsubmits:
       containers:
       - image: alpine
         command: ["/bin/printenv"]
+
+# presubmits
+
 presubmits:
   cncf/apisnoop:
   - name: test-presubmit

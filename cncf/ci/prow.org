@@ -9,6 +9,9 @@
 #+PROPERTY: header-args:shell+ :eval no-export
 #+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:yaml :noweb yes
+#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: content
 
@@ -333,12 +336,14 @@ spec:
 #+BEGIN_EXAMPLE :noeval t
 #+END_EXAMPLE
 
-** enable some plugins
+** config.yaml
+:PROPERTIES:
+:header-args:yaml+: :tangle config.yaml
+:END:
 
 Initially config is empty and plugins only contains size:
-
-#+NAME: setup size plugin
-#+BEGIN_SRC yaml :tangle config.yaml
+*** deck
+#+BEGIN_SRC yaml
   # https://github.com/kubernetes/test-infra/issues/11729
   #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
   # component=checkconfig error="no default decoration config provided for plank"
@@ -350,6 +355,9 @@ Initially config is empty and plugins only contains size:
         "build-log.txt": ["buildlog"]
         "artifacts/junit.*\\.xml": ["junit"]
         # Remember to escape your '\' in yaml strings!
+#+END_SRC
+*** plank
+#+BEGIN_SRC yaml
   plank:
     job_url_template: 'https://job_url_template/'
   #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
@@ -371,6 +379,9 @@ Initially config is empty and plugins only contains size:
         default_org: "cncf"
         default_repo: "apisnoop"
       gcs_credentials_secret: "service-account"
+#+END_SRC
+*** periodics
+#+BEGIN_SRC yaml
   periodics:
   - interval: 10m
     name: echo-test
@@ -379,6 +390,9 @@ Initially config is empty and plugins only contains size:
       containers:
       - image: alpine
         command: ["/bin/date"]
+#+END_SRC
+*** postsubmits
+#+BEGIN_SRC yaml
   postsubmits:
     cncf/apisnoop:
     - name: test-postsubmit
@@ -387,6 +401,9 @@ Initially config is empty and plugins only contains size:
         containers:
         - image: alpine
           command: ["/bin/printenv"]
+#+END_SRC
+*** presubmits
+#+BEGIN_SRC yaml
   presubmits:
     cncf/apisnoop:
     - name: test-presubmit
@@ -398,8 +415,13 @@ Initially config is empty and plugins only contains size:
         - image: alpine
           command: ["/bin/printenv"]
 #+END_SRC
-#+NAME: desired_plugins
-#+BEGIN_SRC yaml
+** plugins.yaml
+:PROPERTIES:
+:header-args:yaml+: :tangle plugins.yaml
+:END:
+*** plugins_for_all_repos
+[[*generate and replace the plugin config map][generate and replace the plugin config map]]   
+#+BEGIN_SRC yaml :tangle no
   - approve
   - assign
   # - blockade # block pull requests from merging if they touch specific files
@@ -423,8 +445,8 @@ Initially config is empty and plugins only contains size:
   - override
   - owners-label
   # - pony
-  - projectmanager
-  - project
+  # - project_manager
+  # - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -441,45 +463,131 @@ Initially config is empty and plugins only contains size:
   - yuks
 #+END_SRC
 
-#+NAME: setup size plugin
-#+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
-  plugins:
-    cncf/apisnoop:
-    <<desired_plugins>>
-    ii/apisnoop:
-    <<desired_plugins>>
-    ii/openfisca-aotearoa:
-    <<desired_plugins>>
-    ii/RapuTure:
-    <<desired_plugins>>
- #+END_SRC
+THESE KEYS ==>>> ",bt"
+RUN ME =>>>> [[update-plugins][update-plugins]]
 
-#+NAME: ensure checkconfig is installed
+*** plugins.yaml template
+:PROPERTIES:
+:header-args:yaml+: :tangle plugins.yaml
+:END:
+
+#+BEGIN_SRC yaml
+  plugins:
+    # cncf/apisnoop:
+    # <<plugins_for_all_repos>>
+    ii/apisnoop:
+    <<plugins_for_all_repos>>
+    ii/openfisca-aotearoa:
+    <<plugins_for_all_repos>>
+    ii/RapuTure:
+    <<plugins_for_all_repos>>
+#+END_SRC
+i
+
+*** project_config
+**** Go Structs
+
+[[file:~/test-infra/prow/plugins/config.go::type%20ProjectConfig%20struct]]
+
+#+BEGIN_SRC go
+// ProjectConfig contains the configuration options for the project plugin
+type ProjectConfig struct {
+	// Org level configs for github projects; key is org name
+	Orgs map[string]ProjectOrgConfig `json:"project_org_configs,omitempty"`
+}
+#+END_SRC
+
+#+BEGIN_SRC go
+// ProjectOrgConfig holds the github project config for an entire org.
+// This can be overridden by ProjectRepoConfig.
+type ProjectOrgConfig struct {
+	// ID of the github project maintainer team for a give project or org
+	MaintainerTeamID int `json:"org_maintainers_team_id,omitempty"`
+	// A map of project name to default column; an issue/PR will be added
+	// to the default column if column name is not provided in the command
+	ProjectColumnMap map[string]string `json:"org_default_column_map,omitempty"`
+	// Repo level configs for github projects; key is repo name
+	Repos map[string]ProjectRepoConfig `json:"project_repo_configs,omitempty"`
+}
+#+END_SRC
+
+#+BEGIN_SRC go
+// ProjectRepoConfig holds the github project config for a github project.
+type ProjectRepoConfig struct {
+	// ID of the github project maintainer team for a give project or org
+	MaintainerTeamID int `json:"repo_maintainers_team_id,omitempty"`
+	// A map of project name to default column; an issue/PR will be added
+	// to the default column if column name is not provided in the command
+	ProjectColumnMap map[string]string `json:"repo_default_column_map,omitempty"`
+}
+#+END_SRC
+**** yaml
+
+[[file:~/test-infra/prow/plugins.yaml::project_config:]]
+
+#+BEGIN_SRC yaml
+  project_config:
+    project_org_configs:
+      ii:
+        # org_maintainers_team_id: ??
+        org_default_column_map:
+          test-infra-dummy-testing-project-plugin:
+            To do
+          KEP Implementation Tracking:
+            To do
+        project_repo_configs:
+          apisnoop:
+            repo_default_column_map:
+              triage:
+                triage
+              need-attention:
+                attention
+#+END_SRC
+
+#+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
+  # project_manager:
+  #   org/repos:
+  #     ii/apisnoop:
+  #       projects:
+  #         testProject:
+  #           columns:
+  #           - name: "triage"
+  #             state: open
+  #             org: ii
+  #             labels:
+  #             - area/conformance
+ #+END_SRC
+** configuration
+
+*** install checkconfig
 #+BEGIN_SRC shell
 go get -u k8s.io/test-infra/prow/cmd/checkconfig
 #+END_SRC
 
-#+NAME: check-config to test files
+*** check the config files
 #+BEGIN_SRC shell :results silent
   (
   checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
   ) 2>&1
   echo -n $?
 #+END_SRC
-
-#+NAME: generate the plugin config map
+*** generate the plugin config map (dry run)
 #+BEGIN_SRC shell :wrap "SRC yaml" :results silent
 kubectl create configmap plugins \
   --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
-#  | kubectl replace configmap plugins -f -
 #+END_SRC
-
-#+NAME: update-plugins
-#+BEGIN_SRC shell
+*** generate and replace the plugin config map
+EDIT ME =>>> [[plugins.yaml][plugins.yaml]]
+#+BEGIN_SRC shell :noweb yes
 kubectl create configmap plugins \
   --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
   | kubectl replace configmap plugins -f -
 #+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins replaced
+#+END_EXAMPLE
 
 #+RESULTS: update-plugins
 #+BEGIN_EXAMPLE :noeval t
@@ -493,6 +601,12 @@ kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
 
 #+RESULTS: view-plugins
 #+BEGIN_SRC yaml
+# plugins.yaml template
+# :PROPERTIES:
+# :header-args:yaml+: :tangle plugins.yaml
+# :END:
+
+
 plugins:
   cncf/apisnoop:
   - approve
@@ -518,6 +632,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  # - project_manager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -556,6 +672,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  # - project_manager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -594,6 +712,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  # - project_manager
+  # - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -632,6 +752,8 @@ plugins:
   - override
   - owners-label
   # - pony
+  # - project_manager
+  - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -646,6 +768,40 @@ plugins:
   - welcome
   - wip
   - yuks
+
+# yaml
+
+# [[file:~/test-infra/prow/plugins.yaml::project_config:]]
+
+
+project_config:
+  project_org_configs:
+    ii:
+      # org_maintainers_team_id: ??
+      org_default_column_map:
+        test-infra-dummy-testing-project-plugin:
+          To do
+        KEP Implementation Tracking:
+          To do
+      project_repo_configs:
+        apisnoop:
+          repo_default_column_map:
+            triage:
+              triage
+            need-attention:
+              attention
+
+# project_manager:
+#   org/repos:
+#     ii/apisnoop:
+#       projects:
+#         testProject:
+#           columns:
+#           - name: "triage"
+#             state: open
+#             org: ii
+#             labels:
+#             - area/conformance
 
 #+END_SRC
 
@@ -735,7 +891,6 @@ presubmits:
         command: ["/bin/printenv"]
 
 #+END_SRC
-
 
 * OWNERS
 [[https://go.k8s.io/owners]]

@@ -1,44 +1,50 @@
+# plugins.yaml template
+# :PROPERTIES:
+# :header-args:yaml+: :tangle plugins.yaml
+# :END:
+
+
 plugins:
-  cncf/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  - projectmanager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
+  # cncf/apisnoop:
+  # - approve
+  # - assign
+  # # - blockade # block pull requests from merging if they touch specific files
+  # - blunderbuss
+  # # - branchcleaner
+  # - cat
+  # # - cherry-pick-unapproved
+  # - cla
+  # # - config-updater # updates config/plugin.yaml for prow
+  # - docs-no-retest
+  # - dog
+  # - golint
+  # - heart
+  # - help
+  # - hold
+  # - label
+  # - lgtm
+  # - lifecycle
+  # # - milestone # needs a milestone group to allow setting milestone
+  # # - milestonestatus # needs a milestone group configured
+  # - override
+  # - owners-label
+  # # - pony
+  # # - project_manager
+  # # - project
+  # - release-note
+  # # - require-maching-label
+  # # - require-sig
+  # - shrug
+  # # - sigmention
+  # - size
+  # - skip
+  # # - slackevents
+  # # - stage
+  # - trigger
+  # - verify-owners
+  # - welcome
+  # - wip
+  # - yuks
   ii/apisnoop:
   - approve
   - assign
@@ -63,8 +69,8 @@ plugins:
   - override
   - owners-label
   # - pony
-  - projectmanager
-  - project
+  # - project_manager
+  # - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -103,8 +109,8 @@ plugins:
   - override
   - owners-label
   # - pony
-  - projectmanager
-  - project
+  # - project_manager
+  # - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -143,8 +149,8 @@ plugins:
   - override
   - owners-label
   # - pony
-  - projectmanager
-  - project
+  # - project_manager
+  # - project
   - release-note
   # - require-maching-label
   # - require-sig
@@ -159,3 +165,37 @@ plugins:
   - welcome
   - wip
   - yuks
+
+# yaml
+
+# [[file:~/test-infra/prow/plugins.yaml::project_config:]]
+
+
+project_config:
+  project_org_configs:
+    ii:
+      # org_maintainers_team_id: ??
+      org_default_column_map:
+        test-infra-dummy-testing-project-plugin:
+          To do
+        KEP Implementation Tracking:
+          To do
+      project_repo_configs:
+        apisnoop:
+          repo_default_column_map:
+            triage:
+              triage
+            need-attention:
+              attention
+
+# project_manager:
+#   org/repos:
+#     ii/apisnoop:
+#       projects:
+#         testProject:
+#           columns:
+#           - name: "triage"
+#             state: open
+#             org: ii
+#             labels:
+#             - area/conformance
