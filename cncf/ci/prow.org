@@ -514,24 +514,42 @@ type ProjectRepoConfig struct {
 
 [[file:~/test-infra/prow/plugins.yaml::project_config:]]
 
+We need to find the team_id.
+https://developer.github.com/v3/teams/#list-teams
+https://github.com/orgs/ii/teams/maintainer_team/members
+ /orgs/:org/teams/:team_slug
+curl /orgs/ii/teams/maintainer_team
+
+#+BEGIN_SRC
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/orgs/ii/teams/maintainer_team | jq .id
+#+END_SRC
+#+BEGIN_SRC 
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/repos/ii/apisnoop/teams | jq .[0].id
+#+END_SRC
 #+BEGIN_SRC yaml
   project_config:
     project_org_configs:
       ii:
-        # org_maintainers_team_id: ??
+        org_maintainers_team_id: 3212487
         org_default_column_map:
           test-infra-dummy-testing-project-plugin:
             To do
           KEP Implementation Tracking:
             To do
         project_repo_configs:
-          apisnoop:
+          apisnoopcurl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/repos/ii/apisnoop/teams | jq .[0].id:
             repo_default_column_map:
               triage:
                 triage
               need-attention:
                 attention
 #+END_SRC
+
+#+BEGIN_SRC 
+gcloud auth configure-docker
+
+#+END_SRC
+
 
 #+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
   # project_manager:
@@ -884,6 +902,383 @@ presubmits:
 * OWNERS
 [[https://go.k8s.io/owners]]
 [[https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md]]
+
+* debugging project plugin
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/test-infra/
+  :END:
+
+** cards curls
+
+#+BEGIN_SRC shell :wrap "SRC json"
+  . ~/githubtoken
+  curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" \
+  https://api.github.com/projects/columns/5090898/cards \
+  | jq .[].id
+  #https://api.github.com/projects/2501156/columns
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC json
+20365896
+20365897
+#+END_SRC
+
+#+BEGIN_SRC shell :wrap "SRC json"
+  . ~/githubtoken
+  curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" \
+  https://api.github.com/projects/columns/cards/20365897 \
+  | jq -r .content_url
+  #https://api.github.com/projects/2501156/columns
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC json
+"https://api.github.com/repos/ii/apisnoop/issues/6"
+#+END_SRC
+
+
+** get secrets
+
+*** hook secret
+
+You need this for incoming secrets and to configure the github webhook or phony.
+
+#+BEGIN_SRC shell
+kubectl get secrets hmac-token -ojsonpath={.data.hmac} | base64 --decode > webhook-secret
+#+END_SRC
+
+*** oauth secret
+#+BEGIN_SRC shell
+kubectl get secrets oauth-token -ojsonpath={.data.oauth} | base64 --decode  > github-oauth
+#+END_SRC
+
+** hook config
+
+#+BEGIN_SRC yaml :tangle ~/test-infra/hook-config.yaml
+# I'm pretty sure we can use an empty config
+#+END_SRC
+
+** plugin config
+
+#+BEGIN_SRC yaml :tangle ~/test-infra/hook-plugin.yaml
+  plugins:
+    ii/apisnoop:
+    - label
+    # - project_manager
+    - project
+    - trigger
+  project_config:
+    project_org_configs:
+      ii:
+        org_maintainers_team_id: 3212487
+        org_default_column_map:
+          test-infra-dummy-testing-project-plugin:
+            To do
+          KEP Implementation Tracking:
+            To do
+        project_repo_configs:
+          apisnoop:
+            repo_default_column_map:
+              triage:
+                triage
+              need-attention:
+                attention
+#+END_SRC
+
+** run hook locally
+  
+It runs on port all your IPs on port 8888.
+Adding ii.cncf.ci:8888 as a hook should work.
+
+#+BEGIN_SRC tmate
+  cd ~/test-infra
+  <<hook secret>>
+  <<oauth secret>>
+  go run prow/cmd/hook/main.go \
+     --deck-url=https://prow.k8s.io \
+     --config-path=hook-config.yaml \
+     --plugin-config=hook-plugin.yaml \
+     --hmac-secret-file=webhook-secret \
+     --github-token-path=github-oauth \
+     --dry-run=false
+#+END_SRC
+** run phony
+
+#+BEGIN_SRC tmate
+bazel run //prow/cmd/phony -- \
+  --address=http://localhost:8888/hook \
+  --hmac=$(cat webhook-secret) \
+  --event=issue_comment \
+  --payload=$(pwd)/comment.json
+#+END_SRC
+
+** event
+*** comment_body
+
+#+BEGIN_SRC json
+  /project test_project2 need-attention
+#+END_SRC
+
+*** payload
+#+BEGIN_SRC json :noweb yes :tangle ~/test-infra/comment.json
+  {
+    "action": "created",
+    "issue": {
+      "url": "https://api.github.com/repos/ii/apisnoop/issues/14",
+      "repository_url": "https://api.github.com/repos/ii/apisnoop",
+      "labels_url": "https://api.github.com/repos/ii/apisnoop/issues/14/labels{/name}",
+      "comments_url": "https://api.github.com/repos/ii/apisnoop/issues/14/comments",
+      "events_url": "https://api.github.com/repos/ii/apisnoop/issues/14/events",
+      "html_url": "https://github.com/ii/apisnoop/issues/14",
+      "id": 433492089,
+      "node_id": "MDU6SXNzdWU0MzM0OTIwODk=",
+      "number": 14,
+      "title": "FOOBARBAZ",
+      "user": {
+        "login": "hh",
+        "id": 31331,
+        "node_id": "MDQ6VXNlcjMxMzMx",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/hh",
+        "html_url": "https://github.com/hh",
+        "followers_url": "https://api.github.com/users/hh/followers",
+        "following_url": "https://api.github.com/users/hh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+        "organizations_url": "https://api.github.com/users/hh/orgs",
+        "repos_url": "https://api.github.com/users/hh/repos",
+        "events_url": "https://api.github.com/users/hh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/hh/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "labels": [
+
+      ],
+      "state": "open",
+      "locked": false,
+      "assignee": null,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 171,
+      "created_at": "2019-04-15T21:45:22Z",
+      "updated_at": "2019-04-25T18:07:43Z",
+      "closed_at": null,
+      "author_association": "MEMBER",
+      "body": "/woof"
+    },
+    "comment": {
+      "url": "https://api.github.com/repos/ii/apisnoop/issues/comments/486779495",
+      "html_url": "https://github.com/ii/apisnoop/issues/14#issuecomment-486779495",
+      "issue_url": "https://api.github.com/repos/ii/apisnoop/issues/14",
+      "id": 486779496,
+      "node_id": "MDEyOklzc3VlQ29tbWVudDQ4Njc3OTQ5NQ==",
+      "user": {
+        "login": "hh",
+        "id": 31331,
+        "node_id": "MDQ6VXNlcjMxMzMx",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/hh",
+        "html_url": "https://github.com/hh",
+        "followers_url": "https://api.github.com/users/hh/followers",
+        "following_url": "https://api.github.com/users/hh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+        "organizations_url": "https://api.github.com/users/hh/orgs",
+        "repos_url": "https://api.github.com/users/hh/repos",
+        "events_url": "https://api.github.com/users/hh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/hh/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "created_at": "2019-04-25T18:07:43Z",
+      "updated_at": "2019-04-25T18:07:43Z",
+      "author_association": "MEMBER",
+      "body": "<<comment_body>>"
+    },
+    "repository": {
+      "id": 145496821,
+      "node_id": "MDEwOlJlcG9zaXRvcnkxNDU0OTY4MjE=",
+      "name": "apisnoop",
+      "full_name": "ii/apisnoop",
+      "private": false,
+      "owner": {
+        "login": "ii",
+        "id": 30447,
+        "node_id": "MDEyOk9yZ2FuaXphdGlvbjMwNDQ3",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/30447?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/ii",
+        "html_url": "https://github.com/ii",
+        "followers_url": "https://api.github.com/users/ii/followers",
+        "following_url": "https://api.github.com/users/ii/following{/other_user}",
+        "gists_url": "https://api.github.com/users/ii/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/ii/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/ii/subscriptions",
+        "organizations_url": "https://api.github.com/users/ii/orgs",
+        "repos_url": "https://api.github.com/users/ii/repos",
+        "events_url": "https://api.github.com/users/ii/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/ii/received_events",
+        "type": "Organization",
+        "site_admin": false
+      },
+      "html_url": "https://github.com/ii/apisnoop",
+      "description": "Snooping on the Kubernetes OpenAPI communications",
+      "fork": true,
+      "url": "https://api.github.com/repos/ii/apisnoop",
+      "forks_url": "https://api.github.com/repos/ii/apisnoop/forks",
+      "keys_url": "https://api.github.com/repos/ii/apisnoop/keys{/key_id}",
+      "collaborators_url": "https://api.github.com/repos/ii/apisnoop/collaborators{/collaborator}",
+      "teams_url": "https://api.github.com/repos/ii/apisnoop/teams",
+      "hooks_url": "https://api.github.com/repos/ii/apisnoop/hooks",
+      "issue_events_url": "https://api.github.com/repos/ii/apisnoop/issues/events{/number}",
+      "events_url": "https://api.github.com/repos/ii/apisnoop/events",
+      "assignees_url": "https://api.github.com/repos/ii/apisnoop/assignees{/user}",
+      "branches_url": "https://api.github.com/repos/ii/apisnoop/branches{/branch}",
+      "tags_url": "https://api.github.com/repos/ii/apisnoop/tags",
+      "blobs_url": "https://api.github.com/repos/ii/apisnoop/git/blobs{/sha}",
+      "git_tags_url": "https://api.github.com/repos/ii/apisnoop/git/tags{/sha}",
+      "git_refs_url": "https://api.github.com/repos/ii/apisnoop/git/refs{/sha}",
+      "trees_url": "https://api.github.com/repos/ii/apisnoop/git/trees{/sha}",
+      "statuses_url": "https://api.github.com/repos/ii/apisnoop/statuses/{sha}",
+      "languages_url": "https://api.github.com/repos/ii/apisnoop/languages",
+      "stargazers_url": "https://api.github.com/repos/ii/apisnoop/stargazers",
+      "contributors_url": "https://api.github.com/repos/ii/apisnoop/contributors",
+      "subscribers_url": "https://api.github.com/repos/ii/apisnoop/subscribers",
+      "subscription_url": "https://api.github.com/repos/ii/apisnoop/subscription",
+      "commits_url": "https://api.github.com/repos/ii/apisnoop/commits{/sha}",
+      "git_commits_url": "https://api.github.com/repos/ii/apisnoop/git/commits{/sha}",
+      "comments_url": "https://api.github.com/repos/ii/apisnoop/comments{/number}",
+      "issue_comment_url": "https://api.github.com/repos/ii/apisnoop/issues/comments{/number}",
+      "contents_url": "https://api.github.com/repos/ii/apisnoop/contents/{+path}",
+      "compare_url": "https://api.github.com/repos/ii/apisnoop/compare/{base}...{head}",
+      "merges_url": "https://api.github.com/repos/ii/apisnoop/merges",
+      "archive_url": "https://api.github.com/repos/ii/apisnoop/{archive_format}{/ref}",
+      "downloads_url": "https://api.github.com/repos/ii/apisnoop/downloads",
+      "issues_url": "https://api.github.com/repos/ii/apisnoop/issues{/number}",
+      "pulls_url": "https://api.github.com/repos/ii/apisnoop/pulls{/number}",
+      "milestones_url": "https://api.github.com/repos/ii/apisnoop/milestones{/number}",
+      "notifications_url": "https://api.github.com/repos/ii/apisnoop/notifications{?since,all,participating}",
+      "labels_url": "https://api.github.com/repos/ii/apisnoop/labels{/name}",
+      "releases_url": "https://api.github.com/repos/ii/apisnoop/releases{/id}",
+      "deployments_url": "https://api.github.com/repos/ii/apisnoop/deployments",
+      "created_at": "2018-08-21T02:40:29Z",
+      "updated_at": "2019-03-19T19:24:31Z",
+      "pushed_at": "2019-03-19T19:27:29Z",
+      "git_url": "git://github.com/ii/apisnoop.git",
+      "ssh_url": "git@github.com:ii/apisnoop.git",
+      "clone_url": "https://github.com/ii/apisnoop.git",
+      "svn_url": "https://github.com/ii/apisnoop",
+      "homepage": null,
+      "size": 18662,
+      "stargazers_count": 0,
+      "watchers_count": 0,
+      "language": "CSS",
+      "has_issues": true,
+      "has_projects": true,
+      "has_downloads": true,
+      "has_wiki": true,
+      "has_pages": false,
+      "forks_count": 0,
+      "mirror_url": null,
+      "archived": false,
+      "disabled": false,
+      "open_issues_count": 10,
+      "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "forks": 0,
+      "open_issues": 10,
+      "watchers": 0,
+      "default_branch": "master"
+    },
+    "organization": {
+      "login": "ii",
+      "id": 30447,
+      "node_id": "MDEyOk9yZ2FuaXphdGlvbjMwNDQ3",
+      "url": "https://api.github.com/orgs/ii",
+      "repos_url": "https://api.github.com/orgs/ii/repos",
+      "events_url": "https://api.github.com/orgs/ii/events",
+      "hooks_url": "https://api.github.com/orgs/ii/hooks",
+      "issues_url": "https://api.github.com/orgs/ii/issues",
+      "members_url": "https://api.github.com/orgs/ii/members{/member}",
+      "public_members_url": "https://api.github.com/orgs/ii/public_members{/member}",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/30447?v=4",
+      "description": "inclusively integrating the world"
+    },
+    "sender": {
+      "login": "hh",
+      "id": 31331,
+      "node_id": "MDQ6VXNlcjMxMzMx",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/hh",
+      "html_url": "https://github.com/hh",
+      "followers_url": "https://api.github.com/users/hh/followers",
+      "following_url": "https://api.github.com/users/hh/following{/other_user}",
+      "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+      "organizations_url": "https://api.github.com/users/hh/orgs",
+      "repos_url": "https://api.github.com/users/hh/repos",
+      "events_url": "https://api.github.com/users/hh/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/hh/received_events",
+      "type": "User",
+      "site_admin": false
+    }
+  }
+#+END_SRC
+** flow
+*** restart
+
+#+BEGIN_SRC tmate
+  kubectl delete pods --namespace=default -l app=hook
+#+END_SRC
+
+*** logging
+
+xargs -n 1 limits it to running one line at a time, so in parallel
+
+#+BEGIN_SRC tmate
+  kubectl get pods --namespace=default -l app=hook -o name \
+  | sed s:pod/:: \
+  | xargs -n 1 kubectl log -f
+#+END_SRC
+
+*** comment
+Documentation for ~/project~ command:
+https://prow.k8s.io/command-help
+
+#+BEGIN_EXAMPLE
+/project 0.5.0
+/project 0.5.0 To do
+/project clear 0.4.0
+#+END_EXAMPLE
+
+#+BEGIN_SRC note
+/project test_project
+#+END_SRC
+
+** projects
+
+1 test_project
+2 test_project2
+3 Projects Documentation
+
+- [ ] list projects
+- [ ] list project boards
+
 * PR Status
 [[https://github.com/kubernetes/test-infra/blob/master/prow/docs/pr_status_setup.md#how-to-setup-pr-status]]
 *** github oauth app
