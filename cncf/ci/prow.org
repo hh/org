@@ -236,14 +236,19 @@ ing    *       35.241.26.71   80      2m
 #+END_EXAMPLE
 
 **** ingress status
+   :PROPERTIES:
+   :header-args:yaml+: :tangle no
+   :END:
+
+
 Note the status: loadbalancer:
 #+NAME: ingress ing
-#+BEGIN_SRC shell :results output verbatim code :wrap "SRC yaml"
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC yaml" :noeval
 kubectl get ingress ing -o yaml
 #+END_SRC
 
 #+RESULTS: ingress ing
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -280,7 +285,7 @@ I suspect we are not getting ingress IP's because the Ingress is looking for a l
 https://github.com/kubernetes/test-infra/blob/master/prow/cluster/starter.yaml#L400
 
 #+NAME: ing yaml
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -349,11 +354,24 @@ EDIT ME =>>> [[plugins.yaml][plugins.yaml]]
   ) 2>&1
   echo -n ExitCode: $?
 #+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins replaced
+ExitCode: 0
+#+END_EXAMPLE
+
 *** view-plugins
+  :PROPERTIES:
+  :header-args:yaml+: :tangle no
+  :END:
 #+BEGIN_SRC shell :wrap "SRC yaml"
 kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
 #+END_SRC
 *** generate the config configmap
+  :PROPERTIES:
+  :header-args:yaml+: :tangle no
+  :END:
 #+BEGIN_SRC shell :wrap "SRC yaml" :results silent
 kubectl create configmap config \
   --from-file=config.yaml=config.yaml --dry-run -o yaml
@@ -398,6 +416,7 @@ kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
 #+END_SRC
 
 #+RESULTS:
+| ~/test-infra/hook-plugin.yaml | ~/test-infra/hook-config.yaml | labels.yaml | plugins.yaml | ~/test-infra/comment.json | github-oauth-config |
 
 *** check
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no
@@ -406,6 +425,9 @@ kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
+time="2019-04-28T09:46:27Z" level=warning msg="the following jobs use the kubernetes provider but do not use the pod utilities: [ci-kubernetes-gce-conformance]" component=checkconfig
+time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in config.yaml: approve, blockades, blunderbuss, containers, label, lgtm, plugins, project_config, repo_milestone, require_matching_label, size, triggers, welcome" component=checkconfig
+time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in plugins.yaml: containers, deck, periodics, plank, presubmits" component=checkconfig
 ExitCode: 0
 #+END_EXAMPLE
 
@@ -657,7 +679,7 @@ repos:
     missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
 #+END_SRC
 ** plugins
-    
+
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 #+BEGIN_SRC yaml
@@ -682,7 +704,7 @@ repos:
     - owners-label
     - override
     - owners-label
-    # - project
+      # - project
     - pony
     - release-note
     - require-sig
@@ -808,11 +830,13 @@ Initially config is empty and plugins only contains size:
 *** tangle
 
 #+BEGIN_SRC elisp :tangle no
-(org-babel-tangle)
-;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
+  ;; (org-babel-tangle)
+  (org-babel-tangle-file buffer-file-name)
+  ;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
 #+END_SRC
 
 #+RESULTS:
+| /home/pair/test-infra/hook-plugin.yaml | /home/pair/test-infra/hook-config.yaml | /home/pair/org/cncf/ci/plugins.yaml | /home/pair/org/cncf/ci/labels.yaml | /home/pair/org/cncf/ci/config.yaml | /home/pair/test-infra/comment.json | /home/pair/org/cncf/ci/github-oauth-config |
 
 *** check
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no
@@ -825,16 +849,43 @@ ExitCode: 0
 #+END_EXAMPLE
 
 *** replace
-#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no :async
   <<generate and replace the prow config map>>
+  echo
+  <<generate and replace the plugin config map>>
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
 configmap/config replaced
 ExitCode: 0
+configmap/plugins replaced
+ExitCode: 0
 #+END_EXAMPLE
 
+*** delete old pods :async
+#+BEGIN_SRC shell :async
+kubectl delete pods --namespace=default -l app=hook
+kubectl delete pods --namespace=default -l app=plank
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+pod "hook-86d9f6dfc6-b69x8" deleted
+pod "hook-86d9f6dfc6-jtwj8" deleted
+pod "plank-564d8c4b8b-ztm4q" deleted
+#+END_EXAMPLE
+
+*** logging
+
+#+BEGIN_SRC tmate
+  
+  kubectl get pods --namespace=default -l app=hook -o name \
+  | sed s:pod/:: \
+  | xargs -n 1 -P 5 kubectl logs -f \
+  | grep -v /etc/config/config.yalm
+  # | jq -c -S
+#+END_SRC
 ** deck
 #+BEGIN_SRC yaml
   # https://github.com/kubernetes/test-infra/issues/11729
@@ -885,7 +936,7 @@ ExitCode: 0
         command: ["/bin/date"]
 #+END_SRC
 ** postsubmits
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   postsubmits:
     ii-ci/apisnoop:
     - name: apisnoop-test-postsubmit
@@ -899,14 +950,39 @@ ExitCode: 0
 #+BEGIN_SRC yaml
   presubmits:
     ii-ci/apisnoop:
-    - name: apisnoop-test-presubmit
+      - name: apisnoop-presubmit-sh
+        branches:
+        - master
+        always_run: true
+        decorate: true
+        skip_report: false
+        spec:
+          containers:
+          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            args:
+            - "./hack/ci/presubmit.sh"
+#+END_SRC
+#+BEGIN_SRC yaml :tangle no
+  presubmits:
+    ii-ci/apisnoop:
+    - name: apisnoop-newsubmit
+      agent: knative-build
       decorate: true
       always_run: true
       skip_report: false
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/printenv"]
+      branches:
+      - master
+      build_spec:
+        steps:
+        - name: first
+          image: busybox
+          args: ["echo", "hello"]
+        - name: afile
+          image: busybox
+          args: ["touch", "$ARTIFACTS/afile"]
+        - name: third
+          image: busybox
+          args: ["ls", "-la"]
 #+END_SRC
 
 
@@ -1421,7 +1497,7 @@ https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml
 
 [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L50][testgrid/config.yaml#testgroups]]
 #+NAME: testgrid test_group ci-kubernetes-gce-conformance
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   #
   # Start testgroups
   #
@@ -1457,7 +1533,7 @@ https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conforman
 Gubernator, used to be used, but now we default to spyglass.
 ** jobs
 [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][config/jobs/kubernetes/sig-gcp/gce-conformance.yaml]]
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   periodics:
   - interval: 6h
     name: ci-kubernetes-gce-conformance
