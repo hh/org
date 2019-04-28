@@ -3,17 +3,6 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 8th of March, 2019
-#+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :exports both
-#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
-#+PROPERTY: header-args:shell+ :eval no-export
-#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
-#+PROPERTY: header-args:yaml :noweb yes
-#+PROPERTY: header-args:yaml+ :comments org
-#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
-#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
-#+STARTUP: content
 
 * Deploying Prow
 
@@ -1239,6 +1228,21 @@ Visit http://localhost:8080
 
 * Footnotes
 
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:yaml  :noweb yes
+#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
 # Local Variables:
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
 # eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
