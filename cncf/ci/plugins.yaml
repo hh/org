@@ -1,174 +1,163 @@
-# plugins.yaml template
-# :PROPERTIES:
-# :header-args:yaml+: :tangle plugins.yaml
-# :END:
+# triggers
+    
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::triggers:]] 
+
+
+triggers:
+- repos:
+  - apisnoop
+  trusted_org: ii-ci
+  join_org_url: "https://git.k8s.io/community/community-membership.md#member"
+  only_org_members: true
+
+# approve
+    
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::approve:]] 
+    
+
+approve:
+- repos:
+  - ii-ci/apisnoop
+  require_self_approval: false
+  ignore_review_state: false
+  lgtm_acts_as_approve: true
+
+# size
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::size:]] 
+
+
+# Lower bounds in number of lines changed; XS is assumed to be zero.
+size:
+  s:   10
+  m:   30
+  l:   100
+  xl:  500
+  xxl: 1000
+
+# label
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::label:]] 
+
+
+label:
+  additional_labels:
+    - api-review
+    - conformance-promotion
+
+# lgtm
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::lgtm:]] 
+    
+
+lgtm:
+- repos:
+  - ii-ci/apisnoop
+  review_acts_as_lgtm: true
+  store_tree_hash: true
+
+# blockades
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blockades:]] 
+
+
+blockades:
+- repos:
+  - ii-ci/apisnoop
+  blockregexps:
+  - ^dev/
+  explanation: "dev/ was deprecated"
+
+# blunderbuss
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blunderbuss:]] 
+    
+
+blunderbuss:
+  max_request_count: 2
+
+# repo_milestones
+    
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::repo_milestone:]] 
+    
+
+repo_milestone:
+  '':
+    maintainers_id: X
+    maintainers_team: apisnoop-milestone-maintainers
+  ii-ci/apisnoop:
+    maintainers_id: X
+    maintainers_team: apisnoop-milestone-maintainers
+
+# welcome
+    
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::welcome:]] 
+
+
+welcome:
+- repos:
+  - apisnoop
+  message_template: "Welcome @{{.AuthorLogin}}! <br><br>It looks like this is your first PR to <a href='https://github.com/{{.Org}}/{{.Repo}}'>{{.Org}}/{{.Repo}}</a> 🎉 PARTY. Please refer to our [pull request process documentation](https://git.k8s.io/community/contributors/guide/pull-requests.md) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if {{.Org}}/{{.Repo}} has [its own contribution guidelines](https://github.com/{{.Org}}/{{.Repo}}/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet/README.md). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:"
+
+# require_matching_label
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::require_matching_label:]] 
+
+
+require_matching_label:
+- missing_label: data-gen
+  org: ii-ci
+  repo: apisnoop
+  prs: true
+  regexp: ^data-gen/
+  missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
+
+# plugins
+    
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 
 plugins:
-  # cncf/apisnoop:
-  # - approve
-  # - assign
-  # # - blockade # block pull requests from merging if they touch specific files
-  # - blunderbuss
-  # # - branchcleaner
-  # - cat
-  # # - cherry-pick-unapproved
-  # - cla
-  # # - config-updater # updates config/plugin.yaml for prow
-  # - docs-no-retest
-  # - dog
-  # - golint
-  # - heart
-  # - help
-  # - hold
-  # - label
-  # - lgtm
-  # - lifecycle
-  # # - milestone # needs a milestone group to allow setting milestone
-  # # - milestonestatus # needs a milestone group configured
-  # - override
-  # - owners-label
-  # # - pony
-  # # - project_manager
-  # # - project
-  # - release-note
-  # # - require-maching-label
-  # # - require-sig
-  # - shrug
-  # # - sigmention
-  # - size
-  # - skip
-  # # - slackevents
-  # # - stage
-  # - trigger
-  # - verify-owners
-  # - welcome
-  # - wip
-  # - yuks
-  ii/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
+  apisnoop:
+  - approve  # Allow OWNERS to /approve
+  - assign  # Allow /assign and /cc
+  - blockade
+  - blunderbuss  # Auto-assign people
+  - cat # /meow replies with cat pictures
+  - cherry-pick-unapproved
   - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
+  - dog # /bark replies with dog pictures
   - heart
-  - help
-  - hold
+  - help  # Support /help and /good-first-issue
+  - hold  # Support /hold to delay merge
+  - invalidcommitmsg
   - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
+  - lgtm  # Allow /lgtm
+  - lifecycle  # Allow /lifecycle stale
+  - milestone
+  - milestonestatus
+  - owners-label
   - override
   - owners-label
-  # - pony
-  # - project_manager
-  # - project
+  - project
+  - pony
   - release-note
-  # - require-maching-label
-  # - require-sig
+  - require-sig
+  - require-matching-label
   - shrug
-  # - sigmention
-  - size
+  - sigmention
+  - stage
   - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
+  - size  # Auto-label size of PR
+  - trigger  # Allow people to configure CI jobs to /test
+  - verify-owners # Validates OWNERS file changes in PRs.
   - welcome
-  - wip
-  - yuks
-  ii/openfisca-aotearoa:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  # - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/RapuTure:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  # - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
+  - wip  # Auto-hold PRs with WIP in title
+  - yuks # Let prow tell a /joke
 
-# yaml
+# project_config
 
-# [[file:~/test-infra/prow/plugins.yaml::project_config:]]
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::project_config:]]
 
 
 project_config:

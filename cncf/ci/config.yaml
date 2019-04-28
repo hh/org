@@ -39,7 +39,7 @@ plank:
 # periodics
 
 periodics:
-- interval: 10m
+- interval: 120m
   name: echo-test
   decorate: true
   spec:
