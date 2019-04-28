@@ -325,90 +325,102 @@ spec:
 #+BEGIN_EXAMPLE :noeval t
 #+END_EXAMPLE
 
-** config.yaml
-:PROPERTIES:
-:header-args:yaml+: :tangle config.yaml
-:END:
+** configuration
 
-Initially config is empty and plugins only contains size:
-*** deck
-#+BEGIN_SRC yaml
-  # https://github.com/kubernetes/test-infra/issues/11729
-  #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
-  # component=checkconfig error="no default decoration config provided for plank"
-  deck:
-    spyglass:
-      size_limit: 500e+6 # 500MB
-      viewers:
-        "started.json|finished.json": ["metadata"]
-        "build-log.txt": ["buildlog"]
-        "artifacts/junit.*\\.xml": ["junit"]
-        # Remember to escape your '\' in yaml strings!
+*** install checkconfig
+#+BEGIN_SRC shell
+go get -u k8s.io/test-infra/prow/cmd/checkconfig
 #+END_SRC
-*** plank
-#+BEGIN_SRC yaml
-  plank:
-    job_url_template: 'https://job_url_template/'
-  #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-    report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-    job_url_prefix: http://prow.cncf.ci/view/gcs/
-    pod_pending_timeout: 60m
-    # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
-    default_decoration_config:
-      timeout: 7200000000000 # 2h
-      grace_period: 15000000000 # 15s
-      utility_images:
-        sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
-        clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
-        initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
-        entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-      gcs_configuration:
-        bucket: "apisnoop"
-        path_strategy: "legacy"
-        default_org: "cncf"
-        default_repo: "apisnoop"
-      gcs_credentials_secret: "service-account"
+
+*** check the config files
+#+BEGIN_SRC shell :results silent
+  (
+  checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
+  ) 2>&1
+  echo -n ExitCode: $?
 #+END_SRC
-*** periodics
-#+BEGIN_SRC yaml
-  periodics:
-  - interval: 10m
-    name: echo-test
-    decorate: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/date"]
+*** generate and replace the plugin config map
+EDIT ME =>>> [[plugins.yaml][plugins.yaml]]
+#+BEGIN_SRC shell :noweb yes
+  (
+    kubectl create configmap plugins \
+      --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
+    | kubectl replace configmap plugins -f -
+  ) 2>&1
+  echo -n ExitCode: $?
 #+END_SRC
-*** postsubmits
-#+BEGIN_SRC yaml
-  postsubmits:
-    cncf/apisnoop:
-    - name: test-postsubmit
-      decorate: true
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/printenv"]
+*** view-plugins
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
 #+END_SRC
-*** presubmits
-#+BEGIN_SRC yaml
-  presubmits:
-    cncf/apisnoop:
-    - name: test-presubmit
-      decorate: true
-      always_run: true
-      skip_report: true
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/printenv"]
+*** generate the config configmap
+#+BEGIN_SRC shell :wrap "SRC yaml" :results silent
+kubectl create configmap config \
+  --from-file=config.yaml=config.yaml --dry-run -o yaml
 #+END_SRC
-** plugins.yaml
-:PROPERTIES:
-:header-args:yaml+: :tangle plugins.yaml
-:END:
-*** plugins_for_all_repos
+
+*** generate and replace the prow config map
+#+BEGIN_SRC shell
+  (
+    kubectl create configmap config \
+      --from-file=config.yaml=config.yaml --dry-run -o yaml \
+    | kubectl replace configmap config -f -
+  ) 2>&1
+  echo -n ExitCode: $?
+#+END_SRC
+
+#+BEGIN_EXAMPLE :noeval t
+configmap/config replaced
+#+END_EXAMPLE
+*** view-config
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
+#+END_SRC
+
+*** generate the plugin config map (dry run)
+#+BEGIN_SRC shell :wrap "SRC yaml" :results drawer :noweb yes
+  kubectl create configmap plugins \
+    --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
+#+END_SRC
+
+* plugins.yaml
+  :PROPERTIES:
+  :header-args:yaml+: :tangle plugins.yaml
+  :END:
+
+** update-plugins
+  ,bs to tangle, check-config and repla,bsce configmaps
+*** tangle
+
+#+BEGIN_SRC elisp :tangle no
+(org-babel-tangle)
+;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
+#+END_SRC
+
+#+RESULTS:
+
+*** check
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<check the config files>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+ExitCode: 0
+#+END_EXAMPLE
+
+*** replace
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<generate and replace the plugin config map>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins replaced
+ExitCode: 0
+#+END_EXAMPLE
+
+** plugins_for_all_repos
 [[*generate and replace the plugin config map][generate and replace the plugin config map]]   
 #+BEGIN_SRC yaml :tangle no
   - approve
@@ -455,12 +467,12 @@ Initially config is empty and plugins only contains size:
 THESE KEYS ==>>> ",bt"
 RUN ME =>>>> [[update-plugins][update-plugins]]
 
-*** plugins.yaml template
-:PROPERTIES:
-:header-args:yaml+: :tangle plugins.yaml
-:END:
+** plugins.yaml template
+   :PROPERTIES:
+   :header-args:yaml+: :tangle no
+   :END:
 
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   plugins:
     # cncf/apisnoop:
     # <<plugins_for_all_repos>>
@@ -471,85 +483,281 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
     ii/RapuTure:
     <<plugins_for_all_repos>>
 #+END_SRC
-i
 
-*** project_config
-**** Go Structs
+** triggers
+    
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::triggers:]] 
 
-[[file:~/test-infra/prow/plugins/config.go::type%20ProjectConfig%20struct]]
-
-#+BEGIN_SRC go
-// ProjectConfig contains the configuration options for the project plugin
-type ProjectConfig struct {
-	// Org level configs for github projects; key is org name
-	Orgs map[string]ProjectOrgConfig `json:"project_org_configs,omitempty"`
-}
+#+BEGIN_SRC yaml
+  triggers:
+  - repos:
+    - apisnoop
+    trusted_org: ii-ci
+    join_org_url: "https://git.k8s.io/community/community-membership.md#member"
+    only_org_members: true
 #+END_SRC
 
-#+BEGIN_SRC go
-// ProjectOrgConfig holds the github project config for an entire org.
-// This can be overridden by ProjectRepoConfig.
-type ProjectOrgConfig struct {
-	// ID of the github project maintainer team for a give project or org
-	MaintainerTeamID int `json:"org_maintainers_team_id,omitempty"`
-	// A map of project name to default column; an issue/PR will be added
-	// to the default column if column name is not provided in the command
-	ProjectColumnMap map[string]string `json:"org_default_column_map,omitempty"`
-	// Repo level configs for github projects; key is repo name
-	Repos map[string]ProjectRepoConfig `json:"project_repo_configs,omitempty"`
-}
+** approve
+    
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::approve:]] 
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins/approve/approvers/README.md::#%20Reviewers%20and%20Approvers]]    
+
+#+BEGIN_SRC yaml
+  approve:
+  - repos:
+    - ii-ci/apisnoop
+    require_self_approval: false
+    ignore_review_state: false
+    lgtm_acts_as_approve: true
 #+END_SRC
 
-#+BEGIN_SRC go
-// ProjectRepoConfig holds the github project config for a github project.
-type ProjectRepoConfig struct {
-	// ID of the github project maintainer team for a give project or org
-	MaintainerTeamID int `json:"repo_maintainers_team_id,omitempty"`
-	// A map of project name to default column; an issue/PR will be added
-	// to the default column if column name is not provided in the command
-	ProjectColumnMap map[string]string `json:"repo_default_column_map,omitempty"`
-}
-#+END_SRC
-**** yaml
+** size
 
-[[file:~/test-infra/prow/plugins.yaml::project_config:]]
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::size:]] 
+
+#+BEGIN_SRC yaml
+  # Lower bounds in number of lines changed; XS is assumed to be zero.
+  size:
+    s:   10
+    m:   30
+    l:   100
+    xl:  500
+    xxl: 1000
+#+END_SRC
+
+** label
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::label:]] 
+
+#+BEGIN_SRC yaml
+  label:
+    additional_labels:
+      - area/apisnoop
+      - lang/markdown
+      - api-review
+      - conformance-promotion
+#+END_SRC
+** labels.yaml
+  [[file:~/go/src/k8s.io/test-infra/label_sync/labels.yaml]] 
+ [[file:~/go/src/k8s.io/test-infra/label_sync/README.md::##%20Usage]]
+#+BEGIN_SRC tmate
+bazel run //label_sync -- \
+  --config ~/org/cncf/ci/labels.yaml \
+  --token ~/github-oauth \
+  --orgs ii-ci
+#+END_SRC
+#+BEGIN_SRC shell :eval no-export :async :dir ~/go/src/k8s.io/test-infra
+bazel run //label_sync -- \
+  --config ~/org/cncf/ci/labels.yaml \
+  --token ~/github-oauth \
+  --orgs ii-ci
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
+#+BEGIN_SRC yaml :tangle labels.yaml
+---
+default:
+  labels:
+    - color: e11d21
+      description: default-label
+      name: default-label
+      target: both
+      prowPlugin: label
+      addedBy: anyone
+    - color: f9d0c4
+      description: ¯\\\_(ツ)_/¯
+      name: "¯\\_(ツ)_/¯"
+      target: both
+      prowPlugin: shrug
+      addedBy: humans
+repos:
+  ii-ci/apisnoop:
+    labels:
+      - color: 0052cc
+        description: apisnoop-label
+        name: apisnoop-label
+        target: both
+        addedBy: label
+#+END_SRC
+
+** lgtm
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::lgtm:]] 
+    
+#+BEGIN_SRC yaml
+  lgtm:
+  - repos:
+    - ii-ci/apisnoop
+    review_acts_as_lgtm: true
+    store_tree_hash: true
+#+END_SRC
+
+** blockades
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blockades:]] 
+
+#+BEGIN_SRC yaml
+  blockades:
+  - repos:
+    - ii-ci/apisnoop
+    blockregexps:
+    - ^dev/
+    explanation: "dev/ was deprecated"
+#+END_SRC
+
+** blunderbuss
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blunderbuss:]] 
+    
+#+BEGIN_SRC yaml
+  blunderbuss:
+    max_request_count: 2
+#+END_SRC
+
+** repo_milestones
+    
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::repo_milestone:]] 
+    
+#+BEGIN_SRC yaml
+  repo_milestone:
+    '':
+      maintainers_id: 3230820
+      maintainers_team: automation
+    ii-ci/apisnoop:
+      maintainers_id: 3230820
+      maintainers_team: automation
+#+END_SRC
+
+** welcome
+    
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::welcome:]] 
+
+#+BEGIN_SRC yaml
+  welcome:
+  - repos:
+    - apisnoop
+    message_template: "Welcome @{{.AuthorLogin}}! <br><br>It looks like this is your first PR to <a href='https://github.com/{{.Org}}/{{.Repo}}'>{{.Org}}/{{.Repo}}</a> 🎉 PARTY. Please refer to our [pull request process documentation](https://git.k8s.io/community/contributors/guide/pull-requests.md) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if {{.Org}}/{{.Repo}} has [its own contribution guidelines](https://github.com/{{.Org}}/{{.Repo}}/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet/README.md). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:"
+#+END_SRC
+
+** require_matching_label
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::require_matching_label:]] 
+
+#+BEGIN_SRC yaml
+  require_matching_label:
+  - missing_label: data-gen
+    org: ii-ci
+    repo: apisnoop
+    prs: true
+    regexp: ^data-gen/
+    missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
+#+END_SRC
+** plugins
+    
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
+
+#+BEGIN_SRC yaml
+  plugins:
+    ii-ci/apisnoop:
+    - approve  # Allow OWNERS to /approve
+    - assign  # Allow /assign and /cc
+    - blockade
+    - blunderbuss  # Auto-assign people
+    - cat # /meow replies with cat pictures
+    - cherry-pick-unapproved
+    - cla
+    - dog # /bark replies with dog pictures
+    - heart
+    - help  # Support /help and /good-first-issue
+    - hold  # Support /hold to delay merge
+    - label
+    - lgtm  # Allow /lgtm
+    - lifecycle  # Allow /lifecycle stale
+    - milestone
+    - milestonestatus
+    - owners-label
+    - override
+    - owners-label
+    # - project
+    - pony
+    - release-note
+    - require-sig
+    - require-matching-label
+    - shrug
+    - sigmention
+    - stage
+    - skip
+    - size  # Auto-label size of PR
+    - trigger  # Allow people to configure CI jobs to /test
+    - verify-owners # Validates OWNERS file changes in PRs.
+    - welcome
+    - wip  # Auto-hold PRs with WIP in title
+    - yuks # Let prow tell a /joke
+#+END_SRC
+
+** project_config
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::project_config:]]
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins/config.go::type%20ProjectConfig%20struct]]
 
 We need to find the team_id.
 https://developer.github.com/v3/teams/#list-teams
 https://github.com/orgs/ii/teams/maintainer_team/members
+
  /orgs/:org/teams/:team_slug
 curl /orgs/ii/teams/maintainer_team
 
-#+BEGIN_SRC
-curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/orgs/ii/teams/maintainer_team | jq .id
+#+BEGIN_SRC shell :tangle no
+. ~/githubtoken
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/orgs/ii-ci/teams/automation | jq .id
 #+END_SRC
-#+BEGIN_SRC 
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+3230820
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell :tangle no
 curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/repos/ii/apisnoop/teams | jq .[0].id
 #+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
 #+BEGIN_SRC yaml
   project_config:
     project_org_configs:
-      ii:
-        org_maintainers_team_id: 3212487
+      ii-ci:
+        org_maintainers_team_id: 3230820
         org_default_column_map:
-          test-infra-dummy-testing-project-plugin:
-            To do
-          KEP Implementation Tracking:
-            To do
+          org_project1:
+            column1
+            column2
+            column3
+          org_project2:
+            column1
+            column2
+            column3
         project_repo_configs:
-          apisnoopcurl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/repos/ii/apisnoop/teams | jq .[0].id:
+          apisnoop:
+            repo_maintainers_team_id: 3230820
             repo_default_column_map:
-              triage:
-                triage
-              need-attention:
-                attention
+              project1:
+                column1
+                column2
+                column3
+              project2:
+                column1
+                column2
+                column3
 #+END_SRC
-
-#+BEGIN_SRC 
-gcloud auth configure-docker
-
-#+END_SRC
-
+** project_manager
 
 #+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
   # project_manager:
@@ -563,343 +771,147 @@ gcloud auth configure-docker
   #             org: ii
   #             labels:
   #             - area/conformance
- #+END_SRC
-** configuration
+#+END_SRC
+** config_updater
 
-*** install checkconfig
-#+BEGIN_SRC shell
-go get -u k8s.io/test-infra/prow/cmd/checkconfig
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::config_updater:]]
+
+I don't think we are ready for this
+[[file:~/go/src/k8s.io/test-infra/label_sync/README.md::##%20Usage]]
+
+#+BEGIN_SRC yaml :tangle no
+  config_updater:
+    maps:
+      label_sync/labels.yaml:
+        name: label-config
+        namespace: test-pods
+      prow/config.yaml:
+        name: config
+      prow/plugins.yaml:
+        name: plugins
+      config/jobs/**/*.yaml:
+        name: job-config
+        gzip: true
+      experiment/test-configmap.txt:
+        name: test-configmap
+        gzip: true
 #+END_SRC
 
-*** check the config files
-#+BEGIN_SRC shell :results silent
-  (
-  checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
-  ) 2>&1
-  echo -n $?
+* config.yaml
+  :PROPERTIES:
+  :header-args:yaml+: :tangle config.yaml
+  :END:
+  
+Initially config is empty and plugins only contains size:
+** update-config
+  ,bs to tangle, check-config and repla,bsce configmaps
+*** tangle
+
+#+BEGIN_SRC elisp :tangle no
+(org-babel-tangle)
+;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
 #+END_SRC
-*** generate the plugin config map (dry run)
-#+BEGIN_SRC shell :wrap "SRC yaml" :results silent
-kubectl create configmap plugins \
-  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
-#+END_SRC
-*** generate and replace the plugin config map
-EDIT ME =>>> [[plugins.yaml][plugins.yaml]]
-#+BEGIN_SRC shell :noweb yes
-kubectl create configmap plugins \
-  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
-  | kubectl replace configmap plugins -f -
+
+#+RESULTS:
+
+*** check
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<check the config files>>
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
-configmap/plugins replaced
+ExitCode: 0
 #+END_EXAMPLE
 
-#+RESULTS: update-plugins
-#+BEGIN_EXAMPLE :noeval t
-configmap/plugins replaced
-#+END_EXAMPLE
-
-#+NAME: view-plugins
-#+BEGIN_SRC shell :wrap "SRC yaml"
-kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
+*** replace
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<generate and replace the prow config map>>
 #+END_SRC
 
-#+RESULTS: view-plugins
-#+BEGIN_SRC yaml
-# plugins.yaml template
-# :PROPERTIES:
-# :header-args:yaml+: :tangle plugins.yaml
-# :END:
-
-
-plugins:
-  cncf/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/openfisca-aotearoa:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  # - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/RapuTure:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-
-# yaml
-
-# [[file:~/test-infra/prow/plugins.yaml::project_config:]]
-
-
-project_config:
-  project_org_configs:
-    ii:
-      # org_maintainers_team_id: ??
-      org_default_column_map:
-        test-infra-dummy-testing-project-plugin:
-          To do
-        KEP Implementation Tracking:
-          To do
-      project_repo_configs:
-        apisnoop:
-          repo_default_column_map:
-            triage:
-              triage
-            need-attention:
-              attention
-
-# project_manager:
-#   org/repos:
-#     ii/apisnoop:
-#       projects:
-#         testProject:
-#           columns:
-#           - name: "triage"
-#             state: open
-#             org: ii
-#             labels:
-#             - area/conformance
-
-#+END_SRC
-
-
-#+NAME: generate the config configmap
-#+BEGIN_SRC shell :wrap "SRC yaml" :results silent
-kubectl create configmap config \
-  --from-file=config.yaml=config.yaml --dry-run -o yaml
-#+END_SRC
-
-#+NAME: update-config
-#+BEGIN_SRC shell
-kubectl create configmap config \
-  --from-file=config.yaml=config.yaml --dry-run -o yaml \
-  | kubectl replace configmap config -f -
-#+END_SRC
-
-#+RESULTS: update-config
+#+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
 configmap/config replaced
+ExitCode: 0
 #+END_EXAMPLE
 
-#+NAME: view-config
-#+BEGIN_SRC shell :wrap "SRC yaml"
-kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
-#+END_SRC
-
-#+RESULTS: view-config
+** deck
 #+BEGIN_SRC yaml
-# https://github.com/kubernetes/test-infra/issues/11729
-#time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
-# component=checkconfig error="no default decoration config provided for plank"
-deck:
-  spyglass:
-    size_limit: 500e+6 # 500MB
-    viewers:
-      "started.json|finished.json": ["metadata"]
-      "build-log.txt": ["buildlog"]
-      "artifacts/junit.*\\.xml": ["junit"]
-      # Remember to escape your '\' in yaml strings!
-plank:
-  job_url_template: 'https://job_url_template/'
-#  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-  report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-  job_url_prefix: http://prow.cncf.ci/view/gcs/
-  pod_pending_timeout: 60m
-  # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
-  default_decoration_config:
-    timeout: 7200000000000 # 2h
-    grace_period: 15000000000 # 15s
-    utility_images:
-      sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
-      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
-      initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
-      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-    gcs_configuration:
-      bucket: "apisnoop"
-      path_strategy: "legacy"
-      default_org: "cncf"
-      default_repo: "apisnoop"
-    gcs_credentials_secret: "service-account"
-periodics:
-- interval: 10m
-  name: echo-test
-  decorate: true
-  spec:
-    containers:
-    - image: alpine
-      command: ["/bin/date"]
-postsubmits:
-  cncf/apisnoop:
-  - name: test-postsubmit
-    decorate: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
-presubmits:
-  cncf/apisnoop:
-  - name: test-presubmit
-    decorate: true
-    always_run: true
-    skip_report: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
-
+  # https://github.com/kubernetes/test-infra/issues/11729
+  #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
+  # component=checkconfig error="no default decoration config provided for plank"
+  deck:
+    spyglass:
+      size_limit: 500e+6 # 500MB
+      viewers:
+        "started.json|finished.json": ["metadata"]
+        "build-log.txt": ["buildlog"]
+        "artifacts/junit.*\\.xml": ["junit"]
+        # Remember to escape your '\' in yaml strings!
 #+END_SRC
+** plank
+#+BEGIN_SRC yaml
+  plank:
+    job_url_template: 'https://job_url_template/'
+  #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+    report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+    job_url_prefix: http://prow.cncf.ci/view/gcs/
+    pod_pending_timeout: 60m
+    # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
+    default_decoration_config:
+      timeout: 7200000000000 # 2h
+      grace_period: 15000000000 # 15s
+      utility_images:
+        sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+        clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+        initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+        entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
+      gcs_configuration:
+        bucket: "apisnoop"
+        path_strategy: "legacy"
+        default_org: "cncf"
+        default_repo: "apisnoop"
+      gcs_credentials_secret: "service-account"
+#+END_SRC
+** periodics
+#+BEGIN_SRC yaml
+  periodics:
+  - interval: 120m
+    name: apisnoop-echo-test
+    decorate: true
+    spec:
+      containers:
+      - image: alpine
+        command: ["/bin/date"]
+#+END_SRC
+** postsubmits
+#+BEGIN_SRC yaml
+  postsubmits:
+    ii-ci/apisnoop:
+    - name: apisnoop-test-postsubmit
+      decorate: true
+      spec:
+        containers:
+        - image: alpine
+          command: ["/bin/printenv"]
+#+END_SRC
+** presubmits
+#+BEGIN_SRC yaml
+  presubmits:
+    ii-ci/apisnoop:
+    - name: apisnoop-test-presubmit
+      decorate: true
+      always_run: true
+      skip_report: false
+      spec:
+        containers:
+        - image: alpine
+          command: ["/bin/printenv"]
+#+END_SRC
+
 
 * OWNERS
+
 [[https://go.k8s.io/owners]]
 [[https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md]]
 
@@ -1248,12 +1260,15 @@ bazel run //prow/cmd/phony -- \
 
 *** logging
 
-xargs -n 1 limits it to running one line at a time, so in parallel
+xargs -n 1 limits it to running one line at a time rather than multiple
+xargs -P 5 enables mulitple processes, so in parallel
 
 #+BEGIN_SRC tmate
   kubectl get pods --namespace=default -l app=hook -o name \
   | sed s:pod/:: \
-  | xargs -n 1 kubectl log -f
+  | xargs -n 1 -P 5 kubectl logs -f \
+  | grep -v /etc/config/config.yaml \
+  | jq -c -S
 #+END_SRC
 
 *** comment
@@ -1436,7 +1451,7 @@ Prow has many binaries and components.
 Most are listed here:
 https://github.com/kubernetes/test-infra/tree/master/prow/cmd
 
-Job History: logs/ci-kubernetes-gce-conformance  
+Job History: logs/ci-kubernetes-gce-conformance
 https://prow.k8s.io/job-history/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance
 https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692
 Gubernator, used to be used, but now we default to spyglass.
@@ -1515,8 +1530,7 @@ Shows Tests Skpipped and Passed!
 **** Build Log
 Link to raw build-log.txt
 Default only shows lines with ERROR, but can show more.
-*** Building our own Lense 
-- [ ] Write Boiler Plate
+*** Building our own Lense  Write Boiler Plate
 - [ ] Implement
 - [ ] Add to config
 https://github.com/kubernetes/test-infra/tree/master/prow/spyglass#config

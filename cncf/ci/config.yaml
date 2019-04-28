@@ -39,8 +39,8 @@ plank:
 # periodics
 
 periodics:
-- interval: 10m
-  name: echo-test
+- interval: 120m
+  name: apisnoop-echo-test
   decorate: true
   spec:
     containers:
@@ -50,8 +50,8 @@ periodics:
 # postsubmits
 
 postsubmits:
-  cncf/apisnoop:
-  - name: test-postsubmit
+  ii-ci/apisnoop:
+  - name: apisnoop-test-postsubmit
     decorate: true
     spec:
       containers:
@@ -61,11 +61,11 @@ postsubmits:
 # presubmits
 
 presubmits:
-  cncf/apisnoop:
-  - name: test-presubmit
+  ii-ci/apisnoop:
+  - name: apisnoop-test-presubmit
     decorate: true
     always_run: true
-    skip_report: true
+    skip_report: false
     spec:
       containers:
       - image: alpine
