@@ -49,9 +49,14 @@ periodics:
 
 # presubmits
 
+
+# Memory usage is a bit high, could do with some optimization.
+# ~3-4GB per python process... the parrallel processing on my 64GB laptop
+
+
 presubmits:
   ii-ci/apisnoop:
-    - name: apisnoop-presubmit-sh
+    - name: apisnoop-process-audits
       branches:
       - master
       always_run: true
@@ -60,5 +65,31 @@ presubmits:
       spec:
         containers:
         - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
           args:
-          - "./hack/ci/presubmit.sh"
+          - "./hack/ci/process-audits.sh"
+          resources:
+            requests:
+              cpu: 3.5
+              memory: "5Gi"
+
+    - name: apisnoop-tmate
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/tmate.sh"
+          resources:
+            requests:
+              cpu: 0.5
+              memory: "500Mi"

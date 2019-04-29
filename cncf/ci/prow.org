@@ -186,13 +186,7 @@ rolebinding.rbac.authorization.k8s.io/tide created
 
 #+RESULTS: our customized prow deployment
 #+BEGIN_EXAMPLE :noeval t
-deployment.extensions/hook configured
-deployment.extensions/plank configured
-deployment.extensions/sinker configured
-deployment.extensions/deck configured
-deployment.extensions/horologium configured
-deployment.extensions/tide configured
-0
+1
 #+END_EXAMPLE
 
 
@@ -829,14 +823,13 @@ Initially config is empty and plugins only contains size:
   ,bs to tangle, check-config and repla,bsce configmaps
 *** tangle
 
-#+BEGIN_SRC elisp :tangle no
+#+BEGIN_SRC elisp :tangle no :eval prompt
   ;; (org-babel-tangle)
   (org-babel-tangle-file buffer-file-name)
   ;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
 #+END_SRC
 
 #+RESULTS:
-| /home/pair/test-infra/hook-plugin.yaml | /home/pair/test-infra/hook-config.yaml | /home/pair/org/cncf/ci/plugins.yaml | /home/pair/org/cncf/ci/labels.yaml | /home/pair/org/cncf/ci/config.yaml | /home/pair/test-infra/comment.json | /home/pair/org/cncf/ci/github-oauth-config |
 
 *** check
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no
@@ -850,20 +843,27 @@ ExitCode: 0
 
 *** replace
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no :async
+  <<check the config files>>
+  echo
   <<generate and replace the prow config map>>
   echo
   <<generate and replace the plugin config map>>
+  <<delete old pods>>
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
+ExitCode: 0
 configmap/config replaced
 ExitCode: 0
 configmap/plugins replaced
-ExitCode: 0
+ExitCode: 0pod "hook-86d9f6dfc6-9dllt" deleted
+pod "hook-86d9f6dfc6-9hxpr" deleted
+pod "plank-564d8c4b8b-9fl5g" deleted
 #+END_EXAMPLE
 
-*** delete old pods :async
+** restart pods
+*** delete old pods
 #+BEGIN_SRC shell :async
 kubectl delete pods --namespace=default -l app=hook
 kubectl delete pods --namespace=default -l app=plank
@@ -871,12 +871,12 @@ kubectl delete pods --namespace=default -l app=plank
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
-pod "hook-86d9f6dfc6-b69x8" deleted
-pod "hook-86d9f6dfc6-jtwj8" deleted
-pod "plank-564d8c4b8b-ztm4q" deleted
+pod "hook-86d9f6dfc6-2kh8f" deleted
+pod "hook-86d9f6dfc6-5p4lc" deleted
+pod "plank-564d8c4b8b-86cq6" deleted
 #+END_EXAMPLE
 
-*** logging
+** logging
 
 #+BEGIN_SRC tmate
   
@@ -947,10 +947,15 @@ pod "plank-564d8c4b8b-ztm4q" deleted
           command: ["/bin/printenv"]
 #+END_SRC
 ** presubmits
+
+
+Memory usage is a bit high, could do with some optimization.
+~3-4GB per python process... the parrallel processing on my 64GB laptop
+
 #+BEGIN_SRC yaml
   presubmits:
     ii-ci/apisnoop:
-      - name: apisnoop-presubmit-sh
+      - name: apisnoop-process-audits
         branches:
         - master
         always_run: true
@@ -959,8 +964,35 @@ pod "plank-564d8c4b8b-ztm4q" deleted
         spec:
           containers:
           - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            command:
+            - /bin/bash
+            - -c
             args:
-            - "./hack/ci/presubmit.sh"
+            - "./hack/ci/process-audits.sh"
+            resources:
+              requests:
+                cpu: 3.5
+                memory: "5Gi"
+
+      - name: apisnoop-tmate
+        branches:
+        - master
+        always_run: true
+        decorate: true
+        skip_report: false
+        spec:
+          containers:
+          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            command:
+            - /bin/bash
+            - -c
+            args:
+            - "./hack/ci/tmate.sh"
+            resources:
+              requests:
+                cpu: 0.5
+                memory: "500Mi"
+
 #+END_SRC
 #+BEGIN_SRC yaml :tangle no
   presubmits:
@@ -1692,6 +1724,29 @@ Allow anyone to browse GCS files / buckets?
 https://gcsweb.k8s.io/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1114942954738290692/
 ** build status on source.google.cloud.com
 https://source.cloud.google.com/results/invocations/0b8cf342-71f9-4ede-a665-2ac712beb20a/targets/test/tests;group=Kubernetes%20e2e%20suite%20k8s.io%20LinuxOnly%20NodeConformance%20Conformance;test=KubeletManagedEtcHosts%20should%20test%20kubelet%20managed%20%2Fetc%2Fhosts%20file;row=17
+* Logging
+#+BEGIN_SRC tmate
+gsutil ls -laR gs://apisnoop/pr-logs/pull/ii-ci_apisnoop/3/apisnoop-hack-presubmit
+#+END_SRC
+#+BEGIN_SRC tmate
+kubectl logs \
+  -c test \
+  $(\
+  kubectl get pods \
+  -l prow.k8s.io/id=2d8e7349-69d6-11e9-b74d-0a580a0c011f \
+  -o name\
+  )
+#+END_SRC
+#+BEGIN_SRC tmate
+kubectl logs \
+  -c sidecar \
+  $(\
+  kubectl get pods \
+  -l prow.k8s.io/id=2d8e7349-69d6-11e9-b74d-0a580a0c011f \
+  -o name\
+  ) \
+  | jq . -c
+#+END_SRC
 * Developing spyglass
 Dependencies - Bazel 0.23.0
 

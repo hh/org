@@ -1,0 +1,30 @@
+
+
+# #+RESULTS:
+# #+BEGIN_EXAMPLE :noeval t
+# #+END_EXAMPLE
+
+
+---
+default:
+  labels:
+    - color: e11d21
+      description: default-label
+      name: default-label
+      target: both
+      prowPlugin: label
+      addedBy: anyone
+    - color: f9d0c4
+      description: ¯\\\_(ツ)_/¯
+      name: "¯\\_(ツ)_/¯"
+      target: both
+      prowPlugin: shrug
+      addedBy: humans
+repos:
+  ii-ci/apisnoop:
+    labels:
+      - color: 0052cc
+        description: apisnoop-label
+        name: apisnoop-label
+        target: both
+        addedBy: label
