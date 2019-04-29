@@ -34,11 +34,13 @@ The agent initially does not have any private keys. Keys are added using ssh (se
 The key task for ~ssh-add~ is to add private key identities to the authentication agent.
 Other tasks it can perform is to list fingerprints of all identities currently represented by the agent or delete all identities from the agent.
 
+When remoting ~be sure and use ssh-add -c~ to prompt for usage of that key on the remote box.
+
 #+BEGIN_SRC shell :eval no
 heyste@iiBox0:~$ ssh-add -l
 The agent has no identities.
 
-heyste@iiBox0:~$ ssh-add
+heyste@iiBox0:~$ ssh-add -c
 Enter passphrase for /home/heyste/.ssh/id_rsa:
 Identity added: /home/heyste/.ssh/id_rsa (/home/heyste/.ssh/id_rsa)
 
