@@ -136,7 +136,7 @@ The default tmate.io server supports https/web urls. pair.ii.nz does not, but it
 ** Add the IP address of your remote machine to this document.
 You'll need to add the address to two parts of this document.  This will ensure the commands we run happen in the place you want.
 
-- [[#+PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IP_ADDRESS:/home/"][Line 10-- PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IPADDRESS:/home/"]]
+- [[#+PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IP_ADDRESS:/home/"][#+PROPERTY: header-args:shell+ :dir "/ssh:USERNAME@IP_ADDRESS:/home/"]]
 - [[# eval: (set (make-local-variable 'ssh-user-host) "root@139.178.88.146")][In the eval section at bottom of doc: (set (make-local-variable 'ssh-user-host) "USERNAME@IPADDRESS")]]
 
 You can also add extra IPs to your Packet box, and enable them in /etc/network/interfaces
@@ -995,12 +995,12 @@ https://docs.projectcalico.org/v3.5/getting-started/kubernetes/installation/host
 
 #+NAME: start documentation session
 #+BEGIN_SRC shell :noeval yes
-ssh -tAX kind@arm.cncf.ci \
-tmate -S /tmp/$USER.kind-ci-box.iisocket new-session -A -s kind -n emacs \
+ssh -tAX root@139.178.88.146 \
+tmate -S /tmp/$USER.emacs.iisocket new-session -A -s ii -n emacs \
 \"tmate wait tmate-ready \&\& sleep 2 \&\& \
   echo \\\`tmate display -p \'#{tmate_ssh}\'\\\` \\\# left \
   \| xclip -i -sel p -f \| xclip -i -sel c \&\& \
-  emacs -nw org/sigs.k8s.io/kind/kind-ci-box.org\"
+  emacs -nw .\"
 #+END_SRC
 
 #+NAME: start repl session
