@@ -1,0 +1,195 @@
+#+TITLE: Speeding up the k8s test loop
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop / Globant / IBM
+#+DATE: 30th of April, 2019
+
+* Get Kubernetes, kubetest & KIND
+
+- Following feedback from [[https://kubernetes.slack.com/messages/CEKK1KTN2/convo/CEKK1KTN2-1555018633.255400/?thread_ts=1555018633.255400][@neolit123 on kubernetes.slack.com #kind]]
+
+  We wanted to ensure that k8s, test-infra, and kind were checked out 
+** code
+#+BEGIN_SRC tmate
+  echo "Getting Kubernetes..."
+  go get k8s.io/kubernetes
+  echo "Getting Kubetest..."
+  go get k8s.io/test-infra
+  echo "Getting Kind..."
+  go get sigs.k8s.io/kind
+#+END_SRC
+
+* Build kubetest
+** code
+
+e2e.test binary
+./kubetest
+
+#+BEGIN_SRC tmate
+  echo "Build kubetest"
+  cd ~/go/src/k8s.io/test-infra/kubetest
+  go build
+  cp kubetest ../../kubernetes
+  cd ../../kubernetes
+  echo "Getting a cluster up with Kind..."
+  ./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+#+END_SRC
+
+kubetest --up
+
+#+BEGIN_SRC tmate
+  cd ~/go/src/k8s.io/kubernetes
+  time ./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+#+END_SRC
+
+kiind directly
+**  mayank
+#+BEGIN_SRC tmate
+  cd ~/go/src/k8s.io/kubernetes
+  git remote add upstream https://github.com/kubernetes/kubernetes.git
+  git remote set-url --push upstream no_push
+  git remote add mgdevstack git@github.com:mgdevstack/kubernetes.git
+  git remote add hh git@github.com:hh/kubernetes.git
+  . ~/.ssh/ssh-find-agent.sh
+  ssh-find-agent
+  eval $(ssh-find-agent | grep mgdevstack)
+  ssh-add -l
+#+END_SRC
+
+Pulling down a PR and working on it.
+
+
+#+BEGIN_SRC tmate
+git fetch mgdevstack -a
+git checkout -b promote-service-sessionaffinity mgdevstack/promote-service-sessionaffinity
+#+END_SRC
+
+Ensure we begin our session rebased on master!
+
+#+BEGIN_SRC tmate
+  git fetch upstream
+  git rebase upstream/master
+#+END_SRC
+
+Sanity check for are we rebased correctly.
+
+#+BEGIN_SRC tmate
+## TODO figure out how to check X last com
+#+END_SRC
+#+RESULTS:
+
+#+BEGIN_SRC tmate
+git fsck
+#+END_SRC
+
+
+We want the latest kind, but are using master.
+Ensuring kind and go env are good.
+
+#+BEGIN_SRC tmate
+  cd ~/go/src/sigs.k8s.io/kind 
+  git pull
+  go install
+  which kind
+  env | grep GO
+#+END_SRC
+
+Run kind to build cluster from src
+NOTE: We should keep an eye on image sizes, and prune when necessary.
+
+Old images lying around can cause issues.
+Remove old ones as needed.
+
+#+BEGIN_SRC tmate
+  cd ~/go/src/k8s.io/kubernetes
+  time (
+    kind build base-image
+    kind build node-image --base-image kindest/base:latest --kube-root .*
+  )
+  time  kind create cluster --image kindest/node:latest
+#+END_SRC
+
+
+#+BEGIN_SRC tmate
+  cd ~/go/src/k8s.io/kubernetes
+  make WHAT=cmd/kubectl
+  export PATH=$PWD/_output/bin:$PATH
+  kind
+#+END_SRC
+i
+should allow opting out of API token automount
+
+#+BEGIN_SRC tmate
+time bazel build //test/e2e:e2e.test
+PREFIX=./bazel-bin/test/e2e
+export GINKO_PARALLEL=y
+# Will run 179 of 1032 specs
+export KUBECONFIG=~/.kube/config
+time $PREFIX/e2e.test \
+  --ginkgo.focus='should allow opting out of API token automount'
+#+END_SRC
+
+* Check on Docker
+** code
+#+BEGIN_SRC tmate
+  echo -e "\nChecking on docker..."
+  docker ps -a
+  docker images
+#+END_SRC
+
+#+RESULTS:
+
+** Check Cluster State
+*** kube-config
+#+BEGIN_SRC bash
+  echo -e "\nCheck on the state of the cluster..."
+  ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
+  kubectl version
+  kubectl get nodes
+  echo "Waiting on all pods to start..."
+  sleep 30
+  kubectl get pods --all-namespaces
+
+  export TIME_STOP=$(date)
+  echo "Time taken..."
+  echo $TIME_START
+  echo $TIME_STOP
+#+END_SRC
+
+* Footnotes
+  :PROPERTIES:
+  :VISIBILITY: folded
+  :END:
+
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:yaml  :noweb yes
+#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1)
+# eval: (gui-select-text start-tmate-command)
+# eval: (xclip-mode 0)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
+
