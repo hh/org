@@ -101,7 +101,7 @@ spec:
       terminationGracePeriodSeconds: 180
       containers:
       - name: hook
-        image: gcr.io/apisnoop/testing-prow-build/hook:v20190415-a73a6a185
+        image: gcr.io/k8s-prow/hook:v20190424-e0b472c3b
         imagePullPolicy: Always
         args:
         - --dry-run=false
@@ -165,7 +165,7 @@ spec:
       serviceAccountName: "plank"
       containers:
       - name: plank
-        image: gcr.io/apisnoop/testing-prow-build/plank:v20190415-a73a6a185b
+        image: gcr.io/k8s-prow/plank:v20190424-e0b472c3b
         args:
         - --dry-run=false
         volumeMounts:
@@ -200,8 +200,7 @@ spec:
       serviceAccountName: "sinker"
       containers:
       - name: sinker
-        image: gcr.io/apisnoop/testing-prow-build/sinker:v20190415-a73a6a185b
-
+        image: gcr.io/k8s-prow/sinker:v20190424-e0b472c3b
         volumeMounts:
         - name: config
           mountPath: /etc/config
@@ -234,7 +233,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: deck
-        image: gcr.io/apisnoop/testing-prow-build/deck:v20190415-a73a6a185
+        image: gcr.io/k8s-prow/deck:v20190424-e0b472c3b
         args:
         - --tide-url=http://tide/
         - --hook-url=http://hook:8888/plugin-help
@@ -297,7 +296,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: horologium
-        image: gcr.io/apisnoop/testing-prow-build/horologium:v20190415-a73a6a185
+        image: gcr.io/k8s-prow/horologium:v20190424-e0b472c3b
         volumeMounts:
         - name: config
           mountPath: /etc/config
@@ -324,7 +323,7 @@ spec:
       serviceAccountName: "tide"
       containers:
       - name: tide
-        image: gcr.io/apisnoop/testing-prow-build/tide:v20190415-a73a6a185
+        image: gcr.io/k8s-prow/tide:v20190424-e0b472c3b
         args:
         - --dry-run=false
         ports:

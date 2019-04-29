@@ -40,33 +40,25 @@ plank:
 
 periodics:
 - interval: 120m
-  name: echo-test
+  name: apisnoop-echo-test
   decorate: true
   spec:
     containers:
     - image: alpine
       command: ["/bin/date"]
 
-# postsubmits
-
-postsubmits:
-  cncf/apisnoop:
-  - name: test-postsubmit
-    decorate: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
-
 # presubmits
 
 presubmits:
-  cncf/apisnoop:
-  - name: test-presubmit
-    decorate: true
-    always_run: true
-    skip_report: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
+  ii-ci/apisnoop:
+    - name: apisnoop-presubmit-sh
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          args:
+          - "./hack/ci/presubmit.sh"

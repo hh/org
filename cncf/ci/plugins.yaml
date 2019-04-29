@@ -13,7 +13,9 @@ triggers:
 # approve
     
 # [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::approve:]] 
-    
+
+# [[file:~/go/src/k8s.io/test-infra/prow/plugins/approve/approvers/README.md::#%20Reviewers%20and%20Approvers]]    
+
 
 approve:
 - repos:
@@ -42,6 +44,8 @@ size:
 
 label:
   additional_labels:
+    - area/apisnoop
+    - lang/markdown
     - api-review
     - conformance-promotion
 
@@ -83,11 +87,11 @@ blunderbuss:
 
 repo_milestone:
   '':
-    maintainers_id: X
-    maintainers_team: apisnoop-milestone-maintainers
+    maintainers_id: 3230820
+    maintainers_team: automation
   ii-ci/apisnoop:
-    maintainers_id: X
-    maintainers_team: apisnoop-milestone-maintainers
+    maintainers_id: 3230820
+    maintainers_team: automation
 
 # welcome
     
@@ -113,12 +117,12 @@ require_matching_label:
   missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
 
 # plugins
-    
+
 # [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 
 plugins:
-  apisnoop:
+  ii-ci/apisnoop:
   - approve  # Allow OWNERS to /approve
   - assign  # Allow /assign and /cc
   - blockade
@@ -130,7 +134,6 @@ plugins:
   - heart
   - help  # Support /help and /good-first-issue
   - hold  # Support /hold to delay merge
-  - invalidcommitmsg
   - label
   - lgtm  # Allow /lgtm
   - lifecycle  # Allow /lifecycle stale
@@ -139,7 +142,7 @@ plugins:
   - owners-label
   - override
   - owners-label
-  - project
+    # - project
   - pony
   - release-note
   - require-sig
@@ -155,27 +158,41 @@ plugins:
   - wip  # Auto-hold PRs with WIP in title
   - yuks # Let prow tell a /joke
 
-# project_config
 
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::project_config:]]
+
+# #+RESULTS:
+# #+BEGIN_EXAMPLE :noeval t
+# #+END_EXAMPLE
 
 
 project_config:
   project_org_configs:
-    ii:
-      # org_maintainers_team_id: ??
+    ii-ci:
+      org_maintainers_team_id: 3230820
       org_default_column_map:
-        test-infra-dummy-testing-project-plugin:
-          To do
-        KEP Implementation Tracking:
-          To do
+        org_project1:
+          column1
+          column2
+          column3
+        org_project2:
+          column1
+          column2
+          column3
       project_repo_configs:
         apisnoop:
+          repo_maintainers_team_id: 3230820
           repo_default_column_map:
-            triage:
-              triage
-            need-attention:
-              attention
+            project1:
+              column1
+              column2
+              column3
+            project2:
+              column1
+              column2
+              column3
+
+# project_manager
+
 
 # project_manager:
 #   org/repos:

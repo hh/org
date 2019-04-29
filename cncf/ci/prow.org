@@ -3,17 +3,7 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 8th of March, 2019
-#+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :exports both
-#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
-#+PROPERTY: header-args:shell+ :eval no-export
-#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
-#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
-#+PROPERTY: header-args:yaml :noweb yes
-#+PROPERTY: header-args:yaml+ :comments org
-#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
-#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
-#+STARTUP: content
+
 * Deploying Prow
 
 Following [[https://github.com/kubernetes/test-infra/blob/master/prow/getting_started_deploy.md][prow/getting_started#Deploying Prow]]:
@@ -246,14 +236,19 @@ ing    *       35.241.26.71   80      2m
 #+END_EXAMPLE
 
 **** ingress status
+   :PROPERTIES:
+   :header-args:yaml+: :tangle no
+   :END:
+
+
 Note the status: loadbalancer:
 #+NAME: ingress ing
-#+BEGIN_SRC shell :results output verbatim code :wrap "SRC yaml"
+#+BEGIN_SRC shell :results output verbatim code :wrap "SRC yaml" :noeval
 kubectl get ingress ing -o yaml
 #+END_SRC
 
 #+RESULTS: ingress ing
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -290,7 +285,7 @@ I suspect we are not getting ingress IP's because the Ingress is looking for a l
 https://github.com/kubernetes/test-infra/blob/master/prow/cluster/starter.yaml#L400
 
 #+NAME: ing yaml
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -334,6 +329,7 @@ spec:
 #+RESULTS: add-hook
 #+BEGIN_EXAMPLE :noeval t
 #+END_EXAMPLE
+
 ** configuration
 
 *** install checkconfig
@@ -346,333 +342,106 @@ go get -u k8s.io/test-infra/prow/cmd/checkconfig
   (
   checkconfig --plugin-config=plugins.yaml --config-path=config.yaml
   ) 2>&1
-  echo -n $?
-#+END_SRC
-*** generate the plugin config map (dry run)
-#+BEGIN_SRC shell :wrap "SRC yaml" :results silent
-kubectl create configmap plugins \
-  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
+  echo -n ExitCode: $?
 #+END_SRC
 *** generate and replace the plugin config map
 EDIT ME =>>> [[plugins.yaml][plugins.yaml]]
 #+BEGIN_SRC shell :noweb yes
-kubectl create configmap plugins \
-  --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
-  | kubectl replace configmap plugins -f -
+  (
+    kubectl create configmap plugins \
+      --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml \
+    | kubectl replace configmap plugins -f -
+  ) 2>&1
+  echo -n ExitCode: $?
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
 configmap/plugins replaced
+ExitCode: 0
 #+END_EXAMPLE
 
-#+RESULTS: update-plugins
-#+BEGIN_EXAMPLE :noeval t
-configmap/plugins replaced
-#+END_EXAMPLE
-
-#+NAME: view-plugins
+*** view-plugins
+  :PROPERTIES:
+  :header-args:yaml+: :tangle no
+  :END:
 #+BEGIN_SRC shell :wrap "SRC yaml"
 kubectl get configmap plugins -o json | jq -r '.data["plugins.yaml"]'
 #+END_SRC
-
-#+RESULTS: view-plugins
-#+BEGIN_SRC yaml
-# plugins.yaml template
-# :PROPERTIES:
-# :header-args:yaml+: :tangle plugins.yaml
-# :END:
-
-
-plugins:
-  cncf/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/apisnoop:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/openfisca-aotearoa:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  # - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-  ii/RapuTure:
-  - approve
-  - assign
-  # - blockade # block pull requests from merging if they touch specific files
-  - blunderbuss
-  # - branchcleaner
-  - cat
-  # - cherry-pick-unapproved
-  - cla
-  # - config-updater # updates config/plugin.yaml for prow
-  - docs-no-retest
-  - dog
-  - golint
-  - heart
-  - help
-  - hold
-  - label
-  - lgtm
-  - lifecycle
-  # - milestone # needs a milestone group to allow setting milestone
-  # - milestonestatus # needs a milestone group configured
-  - override
-  - owners-label
-  # - pony
-  # - project_manager
-  - project
-  - release-note
-  # - require-maching-label
-  # - require-sig
-  - shrug
-  # - sigmention
-  - size
-  - skip
-  # - slackevents
-  # - stage
-  - trigger
-  - verify-owners
-  - welcome
-  - wip
-  - yuks
-
-# yaml
-
-# [[file:~/test-infra/prow/plugins.yaml::project_config:]]
-
-
-project_config:
-  project_org_configs:
-    ii:
-      # org_maintainers_team_id: ??
-      org_default_column_map:
-        test-infra-dummy-testing-project-plugin:
-          To do
-        KEP Implementation Tracking:
-          To do
-      project_repo_configs:
-        apisnoop:
-          repo_default_column_map:
-            triage:
-              triage
-            need-attention:
-              attention
-
-# project_manager:
-#   org/repos:
-#     ii/apisnoop:
-#       projects:
-#         testProject:
-#           columns:
-#           - name: "triage"
-#             state: open
-#             org: ii
-#             labels:
-#             - area/conformance
-
-#+END_SRC
-
-
-#+NAME: generate the config configmap
+*** generate the config configmap
+  :PROPERTIES:
+  :header-args:yaml+: :tangle no
+  :END:
 #+BEGIN_SRC shell :wrap "SRC yaml" :results silent
 kubectl create configmap config \
   --from-file=config.yaml=config.yaml --dry-run -o yaml
 #+END_SRC
 
-#+NAME: update-config
+*** generate and replace the prow config map
 #+BEGIN_SRC shell
-kubectl create configmap config \
-  --from-file=config.yaml=config.yaml --dry-run -o yaml \
-  | kubectl replace configmap config -f -
+  (
+    kubectl create configmap config \
+      --from-file=config.yaml=config.yaml --dry-run -o yaml \
+    | kubectl replace configmap config -f -
+  ) 2>&1
+  echo -n ExitCode: $?
 #+END_SRC
 
-#+RESULTS: update-config
 #+BEGIN_EXAMPLE :noeval t
 configmap/config replaced
 #+END_EXAMPLE
-
-#+NAME: view-config
+*** view-config
 #+BEGIN_SRC shell :wrap "SRC yaml"
 kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
 #+END_SRC
 
-#+RESULTS: view-config
-#+BEGIN_SRC yaml
-# https://github.com/kubernetes/test-infra/issues/11729
-#time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
-# component=checkconfig error="no default decoration config provided for plank"
-deck:
-  spyglass:
-    size_limit: 500e+6 # 500MB
-    viewers:
-      "started.json|finished.json": ["metadata"]
-      "build-log.txt": ["buildlog"]
-      "artifacts/junit.*\\.xml": ["junit"]
-      # Remember to escape your '\' in yaml strings!
-plank:
-  job_url_template: 'https://job_url_template/'
-#  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-  report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-  job_url_prefix: http://prow.cncf.ci/view/gcs/
-  pod_pending_timeout: 60m
-  # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
-  default_decoration_config:
-    timeout: 7200000000000 # 2h
-    grace_period: 15000000000 # 15s
-    utility_images:
-      sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
-      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
-      initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
-      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-    gcs_configuration:
-      bucket: "apisnoop"
-      path_strategy: "legacy"
-      default_org: "cncf"
-      default_repo: "apisnoop"
-    gcs_credentials_secret: "service-account"
-periodics:
-- interval: 10m
-  name: echo-test
-  decorate: true
-  spec:
-    containers:
-    - image: alpine
-      command: ["/bin/date"]
-postsubmits:
-  cncf/apisnoop:
-  - name: test-postsubmit
-    decorate: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
-presubmits:
-  cncf/apisnoop:
-  - name: test-presubmit
-    decorate: true
-    always_run: true
-    skip_report: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/printenv"]
-
+*** generate the plugin config map (dry run)
+#+BEGIN_SRC shell :wrap "SRC yaml" :results drawer :noweb yes
+  kubectl create configmap plugins \
+    --from-file=plugins.yaml=plugins.yaml --dry-run -o yaml
 #+END_SRC
 
 * plugins.yaml
   :PROPERTIES:
   :header-args:yaml+: :tangle plugins.yaml
   :END:
+
+** update-plugins
+  ,bs to tangle, check-config and repla,bsce configmaps
+*** tangle
+
+#+BEGIN_SRC elisp :tangle no
+(org-babel-tangle)
+;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
+#+END_SRC
+
+#+RESULTS:
+| ~/test-infra/hook-plugin.yaml | ~/test-infra/hook-config.yaml | labels.yaml | plugins.yaml | ~/test-infra/comment.json | github-oauth-config |
+
+*** check
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<check the config files>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+time="2019-04-28T09:46:27Z" level=warning msg="the following jobs use the kubernetes provider but do not use the pod utilities: [ci-kubernetes-gce-conformance]" component=checkconfig
+time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in config.yaml: approve, blockades, blunderbuss, containers, label, lgtm, plugins, project_config, repo_milestone, require_matching_label, size, triggers, welcome" component=checkconfig
+time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in plugins.yaml: containers, deck, periodics, plank, presubmits" component=checkconfig
+ExitCode: 0
+#+END_EXAMPLE
+
+*** replace
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<generate and replace the plugin config map>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+configmap/plugins replaced
+ExitCode: 0
+#+END_EXAMPLE
+
 ** plugins_for_all_repos
 [[*generate and replace the plugin config map][generate and replace the plugin config map]]   
 #+BEGIN_SRC yaml :tangle no
@@ -725,7 +494,7 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
    :header-args:yaml+: :tangle no
    :END:
 
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   plugins:
     # cncf/apisnoop:
     # <<plugins_for_all_repos>>
@@ -753,7 +522,9 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 ** approve
     
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::approve:]] 
-    
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins/approve/approvers/README.md::#%20Reviewers%20and%20Approvers]]    
+
 #+BEGIN_SRC yaml
   approve:
   - repos:
@@ -784,8 +555,55 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 #+BEGIN_SRC yaml
   label:
     additional_labels:
+      - area/apisnoop
+      - lang/markdown
       - api-review
       - conformance-promotion
+#+END_SRC
+** labels.yaml
+  [[file:~/go/src/k8s.io/test-infra/label_sync/labels.yaml]] 
+ [[file:~/go/src/k8s.io/test-infra/label_sync/README.md::##%20Usage]]
+#+BEGIN_SRC tmate
+bazel run //label_sync -- \
+  --config ~/org/cncf/ci/labels.yaml \
+  --token ~/github-oauth \
+  --orgs ii-ci
+#+END_SRC
+#+BEGIN_SRC shell :eval no-export :async :dir ~/go/src/k8s.io/test-infra
+bazel run //label_sync -- \
+  --config ~/org/cncf/ci/labels.yaml \
+  --token ~/github-oauth \
+  --orgs ii-ci
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
+#+BEGIN_SRC yaml :tangle labels.yaml
+---
+default:
+  labels:
+    - color: e11d21
+      description: default-label
+      name: default-label
+      target: both
+      prowPlugin: label
+      addedBy: anyone
+    - color: f9d0c4
+      description: ¯\\\_(ツ)_/¯
+      name: "¯\\_(ツ)_/¯"
+      target: both
+      prowPlugin: shrug
+      addedBy: humans
+repos:
+  ii-ci/apisnoop:
+    labels:
+      - color: 0052cc
+        description: apisnoop-label
+        name: apisnoop-label
+        target: both
+        addedBy: label
 #+END_SRC
 
 ** lgtm
@@ -829,11 +647,11 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 #+BEGIN_SRC yaml
   repo_milestone:
     '':
-      maintainers_id: X
-      maintainers_team: apisnoop-milestone-maintainers
+      maintainers_id: 3230820
+      maintainers_team: automation
     ii-ci/apisnoop:
-      maintainers_id: X
-      maintainers_team: apisnoop-milestone-maintainers
+      maintainers_id: 3230820
+      maintainers_team: automation
 #+END_SRC
 
 ** welcome
@@ -861,12 +679,12 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
     missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
 #+END_SRC
 ** plugins
-    
+
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 #+BEGIN_SRC yaml
   plugins:
-    apisnoop:
+    ii-ci/apisnoop:
     - approve  # Allow OWNERS to /approve
     - assign  # Allow /assign and /cc
     - blockade
@@ -878,7 +696,6 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
     - heart
     - help  # Support /help and /good-first-issue
     - hold  # Support /hold to delay merge
-    - invalidcommitmsg
     - label
     - lgtm  # Allow /lgtm
     - lifecycle  # Allow /lifecycle stale
@@ -887,7 +704,7 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
     - owners-label
     - override
     - owners-label
-    - project
+      # - project
     - pony
     - release-note
     - require-sig
@@ -908,24 +725,61 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::project_config:]]
 
+[[file:~/go/src/k8s.io/test-infra/prow/plugins/config.go::type%20ProjectConfig%20struct]]
+
+We need to find the team_id.
+https://developer.github.com/v3/teams/#list-teams
+https://github.com/orgs/ii/teams/maintainer_team/members
+
+ /orgs/:org/teams/:team_slug
+curl /orgs/ii/teams/maintainer_team
+
+#+BEGIN_SRC shell :tangle no
+. ~/githubtoken
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/orgs/ii-ci/teams/automation | jq .id
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+3230820
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell :tangle no
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/repos/ii/apisnoop/teams | jq .[0].id
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
+
 #+BEGIN_SRC yaml
   project_config:
     project_org_configs:
-      ii:
-        # org_maintainers_team_id: ??
+      ii-ci:
+        org_maintainers_team_id: 3230820
         org_default_column_map:
-          test-infra-dummy-testing-project-plugin:
-            To do
-          KEP Implementation Tracking:
-            To do
+          org_project1:
+            column1
+            column2
+            column3
+          org_project2:
+            column1
+            column2
+            column3
         project_repo_configs:
           apisnoop:
+            repo_maintainers_team_id: 3230820
             repo_default_column_map:
-              triage:
-                triage
-              need-attention:
-                attention
+              project1:
+                column1
+                column2
+                column3
+              project2:
+                column1
+                column2
+                column3
 #+END_SRC
+** project_manager
 
 #+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
   # project_manager:
@@ -939,13 +793,99 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
   #             org: ii
   #             labels:
   #             - area/conformance
- #+END_SRC
+#+END_SRC
+** config_updater
+
+[[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::config_updater:]]
+
+I don't think we are ready for this
+[[file:~/go/src/k8s.io/test-infra/label_sync/README.md::##%20Usage]]
+
+#+BEGIN_SRC yaml :tangle no
+  config_updater:
+    maps:
+      label_sync/labels.yaml:
+        name: label-config
+        namespace: test-pods
+      prow/config.yaml:
+        name: config
+      prow/plugins.yaml:
+        name: plugins
+      config/jobs/**/*.yaml:
+        name: job-config
+        gzip: true
+      experiment/test-configmap.txt:
+        name: test-configmap
+        gzip: true
+#+END_SRC
+
 * config.yaml
   :PROPERTIES:
   :header-args:yaml+: :tangle config.yaml
   :END:
-
+  
 Initially config is empty and plugins only contains size:
+** update-config
+  ,bs to tangle, check-config and repla,bsce configmaps
+*** tangle
+
+#+BEGIN_SRC elisp :tangle no
+  ;; (org-babel-tangle)
+  (org-babel-tangle-file buffer-file-name)
+  ;;(org-babel-tangle-file buffer-file-name "plugins.yaml")
+#+END_SRC
+
+#+RESULTS:
+| /home/pair/test-infra/hook-plugin.yaml | /home/pair/test-infra/hook-config.yaml | /home/pair/org/cncf/ci/plugins.yaml | /home/pair/org/cncf/ci/labels.yaml | /home/pair/org/cncf/ci/config.yaml | /home/pair/test-infra/comment.json | /home/pair/org/cncf/ci/github-oauth-config |
+
+*** check
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+  <<check the config files>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+ExitCode: 0
+#+END_EXAMPLE
+
+*** replace
+#+BEGIN_SRC shell :results drawer :noweb yes :tangle no :async
+  <<generate and replace the prow config map>>
+  echo
+  <<generate and replace the plugin config map>>
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+configmap/config replaced
+ExitCode: 0
+configmap/plugins replaced
+ExitCode: 0
+#+END_EXAMPLE
+
+*** delete old pods :async
+#+BEGIN_SRC shell :async
+kubectl delete pods --namespace=default -l app=hook
+kubectl delete pods --namespace=default -l app=plank
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+pod "hook-86d9f6dfc6-b69x8" deleted
+pod "hook-86d9f6dfc6-jtwj8" deleted
+pod "plank-564d8c4b8b-ztm4q" deleted
+#+END_EXAMPLE
+
+*** logging
+
+#+BEGIN_SRC tmate
+  
+  kubectl get pods --namespace=default -l app=hook -o name \
+  | sed s:pod/:: \
+  | xargs -n 1 -P 5 kubectl logs -f \
+  | grep -v /etc/config/config.yalm
+  # | jq -c -S
+#+END_SRC
 ** deck
 #+BEGIN_SRC yaml
   # https://github.com/kubernetes/test-infra/issues/11729
@@ -988,7 +928,7 @@ Initially config is empty and plugins only contains size:
 #+BEGIN_SRC yaml
   periodics:
   - interval: 120m
-    name: echo-test
+    name: apisnoop-echo-test
     decorate: true
     spec:
       containers:
@@ -996,10 +936,10 @@ Initially config is empty and plugins only contains size:
         command: ["/bin/date"]
 #+END_SRC
 ** postsubmits
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   postsubmits:
-    cncf/apisnoop:
-    - name: test-postsubmit
+    ii-ci/apisnoop:
+    - name: apisnoop-test-postsubmit
       decorate: true
       spec:
         containers:
@@ -1009,20 +949,427 @@ Initially config is empty and plugins only contains size:
 ** presubmits
 #+BEGIN_SRC yaml
   presubmits:
-    cncf/apisnoop:
-    - name: test-presubmit
+    ii-ci/apisnoop:
+      - name: apisnoop-presubmit-sh
+        branches:
+        - master
+        always_run: true
+        decorate: true
+        skip_report: false
+        spec:
+          containers:
+          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            args:
+            - "./hack/ci/presubmit.sh"
+#+END_SRC
+#+BEGIN_SRC yaml :tangle no
+  presubmits:
+    ii-ci/apisnoop:
+    - name: apisnoop-newsubmit
+      agent: knative-build
       decorate: true
       always_run: true
-      skip_report: true
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/printenv"]
+      skip_report: false
+      branches:
+      - master
+      build_spec:
+        steps:
+        - name: first
+          image: busybox
+          args: ["echo", "hello"]
+        - name: afile
+          image: busybox
+          args: ["touch", "$ARTIFACTS/afile"]
+        - name: third
+          image: busybox
+          args: ["ls", "-la"]
 #+END_SRC
 
+
 * OWNERS
+
 [[https://go.k8s.io/owners]]
 [[https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md]]
+
+* debugging project plugin
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/test-infra/
+  :END:
+
+** cards curls
+
+#+BEGIN_SRC shell :wrap "SRC json"
+  . ~/githubtoken
+  curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" \
+  https://api.github.com/projects/columns/5090898/cards \
+  | jq .[].id
+  #https://api.github.com/projects/2501156/columns
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC json
+20365896
+20365897
+#+END_SRC
+
+#+BEGIN_SRC shell :wrap "SRC json"
+  . ~/githubtoken
+  curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" \
+  https://api.github.com/projects/columns/cards/20365897 \
+  | jq -r .content_url
+  #https://api.github.com/projects/2501156/columns
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC json
+"https://api.github.com/repos/ii/apisnoop/issues/6"
+#+END_SRC
+
+
+** get secrets
+
+*** hook secret
+
+You need this for incoming secrets and to configure the github webhook or phony.
+
+#+BEGIN_SRC shell
+kubectl get secrets hmac-token -ojsonpath={.data.hmac} | base64 --decode > webhook-secret
+#+END_SRC
+
+*** oauth secret
+#+BEGIN_SRC shell
+kubectl get secrets oauth-token -ojsonpath={.data.oauth} | base64 --decode  > github-oauth
+#+END_SRC
+
+** hook config
+
+#+BEGIN_SRC yaml :tangle ~/test-infra/hook-config.yaml
+# I'm pretty sure we can use an empty config
+#+END_SRC
+
+** plugin config
+
+#+BEGIN_SRC yaml :tangle ~/test-infra/hook-plugin.yaml
+  plugins:
+    ii/apisnoop:
+    - label
+    # - project_manager
+    - project
+    - trigger
+  project_config:
+    project_org_configs:
+      ii:
+        org_maintainers_team_id: 3212487
+        org_default_column_map:
+          test-infra-dummy-testing-project-plugin:
+            To do
+          KEP Implementation Tracking:
+            To do
+        project_repo_configs:
+          apisnoop:
+            repo_default_column_map:
+              triage:
+                triage
+              need-attention:
+                attention
+#+END_SRC
+
+** run hook locally
+  
+It runs on port all your IPs on port 8888.
+Adding ii.cncf.ci:8888 as a hook should work.
+
+#+BEGIN_SRC tmate
+  cd ~/test-infra
+  <<hook secret>>
+  <<oauth secret>>
+  go run prow/cmd/hook/main.go \
+     --deck-url=https://prow.k8s.io \
+     --config-path=hook-config.yaml \
+     --plugin-config=hook-plugin.yaml \
+     --hmac-secret-file=webhook-secret \
+     --github-token-path=github-oauth \
+     --dry-run=false
+#+END_SRC
+** run phony
+
+#+BEGIN_SRC tmate
+bazel run //prow/cmd/phony -- \
+  --address=http://localhost:8888/hook \
+  --hmac=$(cat webhook-secret) \
+  --event=issue_comment \
+  --payload=$(pwd)/comment.json
+#+END_SRC
+
+** event
+*** comment_body
+
+#+BEGIN_SRC json
+  /project test_project2 need-attention
+#+END_SRC
+
+*** payload
+#+BEGIN_SRC json :noweb yes :tangle ~/test-infra/comment.json
+  {
+    "action": "created",
+    "issue": {
+      "url": "https://api.github.com/repos/ii/apisnoop/issues/14",
+      "repository_url": "https://api.github.com/repos/ii/apisnoop",
+      "labels_url": "https://api.github.com/repos/ii/apisnoop/issues/14/labels{/name}",
+      "comments_url": "https://api.github.com/repos/ii/apisnoop/issues/14/comments",
+      "events_url": "https://api.github.com/repos/ii/apisnoop/issues/14/events",
+      "html_url": "https://github.com/ii/apisnoop/issues/14",
+      "id": 433492089,
+      "node_id": "MDU6SXNzdWU0MzM0OTIwODk=",
+      "number": 14,
+      "title": "FOOBARBAZ",
+      "user": {
+        "login": "hh",
+        "id": 31331,
+        "node_id": "MDQ6VXNlcjMxMzMx",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/hh",
+        "html_url": "https://github.com/hh",
+        "followers_url": "https://api.github.com/users/hh/followers",
+        "following_url": "https://api.github.com/users/hh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+        "organizations_url": "https://api.github.com/users/hh/orgs",
+        "repos_url": "https://api.github.com/users/hh/repos",
+        "events_url": "https://api.github.com/users/hh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/hh/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "labels": [
+
+      ],
+      "state": "open",
+      "locked": false,
+      "assignee": null,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 171,
+      "created_at": "2019-04-15T21:45:22Z",
+      "updated_at": "2019-04-25T18:07:43Z",
+      "closed_at": null,
+      "author_association": "MEMBER",
+      "body": "/woof"
+    },
+    "comment": {
+      "url": "https://api.github.com/repos/ii/apisnoop/issues/comments/486779495",
+      "html_url": "https://github.com/ii/apisnoop/issues/14#issuecomment-486779495",
+      "issue_url": "https://api.github.com/repos/ii/apisnoop/issues/14",
+      "id": 486779496,
+      "node_id": "MDEyOklzc3VlQ29tbWVudDQ4Njc3OTQ5NQ==",
+      "user": {
+        "login": "hh",
+        "id": 31331,
+        "node_id": "MDQ6VXNlcjMxMzMx",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/hh",
+        "html_url": "https://github.com/hh",
+        "followers_url": "https://api.github.com/users/hh/followers",
+        "following_url": "https://api.github.com/users/hh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+        "organizations_url": "https://api.github.com/users/hh/orgs",
+        "repos_url": "https://api.github.com/users/hh/repos",
+        "events_url": "https://api.github.com/users/hh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/hh/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "created_at": "2019-04-25T18:07:43Z",
+      "updated_at": "2019-04-25T18:07:43Z",
+      "author_association": "MEMBER",
+      "body": "<<comment_body>>"
+    },
+    "repository": {
+      "id": 145496821,
+      "node_id": "MDEwOlJlcG9zaXRvcnkxNDU0OTY4MjE=",
+      "name": "apisnoop",
+      "full_name": "ii/apisnoop",
+      "private": false,
+      "owner": {
+        "login": "ii",
+        "id": 30447,
+        "node_id": "MDEyOk9yZ2FuaXphdGlvbjMwNDQ3",
+        "avatar_url": "https://avatars2.githubusercontent.com/u/30447?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/ii",
+        "html_url": "https://github.com/ii",
+        "followers_url": "https://api.github.com/users/ii/followers",
+        "following_url": "https://api.github.com/users/ii/following{/other_user}",
+        "gists_url": "https://api.github.com/users/ii/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/ii/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/ii/subscriptions",
+        "organizations_url": "https://api.github.com/users/ii/orgs",
+        "repos_url": "https://api.github.com/users/ii/repos",
+        "events_url": "https://api.github.com/users/ii/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/ii/received_events",
+        "type": "Organization",
+        "site_admin": false
+      },
+      "html_url": "https://github.com/ii/apisnoop",
+      "description": "Snooping on the Kubernetes OpenAPI communications",
+      "fork": true,
+      "url": "https://api.github.com/repos/ii/apisnoop",
+      "forks_url": "https://api.github.com/repos/ii/apisnoop/forks",
+      "keys_url": "https://api.github.com/repos/ii/apisnoop/keys{/key_id}",
+      "collaborators_url": "https://api.github.com/repos/ii/apisnoop/collaborators{/collaborator}",
+      "teams_url": "https://api.github.com/repos/ii/apisnoop/teams",
+      "hooks_url": "https://api.github.com/repos/ii/apisnoop/hooks",
+      "issue_events_url": "https://api.github.com/repos/ii/apisnoop/issues/events{/number}",
+      "events_url": "https://api.github.com/repos/ii/apisnoop/events",
+      "assignees_url": "https://api.github.com/repos/ii/apisnoop/assignees{/user}",
+      "branches_url": "https://api.github.com/repos/ii/apisnoop/branches{/branch}",
+      "tags_url": "https://api.github.com/repos/ii/apisnoop/tags",
+      "blobs_url": "https://api.github.com/repos/ii/apisnoop/git/blobs{/sha}",
+      "git_tags_url": "https://api.github.com/repos/ii/apisnoop/git/tags{/sha}",
+      "git_refs_url": "https://api.github.com/repos/ii/apisnoop/git/refs{/sha}",
+      "trees_url": "https://api.github.com/repos/ii/apisnoop/git/trees{/sha}",
+      "statuses_url": "https://api.github.com/repos/ii/apisnoop/statuses/{sha}",
+      "languages_url": "https://api.github.com/repos/ii/apisnoop/languages",
+      "stargazers_url": "https://api.github.com/repos/ii/apisnoop/stargazers",
+      "contributors_url": "https://api.github.com/repos/ii/apisnoop/contributors",
+      "subscribers_url": "https://api.github.com/repos/ii/apisnoop/subscribers",
+      "subscription_url": "https://api.github.com/repos/ii/apisnoop/subscription",
+      "commits_url": "https://api.github.com/repos/ii/apisnoop/commits{/sha}",
+      "git_commits_url": "https://api.github.com/repos/ii/apisnoop/git/commits{/sha}",
+      "comments_url": "https://api.github.com/repos/ii/apisnoop/comments{/number}",
+      "issue_comment_url": "https://api.github.com/repos/ii/apisnoop/issues/comments{/number}",
+      "contents_url": "https://api.github.com/repos/ii/apisnoop/contents/{+path}",
+      "compare_url": "https://api.github.com/repos/ii/apisnoop/compare/{base}...{head}",
+      "merges_url": "https://api.github.com/repos/ii/apisnoop/merges",
+      "archive_url": "https://api.github.com/repos/ii/apisnoop/{archive_format}{/ref}",
+      "downloads_url": "https://api.github.com/repos/ii/apisnoop/downloads",
+      "issues_url": "https://api.github.com/repos/ii/apisnoop/issues{/number}",
+      "pulls_url": "https://api.github.com/repos/ii/apisnoop/pulls{/number}",
+      "milestones_url": "https://api.github.com/repos/ii/apisnoop/milestones{/number}",
+      "notifications_url": "https://api.github.com/repos/ii/apisnoop/notifications{?since,all,participating}",
+      "labels_url": "https://api.github.com/repos/ii/apisnoop/labels{/name}",
+      "releases_url": "https://api.github.com/repos/ii/apisnoop/releases{/id}",
+      "deployments_url": "https://api.github.com/repos/ii/apisnoop/deployments",
+      "created_at": "2018-08-21T02:40:29Z",
+      "updated_at": "2019-03-19T19:24:31Z",
+      "pushed_at": "2019-03-19T19:27:29Z",
+      "git_url": "git://github.com/ii/apisnoop.git",
+      "ssh_url": "git@github.com:ii/apisnoop.git",
+      "clone_url": "https://github.com/ii/apisnoop.git",
+      "svn_url": "https://github.com/ii/apisnoop",
+      "homepage": null,
+      "size": 18662,
+      "stargazers_count": 0,
+      "watchers_count": 0,
+      "language": "CSS",
+      "has_issues": true,
+      "has_projects": true,
+      "has_downloads": true,
+      "has_wiki": true,
+      "has_pages": false,
+      "forks_count": 0,
+      "mirror_url": null,
+      "archived": false,
+      "disabled": false,
+      "open_issues_count": 10,
+      "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "forks": 0,
+      "open_issues": 10,
+      "watchers": 0,
+      "default_branch": "master"
+    },
+    "organization": {
+      "login": "ii",
+      "id": 30447,
+      "node_id": "MDEyOk9yZ2FuaXphdGlvbjMwNDQ3",
+      "url": "https://api.github.com/orgs/ii",
+      "repos_url": "https://api.github.com/orgs/ii/repos",
+      "events_url": "https://api.github.com/orgs/ii/events",
+      "hooks_url": "https://api.github.com/orgs/ii/hooks",
+      "issues_url": "https://api.github.com/orgs/ii/issues",
+      "members_url": "https://api.github.com/orgs/ii/members{/member}",
+      "public_members_url": "https://api.github.com/orgs/ii/public_members{/member}",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/30447?v=4",
+      "description": "inclusively integrating the world"
+    },
+    "sender": {
+      "login": "hh",
+      "id": 31331,
+      "node_id": "MDQ6VXNlcjMxMzMx",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/31331?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/hh",
+      "html_url": "https://github.com/hh",
+      "followers_url": "https://api.github.com/users/hh/followers",
+      "following_url": "https://api.github.com/users/hh/following{/other_user}",
+      "gists_url": "https://api.github.com/users/hh/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/hh/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/hh/subscriptions",
+      "organizations_url": "https://api.github.com/users/hh/orgs",
+      "repos_url": "https://api.github.com/users/hh/repos",
+      "events_url": "https://api.github.com/users/hh/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/hh/received_events",
+      "type": "User",
+      "site_admin": false
+    }
+  }
+#+END_SRC
+** flow
+*** restart
+
+#+BEGIN_SRC tmate
+  kubectl delete pods --namespace=default -l app=hook
+#+END_SRC
+
+*** logging
+
+xargs -n 1 limits it to running one line at a time rather than multiple
+xargs -P 5 enables mulitple processes, so in parallel
+
+#+BEGIN_SRC tmate
+  kubectl get pods --namespace=default -l app=hook -o name \
+  | sed s:pod/:: \
+  | xargs -n 1 -P 5 kubectl logs -f \
+  | grep -v /etc/config/config.yaml \
+  | jq -c -S
+#+END_SRC
+
+*** comment
+Documentation for ~/project~ command:
+https://prow.k8s.io/command-help
+
+#+BEGIN_EXAMPLE
+/project 0.5.0
+/project 0.5.0 To do
+/project clear 0.4.0
+#+END_EXAMPLE
+
+#+BEGIN_SRC note
+/project test_project
+#+END_SRC
+
+** projects
+
+1 test_project
+2 test_project2
+3 Projects Documentation
+
+- [ ] list projects
+- [ ] list project boards
+
 * PR Status
 [[https://github.com/kubernetes/test-infra/blob/master/prow/docs/pr_status_setup.md#how-to-setup-pr-status]]
 *** github oauth app
@@ -1150,7 +1497,7 @@ https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml
 
 [[https://github.com/kubernetes/test-infra/blob/master/testgrid/config.yaml#L50][testgrid/config.yaml#testgroups]]
 #+NAME: testgrid test_group ci-kubernetes-gce-conformance
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   #
   # Start testgroups
   #
@@ -1186,7 +1533,7 @@ https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conforman
 Gubernator, used to be used, but now we default to spyglass.
 ** jobs
 [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-gcp/gce-conformance.yaml][config/jobs/kubernetes/sig-gcp/gce-conformance.yaml]]
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   periodics:
   - interval: 6h
     name: ci-kubernetes-gce-conformance
@@ -1366,6 +1713,21 @@ Visit http://localhost:8080
 
 * Footnotes
 
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:yaml  :noweb yes
+#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
 # Local Variables:
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
 # eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
