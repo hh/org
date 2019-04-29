@@ -8,12 +8,12 @@
 * test
 
 #+BEGIN_SRC shell
-echo hello from `hostname`
+echo hello as hh from `hostname`
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE
-hello from ii.cncf.ci
+hello as hh from ii.cncf.ci
 #+END_EXAMPLE
 
 * remote

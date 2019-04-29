@@ -15,9 +15,16 @@
 * iam dump
 ** exploring
 *** list org projects
+
+Unsure what parent.id is.
+It's likely to group together sub projects.
+I suspect it's the CNCF umbrella account.
+    
 #+NAME: list org projects
 #+BEGIN_SRC shell
-gcloud projects list --filter "parent.id=758905017065" --format "value(name, projectId, projectNumber)"
+gcloud projects list \
+  --filter "parent.id=758905017065" \
+  --format "value(name, projectId, projectNumber)"
 #+END_SRC
 
 #+RESULTS: list org projects
@@ -27,6 +34,22 @@ kubernetes-public	kubernetes-public	127754664067
 
 ** iam dump
 *** CNCF org
+
+What permissions are needed to describe an org?
+
+#+NAME: describe CNCF org
+#+BEGIN_SRC shell :wrap SRC yaml
+gcloud organizations describe 758905017065 2>&1
+:
+#+END_SRC
+
+#+RESULTS: describe CNCF org
+#+BEGIN_SRC yaml
+ERROR: (gcloud.organizations.describe)
+User [hh@ii.coop] does not have permission to access organization [758905017065] (or it may not exist): The caller does not have permission
+#+END_SRC
+
+
 #+NAME: iam dump CNCF org
 #+BEGIN_SRC shell :wrap SRC yaml
 gcloud organizations get-iam-policy 758905017065
@@ -46,7 +69,10 @@ bindings:
   - user:thockin@google.com
   role: roles/billing.creator
 - members:
-  - user:hh@ii.coop
+  - user:thockin@google.com
+  role: roles/iam.organizationRoleAdmin
+- members:
+  - group:k8s-infra-gcp-auditors@googlegroups.com
   role: roles/iam.securityReviewer
 - members:
   - user:domain-admin-lf@kubernetes.io
@@ -61,7 +87,7 @@ bindings:
 - members:
   - user:thockin@google.com
   role: roles/resourcemanager.projectDeleter
-etag: BwWDl6w4hzc=
+etag: BwWDmKQ6zmg=
 #+END_SRC
 
 *** kubernetes-public

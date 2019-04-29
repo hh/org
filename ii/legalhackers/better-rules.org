@@ -16,7 +16,6 @@ https://github.com/serviceinnovationlab/openfisca-aoteroa.git
 We will be standing up both an OpenFisca instance and a web front end to enable
 OpenAPI interaction with OpenFisca focused on education entitlement.
 
-
 https://github.com/jmhbnz/openfisca-aotearoa
 
 ** DONE How do I get it? 
