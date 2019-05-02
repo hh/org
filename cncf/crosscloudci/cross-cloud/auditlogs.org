@@ -50,14 +50,14 @@ We may be able to override the terraform objects here, and not have to commit.
 
 [[file:~/cnf-testbed/tools/k8s_cluster_override.tf::module%20"master_templates"%20{]]
 
-The overrides are passed in as file to the docker run command:
+The overrides are passed in as a file to the docker run command:
 
 [[file:~/cnf-testbed/tools/deploy_k8s_cluster.sh::docker%20run%20\][cnf-testbed/tools/deploy_k8s_cluster.sh]]
 
 The container in use is 
   -ti registry.cidev.cncf.ci/cncf/cross-cloud/provisioning:master
 
-This container is likely build from source at:
+This container is likely built from source at:
 
 https://github.com/crosscloudci/cross-cloud/blob/master/Dockerfile#L187
 [[file:~/cross-cloud/Dockerfile::CMD%20%5B"bash",%20"-c",%20"/cncf/provision.sh"%5D]]
@@ -73,14 +73,14 @@ Ensure we begin our session rebased on master!
 ** Changes
 
 Enabling audit logging is rather straight forward, and requires minimal changes in most cases.
-This is intentional; Participation should simple and viable. 
+This is intentional; Participation should be simple and viable. 
 
 See the PR to view the changes:
 https://github.com/crosscloudci/cross-cloud/pull/187/files
 
 ** Testing
 
-Deploy and verify auditlog are being written.
+Deploy and verify auditlogs are being written.
 
 #+BEGIN_SRC tmate
   export PACKET_AUTH_TOKEN=$(cat cnf-packet-key)
