@@ -1,0 +1,180 @@
+#+TITLE: Purism Keys
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 7th of May, 2019
+* Generating Keys
+** main key
+
+Brainpool P-512 with Sign Certify and Authenticate:
+Name, Email, Comment towards bottom
+Supported Keys: https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#technical-specs
+#+BEGIN_SRC tmate
+  
+  gpg --expert --full-generate-key
+  11
+  A
+  Q
+  9
+  5y
+  y
+  Hippie Hacker
+  hh@ii.coop
+  Comment
+  O
+#+END_SRC
+
+** subkeys
+
+#+BEGIN_SRC tmate
+  
+  gpg --expert --edit-key hh@ii.coop
+  addkey
+  11
+  A
+  Q
+  9
+  5y
+  y
+  y
+  trust
+  5
+  y
+  save
+#+END_SRC
+
+** revoke
+
+#+BEGIN_SRC tmate
+  
+  gpg --output ~/.gnupg/main-revoke.asc --gen-revoke hh@ii.coop
+  y
+  3
+  This was a pregenerated revokation in case I last my keys.
+#+END_SRC
+
+For some reason I'm having a hard time sending the newline...
+
+#+BEGIN_SRC tmate
+
+ y
+#+END_SRC
+
+* Librem Keyfob
+** factory reset
+#+BEGIN_SRC tmate
+  gpg --edit-card
+  admin
+  factory-reset
+#+END_SRC
+** set initiial pins
+
+You need to set the pins to something only you know.
+
+The initial user pin is 123456
+
+#+BEGIN_SRC tmate
+  
+  gpg --card-edit
+  admin
+  passwd
+  1
+#+END_SRC
+
+The initial admin pin is 12345678
+
+#+BEGIN_SRC tmate
+  
+  gpg --card-edit
+  admin
+  passwd
+  3
+#+END_SRC
+
+** move subkey to librem
+
+#+BEGIN_SRC tmate
+
+gpg --card-status
+gpg --expert --edit-key hh@ii.coop
+key 1
+keytocard
+1
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+$ gpg --expert --edit-key hh@ii.coop
+gpg (GnuPG) 2.2.12; Copyright (C) 2018 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Secret key is available.
+
+sec  secp256k1/105AB8CF25084EA4
+     created: 2019-05-06  expires: 2024-05-04  usage: SCA 
+     trust: ultimate      validity: ultimate
+ssb  secp256k1/1C1AC12EF34D0A1C
+     created: 2019-05-06  expires: 2024-05-04  usage: SA  
+[ultimate] (1). Hippie Hacker (Comment) <hh@ii.coop>
+
+gpg> key 1
+
+sec  secp256k1/105AB8CF25084EA4
+     created: 2019-05-06  expires: 2024-05-04  usage: SCA 
+     trust: ultimate      validity: ultimate
+ssb* secp256k1/1C1AC12EF34D0A1C
+     created: 2019-05-06  expires: 2024-05-04  usage: SA  
+[ultimate] (1). Hippie Hacker (Comment) <hh@ii.coop>
+
+gpg> keytocard
+Please select where to store the key:
+   (1) Signature key
+   (3) Authentication key
+Your selection? 1
+gpg: KEYTOCARD failed: Invalid value
+
+gpg> keytocard
+Please select where to store the key:
+   (1) Signature key
+   (3) Authentication key
+Your selection? 3
+gpg: KEYTOCARD failed: Invalid value
+#+END_EXAMPLE
+
+* Notes
+https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#detecting-your-openpgp-smart-card
+
+* Footnotes
+
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:yaml  :noweb yes
+#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1)
+# eval: (gui-select-text start-tmate-command)
+# eval: (xclip-mode 1)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# End:
+
