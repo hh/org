@@ -47,6 +47,29 @@ periodics:
     - image: alpine
       command: ["/bin/date"]
 
+# postsubmits
+
+postsubmits:
+  cncf/apisnoop:
+    - name: apisnoop-postprocess-audits
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/process-audits.sh"
+          resources:
+            requests:
+              cpu: 3.5
+              memory: "5Gi"
+
 # presubmits
 
 
