@@ -709,7 +709,7 @@ repos:
       # - project
     - pony
     - release-note
-    - require-sig
+    # - require-sig
     - require-matching-label
     - shrug
     - sigmention
@@ -885,7 +885,7 @@ Initially config is empty and plugins only contains size:
 ExitCode: 0
 #+END_EXAMPLE
 
-*** replace
+*** replace AND restart
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no :async
   <<check the config files>>
   echo
@@ -901,9 +901,9 @@ ExitCode: 0
 configmap/config replaced
 ExitCode: 0
 configmap/plugins replaced
-ExitCode: 0pod "hook-86d9f6dfc6-q2kkp" deleted
-pod "hook-86d9f6dfc6-qjdl6" deleted
-pod "plank-564d8c4b8b-dzxhq" deleted
+ExitCode: 0pod "hook-86d9f6dfc6-9qlhb" deleted
+pod "hook-86d9f6dfc6-skg4c" deleted
+pod "plank-564d8c4b8b-cs87t" deleted
 #+END_EXAMPLE
 
 ** restart pods

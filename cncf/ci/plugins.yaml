@@ -155,7 +155,7 @@ plugins:
     # - project
   - pony
   - release-note
-  - require-sig
+  # - require-sig
   - require-matching-label
   - shrug
   - sigmention
