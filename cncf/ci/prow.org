@@ -708,7 +708,7 @@ repos:
     - owners-label
       # - project
     - pony
-    - release-note
+    # - release-note
     # - require-sig
     - require-matching-label
     - shrug
@@ -743,7 +743,7 @@ repos:
     - owners-label
       # - project
     - pony
-    - release-note
+    # - release-note
     - require-sig
     - require-matching-label
     - shrug
@@ -901,9 +901,9 @@ ExitCode: 0
 configmap/config replaced
 ExitCode: 0
 configmap/plugins replaced
-ExitCode: 0pod "hook-86d9f6dfc6-ghw7x" deleted
-pod "hook-86d9f6dfc6-stcxq" deleted
-pod "plank-564d8c4b8b-ngpb6" deleted
+ExitCode: 0pod "hook-86d9f6dfc6-dtsnf" deleted
+pod "hook-86d9f6dfc6-h6kth" deleted
+pod "plank-564d8c4b8b-nvxkf" deleted
 #+END_EXAMPLE
 
 ** restart pods

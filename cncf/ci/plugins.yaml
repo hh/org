@@ -154,7 +154,7 @@ plugins:
   - owners-label
     # - project
   - pony
-  - release-note
+  # - release-note
   # - require-sig
   - require-matching-label
   - shrug
@@ -189,7 +189,7 @@ plugins:
   - owners-label
     # - project
   - pony
-  - release-note
+  # - release-note
   - require-sig
   - require-matching-label
   - shrug
