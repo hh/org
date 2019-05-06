@@ -419,9 +419,6 @@ kubectl get configmap config -o json | jq -r '.data["config.yaml"]'
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
-time="2019-04-28T09:46:27Z" level=warning msg="the following jobs use the kubernetes provider but do not use the pod utilities: [ci-kubernetes-gce-conformance]" component=checkconfig
-time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in config.yaml: approve, blockades, blunderbuss, containers, label, lgtm, plugins, project_config, repo_milestone, require_matching_label, size, triggers, welcome" component=checkconfig
-time="2019-04-28T09:46:27Z" level=warning msg="unknown fields present in plugins.yaml: containers, deck, periodics, plank, presubmits" component=checkconfig
 ExitCode: 0
 #+END_EXAMPLE
 
@@ -508,7 +505,7 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
   triggers:
   - repos:
     - apisnoop
-    trusted_org: ii-ci
+    trusted_org: cncf
     join_org_url: "https://git.k8s.io/community/community-membership.md#member"
     only_org_members: true
 #+END_SRC
@@ -523,6 +520,11 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
   approve:
   - repos:
     - ii-ci/apisnoop
+    require_self_approval: false
+    ignore_review_state: false
+    lgtm_acts_as_approve: true
+  - repos:
+    - cncf/apisnoop
     require_self_approval: false
     ignore_review_state: false
     lgtm_acts_as_approve: true
@@ -608,6 +610,7 @@ repos:
   lgtm:
   - repos:
     - ii-ci/apisnoop
+    - cncf/apisnoop
     review_acts_as_lgtm: true
     store_tree_hash: true
 #+END_SRC
@@ -620,6 +623,7 @@ repos:
   blockades:
   - repos:
     - ii-ci/apisnoop
+    - cncf/apisnoop
     blockregexps:
     - ^dev/
     explanation: "dev/ was deprecated"
@@ -641,11 +645,14 @@ repos:
 #+BEGIN_SRC yaml
   repo_milestone:
     '':
-      maintainers_id: 3230820
-      maintainers_team: automation
+      maintainers_id: 2045178
+      maintainers_team: cncf-contractors
     ii-ci/apisnoop:
       maintainers_id: 3230820
       maintainers_team: automation
+    cncf/apisnoop:
+      maintainers_id: 2045178
+      maintainers_team: cncf-contractors
 #+END_SRC
 
 ** welcome
@@ -666,18 +673,54 @@ repos:
 #+BEGIN_SRC yaml
   require_matching_label:
   - missing_label: data-gen
-    org: ii-ci
+    org: apisnoop
     repo: apisnoop
     prs: true
     regexp: ^data-gen/
-    missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
+    missing_comment: "Must tag with data-gen to modify anything under ./data-gen/"
 #+END_SRC
+
 ** plugins
 
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 #+BEGIN_SRC yaml
   plugins:
+    cncf/apisnoop:
+    - approve  # Allow OWNERS to /approve
+    - assign  # Allow /assign and /cc
+    - blockade
+    - blunderbuss  # Auto-assign people
+    - cat # /meow replies with cat pictures
+    - cherry-pick-unapproved
+    - cla
+    - dog # /bark replies with dog pictures
+    - heart
+    - help  # Support /help and /good-first-issue
+    - hold  # Support /hold to delay merge
+    - label
+    - lgtm  # Allow /lgtm
+    - lifecycle  # Allow /lifecycle stale
+    - milestone
+    - milestonestatus
+    - owners-label
+    - override
+    - owners-label
+      # - project
+    - pony
+    - release-note
+    - require-sig
+    - require-matching-label
+    - shrug
+    - sigmention
+    - stage
+    - skip
+    - size  # Auto-label size of PR
+    - trigger  # Allow people to configure CI jobs to /test
+    - verify-owners # Validates OWNERS file changes in PRs.
+    - welcome
+    - wip  # Auto-hold PRs with WIP in title
+    - yuks # Let prow tell a /joke
     ii-ci/apisnoop:
     - approve  # Allow OWNERS to /approve
     - assign  # Allow /assign and /cc
@@ -730,12 +773,13 @@ curl /orgs/ii/teams/maintainer_team
 
 #+BEGIN_SRC shell :tangle no
 . ~/githubtoken
-curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" https://api.github.com/orgs/ii-ci/teams/automation | jq .id
+curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+json" \
+ https://api.github.com/orgs/cncf/teams/cncf-contractors | jq .id
 #+END_SRC
 
 #+RESULTS:
 #+BEGIN_EXAMPLE :noeval t
-3230820
+2045178
 #+END_EXAMPLE
 
 #+BEGIN_SRC shell :tangle no
@@ -857,9 +901,9 @@ ExitCode: 0
 configmap/config replaced
 ExitCode: 0
 configmap/plugins replaced
-ExitCode: 0pod "hook-86d9f6dfc6-9dllt" deleted
-pod "hook-86d9f6dfc6-9hxpr" deleted
-pod "plank-564d8c4b8b-9fl5g" deleted
+ExitCode: 0pod "hook-86d9f6dfc6-mbb2p" deleted
+pod "hook-86d9f6dfc6-v7499" deleted
+pod "plank-564d8c4b8b-hcw4g" deleted
 #+END_EXAMPLE
 
 ** restart pods
@@ -938,13 +982,25 @@ pod "plank-564d8c4b8b-86cq6" deleted
 ** postsubmits
 #+BEGIN_SRC yaml :tangle no
   postsubmits:
-    ii-ci/apisnoop:
-    - name: apisnoop-test-postsubmit
-      decorate: true
-      spec:
-        containers:
-        - image: alpine
-          command: ["/bin/printenv"]
+    cncf/apisnoop:
+      - name: apisnoop-postprocess-audits
+        branches:
+        - master
+        always_run: true
+        decorate: true
+        skip_report: false
+        spec:
+          containers:
+          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            command:
+            - /bin/bash
+            - -c
+            args:
+            - "./hack/ci/process-audits.sh"
+            resources:
+              requests:
+                cpu: 3.5
+                memory: "5Gi"
 #+END_SRC
 ** presubmits
 
@@ -954,7 +1010,7 @@ Memory usage is a bit high, could do with some optimization.
 
 #+BEGIN_SRC yaml
   presubmits:
-    ii-ci/apisnoop:
+    cncf/apisnoop:
       - name: apisnoop-process-audits
         branches:
         - master
@@ -973,7 +1029,25 @@ Memory usage is a bit high, could do with some optimization.
               requests:
                 cpu: 3.5
                 memory: "5Gi"
-
+    ii-ci/apisnoop:
+      - name: ii-ci-apisnoop-process-audits
+        branches:
+        - master
+        always_run: true
+        decorate: true
+        skip_report: false
+        spec:
+          containers:
+          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+            command:
+            - /bin/bash
+            - -c
+            args:
+            - "./hack/ci/process-audits.sh"
+            resources:
+              requests:
+                cpu: 3.5
+                memory: "5Gi"
       - name: apisnoop-tmate
         branches:
         - master

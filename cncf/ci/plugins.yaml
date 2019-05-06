@@ -6,7 +6,7 @@
 triggers:
 - repos:
   - apisnoop
-  trusted_org: ii-ci
+  trusted_org: cncf
   join_org_url: "https://git.k8s.io/community/community-membership.md#member"
   only_org_members: true
 
@@ -20,6 +20,11 @@ triggers:
 approve:
 - repos:
   - ii-ci/apisnoop
+  require_self_approval: false
+  ignore_review_state: false
+  lgtm_acts_as_approve: true
+- repos:
+  - cncf/apisnoop
   require_self_approval: false
   ignore_review_state: false
   lgtm_acts_as_approve: true
@@ -57,6 +62,7 @@ label:
 lgtm:
 - repos:
   - ii-ci/apisnoop
+  - cncf/apisnoop
   review_acts_as_lgtm: true
   store_tree_hash: true
 
@@ -68,6 +74,7 @@ lgtm:
 blockades:
 - repos:
   - ii-ci/apisnoop
+  - cncf/apisnoop
   blockregexps:
   - ^dev/
   explanation: "dev/ was deprecated"
@@ -87,11 +94,14 @@ blunderbuss:
 
 repo_milestone:
   '':
-    maintainers_id: 3230820
-    maintainers_team: automation
+    maintainers_id: 2045178
+    maintainers_team: cncf-contractors
   ii-ci/apisnoop:
     maintainers_id: 3230820
     maintainers_team: automation
+  cncf/apisnoop:
+    maintainers_id: 2045178
+    maintainers_team: cncf-contractors
 
 # welcome
     
@@ -110,11 +120,11 @@ welcome:
 
 require_matching_label:
 - missing_label: data-gen
-  org: ii-ci
+  org: apisnoop
   repo: apisnoop
   prs: true
   regexp: ^data-gen/
-  missing_comment: "Must tag with data-get to modify anything under ./data-gen/"
+  missing_comment: "Must tag with data-gen to modify anything under ./data-gen/"
 
 # plugins
 
@@ -122,6 +132,41 @@ require_matching_label:
 
 
 plugins:
+  cncf/apisnoop:
+  - approve  # Allow OWNERS to /approve
+  - assign  # Allow /assign and /cc
+  - blockade
+  - blunderbuss  # Auto-assign people
+  - cat # /meow replies with cat pictures
+  - cherry-pick-unapproved
+  - cla
+  - dog # /bark replies with dog pictures
+  - heart
+  - help  # Support /help and /good-first-issue
+  - hold  # Support /hold to delay merge
+  - label
+  - lgtm  # Allow /lgtm
+  - lifecycle  # Allow /lifecycle stale
+  - milestone
+  - milestonestatus
+  - owners-label
+  - override
+  - owners-label
+    # - project
+  - pony
+  - release-note
+  - require-sig
+  - require-matching-label
+  - shrug
+  - sigmention
+  - stage
+  - skip
+  - size  # Auto-label size of PR
+  - trigger  # Allow people to configure CI jobs to /test
+  - verify-owners # Validates OWNERS file changes in PRs.
+  - welcome
+  - wip  # Auto-hold PRs with WIP in title
+  - yuks # Let prow tell a /joke
   ii-ci/apisnoop:
   - approve  # Allow OWNERS to /approve
   - assign  # Allow /assign and /cc
