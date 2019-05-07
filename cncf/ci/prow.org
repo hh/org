@@ -1000,24 +1000,24 @@ This job runs only against commits and merges to master.
 The script generates our data and uploads it to GCS.
 
 #+BEGIN_SRC yaml
-  - name: apisnoop-postprocess-audits
-    branches:
-    - master
-    always_run: true
-    decorate: true
-    skip_report: false
-    spec:
-      containers:
-      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-        command:
-        - /bin/bash
-        - -c
-        args:
-        - "./hack/ci/prow-production.sh"
-        resources:
-          requests:
-            cpu: 3.5
-            memory: "5Gi"
+    - name: apisnoop-postprocess-audits
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/prow-production.sh"
+          resources:
+            requests:
+              cpu: 3.5
+              memory: "5Gi"
 #+END_SRC
 ** presubmits
 
@@ -1033,27 +1033,27 @@ presubmits:
 #+END_SRC
 **** apisnoop-process-audits
 #+BEGIN_SRC yaml
-  - name: apisnoop-process-audits
-    branches:
-    - master
-    always_run: true
-    decorate: true
-    skip_report: false
-    spec:
-      containers:
-      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-        command:
-        - /bin/bash
-        - -c
-        args:
-        - "./hack/ci/prow-pr.sh"
-        resources:
-          requests:
-            cpu: 3.5
-            memory: "5Gi"
+    - name: apisnoop-process-audits
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/prow-pr.sh"
+          resources:
+            requests:
+              cpu: 3.5
+              memory: "5Gi"
 #+END_SRC
 *** ii-ci/apisnoop
-#+BEGIN_SRC yaml
+#+BEGIN_SRC yaml :tangle no
   ii-ci/apisnoop:
   - name: ii-ci-apisnoop-process-audits
     branches:
