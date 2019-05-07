@@ -882,14 +882,14 @@ Initially config is empty and plugins only contains size:
 #+RESULTS:
 
 *** check
-#+BEGIN_SRC shell :results drawer :noweb yes :tangle no
+#+BEGIN_SRC shell :results code :noweb yes :tangle no :wrap "SRC text"
   <<check the config files>>
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_EXAMPLE :noeval t
+#+BEGIN_SRC text
 ExitCode: 0
-#+END_EXAMPLE
+#+END_SRC
 
 *** replace AND restart
 #+BEGIN_SRC shell :results drawer :noweb yes :tangle no :async
