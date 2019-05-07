@@ -1,3 +1,5 @@
+log_level: debug
+
 # https://github.com/kubernetes/test-infra/issues/11729
 #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
 # component=checkconfig error="no default decoration config provided for plank"
@@ -48,7 +50,6 @@ postsubmits:
   - name: apisnoop-postprocess-audits
     branches:
     - master
-    always_run: true
     decorate: true
     skip_report: false
     spec:
@@ -71,9 +72,9 @@ presubmits:
   - name: apisnoop-process-audits
     branches:
     - master
-    always_run: true
     decorate: true
     skip_report: false
+    always_run: true
     spec:
       containers:
       - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
@@ -86,41 +87,3 @@ presubmits:
           requests:
             cpu: 3.5
             memory: "5Gi"
-
-  ii-ci/apisnoop:
-  - name: ii-ci-apisnoop-process-audits
-    branches:
-    - master
-    always_run: true
-    decorate: true
-    skip_report: false
-    spec:
-      containers:
-      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-        command:
-        - /bin/bash
-        - -c
-        args:
-        - "./hack/ci/process-audits.sh"
-        resources:
-          requests:
-            cpu: 3.5
-            memory: "5Gi"
-  - name: apisnoop-tmate
-    branches:
-    - master
-    always_run: true
-    decorate: true
-    skip_report: false
-    spec:
-      containers:
-      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-        command:
-        - /bin/bash
-        - -c
-        args:
-        - "./hack/ci/tmate.sh"
-        resources:
-          requests:
-            cpu: 0.5
-            memory: "500Mi"
