@@ -1854,7 +1854,7 @@ Visit http://localhost:8080
 #+PROPERTY: header-args:json  :noweb yes
 #+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
 #+PROPERTY: header-args:yaml  :noweb yes
-#+PROPERTY: header-args:yaml+ :comments org
+#+PROPERTY: header-args:yaml+ :nocomments org
 #+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: content
@@ -1873,5 +1873,6 @@ Visit http://localhost:8080
 # org-babel-tmate-default-window-name: "main"
 # org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
+# org-src-preserve-indentation: t
 # End:
 
