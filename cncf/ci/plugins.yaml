@@ -1,21 +1,9 @@
-# triggers
-    
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::triggers:]] 
-
-
 triggers:
 - repos:
   - apisnoop
   trusted_org: cncf
   join_org_url: "https://git.k8s.io/community/community-membership.md#member"
   only_org_members: true
-
-# approve
-    
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::approve:]] 
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins/approve/approvers/README.md::#%20Reviewers%20and%20Approvers]]    
-
 
 approve:
 - repos:
@@ -29,11 +17,6 @@ approve:
   ignore_review_state: false
   lgtm_acts_as_approve: true
 
-# size
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::size:]] 
-
-
 # Lower bounds in number of lines changed; XS is assumed to be zero.
 size:
   s:   10
@@ -42,11 +25,6 @@ size:
   xl:  500
   xxl: 1000
 
-# label
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::label:]] 
-
-
 label:
   additional_labels:
     - area/apisnoop
@@ -54,22 +32,12 @@ label:
     - api-review
     - conformance-promotion
 
-# lgtm
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::lgtm:]] 
-    
-
 lgtm:
 - repos:
   - ii-ci/apisnoop
   - cncf/apisnoop
   review_acts_as_lgtm: true
   store_tree_hash: true
-
-# blockades
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blockades:]] 
-
 
 blockades:
 - repos:
@@ -79,18 +47,8 @@ blockades:
   - ^dev/
   explanation: "dev/ was deprecated"
 
-# blunderbuss
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blunderbuss:]] 
-    
-
 blunderbuss:
   max_request_count: 2
-
-# repo_milestones
-    
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::repo_milestone:]] 
-    
 
 repo_milestone:
   '':
@@ -103,20 +61,10 @@ repo_milestone:
     maintainers_id: 2045178
     maintainers_team: cncf-contractors
 
-# welcome
-    
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::welcome:]] 
-
-
 welcome:
 - repos:
   - apisnoop
   message_template: "Welcome @{{.AuthorLogin}}! <br><br>It looks like this is your first PR to <a href='https://github.com/{{.Org}}/{{.Repo}}'>{{.Org}}/{{.Repo}}</a> 🎉 PARTY. Please refer to our [pull request process documentation](https://git.k8s.io/community/contributors/guide/pull-requests.md) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if {{.Org}}/{{.Repo}} has [its own contribution guidelines](https://github.com/{{.Org}}/{{.Repo}}/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet/README.md). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:"
-
-# require_matching_label
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::require_matching_label:]] 
-
 
 require_matching_label:
 - missing_label: data-gen
@@ -125,11 +73,6 @@ require_matching_label:
   prs: true
   regexp: ^data-gen/
   missing_comment: "Must tag with data-gen to modify anything under ./data-gen/"
-
-# plugins
-
-# [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
-
 
 plugins:
   cncf/apisnoop:
@@ -203,13 +146,6 @@ plugins:
   - wip  # Auto-hold PRs with WIP in title
   - yuks # Let prow tell a /joke
 
-
-
-# #+RESULTS:
-# #+BEGIN_EXAMPLE :noeval t
-# #+END_EXAMPLE
-
-
 project_config:
   project_org_configs:
     ii-ci:
@@ -235,9 +171,6 @@ project_config:
               column1
               column2
               column3
-
-# project_manager
-
 
 # project_manager:
 #   org/repos:

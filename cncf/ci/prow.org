@@ -186,7 +186,13 @@ rolebinding.rbac.authorization.k8s.io/tide created
 
 #+RESULTS: our customized prow deployment
 #+BEGIN_EXAMPLE :noeval t
-1
+deployment.extensions/hook configured
+deployment.extensions/plank configured
+deployment.extensions/sinker configured
+deployment.extensions/deck configured
+deployment.extensions/horologium configured
+deployment.extensions/tide configured
+0
 #+END_EXAMPLE
 
 
@@ -486,15 +492,15 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
    :END:
 
 #+BEGIN_SRC yaml :tangle no
-  plugins:
-    # cncf/apisnoop:
-    # <<plugins_for_all_repos>>
-    ii/apisnoop:
-    <<plugins_for_all_repos>>
-    ii/openfisca-aotearoa:
-    <<plugins_for_all_repos>>
-    ii/RapuTure:
-    <<plugins_for_all_repos>>
+plugins:
+  # cncf/apisnoop:
+  # <<plugins_for_all_repos>>
+  ii/apisnoop:
+  <<plugins_for_all_repos>>
+  ii/openfisca-aotearoa:
+  <<plugins_for_all_repos>>
+  ii/RapuTure:
+  <<plugins_for_all_repos>>
 #+END_SRC
 
 ** triggers
@@ -502,12 +508,12 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::triggers:]] 
 
 #+BEGIN_SRC yaml
-  triggers:
-  - repos:
-    - apisnoop
-    trusted_org: cncf
-    join_org_url: "https://git.k8s.io/community/community-membership.md#member"
-    only_org_members: true
+triggers:
+- repos:
+  - apisnoop
+  trusted_org: cncf
+  join_org_url: "https://git.k8s.io/community/community-membership.md#member"
+  only_org_members: true
 #+END_SRC
 
 ** approve
@@ -517,17 +523,17 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 [[file:~/go/src/k8s.io/test-infra/prow/plugins/approve/approvers/README.md::#%20Reviewers%20and%20Approvers]]    
 
 #+BEGIN_SRC yaml
-  approve:
-  - repos:
-    - ii-ci/apisnoop
-    require_self_approval: false
-    ignore_review_state: false
-    lgtm_acts_as_approve: true
-  - repos:
-    - cncf/apisnoop
-    require_self_approval: false
-    ignore_review_state: false
-    lgtm_acts_as_approve: true
+approve:
+- repos:
+  - ii-ci/apisnoop
+  require_self_approval: false
+  ignore_review_state: false
+  lgtm_acts_as_approve: true
+- repos:
+  - cncf/apisnoop
+  require_self_approval: false
+  ignore_review_state: false
+  lgtm_acts_as_approve: true
 #+END_SRC
 
 ** size
@@ -535,13 +541,13 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::size:]] 
 
 #+BEGIN_SRC yaml
-  # Lower bounds in number of lines changed; XS is assumed to be zero.
-  size:
-    s:   10
-    m:   30
-    l:   100
-    xl:  500
-    xxl: 1000
+# Lower bounds in number of lines changed; XS is assumed to be zero.
+size:
+  s:   10
+  m:   30
+  l:   100
+  xl:  500
+  xxl: 1000
 #+END_SRC
 
 ** label
@@ -549,12 +555,12 @@ RUN ME =>>>> [[update-plugins][update-plugins]]
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::label:]] 
 
 #+BEGIN_SRC yaml
-  label:
-    additional_labels:
-      - area/apisnoop
-      - lang/markdown
-      - api-review
-      - conformance-promotion
+label:
+  additional_labels:
+    - area/apisnoop
+    - lang/markdown
+    - api-review
+    - conformance-promotion
 #+END_SRC
 ** labels.yaml
   [[file:~/go/src/k8s.io/test-infra/label_sync/labels.yaml]] 
@@ -607,12 +613,12 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::lgtm:]] 
     
 #+BEGIN_SRC yaml
-  lgtm:
-  - repos:
-    - ii-ci/apisnoop
-    - cncf/apisnoop
-    review_acts_as_lgtm: true
-    store_tree_hash: true
+lgtm:
+- repos:
+  - ii-ci/apisnoop
+  - cncf/apisnoop
+  review_acts_as_lgtm: true
+  store_tree_hash: true
 #+END_SRC
 
 ** blockades
@@ -620,13 +626,13 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blockades:]] 
 
 #+BEGIN_SRC yaml
-  blockades:
-  - repos:
-    - ii-ci/apisnoop
-    - cncf/apisnoop
-    blockregexps:
-    - ^dev/
-    explanation: "dev/ was deprecated"
+blockades:
+- repos:
+  - ii-ci/apisnoop
+  - cncf/apisnoop
+  blockregexps:
+  - ^dev/
+  explanation: "dev/ was deprecated"
 #+END_SRC
 
 ** blunderbuss
@@ -634,8 +640,8 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::blunderbuss:]] 
     
 #+BEGIN_SRC yaml
-  blunderbuss:
-    max_request_count: 2
+blunderbuss:
+  max_request_count: 2
 #+END_SRC
 
 ** repo_milestones
@@ -643,16 +649,16 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::repo_milestone:]] 
     
 #+BEGIN_SRC yaml
-  repo_milestone:
-    '':
-      maintainers_id: 2045178
-      maintainers_team: cncf-contractors
-    ii-ci/apisnoop:
-      maintainers_id: 3230820
-      maintainers_team: automation
-    cncf/apisnoop:
-      maintainers_id: 2045178
-      maintainers_team: cncf-contractors
+repo_milestone:
+  '':
+    maintainers_id: 2045178
+    maintainers_team: cncf-contractors
+  ii-ci/apisnoop:
+    maintainers_id: 3230820
+    maintainers_team: automation
+  cncf/apisnoop:
+    maintainers_id: 2045178
+    maintainers_team: cncf-contractors
 #+END_SRC
 
 ** welcome
@@ -660,10 +666,10 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::welcome:]] 
 
 #+BEGIN_SRC yaml
-  welcome:
-  - repos:
-    - apisnoop
-    message_template: "Welcome @{{.AuthorLogin}}! <br><br>It looks like this is your first PR to <a href='https://github.com/{{.Org}}/{{.Repo}}'>{{.Org}}/{{.Repo}}</a> 🎉 PARTY. Please refer to our [pull request process documentation](https://git.k8s.io/community/contributors/guide/pull-requests.md) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if {{.Org}}/{{.Repo}} has [its own contribution guidelines](https://github.com/{{.Org}}/{{.Repo}}/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet/README.md). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:"
+welcome:
+- repos:
+  - apisnoop
+  message_template: "Welcome @{{.AuthorLogin}}! <br><br>It looks like this is your first PR to <a href='https://github.com/{{.Org}}/{{.Repo}}'>{{.Org}}/{{.Repo}}</a> 🎉 PARTY. Please refer to our [pull request process documentation](https://git.k8s.io/community/contributors/guide/pull-requests.md) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if {{.Org}}/{{.Repo}} has [its own contribution guidelines](https://github.com/{{.Org}}/{{.Repo}}/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet/README.md). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:"
 #+END_SRC
 
 ** require_matching_label
@@ -671,13 +677,13 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::require_matching_label:]] 
 
 #+BEGIN_SRC yaml
-  require_matching_label:
-  - missing_label: data-gen
-    org: apisnoop
-    repo: apisnoop
-    prs: true
-    regexp: ^data-gen/
-    missing_comment: "Must tag with data-gen to modify anything under ./data-gen/"
+require_matching_label:
+- missing_label: data-gen
+  org: apisnoop
+  repo: apisnoop
+  prs: true
+  regexp: ^data-gen/
+  missing_comment: "Must tag with data-gen to modify anything under ./data-gen/"
 #+END_SRC
 
 ** plugins
@@ -685,77 +691,77 @@ repos:
 [[file:~/go/src/k8s.io/test-infra/prow/plugins.yaml::plugins:]]
 
 #+BEGIN_SRC yaml
-  plugins:
-    cncf/apisnoop:
-    - approve  # Allow OWNERS to /approve
-    - assign  # Allow /assign and /cc
-    - blockade
-    - blunderbuss  # Auto-assign people
-    - cat # /meow replies with cat pictures
-    - cherry-pick-unapproved
-    - cla
-    - dog # /bark replies with dog pictures
-    - heart
-    - help  # Support /help and /good-first-issue
-    - hold  # Support /hold to delay merge
-    - label
-    - lgtm  # Allow /lgtm
-    - lifecycle  # Allow /lifecycle stale
-    - milestone
-    - milestonestatus
-    - owners-label
-    - override
-    - owners-label
-      # - project
-    - pony
-    # - release-note
-    # - require-sig
-    - require-matching-label
-    - shrug
-    - sigmention
-    - stage
-    - skip
-    - size  # Auto-label size of PR
-    - trigger  # Allow people to configure CI jobs to /test
-    - verify-owners # Validates OWNERS file changes in PRs.
-    - welcome
-    - wip  # Auto-hold PRs with WIP in title
-    - yuks # Let prow tell a /joke
-    ii-ci/apisnoop:
-    - approve  # Allow OWNERS to /approve
-    - assign  # Allow /assign and /cc
-    - blockade
-    - blunderbuss  # Auto-assign people
-    - cat # /meow replies with cat pictures
-    - cherry-pick-unapproved
-    - cla
-    - dog # /bark replies with dog pictures
-    - heart
-    - help  # Support /help and /good-first-issue
-    - hold  # Support /hold to delay merge
-    - label
-    - lgtm  # Allow /lgtm
-    - lifecycle  # Allow /lifecycle stale
-    - milestone
-    - milestonestatus
-    - owners-label
-    - override
-    - owners-label
-      # - project
-    - pony
-    # - release-note
-    - require-sig
-    - require-matching-label
-    - shrug
-    - sigmention
-    - stage
-    - skip
-    - size  # Auto-label size of PR
-    - trigger  # Allow people to configure CI jobs to /test
-    - verify-owners # Validates OWNERS file changes in PRs.
-    - welcome
-    - wip  # Auto-hold PRs with WIP in title
-    - yuks # Let prow tell a /joke
+plugins:
+  cncf/apisnoop:
+  - approve  # Allow OWNERS to /approve
+  - assign  # Allow /assign and /cc
+  - blockade
+  - blunderbuss  # Auto-assign people
+  - cat # /meow replies with cat pictures
+  - cherry-pick-unapproved
+  - cla
+  - dog # /bark replies with dog pictures
+  - heart
+  - help  # Support /help and /good-first-issue
+  - hold  # Support /hold to delay merge
+  - label
+  - lgtm  # Allow /lgtm
+  - lifecycle  # Allow /lifecycle stale
+  - milestone
+  - milestonestatus
+  - owners-label
+  - override
+  - owners-label
+    # - project
+  - pony
+  # - release-note
+  # - require-sig
+  - require-matching-label
+  - shrug
+  - sigmention
+  - stage
+  - skip
+  - size  # Auto-label size of PR
+  - trigger  # Allow people to configure CI jobs to /test
+  - verify-owners # Validates OWNERS file changes in PRs.
+  - welcome
+  - wip  # Auto-hold PRs with WIP in title
+  - yuks # Let prow tell a /joke
+  ii-ci/apisnoop:
+  - approve  # Allow OWNERS to /approve
+  - assign  # Allow /assign and /cc
+  - blockade
+  - blunderbuss  # Auto-assign people
+  - cat # /meow replies with cat pictures
+  - cherry-pick-unapproved
+  - cla
+  - dog # /bark replies with dog pictures
+  - heart
+  - help  # Support /help and /good-first-issue
+  - hold  # Support /hold to delay merge
+  - label
+  - lgtm  # Allow /lgtm
+  - lifecycle  # Allow /lifecycle stale
+  - milestone
+  - milestonestatus
+  - owners-label
+  - override
+  - owners-label
+    # - project
+  - pony
+  # - release-note
+  - require-sig
+  - require-matching-label
+  - shrug
+  - sigmention
+  - stage
+  - skip
+  - size  # Auto-label size of PR
+  - trigger  # Allow people to configure CI jobs to /test
+  - verify-owners # Validates OWNERS file changes in PRs.
+  - welcome
+  - wip  # Auto-hold PRs with WIP in title
+  - yuks # Let prow tell a /joke
 #+END_SRC
 
 ** project_config
@@ -791,46 +797,46 @@ curl --user hh:$GITHUB_TOKEN  -H "Accept:application/vnd.github.inertia-preview+
 #+END_EXAMPLE
 
 #+BEGIN_SRC yaml
-  project_config:
-    project_org_configs:
-      ii-ci:
-        org_maintainers_team_id: 3230820
-        org_default_column_map:
-          org_project1:
-            column1
-            column2
-            column3
-          org_project2:
-            column1
-            column2
-            column3
-        project_repo_configs:
-          apisnoop:
-            repo_maintainers_team_id: 3230820
-            repo_default_column_map:
-              project1:
-                column1
-                column2
-                column3
-              project2:
-                column1
-                column2
-                column3
+project_config:
+  project_org_configs:
+    ii-ci:
+      org_maintainers_team_id: 3230820
+      org_default_column_map:
+        org_project1:
+          column1
+          column2
+          column3
+        org_project2:
+          column1
+          column2
+          column3
+      project_repo_configs:
+        apisnoop:
+          repo_maintainers_team_id: 3230820
+          repo_default_column_map:
+            project1:
+              column1
+              column2
+              column3
+            project2:
+              column1
+              column2
+              column3
 #+END_SRC
 ** project_manager
 
 #+BEGIN_SRC yaml :noweb yes :tangle plugins.yaml
-  # project_manager:
-  #   org/repos:
-  #     ii/apisnoop:
-  #       projects:
-  #         testProject:
-  #           columns:
-  #           - name: "triage"
-  #             state: open
-  #             org: ii
-  #             labels:
-  #             - area/conformance
+# project_manager:
+#   org/repos:
+#     ii/apisnoop:
+#       projects:
+#         testProject:
+#           columns:
+#           - name: "triage"
+#             state: open
+#             org: ii
+#             labels:
+#             - area/conformance
 #+END_SRC
 ** config_updater
 
@@ -840,21 +846,21 @@ I don't think we are ready for this
 [[file:~/go/src/k8s.io/test-infra/label_sync/README.md::##%20Usage]]
 
 #+BEGIN_SRC yaml :tangle no
-  config_updater:
-    maps:
-      label_sync/labels.yaml:
-        name: label-config
-        namespace: test-pods
-      prow/config.yaml:
-        name: config
-      prow/plugins.yaml:
-        name: plugins
-      config/jobs/**/*.yaml:
-        name: job-config
-        gzip: true
-      experiment/test-configmap.txt:
-        name: test-configmap
-        gzip: true
+config_updater:
+  maps:
+    label_sync/labels.yaml:
+      name: label-config
+      namespace: test-pods
+    prow/config.yaml:
+      name: config
+    prow/plugins.yaml:
+      name: plugins
+    config/jobs/**/*.yaml:
+      name: job-config
+      gzip: true
+    experiment/test-configmap.txt:
+      name: test-configmap
+      gzip: true
 #+END_SRC
 
 * config.yaml
@@ -932,60 +938,64 @@ pod "plank-564d8c4b8b-86cq6" deleted
 #+END_SRC
 ** deck
 #+BEGIN_SRC yaml
-  # https://github.com/kubernetes/test-infra/issues/11729
-  #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
-  # component=checkconfig error="no default decoration config provided for plank"
-  deck:
-    spyglass:
-      size_limit: 500e+6 # 500MB
-      viewers:
-        "started.json|finished.json": ["metadata"]
-        "build-log.txt": ["buildlog"]
-        "artifacts/junit.*\\.xml": ["junit"]
-        # Remember to escape your '\' in yaml strings!
+# https://github.com/kubernetes/test-infra/issues/11729
+#time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
+# component=checkconfig error="no default decoration config provided for plank"
+deck:
+  spyglass:
+    size_limit: 500e+6 # 500MB
+    viewers:
+      "started.json|finished.json": ["metadata"]
+      "build-log.txt": ["buildlog"]
+      "artifacts/junit.*\\.xml": ["junit"]
+      # Remember to escape your '\' in yaml strings!
 #+END_SRC
 ** plank
 #+BEGIN_SRC yaml
-  plank:
-    job_url_template: 'https://job_url_template/'
+plank:
+  job_url_template: 'https://job_url_template/'
   #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
-    report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
-    job_url_prefix: http://prow.cncf.ci/view/gcs/
-    pod_pending_timeout: 60m
-    # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
-    default_decoration_config:
-      timeout: 7200000000000 # 2h
-      grace_period: 15000000000 # 15s
-      utility_images:
-        sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
-        clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
-        initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
-        entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
-      gcs_configuration:
-        bucket: "apisnoop"
-        path_strategy: "legacy"
-        default_org: "cncf"
-        default_repo: "apisnoop"
-      gcs_credentials_secret: "service-account"
+  report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+  job_url_prefix: http://prow.cncf.ci/view/gcs/
+  pod_pending_timeout: 60m
+  # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
+  default_decoration_config:
+    timeout: 7200000000000 # 2h
+    grace_period: 15000000000 # 15s
+    utility_images:
+      sidecar: "gcr.io/k8s-prow/sidecar:v20190506-d97b87848"
+      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190506-d97b87848"
+      initupload: "gcr.io/k8s-prow/initupload:v20190506-d97b87848"
+      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190506-d97b87848"
+    gcs_configuration:
+      bucket: "apisnoop"
+      path_strategy: "legacy"
+      default_org: "cncf"
+      default_repo: "apisnoop"
+    gcs_credentials_secret: "service-account"
 #+END_SRC
 ** periodics
 #+BEGIN_SRC yaml
-  periodics:
-  - interval: 120m
-    name: apisnoop-echo-test
-    decorate: true
-    spec:
-      containers:
-      - image: alpine
-        command: ["/bin/date"]
+periodics:
+- interval: 120m
+  name: apisnoop-echo-test
+  decorate: true
+  spec:
+    containers:
+    - image: alpine
+      command: ["/bin/date"]
 #+END_SRC
-** postsubmits
+ postsubmits
 #+BEGIN_SRC yaml
-  postsubmits:
+postsubmits:
 #+END_SRC
+[[info:org#Editing%20source%20code][info:org#Editing source code]]
+We may need to set org-src-preserve-identation...
+[[info:org#Extracting%20source%20code][info:org#Extracting source code]]
+Towards the bottom, theer is a section on Jumping between code and Org 
 *** cncf/apisnoop
 #+BEGIN_SRC yaml
-    cncf/apisnoop:
+  cncf/apisnoop:
 #+END_SRC
 **** apisnoop-postprocess-audits
 
@@ -993,24 +1003,24 @@ This job runs only against commits and merges to master.
 The script generates our data and uploads it to GCS.
 
 #+BEGIN_SRC yaml
-      - name: apisnoop-postprocess-audits
-        branches:
-        - master
-        always_run: true
-        decorate: true
-        skip_report: false
-        spec:
-          containers:
-          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-            command:
-            - /bin/bash
-            - -c
-            args:
-            - "./hack/ci/prow-production.sh"
-            resources:
-              requests:
-                cpu: 3.5
-                memory: "5Gi"
+  - name: apisnoop-postprocess-audits
+    branches:
+    - master
+    always_run: true
+    decorate: true
+    skip_report: false
+    spec:
+      containers:
+      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "./hack/ci/prow-production.sh"
+        resources:
+          requests:
+            cpu: 3.5
+            memory: "5Gi"
 #+END_SRC
 ** presubmits
 
@@ -1018,97 +1028,73 @@ The script generates our data and uploads it to GCS.
 Memory usage is a bit high, could do with some optimization.
 ~3-4GB per python process... the parrallel processing on my 64GB laptop
 #+BEGIN_SRC yaml
-  presubmits:
+presubmits:
 #+END_SRC
 *** cncf/apisnoop
 #+BEGIN_SRC yaml
-    cncf/apisnoop:
+  cncf/apisnoop:
 #+END_SRC
 **** apisnoop-process-audits
 #+BEGIN_SRC yaml
-      - name: apisnoop-process-audits
-        branches:
-        - master
-        always_run: true
-        decorate: true
-        skip_report: false
-        spec:
-          containers:
-          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-            command:
-            - /bin/bash
-            - -c
-            args:
-            - "./hack/ci/prow-pr.sh"
-            resources:
-              requests:
-                cpu: 3.5
-                memory: "5Gi"
+  - name: apisnoop-process-audits
+    branches:
+    - master
+    always_run: true
+    decorate: true
+    skip_report: false
+    spec:
+      containers:
+      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "./hack/ci/prow-pr.sh"
+        resources:
+          requests:
+            cpu: 3.5
+            memory: "5Gi"
 #+END_SRC
 *** ii-ci/apisnoop
 #+BEGIN_SRC yaml
-    ii-ci/apisnoop:
-      - name: ii-ci-apisnoop-process-audits
-        branches:
-        - master
-        always_run: true
-        decorate: true
-        skip_report: false
-        spec:
-          containers:
-          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-            command:
-            - /bin/bash
-            - -c
-            args:
-            - "./hack/ci/process-audits.sh"
-            resources:
-              requests:
-                cpu: 3.5
-                memory: "5Gi"
-      - name: apisnoop-tmate
-        branches:
-        - master
-        always_run: true
-        decorate: true
-        skip_report: false
-        spec:
-          containers:
-          - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-            command:
-            - /bin/bash
-            - -c
-            args:
-            - "./hack/ci/tmate.sh"
-            resources:
-              requests:
-                cpu: 0.5
-                memory: "500Mi"
-
+  ii-ci/apisnoop:
+  - name: ii-ci-apisnoop-process-audits
+    branches:
+    - master
+    always_run: true
+    decorate: true
+    skip_report: false
+    spec:
+      containers:
+      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "./hack/ci/process-audits.sh"
+        resources:
+          requests:
+            cpu: 3.5
+            memory: "5Gi"
+  - name: apisnoop-tmate
+    branches:
+    - master
+    always_run: true
+    decorate: true
+    skip_report: false
+    spec:
+      containers:
+      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "./hack/ci/tmate.sh"
+        resources:
+          requests:
+            cpu: 0.5
+            memory: "500Mi"
 #+END_SRC
-#+BEGIN_SRC yaml :tangle no
-  presubmits:
-    ii-ci/apisnoop:
-    - name: apisnoop-newsubmit
-      agent: knative-build
-      decorate: true
-      always_run: true
-      skip_report: false
-      branches:
-      - master
-      build_spec:
-        steps:
-        - name: first
-          image: busybox
-          args: ["echo", "hello"]
-        - name: afile
-          image: busybox
-          args: ["touch", "$ARTIFACTS/afile"]
-        - name: third
-          image: busybox
-          args: ["ls", "-la"]
-#+END_SRC
-
 
 * OWNERS
 
