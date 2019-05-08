@@ -205,12 +205,12 @@ deployment.extensions/tide configured
 #+RESULTS: prow components
 #+BEGIN_EXAMPLE :noeval t
 NAME         DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deck         2         2         2            2           21d
-hook         2         2         2            2           21d
-horologium   1         1         1            1           21d
-plank        1         1         1            1           21d
-sinker       1         1         1            1           21d
-tide         1         1         1            1           21d
+deck         2         2         2            2           51d
+hook         2         2         2            2           51d
+horologium   1         1         1            1           51d
+plank        1         1         1            1           51d
+sinker       1         1         1            1           51d
+tide         1         1         1            1           51d
 #+END_EXAMPLE
 
 **** ingress ip
@@ -336,6 +336,10 @@ spec:
 #+BEGIN_SRC shell
 go get -u k8s.io/test-infra/prow/cmd/checkconfig
 #+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+#+END_EXAMPLE
 
 *** check the config files
 #+BEGIN_SRC shell :results silent
@@ -904,9 +908,9 @@ ExitCode: 0
 configmap/config replaced
 ExitCode: 0
 configmap/plugins replaced
-ExitCode: 0pod "hook-65ccc7f796-r9fv5" deleted
-pod "hook-65ccc7f796-sw2r2" deleted
-pod "plank-bfcd55c74-bdng6" deleted
+ExitCode: 0pod "hook-65ccc7f796-5mrvg" deleted
+pod "hook-65ccc7f796-85gms" deleted
+pod "plank-bfcd55c74-kbj88" deleted
 #+END_EXAMPLE
 
 ** restart pods
@@ -932,6 +936,12 @@ pod "plank-564d8c4b8b-86cq6" deleted
   | xargs -n 1 -P 5 kubectl logs -f \
   | grep -v /etc/config/config.yalm
   # | jq -c -S
+#+END_SRC
+** debugging
+A guy on a channel said
+
+#+BEGIN_SRC yaml
+log_level: debug
 #+END_SRC
 ** deck
 #+BEGIN_SRC yaml
@@ -982,7 +992,8 @@ periodics:
     - image: alpine
       command: ["/bin/date"]
 #+END_SRC
- postsubmits
+
+** postsubmits
 #+BEGIN_SRC yaml
 postsubmits:
 #+END_SRC
@@ -1000,24 +1011,23 @@ This job runs only against commits and merges to master.
 The script generates our data and uploads it to GCS.
 
 #+BEGIN_SRC yaml
-    - name: apisnoop-postprocess-audits
-      branches:
-      - master
-      always_run: true
-      decorate: true
-      skip_report: false
-      spec:
-        containers:
-        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-          command:
-          - /bin/bash
-          - -c
-          args:
-          - "./hack/ci/prow-production.sh"
-          resources:
-            requests:
-              cpu: 3.5
-              memory: "5Gi"
+  - name: apisnoop-postprocess-audits
+    branches:
+    - master
+    decorate: true
+    skip_report: false
+    spec:
+      containers:
+      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "./hack/ci/prow-production.sh"
+        resources:
+          requests:
+            cpu: 3.5
+            memory: "5Gi"
 #+END_SRC
 ** presubmits
 
@@ -1033,34 +1043,12 @@ presubmits:
 #+END_SRC
 **** apisnoop-process-audits
 #+BEGIN_SRC yaml
-    - name: apisnoop-process-audits
-      branches:
-      - master
-      always_run: true
-      decorate: true
-      skip_report: false
-      spec:
-        containers:
-        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-          command:
-          - /bin/bash
-          - -c
-          args:
-          - "./hack/ci/prow-pr.sh"
-          resources:
-            requests:
-              cpu: 3.5
-              memory: "5Gi"
-#+END_SRC
-*** ii-ci/apisnoop
-#+BEGIN_SRC yaml :tangle no
-  ii-ci/apisnoop:
-  - name: ii-ci-apisnoop-process-audits
+  - name: apisnoop-process-audits
     branches:
     - master
-    always_run: true
     decorate: true
     skip_report: false
+    always_run: true
     spec:
       containers:
       - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
@@ -1068,31 +1056,12 @@ presubmits:
         - /bin/bash
         - -c
         args:
-        - "./hack/ci/process-audits.sh"
+        - "./hack/ci/prow-pr.sh"
         resources:
           requests:
             cpu: 3.5
             memory: "5Gi"
-  - name: apisnoop-tmate
-    branches:
-    - master
-    always_run: true
-    decorate: true
-    skip_report: false
-    spec:
-      containers:
-      - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-        command:
-        - /bin/bash
-        - -c
-        args:
-        - "./hack/ci/tmate.sh"
-        resources:
-          requests:
-            cpu: 0.5
-            memory: "500Mi"
 #+END_SRC
-
 * OWNERS
 
 [[https://go.k8s.io/owners]]
@@ -1149,14 +1118,15 @@ kubectl get secrets oauth-token -ojsonpath={.data.oauth} | base64 --decode  > gi
 #+END_SRC
 
 ** hook config
-
-#+BEGIN_SRC yaml :tangle ~/test-infra/hook-config.yaml
+ 
+Requres a checkout to ~/test-infra/hook-config.yaml
+#+BEGIN_SRC yaml :tangle no
 # I'm pretty sure we can use an empty config
 #+END_SRC
 
 ** plugin config
-
-#+BEGIN_SRC yaml :tangle ~/test-infra/hook-plugin.yaml
+~/test-infra/hook-plugin.yaml
+#+BEGIN_SRC yaml :tangle no
   plugins:
     ii/apisnoop:
     - label
@@ -1216,7 +1186,8 @@ bazel run //prow/cmd/phony -- \
 #+END_SRC
 
 *** payload
-#+BEGIN_SRC json :noweb yes :tangle ~/test-infra/comment.json
+requires a checkout to ~/test-infra/comment.json
+#+BEGIN_SRC json :noweb yes :tangle no
   {
     "action": "created",
     "issue": {
