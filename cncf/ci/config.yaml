@@ -1,3 +1,5 @@
+# deck
+
 # https://github.com/kubernetes/test-infra/issues/11729
 #time="2019-03-18T07:06:59+13:00" level=fatal msg="Error loading Prow config."
 # component=checkconfig error="no default decoration config provided for plank"
@@ -10,9 +12,11 @@ deck:
       "artifacts/junit.*\\.xml": ["junit"]
       # Remember to escape your '\' in yaml strings!
 
+# plank
+
 plank:
   job_url_template: 'https://job_url_template/'
-  #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+#  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
   report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
   job_url_prefix: http://prow.cncf.ci/view/gcs/
   pod_pending_timeout: 60m
@@ -21,16 +25,18 @@ plank:
     timeout: 7200000000000 # 2h
     grace_period: 15000000000 # 15s
     utility_images:
-      sidecar: "gcr.io/k8s-prow/sidecar:v20190506-d97b87848"
-      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190506-d97b87848"
-      initupload: "gcr.io/k8s-prow/initupload:v20190506-d97b87848"
-      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190506-d97b87848"
+      sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+      clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+      initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+      entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
     gcs_configuration:
       bucket: "apisnoop"
       path_strategy: "legacy"
       default_org: "cncf"
       default_repo: "apisnoop"
     gcs_credentials_secret: "service-account"
+
+# periodics
 
 periodics:
 - interval: 120m
@@ -41,33 +47,15 @@ periodics:
     - image: alpine
       command: ["/bin/date"]
 
-postsubmits:
+# presubmits
 
-  cncf/apisnoop:
 
-    - name: apisnoop-postprocess-audits
-      branches:
-      - master
-      always_run: true
-      decorate: true
-      skip_report: false
-      spec:
-        containers:
-        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
-          command:
-          - /bin/bash
-          - -c
-          args:
-          - "./hack/ci/prow-production.sh"
-          resources:
-            requests:
-              cpu: 3.5
-              memory: "5Gi"
+# Memory usage is a bit high, could do with some optimization.
+# ~3-4GB per python process... the parrallel processing on my 64GB laptop
+
 
 presubmits:
-
   cncf/apisnoop:
-
     - name: apisnoop-process-audits
       branches:
       - master
@@ -81,8 +69,45 @@ presubmits:
           - /bin/bash
           - -c
           args:
-          - "./hack/ci/prow-pr.sh"
+          - "./hack/ci/process-audits.sh"
           resources:
             requests:
               cpu: 3.5
               memory: "5Gi"
+  ii-ci/apisnoop:
+    - name: ii-ci-apisnoop-process-audits
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/process-audits.sh"
+          resources:
+            requests:
+              cpu: 3.5
+              memory: "5Gi"
+    - name: apisnoop-tmate
+      branches:
+      - master
+      always_run: true
+      decorate: true
+      skip_report: false
+      spec:
+        containers:
+        - image: gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-experimental
+          command:
+          - /bin/bash
+          - -c
+          args:
+          - "./hack/ci/tmate.sh"
+          resources:
+            requests:
+              cpu: 0.5
+              memory: "500Mi"

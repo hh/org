@@ -1,0 +1,461 @@
+#+TITLE: Using Netlify
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE:  1st May, 2019
+#+STARTUP: showeverything
+
+* Objective
+
+The end goal for this document is to show how we configure and use netlify.
+
+
+* Install netlify cli
+
+
+From [[https://github.com/netlify/cli#installation][the netlify/cli installation docs:]] 
+
+#+BEGIN_SRC tmate
+sudo npm install netlify-cli -g
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
++ netlify-cli@2.11.16
+updated 1 package and audited 12601 packages in 4.952s
+found 0 vulnerabilities
+
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell
+netlify login
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Logging into your Netlify account...
+Opening https://app.netlify.com/authorize?response_type=ticket&ticket=XXXXXXX
+---------------------------
+Error: Unable to open browser automatically
+spawn /usr/local/node-v10.15.1-linux-x64/lib/node_modules/netlify-cli/node_modules/cli-ux/lib/xdg-open ENOENT
+
+Please open your browser & open the URL below to login:
+https://app.netlify.com/authorize?response_type=ticket&ticket=XXXXXXX
+---------------------------
+
+You are now logged into your Netlify account!
+
+Run netlify status for account details
+
+To see all available commands run: netlify help
+#+END_EXAMPLE
+
+To fix the minor issue on my box with the brower not opening, I went ahead and symlinks xdg-open into place.
+
+#+BEGIN_SRC shell
+sudo ln -sf $(which xdg-open) /usr/local/node-*-linux-x64/lib/node_modules/netlify-cli/node_modules/cli-ux/lib/
+#+END_SRC
+* Sites
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/apisnoop
+  :END:
+** list
+
+#+BEGIN_SRC shell
+netlify sites:list
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+
+────────────────────────────┐
+   Current Netlify Sites    │
+────────────────────────────┘
+
+apisnoop - e50b2841-6815-48bf-8341-9dccfb177c3a
+  url:  https://apisnoop.cncf.io
+  repo: https://github.com/cncf/apisnoop
+  account: APIsnoop
+─────────────────────────────────────────────────
+lfedge - 576f3c98-3ed7-43a1-8f15-10a95baad55c
+  url:  https://landscape.lfedge.org
+  repo: https://github.com/lf-edge/lfedge-landscape
+  account: Landscape
+─────────────────────────────────────────────────
+apisnoop-deprecated - b0bec5fa-7481-406e-8595-930c36796723
+  url:  https://apisnoop-deprecated.netlify.com
+  repo: https://github.com/cncf/apisnoop
+  account: Landscape
+─────────────────────────────────────────────────
+landscapeapp - 50d760a8-5b21-4319-aa01-2ad54e453fd6
+  url:  https://landscapeapp.cncf.io
+  repo: https://github.com/cncf/landscapeapp
+  account: Landscape
+─────────────────────────────────────────────────
+lfdllandscape - cb0bff52-871d-42c9-b46e-b3dbf8da9309
+  url:  https://landscape.lfdl.io
+  repo: https://github.com/LFDLFoundation/landscape
+  account: Landscape
+─────────────────────────────────────────────────
+landscape - 91337728-8166-4c8f-bc39-9159bf97dcbc
+  url:  https://landscape.cncf.io
+  repo: https://github.com/cncf/landscape
+  account: Landscape
+─────────────────────────────────────────────────
+#+END_EXAMPLE
+** apisnoop
+*** link
+#+BEGIN_SRC shell
+netlify unlink
+netlify link --name apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Unlinked /home/hippie/apisnoop/netlify.toml from apisnoop
+Linked to apisnoop in apisnoop/.netlify/state.json
+#+END_EXAMPLE
+*** open
+#+BEGIN_SRC shell
+netlify open:site
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Opening "apisnoop" site url:
+> https://apisnoop.cncf.io
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell
+netlify open:admin
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+Opening "apisnoop" site admin UI:
+> https://app.netlify.com/sites/apisnoop
+#+END_EXAMPLE
+
+*** status
+
+#+BEGIN_SRC shell
+netlify status
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+──────────────────────┐
+ Current Netlify User │
+──────────────────────┘
+[32mName: [39m Hippie Hacker
+[32mEmail: [39mhh@ii.coop
+[32mTeams: [39m
+  [32mAPIsnoop: [39m            Owner Collaborator Controller
+  [32mHippie Hacker's team: [39mCollaborator
+  [32mLandscape: [39m           Owner Collaborator Controller
+────────────────────┐
+ Netlify Site Info  │
+────────────────────┘
+[32mCurrent site: [39mapisnoop
+[32mNetlify TOML: [39m/home/hippie/apisnoop/netlify.toml
+[32mAdmin URL: [39m   https://app.netlify.com/sites/apisnoop
+[32mSite URL: [39m    https://apisnoop.cncf.io
+#+END_EXAMPLE
+
+*** status:hooks
+
+#+BEGIN_SRC shell
+netlify status:hooks
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE :noeval t
+─────────────────┐
+Site Hook Status │
+─────────────────┘
+[32msite: [39m apisnoop
+[32mhooks: [39m
+  [32m5cbfe23699df1864687a6e7c: [39m
+    [32mtype: [39m    github_app_commit_status
+    [32mevent: [39m   deploy_building
+    [32mid: [39m      5cbfe23699df1864687a6e7c
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+  [32m5cbfe23699df1864687a6e7d: [39m
+    [32mtype: [39m    github_app_checks
+    [32mevent: [39m   deploy_building
+    [32mid: [39m      5cbfe23699df1864687a6e7d
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+  [32m5cbfe23699df1864687a6e7e: [39m
+    [32mtype: [39m    github_app_commit_status
+    [32mevent: [39m   deploy_created
+    [32mid: [39m      5cbfe23699df1864687a6e7e
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+  [32m5cbfe23699df1864687a6e7f: [39m
+    [32mtype: [39m    github_app_checks
+    [32mevent: [39m   deploy_created
+    [32mid: [39m      5cbfe23699df1864687a6e7f
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+  [32m5cbfe23699df1864687a6e80: [39m
+    [32mtype: [39m    github_app_commit_status
+    [32mevent: [39m   deploy_failed
+    [32mid: [39m      5cbfe23699df1864687a6e80
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+  [32m5cbfe23699df1864687a6e81: [39m
+    [32mtype: [39m    github_app_checks
+    [32mevent: [39m   deploy_failed
+    [32mid: [39m      5cbfe23699df1864687a6e81
+    [32mdisabled: [39m[31mfalse[39m
+    [32mrepo_url: [39mhttps://github.com/cncf/apisnoop
+#+END_EXAMPLE
+
+
+*** watch
+
+#+BEGIN_SRC shell
+netlify watch
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+Waiting for active site deploys to complete... ⣽
+Waiting for active site deploys to complete... ⢿
+#+END_EXAMPLE
+
+*** dev --live
+
+https://www.netlify.com/blog/2019/04/09/netlify-dev--our-entire-platform-right-on-your-laptop/
+
+Though our buckets point somewhere else, the dev url may prove useful at some point.
+
+https://github.com/netlify/netlify-dev-plugin#project-detection
+
+#+BEGIN_SRC shell
+netlify dev --live
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+◈ Netlify Dev ◈
+◈ No dev server detected, using simple static server
+Waiting for localhost:3999.
+◈ Server listening to 3999
+
+Connected!
+Waiting for localhost:8888.
+Connected!
+◈ Installing Live Tunnel Client
+◈ Creating Live Tunnel for e50b2841-6815-48bf-8341-9dccfb177c3a
+
+   ┌────────────────────────────────────────────────────────────────┐
+   │                                                                │
+   │   ◈ Server now ready on https://apisnoop-cf33b6.netlify.live   │
+   │                                                                │
+   └────────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+* Update the current session
+
+We just installed a number of components, so we need the current shell session to be in sync with the new environment variables.
+
+#+BEGIN_SRC tmate
+. ~/.bashrc
+env | grep GO
+#+END_SRC
+
+This should provide a result as below.
+
+#+BEGIN_EXAMPLE
+GOPATH=/root/go
+GOROOT=/usr/local/go/
+#+END_EXAMPLE
+
+
+* Pretest setup
+
+With a Kubernetes cluster up and running from the end of the 'setup' process, it's time to check out the framework for how Kubernetes is tested.
+
+** Add setting from e2e.sh main()
+
+#+BEGIN_SRC tmate
+ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
+mkdir -p "${ARTIFACTS}"
+export ARTIFACTS
+#+END_SRC
+
+** Add Environment variables
+
+#+BEGIN_SRC tmate
+export KUBECONFIG="$HOME/.kube/kind-config-kind-kubetest"
+export SKIP="ginkgo skip regex"
+export FOCUS="ginkgo focus regex"
+#+END_SRC
+
+** Setup and export function ~run_tests~
+
+#+BEGIN_SRC tmate
+run_tests() {
+    # base kubetest args
+    KUBETEST_ARGS="--provider=skeleton --test --check-version-skew=false"
+
+    # get the number of worker nodes
+    # TODO(bentheelder): this is kinda gross
+    NUM_NODES="$(kubectl get nodes \
+        -o=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.taints}{"\n"}{end}' \
+        | grep -cv "node-role.kubernetes.io/master" \
+    )"
+
+    # ginkgo regexes
+    SKIP="${SKIP:-"Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]"}"
+    FOCUS="${FOCUS:-"\\[Conformance\\]"}"
+    # if we set PARALLEL=true, skip serial tests set --ginkgo-parallel
+    PARALLEL="${PARALLEL:-false}"
+    if [[ "${PARALLEL}" == "true" ]]; then
+        SKIP="\\[Serial\\]|${SKIP}"
+        KUBETEST_ARGS="${KUBETEST_ARGS} --ginkgo-parallel"
+    fi
+
+    # Remove any spaces from current FOCUS variable
+    FOCUS=$(echo "$FOCUS" | sed "s/[[:space:]]/\./g")
+
+    # add ginkgo args
+    KUBETEST_ARGS="${KUBETEST_ARGS} --test_args=\"--ginkgo.focus=${FOCUS} --ginkgo.skip=${SKIP} --report-dir=${ARTIFACTS} --disable-log-dump=true --num-nodes=${NUM_NODES}\""
+
+    # setting this env prevents ginkg e2e from trying to run provider setup
+    export KUBERNETES_CONFORMANCE_TEST="y"
+
+    # run kubetest, if it fails clean up and exit failure
+    echo "./kubetest ${KUBETEST_ARGS}"
+    eval "./kubetest ${KUBETEST_ARGS}"
+}
+export -f run_tests
+#+END_SRC
+
+
+* Running Tests
+
+** Dry run without any tests
+
+#+BEGIN_SRC tmate
+cd $GOPATH/src/k8s.io/kubernetes
+SKIP="ginkgo skip regex"
+FOCUS="ginkgo focus regex"
+run_tests
+#+END_SRC
+
+With some log output as below
+
+#+BEGIN_EXAMPLE
+Running Suite: Kubernetes e2e suite
+===================================
+Random Seed: 1556676611 - Will randomize all specs
+Will run 0 of 3960 specs
+...
+Ran 0 of 3960 Specs in 0.071 seconds
+SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 3960 Skipped
+#+END_EXAMPLE
+
+** Run a group of tests
+
+Updating the variable ~FOCUS~ will give kubetest a smaller set of tests to process, therefore giving faster feedback.
+
+#+BEGIN_SRC tmate
+cd $GOPATH/src/k8s.io/kubernetes
+FOCUS="Secrets"
+run_tests
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+Running Suite: Kubernetes e2e suite
+===================================
+Random Seed: 1556768077 - Will randomize all specs
+Will run 13 of 3960 specs
+...
+Ran 13 of 3960 Specs in 855.336 seconds
+SUCCESS! -- 13 Passed | 0 Failed | 0 Pending | 3947 Skipped
+#+END_EXAMPLE
+
+** Running a single test
+
+#+BEGIN_SRC tmate
+# This runs a single test without any issues
+cd $GOPATH/src/k8s.io/kubernetes
+FOCUS="Pods should be updated"
+run_tests
+#+END_SRC
+
+#+BEGIN_SRC tmate
+# This should complete the same test as before but doesn't. Exit code is 0.
+cd $GOPATH/src/k8s.io/kubernetes
+FOCUS="[k8s.io] Pods should be updated [NodeConformance] [Conformance]"
+run_tests
+#+END_SRC
+
+
+* Kubernetes Status
+
+#+BEGIN_SRC tmate
+kubectl get nodes
+kubectl get pods --all-namespaces
+#+END_SRC
+
+
+
+* Kubernetes Reset Cluster
+
+#+BEGIN_SRC tmate
+cd $GOPATH/src/k8s.io/kubernetes
+./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --down
+./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --up
+#+END_SRC
+
+
+* References
+
+- [[https://github.com/kubernetes/community/blob/master/contributors/devel/sig-testing/e2e-tests.md#testing-against-local-clusters][Testing against local clusters]]
+
+
+* Footnotes
+
+#+PROPERTY: header-args:bash  :tangle ./config-kubetest.sh
+#+PROPERTY: header-args:bash+ :noweb yes
+#+PROPERTY: header-args:bash+ :noeval
+#+PROPERTY: header-args:bash+ :comments org
+#+PROPERTY: header-args:bash+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:shell :results output code verbatim replace
+#+PROPERTY: header-args:shell+ :exports both
+#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
+#+PROPERTY: header-args:shell+ :eval no-export
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+NOPROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
+#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":main")
+#+PROPERTY: header-args:tmate+ :noweb yes
+#+PROPERTY: header-args:tmate+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:yaml  :noweb yes
+#+PROPERTY: header-args:yaml+ :nocomments org
+#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+# Local Variables:
+# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
+# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
+# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
+# eval: (set (make-local-variable 'select-enable-clipboard) t)
+# eval: (set (make-local-variable 'select-enable-primary) t)
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (xclip-mode 1)
+# eval: (gui-select-text start-tmate-command)
+# eval: (xclip-mode 1)
+# org-babel-tmate-session-prefix: ""
+# org-babel-tmate-default-window-name: "main"
+# org-confirm-babel-evaluate: nil
+# org-use-property-inheritance: t
+# org-src-preserve-indentation: t
+# End:
