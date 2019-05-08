@@ -4,23 +4,27 @@
 #+CREATOR: ii.coop
 #+DATE: 7th of May, 2019
 * Generating Keys
+
+Assumes an empty ~/.gnupg
+
 ** main key
 
 Brainpool P-512 with Sign Certify and Authenticate:
 Name, Email, Comment towards bottom
 Supported Keys: https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#technical-specs
+
 #+BEGIN_SRC tmate
   
   gpg --expert --full-generate-key
   11
   A
   Q
-  9
+  1
   5y
   y
   Hippie Hacker
   hh@ii.coop
-  Comment
+  New Zealand
   O
 #+END_SRC
 
@@ -33,7 +37,7 @@ Supported Keys: https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html
   11
   A
   Q
-  9
+  1
   5y
   y
   y
@@ -67,9 +71,10 @@ For some reason I'm having a hard time sending the newline...
   admin
   factory-reset
 #+END_SRC
-** set initiial pins
+** set initial pins
 
 You need to set the pins to something only you know.
+Please set them both to some long passphrase.
 
 The initial user pin is 123456
 
@@ -161,6 +166,7 @@ https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#detecting-your-
 #+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 #+STARTUP: content
+
 # Local Variables:
 # eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
 # eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
@@ -168,13 +174,18 @@ https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#detecting-your-
 # eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
 # eval: (set (make-local-variable 'select-enable-clipboard) t)
 # eval: (set (make-local-variable 'select-enable-primary) t)
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh}' | xclip -i -sel p -f | xclip -i -sel c; bash --login\""))
+# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && tmate display -p '#{tmate_ssh} # " user-buffer ".target # #{tmate_web} ' | xclip -i -sel p -f | xclip -i -sel c; sleep 0.05 ;  xclip -o ; echo Have you pasted? ; read ;  bash --login\""))
 # eval: (xclip-mode 1)
 # eval: (gui-select-text start-tmate-command)
 # eval: (xclip-mode 1)
+# eval: (setq tmate-command start-tmate-command)
+# eval: (with-current-buffer (get-buffer-create "start-tmate-command") (insert-for-yank (concat "\nOpen another terminal on the same host and paste: \n" tmate-command)))
+# eval: (switch-to-buffer "start-tmate-command")
+# eval: (y-or-n-p "Have you Pasted?")
+# eval: (switch-to-buffer (get-buffer buffer-file-name))
+# eval: (spacemacs/toggle-maximize-buffer)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
 # org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:
-
