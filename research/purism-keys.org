@@ -3,6 +3,10 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 7th of May, 2019
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+#+NOSTARTUP: showeverything
+
 * Generating Keys
 
 Assumes an empty ~/.gnupg
@@ -147,45 +151,15 @@ gpg: KEYTOCARD failed: Invalid value
 #+END_EXAMPLE
 
 * Notes
+
 https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#detecting-your-openpgp-smart-card
 
 * Footnotes
-
-#+PROPERTY: header-args:shell :results output code verbatim replace
-#+PROPERTY: header-args:shell+ :exports both
-#+PROPERTY: header-args:shell+ :wrap "EXAMPLE :noeval t"
-#+PROPERTY: header-args:shell+ :eval no-export
-#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
-#+PROPERTY: header-args:tmate  :socket (symbol-value 'socket)
+#+PROPERTY: FOO for some reason I can't seem to move functions as header args into .dir-locals.el
+#+PROPERTY: URL https://emacs.stackexchange.com/questions/26185/using-a-function-as-an-org-babel-header-argument
+#+PROPERTY: header-args:tmate+  :socket (symbol-value 'socket)
 #+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
-#+PROPERTY: header-args:tmate+ :noweb yes
-#+PROPERTY: header-args:json  :noweb yes
+#+PROPERTY: header-args:tmate+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
 #+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
-#+PROPERTY: header-args:yaml  :noweb yes
-#+PROPERTY: header-args:yaml+ :comments org
 #+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
-#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
-#+STARTUP: content
-
-# Local Variables:
-# eval: (set (make-local-variable 'org-file-dir) (file-name-directory buffer-file-name))
-# eval: (set (make-local-variable 'user-buffer) (concat user-login-name "." (file-name-base buffer-file-name)))
-# eval: (set (make-local-variable 'tmpdir) (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
-# eval: (set (make-local-variable 'socket) (concat "/tmp/" user-buffer ".iisocket"))
-# eval: (set (make-local-variable 'select-enable-clipboard) t)
-# eval: (set (make-local-variable 'select-enable-primary) t)
-# eval: (set (make-local-variable 'start-tmate-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \"tmate wait tmate-ready && TMATE_CONNECT=\\$(tmate display -p '#{tmate_ssh} # " user-buffer ".target # #{tmate_web} ') ; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c  -f) 2>/dev/null ; echo Share the above with your friends and hit enter when done. ; read ;  bash --login\""))
-# eval: (xclip-mode 1)
-# eval: (gui-select-text start-tmate-command)
-# eval: (xclip-mode 1)
-# eval: (setq tmate-command start-tmate-command)
-# eval: (with-current-buffer (get-buffer-create "start-tmate-command") (insert-for-yank (concat "\nOpen another terminal on the same host and paste: \n" tmate-command)))
-# eval: (switch-to-buffer "start-tmate-command")
-# eval: (y-or-n-p "Have you Pasted?")
-# eval: (switch-to-buffer (get-buffer buffer-file-name))
-# eval: (spacemacs/toggle-maximize-buffer)
-# org-babel-tmate-session-prefix: ""
-# org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
-# org-use-property-inheritance: t
-# End:
