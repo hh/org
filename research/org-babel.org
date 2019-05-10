@@ -1,0 +1,484 @@
+#+TITLE: Purism Keys
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 7th of May, 2019
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+NOSTARTUP: content
+#+STARTUP: showeverything
+#+NOPROPERTY: header-args:elisp+ :noweb-ref (concat "PROPERTY" "-ELISP")
+#+NOPROPERTY: header-args:emacs-lisp+ :file-prop (concat "FILE" "-PROPERTY")
+#+NOPROPERTY: header-args:tmate+ :noweb-ref (concat "PROPERTY" "SHELL")
+
+* FOO
+  :PROPERTIES:
+   :header-args:tmate+: :noweb-ref (concat "FOO+" "BAR")
+  :END:
+
+
+Exactly how is the non-default header-arg calculated?
+#+BEGIN_SRC elisp :results code
+  (symbol-value 'org-babel-default-header-args:elisp)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+((:noweb-ref
+  (concat "DIR" "LOCAL")))
+#+END_SRC
+
+
+#+BEGIN_SRC elisp :yes:
+  (defun test ()
+    (if (let ((mytags (org-get-tags-at (point) t)))
+          (or (member "yes" mytags)
+              (null mytags)))
+        (format "%s.el" (file-name-base
+                         (buffer-file-name))) "no"))
+#+END_SRC
+
+#+RESULTS:
+: test
+[[file:~/.emacs.d/elpa/26.2/develop/org-plus-contrib-20181126/ob-core.el::(defun%20org-babel-get-src-block-info][ob-core.el::(defun org-babel-get-src-block-info]]
+
+#+BEGIN_SRC elisp :results code
+   (symbol-value 'org-babel-default-header-args:elisp)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+((:dir-default concat "DIR" "-ELISP")
+ (:results . "code"))
+#+END_SRC
+
+
+** org-element-context 
+#+BEGIN_SRC elisp :results code
+(org-element-context)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+(src-block
+ (:language "elisp" 
+:switches nil :parameters ":results code" :begin 1676 :end 1742 
+:number-lines nil :preserve-indent nil :retain-labels t :use-labels t :label-fmt nil i
+:value "(org-element-context)\n" :post-blank 2 :post-affiliated 1676 :parent nil))
+#+END_SRC
+
+** org-babel-get-src breakdown
+
+#+BEGIN_SRC elisp :results raw code
+  (let* (
+         (datum (org-element-context))
+         (lang (org-element-property :language datum))
+         (lang-headers (intern
+                        (concat "org-babel-default-header-args:" lang)))
+         (name (org-element-property :name datum))
+         )
+    (list
+     lang
+     (apply #'org-babel-merge-params
+            (append
+             ;;             ;; If DATUM is provided, make sure we get node
+             ;; properties applicable to its location within
+             ;; the document.
+             (org-with-point-at (org-element-property :begin datum)
+               (org-babel-params-from-properties lang))
+             (mapcar #'org-babel-parse-header-arguments
+                     (cons (org-element-property :parameters datum)
+                           (org-element-property :header datum)))))
+     (or (org-element-property :switches datum) "")
+     name
+     ;; (org-element-property (if inline :begin :post-affiliated)
+     ;; datum)
+     (and t (org-src-coderef-format datum))
+     ))
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+("elisp"
+ ((:results . "code")
+  (:exports . "")
+  (:noweb-ref . "PROPERTY-ELISP"))
+ "" nil "(ref:%s)")
+#+END_SRC
+#+BEGIN_SRC elisp
+(org-src-coderef-format (org-element-context))
+#+END_SRC
+
+#+RESULTS:
+: aoeu
+
+
+#+BEGIN_SRC elisp :results code
+  (symbol-value 'org-babel-default-header-args:elisp)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+((:lexical . "no"))
+#+END_SRC
+
+
+#+BEGIN_SRC elisp
+(symbol-value 'socket)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+"/tmp/hippie.org-babel.iisocket"
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :results code :item-param (concat "ITEM" "-PARAM")
+  (org-babel-get-src-block-info)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC emacs-lisp
+("emacs-lisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:item-param . "ITEM-PARAM")
+  (:file-prop . "FILE-PROPERTY")
+  (:dir-default concat "DIR" "-ELISP")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 3415 "(ref:%s)")
+#+END_SRC
+
+* debugging
+  :PROPERTIES:
+    :header-args:emacs-lisp+: :item-property (concat "PROPERTY+" "DEBUGGING")
+  :END:
+ 
+:noweb-ref (concat "ITEM" "+PARAM")
+#+BEGIN_SRC emacs-lisp :results code
+  (org-babel-get-src-block-info)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC emacs-lisp
+("emacs-lisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:item-property . "PROPERTY+DEBUGGING")
+  (:file-prop . "FILE-PROPERTY")
+  (:noweb-ref quote
+              (concat "DIR" "-EMACS_LISP"))
+  (:dir-default concat "DIR" "-EMACS_LISP")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 4130 "(ref:%s)")
+#+END_SRC
+
+#+NAME: debug on
+#+BEGIN_EXAMPLE
+Auto-saving...
+TRACE called with args (
+(
+(:session . "none")
+(:results . "replace") 
+(:exports . "code") 
+(:cache . "no") 
+(:noweb . "no") 
+(:hlines . "no") 
+(:tangle . "no")
+) (
+(:dir-default concat "DIR" "-EMACS_LISP")
+(:noweb-ref quote (concat "DIR" "-EMACS_LISP"))
+) nil (
+(:file-prop . "FILE-PROPERTY")
+) (
+(:results . "code")
+(:item-param . "ITEM-PARAM")
+))
+TRACE returned ((:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none"))
+TRACE called with args (((:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none")))
+TRACE returned ((:colname-names) (:rowname-names) (:result-params "code" "replace") (:result-type . value) (:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none"))
+TRACE called with args (((:colname-names) (:rowname-names) (:result-params "code" "replace") (:result-type . value) (:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none")) nil)
+TRACE returned ((:results . "replace code") (:exports . "code") (:session . "none") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no") (:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:file-prop . "FILE-PROPERTY") (:item-param . "ITEM-PARAM") (:result-type . value) (:result-params "code" "replace") (:rowname-names) (:colname-names))
+TRACE called with args (((:results . "replace code") (:exports . "code") (:session . "none") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no") (:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:file-prop . "FILE-PROPERTY") (:item-param . "ITEM-PARAM") (:result-type . value) (:result-params "code" "replace") (:rowname-names) (:colname-names)))
+TRACE returned ((:colname-names) (:rowname-names) (:result-params "replace" "code") (:result-type . value) (:results . "replace code") (:exports . "code") (:session . "none") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no") (:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:file-prop . "FILE-PROPERTY") (:item-param . "ITEM-PARAM"))
+Evaluate this emacs-lisp code block on your system? (y or n) y
+executing Emacs-Lisp code block...
+TRACE called with args (((:session . "none") (:results . "replace") (:exports . "code") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no")) ((:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP"))) nil ((:file-prop . "FILE-PROPERTY")) ((:results . "code") (:item-param . "ITEM-PARAM")))
+TRACE returned ((:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none"))
+TRACE called with args (((:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none")))
+TRACE returned ((:colname-names) (:rowname-names) (:result-params "code" "replace") (:result-type . value) (:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none"))
+#+END_EXAMPLE
+
+#+NAME: debug on org-babel-merge-perms
+#+BEGIN_EXAMPLE
+TRACE called with args (
+(
+ (:session . "none") 
+(:results . "replace") 
+(:exports . "code")
+ (:cache . "no")
+ (:noweb . "no")
+ (:hlines . "no")
+(:tangle . "no")
+)
+(
+(:dir-default concat "DIR" "-EMACS_LISP")
+(:noweb-ref quote (concat "DIR" "-EMACS_LISP")
+)
+) nil (
+(:file-prop . "FILE-PROPERTY")
+)
+(
+(:results . "code")
+(:item-param . "ITEM-PARAM")
+))
+TRACE returned (
+ (:results . "code replace")
+ (:exports . "code")
+ (:item-param . "ITEM-PARAM")
+ (:file-prop . "FILE-PROPERTY")
+ (:dir-default concat "DIR" "-EMACS_LISP")
+ (:noweb-ref quote (concat "DIR" "-EMACS_LISP"))
+ (:tangle . "no")
+ (:hlines . "no")
+ (:noweb . "no")
+ (:cache . "no")
+ (:session . "none")
+)
+TRACE called with args (((:colname-names) (:rowname-names) (:result-params "code" "replace") (:result-type . value) (:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none")) nil)
+TRACE returned ((:results . "replace code") (:exports . "code") (:session . "none") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no") (:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:file-prop . "FILE-PROPERTY") (:item-param . "ITEM-PARAM") (:result-type . value) (:result-params "code" "replace") (:rowname-names) (:colname-names))
+Evaluate this emacs-lisp code block on your system? (y or n) y
+executing Emacs-Lisp code block...
+TRACE called with args (((:session . "none") (:results . "replace") (:exports . "code") (:cache . "no") (:noweb . "no") (:hlines . "no") (:tangle . "no")) ((:dir-default concat "DIR" "-EMACS_LISP") (:noweb-ref quote (concat "DIR" "-EMACS_LISP"))) nil ((:file-prop . "FILE-PROPERTY")) ((:results . "code") (:item-param . "ITEM-PARAM")))
+TRACE returned ((:results . "code replace") (:exports . "code") (:item-param . "ITEM-PARAM") (:file-prop . "FILE-PROPERTY") (:noweb-ref quote (concat "DIR" "-EMACS_LISP")) (:dir-default concat "DIR" "-EMACS_LISP") (:tangle . "no") (:hlines . "no") (:noweb . "no") (:cache . "no") (:session . "none"))
+#+END_EXAMPLE
+
+* debggin
+  :PROPERTIES:
+    :header-args:emacs-lisp+: :item-property (concat "ITEM" "+PROPERTY")
+  :END:
+
+#+BEGIN_SRC emacs-lisp :results code  :block-param (concat "BLOCK" "+PARAM")
+  (org-babel-get-src-block-info)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC emacs-lisp
+("emacs-lisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:block-param . "BLOCK+PARAM")
+  (:item-property . "ITEM+PROPERTY")
+  (:file-prop . "FILE-PROPERTY")
+  (:lexical . "no")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 11604 "(ref:%s)")
+#+END_SRC
+
+
+* Advising Function
+[[info:elisp#Advising%20Functions][info:elisp#Advising Functions]]
+
+#+BEGIN_SRC elisp
+  (defun this-tracing-function (orig-fun &rest args)
+    ;; (edebug-tracing)
+    (edebug-trace "ARGS: %S" args)
+    (edebug-trace "1st Arg: %S" (pop (pop (pop args))))
+    ;; (edebug-trace "2nd Arg: %S" (nth 1 (pop (pop args))))
+    ;; (edebug-trace "FUN: %S" orig-fun)
+    ;; (message "TRACE called with args %S" args)
+    (let ((res (apply orig-fun args)))
+      (message "TRACE returned %S" res)
+      res))
+  (ad-unadvise-all)
+  (advice-add 'org-babel-process-params :around #'this-tracing-function)
+  ;; (advice-add 'org-babel-merge-params :around #'this-tracing-function)
+#+END_SRC
+
+#+RESULTS:
+
+org-babel-merge-params is where the functions get executed
+[[info:elisp#Using%20Edebug][info:elisp#Using Edebug]]
+open [[file:~/.emacs.d/elpa/26.2/develop/org-plus-contrib-20181126/ob-core.el::(defun%20org-babel-merge-params][ob-core.el::(org-babel-merge-params)]] then 'SPC u , e f' to eval defun with a prefix argument
+Visit this line [[file:~/.emacs.d/elpa/26.2/develop/org-plus-contrib-20181126/ob-core.el::(pcase%20pair][ob-core.el::(pcase pair]] and hit '^x X b' to set edebug breakpoint
+Run the elisp block to debug
+c to continue
+r to print resent result
+
+#+BEGIN_SRC emacs-lisp :results code
+(org-entry-properties)
+;; (point) "header-args:emacs-lisp")
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC emacs-lisp
+(("CATEGORY" . "org-babel")
+ ("BLOCKED" . "")
+ ("FILE" . "/home/hippie/ii/org/research/org-babel.org")
+ ("PRIORITY" . "B")
+ ("ITEM" . "Advising Function"))
+#+END_SRC
+
+#+BEGIN_SRC elisp :results code
+(symbol-value 'org-special-properties)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+("ALLTAGS" "BLOCKED" "CLOCKSUM" "CLOCKSUM_T" "CLOSED" "DEADLINE" "FILE" "ITEM" "PRIORITY" "SCHEDULED" "TAGS" "TIMESTAMP" "TIMESTAMP_IA" "TODO")
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(org-entry-get nil "ITEM")
+#+END_SRC
+
+#+RESULTS:
+: Advising Function
+
+#+BEGIN_SRC elisp
+  (org-entry-get (point) "FILE")
+  ;; # "header-args:emacs-lisp")
+#+END_SRC
+
+#+RESULTS:
+: /home/hippie/ii/org/research/org-babel.org
+
+#+BEGIN_SRC elisp :results code
+(org-heading-components)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+(1 1 nil nil "Advising Function" nil)
+#+END_SRC
+
+#+BEGIN_SRC elisp :results code
+(org-buffer-property-keys t)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+("ALLTAGS" "BLOCKED" "CLOCKSUM" "CLOCKSUM_T" "CLOSED" "DEADLINE" "FILE"
+"header-args:emacs-lisp" "header-args:tmate" "ITEM" "PRIORITY" "SCHEDULED" "TAGS" "TIMESTAMP" "TIMESTAMP_IA" "TODO")
+#+END_SRC
+
+#+BEGIN_SRC elisp :results code :noweb-ref (concat "HEADER" "-ELISP")
+  (org-entry-properties nil)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+(("CATEGORY" . "org-babel")
+ ("BLOCKED" . "")
+ ("FILE" . "/home/hippie/ii/org/research/org-babel.org")
+ ("PRIORITY" . "B")
+ ("ITEM" . "Advising Function"))
+#+END_SRC
+
+
+#+BEGIN_SRC elisp :results code :noweb-ref (concat "HEADER" "-ELISP")
+  (org-babel-get-src-block-info)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+("elisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:noweb-ref . "HEADER-ELISP")
+  (:lexical . "no")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 13497 "(ref:%s)")
+#+END_SRC
+
+
+With a few items:
+
+#+BEGIN_SRC elisp
+("elisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:noweb-ref . "HEADER-ELISP")
+  (:dir-local-str . "(concat \"DIR\" \"-EMACS_LISP\")")
+  (:dir-local-default-quote quote
+                            (concat "DIR" "-EMACS_LISP"))
+  (:dir-local-default-func concat "DIR" "-EMACS_LISP")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 13634 "(ref:%s)")
+#+END_SRC
+
+(:noweb-ref quote (concat "DIR" "-EMACS_LISP"))
+
+#+BEGIN_SRC elisp
+("elisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "code")
+  (:noweb-ref . "PROPERTY-ELISP")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:noweb . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 5479 "(ref:%s)")
+#+END_SRC
+
+* Exploring Org
+  :PROPERTIES:
+  :header-args:elisp+: :results code
+  :END:
+
+#+BEGIN_SRC elisp
+  (symbol-value 'org-global-properties)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+(("foo" . "bar")
+ ("header-args:emacs-lisp" . "\":baz buz'"))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+
+#+END_SRC

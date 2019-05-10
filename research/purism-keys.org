@@ -4,18 +4,23 @@
 #+CREATOR: ii.coop
 #+DATE: 7th of May, 2019
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
-#+STARTUP: content
-#+NOSTARTUP: showeverything
+#+NOSTARTUP: content
+#+STARTUP: showeverything
 
 * Generating Keys
 
 Assumes an empty ~/.gnupg
 
 ** main key
+   :PROPERTIES:
+   :header-args:tmate+: :noweb-ref (concat "FOO+" "BAR")
+   # :header-args:elisp+: :noweb-ref (concat "PROPERTY+" "SET")
+   :END:
 
 Brainpool P-512 with Sign Certify and Authenticate:
 Name, Email, Comment towards bottom
 Supported Keys: https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#technical-specs
+
 
 #+BEGIN_SRC tmate
   
@@ -103,12 +108,12 @@ The initial admin pin is 12345678
 ** move subkey to librem
 
 #+BEGIN_SRC tmate
-
-gpg --card-status
-gpg --expert --edit-key hh@ii.coop
-key 1
-keytocard
-1
+  
+  gpg --card-status
+  gpg --expert --edit-key hh@ii.coop
+  key 1
+  keytocard
+  1
 #+END_SRC
 
 #+BEGIN_EXAMPLE
@@ -155,11 +160,6 @@ gpg: KEYTOCARD failed: Invalid value
 https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#detecting-your-openpgp-smart-card
 
 * Footnotes
-#+PROPERTY: FOO for some reason I can't seem to move functions as header args into .dir-locals.el
-#+PROPERTY: URL https://emacs.stackexchange.com/questions/26185/using-a-function-as-an-org-babel-header-argument
-#+PROPERTY: header-args:tmate+  :socket (symbol-value 'socket)
-#+PROPERTY: header-args:tmate+ :session (concat (user-login-name) ":" (nth 4 (org-heading-components)))
-#+PROPERTY: header-args:tmate+ :noweb-ref (nth 4 (org-heading-components))
-#+PROPERTY: header-args:shell+ :noweb-ref (nth 4 (org-heading-components))
-#+PROPERTY: header-args:json+ :noweb-ref (nth 4 (org-heading-components))
-#+PROPERTY: header-args:yaml+ :noweb-ref (nth 4 (org-heading-components))
+#+BEGIN_SRC tmate
+
+#+END_SRC
