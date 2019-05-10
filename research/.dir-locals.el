@@ -19,18 +19,32 @@
           (concat "/tmp/" user-buffer ".target.iisocket"))
      (set (make-local-variable 'socket-param)
           (concat ":sockets " socket))
+     (set (make-local-variable 'item-str)
+          "(nth 4 (org-heading-components))")
      (set (make-local-variable 'org-file-properties)
           (list
            (cons 'header-args:tmate
-                 (concat ":noweb-ref (nth 4 (org-heading-components)) :socket " socket))
+                 (concat
+                  ":noweb-ref " item-str
+                  " :session (concat user-login-name \":\" " item-str ")"
+                  " :socket " socket
+                  ))
            (cons 'header-args:emacs-lisp
-                 (concat ":noweb-ref (nth 4 (org-heading-components))" ))
+                 (concat
+                  ":noweb-ref " item-str
+                  ))
            (cons 'header-args:elisp
-                 (concat ":noweb-ref (nth 4 (org-heading-components))" ))
+                 (concat
+                  ":noweb-ref " item-str
+                  ))
            (cons 'header-args:bash
-                 (concat ":noweb-ref (nth 4 (org-heading-components))" ))
+                 (concat
+                  ":noweb-ref " item-str
+                  ))
            (cons 'header-args:bash
-                 (concat ":noweb-ref (nth 4 (org-heading-components))" ))
+                 (concat
+                  ":noweb-ref " item-str
+                  ))
            )
           )
      (set (make-local-variable 'select-enable-clipboard) t)
