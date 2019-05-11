@@ -47,6 +47,7 @@
                   " :socket " socket
                   " :window " user-login-name
                   " :terminal sakura"
+                  " :exports code"
                   ;; If you want each tmate command to run from a particular directory
                   ;; " :prologue (concat \"cd \" ssh-dir \"\n\")"
                   ))
@@ -57,6 +58,7 @@
                   " :comments org"
                   " :eval no-export"
                   " :results code"
+                  " :exports both"
                   ))
            (cons 'header-args:elisp
                  (concat
@@ -65,6 +67,7 @@
                   " :comments org"
                   " :eval no-export"
                   " :results code"
+                  " :exports both"
                   ))
            (cons 'header-args:bash
                  (concat
@@ -73,6 +76,7 @@
                   " :comments org"
                   " :eval no-export"
                   " :results output code verbatis replace"
+                  " :exports both"
                   " :wrap EXAMPLE"
                   ;; This can help catch stderr and other issues
                   ;; " :prologue \"exec 2>&1\n\""
@@ -88,6 +92,7 @@
                   " :comments org"
                   " :eval no-export"
                   " :results output code verbatis replace"
+                  " :exports both"
                   " :wrap EXAMPLE"
                   ))
            (cons 'header-args:json
@@ -95,12 +100,14 @@
                   " :noweb yes"
                   " :comments org"
                   " :noweb-ref " item-str
+                  " :exports both"
                   ))
            (cons 'header-args:yaml
                  (concat
                   " :noweb yes"
                   " :comments org"
                   " :noweb-ref " item-str
+                  " :exports both"
                   ))
            )
           )
