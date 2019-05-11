@@ -85,6 +85,7 @@
                   ;; " :prologue exec 2>&1\n(\n"
                   ;; " :epilogue )\n:\n"
                   ;; If you want commands executing over tramp
+                  ;; " :dir (symbol-value 'tmpdir)"
                   ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
                   ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
                   ;; If you want to feed an application via HEREDOC
@@ -168,12 +169,54 @@
            "; bash --login\""
            )
           )
-     (xclip-mode 1)
-     ;; (gui-select-text (concat "rm -fi " socket "; ssh -tAX " ssh-user "@" ssh-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
-     ;; (edebug-trace "TRACING socket:%S" socket)
-     ;; (edebug-trace "TRACING org-babel-header-args:tmate %S" org-babel-header-args:emacs-lisp)
-     (gui-select-text start-tmate-command)
-     ;; we could try and create a buffer / clear it on the fly
+     ;; # eval: (set (make-local-variable 'ssh-user-host) (concat ssh-user "@" ssh-host))
+     ;; # eval: (set (make-local-variable 'start-tmate-over-ssh-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+     ;; # eval: (set (make-local-variable 'start-tmate-locally-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
+     ;; # eval: (xclip-mode 1) 
+     ;; # eval: (gui-select-text (concat "ssh -tAX " ssh-user-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
+     (defun runs-and-exits-zero (program &rest args)
+       "Run PROGRAM with ARGS and return the exit code."
+       (with-temp-buffer
+         (if (= 0 (apply 'call-process program nil (current-buffer) nil args))
+             'true
+           ))
+       )
+     (defun xclip-working ()
+       "Quick Check to see if X is working."
+       (if (getenv "DISPLAY")
+           (if (runs-and-exits-zero "xset" "q")
+               ;; Using xclip to set an invalid selection is as lightly intrusive
+               ;; check I could come up with, and not overwriting anything
+               ;; however it seems to hang
+               ;; (if (runs-and-exits-zero "xclip" "-selection" "unused")
+               ;;     'true)
+               'true
+             )
+         )
+       )
+     (defun populate-x-clipboard ()
+       "Populate the X clipboard with the start-tmate-command"
+       (message "Setting X Clipboard to contain the start-tmate command")
+       (xclip-mode 1)
+       (gui-select-text start-tmate-command)
+       (xclip-mode 0)
+       (with-current-buffer (get-buffer-create "start-tmate-command")
+         (insert-for-yank "The following has been populated to your local X clipboard:\n")
+         )
+       )
+     ;; For testing / setting DISPLAY to something else
+     ;; (getenv "DISPLAY")
+     ;; (setenv "DISPLAY" ":0")
+     ;; As we start on other OSes, we'll need to copy this differently
+     (if (xclip-working)
+         (populate-x-clipboard)
+       (
+        (with-current-buffer (get-buffer-create "start-tmate-command")
+          (insert-for-yank "You will need to copy this manually:\n\n")
+          )
+        )
+       )
+     ;; needs to be global, so it's availabel to the other buffer
      (setq tmate-command start-tmate-command)
      (with-current-buffer (get-buffer-create "start-tmate-command")
        (insert-for-yank
@@ -181,14 +224,17 @@
         ))
      (switch-to-buffer "start-tmate-command")
      (y-or-n-p "Have you Pasted?")
+     ;; (gui-select-text (concat "rm -fi " socket "; ssh -tAX " ssh-user "@" ssh-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
+     ;; (edebug-trace "TRACING socket:%S" socket)
+     ;; (edebug-trace "TRACING org-babel-header-args:tmate %S" org-babel-header-args:emacs-lisp)
+     ;; we could try and create a buffer / clear it on the fly
      ;; ssh later? 
      ;; (with-current-buffer (get-buffer-create "start-tmate-command")
      ;;   (insert-for-yank
      ;;    (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
      ;;    ))
-     (xclip-mode 0)
-;;; FIXME! How do we find out what our local filname is?
-     ;;; This was designed for dir-locals... can we reach in?
+     ;; FIXME! How do we find out what our local filname is?
+     ;; This was designed for dir-locals... can we reach in?
      ;; (switch-to-buffer (get-buffer buffer-file-name))
      ;; (spacemacs/toggle-maximize-buffer)
      )
