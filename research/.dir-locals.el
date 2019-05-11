@@ -50,6 +50,7 @@
                   " :exports code"
                   ;; If you want each tmate command to run from a particular directory
                   ;; " :prologue (concat \"cd \" ssh-dir \"\n\")"
+                  ;; " :prologue (concat "cd " org-file-dir "\n") ))
                   ))
            (cons 'header-args:emacs-lisp
                  (concat
@@ -81,9 +82,15 @@
                   ;; This can help catch stderr and other issues
                   ;; " :prologue \"exec 2>&1\n\""
                   ;; " :epilogue \":\n\""
+                  ;; " :prologue exec 2>&1\n(\n"
+                  ;; " :epilogue )\n:\n"
                   ;; If you want commands executing over tramp
                   ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
                   ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
+                  ;; If you want to feed an application via HEREDOC
+                  ;;   :PROPERTIES:
+                  ;; " :prologue exec 2>&1\nbq query -n 2000 --nouse_legacy_sql  <<EOF\n"
+                  ;; " :epilogue "\nEOF\n:\n"
                   ))
            (cons 'header-args:shell
                  (concat
