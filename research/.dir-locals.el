@@ -118,10 +118,11 @@
            "tmate display -p '#{tmate_ssh} # "
            user-buffer
            ".target # "
+           ;; would like this to be shorter
            (concat
             (format-time-string "%Y-%m-%d %T")
             (funcall (lambda ($x) (format "%s:%s" (substring $x 0 3) (substring $x 3 5))) (format-time-string "%z")))
-           " #{tmate_web} ') "
+           " # #{tmate_web} ') "
            "; echo \\$TMATE_CONNECT "
            "; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null "
            "; echo Share the above with your friends and hit enter when done. "
@@ -162,14 +163,15 @@
      (setq tmate-command start-tmate-command)
      (with-current-buffer (get-buffer-create "start-tmate-command")
        (insert-for-yank
-        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-over-ssh-command)
+        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
         ))
      (switch-to-buffer "start-tmate-command")
      (y-or-n-p "Have you Pasted?")
-     (with-current-buffer (get-buffer-create "start-tmate-command")
-       (insert-for-yank
-        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
-        ))
+     ;; ssh later? 
+     ;; (with-current-buffer (get-buffer-create "start-tmate-command")
+     ;;   (insert-for-yank
+     ;;    (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
+     ;;    ))
      (xclip-mode 0)
 ;;; FIXME! How do we find out what our local filname is?
      ;;; This was designed for dir-locals... can we reach in?
