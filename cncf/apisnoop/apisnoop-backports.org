@@ -4,9 +4,6 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop
 #+DATE: August 22nd, 2018
-#+PROPERTY: header-args:tmux :socket "/tmp/hh-tmate.socket"
-#+PROPERTY: header-args:tmux :session "k8s:apisnoop"
-#+PROPERTY: header-args:tmux :results "silent"
 #+PROPERTY: header-args:shell :dir /home/apisnoop/dev/audit-log-review
 
 * Test-Grid Artifacts
@@ -247,20 +244,5 @@ time $PREFIX/e2e.test \
   --v=2 \
   --provider=skeleton
 #+END_SRC
-
-
-
-* Footnotes
-
-
-# Local Variables:
-# eval: (require (quote ob-shell))
-# eval: (require (quote ob-lisp))
-# eval: (require (quote ob-emacs-lisp))
-# eval: (require (quote ob-js))
-# eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
-# org-babel-tmux-session-prefix: "hh-"
-# End:
 
 
