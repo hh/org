@@ -1,0 +1,80 @@
+* Learning
+
+** Pushing Images
+   
+PROW_REPO_OVERRIDE=gcr.io/apisnoop/testing-prow-build ./prow/push.sh
+
+#+BEGIN_EXAMPLE
+F0416 05:20:45.175318    8630 fast_pusher_.py:194]
+ Error publishing gcr.io/apisnoop/testing-prow-build/hook:latest:
+ Bad status during token exchange: 401
+#+END_EXAMPLE
+
+#+BEGIN_SRC json
+  {
+      "errors":[
+          {
+              "code":"UNAUTHORIZED",
+              "message":"You don't have the needed permissions to perform th is operation, and you may
+  have invalid credentials. To authenticate your request, follow the ste ps in:
+  https://cloud.google.com/container-registry/docs/advanced-authentication"
+          }
+      ]
+  }
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+E0416 05:46:10.858015    4253 docker_session_.py:332]
+ Error during upload of: gcr.io/apisnoop/testing-prow-build/needs-rebase:v20190415-6bf1a9bb4
+F0416 05:46:10.858966    4253 fast_pusher_.py:194]i
+ Error publishing gcr.io/apisnoop/testing-prow-build/needs-rebase:v20190415-6bf1a9bb4: response:
+Unable to write blob sha256:85cea451eec057fa7e734548ca3ba6d779ed5836a3f9de14b8394575ef0d7d8e: None
+
+#+END_EXAMPLE
+#+BEGIN_SRC json
+  {
+    "status": "503",
+    "content-length": "136",
+    "x-xss-protection": "0",
+    "transfer-encoding": "chunked",
+    "server": "Docker Registry",
+    "-content-encoding": "gzip",
+    "docker-distribution-api-version": "registry/2.0",
+    "cache-control": "private",
+    "date": "Mon, 15 Apr 2019 17:38:35 GMT",
+    "x-frame-options": "SAMEORIGIN",
+    "content-type": "application/json"
+  }
+#+END_SRC
+*** Advanced GCR Auth
+#+NAME: TLDR... to get docker to auth to *.gcr.io
+#+BEGIN_SRC shell
+gcloud auth configure-docker
+#+END_SRC
+
+#+RESULTS: TLDR... to get docker to auth to *.gcr.io
+
+So we try this approach:
+
+#+BEGIN_SRC shell
+gcloud components install docker-credential-gcr
+#+END_SRC
+
+After I ensured that gcloud comes from the upstream url:
+
+#+BEGIN_EXAMPLE
+ERROR: (gcloud.components.install) 
+The docker-credential-gcr component(s) is unavailable through the packaging system 
+you are currently using. Please consider using a separate installation 
+of the Cloud SDK created through the default mechanism described at: 
+
+https://cloud.google.com/sdk/ 
+#+END_EXAMPLE
+
+#+BEGIN_NOTES
+Note: docker-credential-gcr is primarily intended for users wishing to
+authenticate with GCR in the absence of gcloud, though they are not mutually
+exclusive. For normal development setups, users are encouraged to use gcloud
+auth configure-docker, instead.
+#+END_NOTES
+

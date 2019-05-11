@@ -1,0 +1,140 @@
+#+NAME: test related raw notes
+* Links
+
+https://kubernetes.io/docs/concepts/workloads/pods/pod/
+https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.14/#pod-v1-core
+
+Refer to docs:
+
+Dig into
+e2e/apps/job.go
+It("should exceed backoffLimit",
+
+For promotion:
+https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/conformance-tests.md
+Under Conformance Test Requirements
+
+How do we test for flakey?
+
+Using local-up prior, but now we use kind.
+
+If test needs multi node or not.
+
+Keep running e2e 30 to 40 times localy.
+
+Then send PR.
+
+Why are we promoting
+What are the testing
+What is execution time
+
+Dependent on different sigs.
+Requires implementing different configuration files.
+To see how they are executing on the machine, and seeing how they bring new functionality.
+
+ie: ReplicationController and Services at the same time
+
+Extracting yaml configs for k8s types required for the test by examining the pod
+spec files.
+
+Deploy and observe the behavior, then conclude / use that
+information to create that functionality on the e2e.
+
+
+Guidielines from sig (storage)
+Veriy the property of the volume mounting...
+which volume driver is supported on the different scenarios.
+We seek this info from the community member based on sig, git.
+
+* kubetest
+#+BEGIN_SRC shell
+go get -u k8s.io/test-infra/kubetest
+#+END_SRC
+https://github.com/kubernetes/test-infra/tree/master/kubetest#extract-a-build
+
+--extract=release/stable
+* kind
+  
+
+#+BEGIN_SRC shell
+  (
+    kind get clusters
+  ) 2>&1
+  :
+#+END_SRC
+
+#+BEGIN_SRC yaml :tangle kind-multinode.yaml
+kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+- role: control-plane
+- role: worker
+#+END_SRC
+
+#+BEGIN_SRC shell
+kind create cluster --image kindest/node:latest \
+  --loglevel info \
+  --config kind-multinode.yaml \
+  --retain
+#+END_SRC
+
+#+RESULTS:
+
+* centos
+
+SELinux + docker
+
+* vagrant
+
+#+NAME: provision ubuntu
+#+BEGIN_SRC tmate
+vagrant status
+#+END_SRC
+
+#+NAME: provision ubuntu
+#+BEGIN_SRC tmate
+vagrant up ubuntu --provision
+#+END_SRC
+
+Not Found!
+
+* @srinivas - containers instead of vagrant?
+
+vssh
+
+docker ps
+#etcd needs to be installed
+cd go/src/kcs/kubernetes.sh
+hack/install-etcd.sh
+hack/local-up-cluster.sh # -O for binarkes
+
+make # 22 minutes
+
+bazel build # e2e.test binary
+ 
+
+bazel build //test/e2e:gen_e2e.test
+# can we get a history | grep bazel
+
+* @mayank 
+
+https://www.draw.io
+
+kubernetes.io/docs/reference/generated/kubernetes-api/v1.13
+
+Group
+Version
+Kind - verify that a regexp on the endpoints would catch all instances of the Resource/Kind
+
+Endpoint based filter
+- http verbs
+- Name
+- resource?
+
+User Agent based Filter / Gingko Focused based filter
+
+#+BEGIN_SRC shell
+kubectl proxy --accept=hosts=".8" --insecure-skip-tls-verify=true --port 80881
+vagrant destroy -f
+go run hack/e2e.go -- --test --provider=local --terg_args="--ginkgo.focus=from\slogs\soutput\sif\sTerminationMessagePoligy\s"
+#+END_SRC

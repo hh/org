@@ -1,0 +1,47 @@
+#+TITLE: Developing our Spyglass Lens
+#+AUTHOR: Zach Mandeville
+#+EMAIL: zz@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 23th of April, 2019
+#+STARTUP: showeverything
+
+* Flight Plan
+- [ ] get html rendering
+- [ ] get bucket loading
+- [ ] get bucket dynamic.
+
+* basic html template
+
+#+BEGIN_SRC html
+  <head>
+  <meta ${CSS Link} />
+  <meta ${Font Link} />
+  <meta ${gs bucket} />
+  </head>
+  <body>
+   really nothing here.  but we can put a <h1>hi!</h1>
+  <script>a bunch of boilerplatereact PLUS!</script>
+  <script src='something.chunk.js' />
+  <script src='something2.chunk.js' />
+  </body>
+#+END_SRC
+
+Our accomplishments would be:
+- get this html showoing with just "hello world"
+- style that hello world with tachyons (so we know our meta link work,s)
+- add our two something.chunk.js to a gs bucket.
+- hardcode template where those soruces refer to that bucket (similar to google fonts or unpkg.com)
+
+This should give us a apisnoop visualization of v.1.15
+rege="*master*/*audit.log*"
+
+http://ii.cncf.ci:8080/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1119640973580701707
+https://gcsweb.k8s.io/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance/1119640973580701707/artifacts/bootstrap-e2e-master/
+
+* Footnotes
+
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) (user-login-name))
+# eval: (set (make-local-variable 'ssh-host) "ii.cncf.ci")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# End:

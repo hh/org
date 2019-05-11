@@ -1,0 +1,11 @@
+* Kubectl Tips and Tricks
+
+#+BEGIN_SRC shell 
+  kubectl get nodes -o wide
+#+END_SRC
+
+#+RESULTS:
+| NAME                                       | STATUS | ROLES  | AGE | VERSION       | INTERNAL-IP |  EXTERNAL-IP | OS-IMAGE            | KERNEL-VERSION | CONTAINER-RUNTIME |        |          |                 |
+| gke-apisnoop-ci-default-pool-3fb18c85-0m8m | Ready  | <none> |  3d | v1.11.8-gke.6 | 10.152.0.34 | 35.201.9.148 | Container-Optimized | OS             | from              | Google | 4.14.91+ | docker://17.3.2 |
+| gke-apisnoop-ci-default-pool-3fb18c85-7s4m | Ready  | <none> | 11d | v1.11.8-gke.6 | 10.152.0.26 | 35.201.7.106 | Container-Optimized | OS             | from              | Google | 4.14.91+ | docker://17.3.2 |
+| gke-apisnoop-ci-default-pool-3fb18c85-s6s8 | Ready  | <none> |  5d | v1.11.8-gke.6 | 10.152.0.30 | 35.244.98.87 | Container-Optimized | OS             | from              | Google | 4.14.91+ | docker://17.3.2 |

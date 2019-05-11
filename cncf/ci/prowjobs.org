@@ -1,0 +1,112 @@
+#+TITLE: #Prow for cncf-ci
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 8th of March, 2019
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+STARTUP: content
+
+* apisnoop.yaml
+  :PROPERTIES:
+  :header-args:yaml+: :tangle ~/go/src/k8s.io/test-infra/config/jobs/cncf/apisnoop/apisnoop.yaml
+  :END:
+** plank
+#+BEGIN_SRC yaml
+  plank:
+    job_url_template: 'https://job_url_template/'
+  #  job_url_template: '{{if .Spec.Refs}}{{if eq .Spec.Refs.Org "kubernetes-security"}}https://console.cloud.google.com/storage/browser/kubernetes-security-prow/{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{else}}https://prow.k8s.io/view/gcs/kubernetes-jenkins/{{end}}{{if eq .Spec.Type "presubmit"}}pr-logs/pull{{else if eq .Spec.Type "batch"}}pr-logs/pull{{else}}logs{{end}}{{if .Spec.Refs}}{{if ne .Spec.Refs.Org ""}}{{if ne .Spec.Refs.Org "kubernetes"}}/{{if and (eq .Spec.Refs.Org "kubernetes-sigs") (ne .Spec.Refs.Repo "poseidon")}}sigs.k8s.io{{else}}{{.Spec.Refs.Org}}{{end}}_{{.Spec.Refs.Repo}}{{else if ne .Spec.Refs.Repo "kubernetes"}}/{{.Spec.Refs.Repo}}{{end}}{{end}}{{end}}{{if eq .Spec.Type "presubmit"}}/{{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}{{else if eq .Spec.Type "batch"}}/batch{{end}}/{{.Spec.Job}}/{{.Status.BuildID}}/'
+    report_template: '[Full PR test history](http://prow.cncf.ci/pr-history?org={{.Spec.Refs.Org}}&repo={{.Spec.Refs.Repo}}&pr={{with index .Spec.Refs.Pulls 0}}{{.Number}}{{end}}). [Your PR dashboard](https://gubernator.cncf.ci/pr/{{with index .Spec.Refs.Pulls 0}}{{.Author}}{{end}}). Please help us cut down on flakes by [linking to](https://git.k8s.io/community/contributors/devel/flaky-tests.md#filing-issues-for-flaky-tests) an [open issue](https://github.com/{{.Spec.Refs.Org}}/{{.Spec.Refs.Repo}}/issues?q=is:issue+is:open) when you hit one in your PR.'
+    job_url_prefix: http://prow.cncf.ci/view/gcs/
+    pod_pending_timeout: 60m
+    # level=fatal msg="Error loading Prow config." component=checkconfig error="no default decoration image pull specs provided for plank"
+    default_decoration_config:
+      timeout: 7200000000000 # 2h
+      grace_period: 15000000000 # 15s
+      utility_images:
+        sidecar: "gcr.io/k8s-prow/sidecar:v20190314-e8134a3"
+        clonerefs: "gcr.io/k8s-prow/clonerefs:v20190314-e8134a3"
+        initupload: "gcr.io/k8s-prow/initupload:v20190314-e8134a3"
+        entrypoint: "gcr.io/k8s-prow/entrypoint:v20190314-e8134a3"
+      gcs_configuration:
+        bucket: "apisnoop"
+        path_strategy: "legacy"
+        default_org: "cncf"
+        default_repo: "apisnoop"
+      gcs_credentials_secret: "service-account"
+#+END_SRC
+Initially config is empty and plugins only contains size:
+** periodics
+   
+#+BEGIN_SRC yaml
+  periodics:
+  - name: apisnoop-periodic
+    interval: 2h
+    agent: knative-build
+    decorate: true
+    extra_refs:
+    - org: cncf
+      repo: apisnoop
+      base_ref: master
+    build_spec:
+      steps:
+      - name: first
+        image: busybox
+        args: ["echo", "hello"]
+      - name: second
+        image: busybox
+        args: ["echo", "world"]
+      - name: third
+        image: busybox
+        args: ["ls", "-la"]
+#+END_SRC
+** postsubmits
+#+BEGIN_SRC yaml
+  postsubmits:
+    cncf/apisnoop:
+    - name: apisnoop-postsubmit
+      agent: knative-build
+      decorate: true
+      build_spec:
+        steps:
+        - name: first
+          image: busybox
+          args: ["echo", "hello"]
+        - name: env
+          image: busybox
+          args: ["env"]
+        - name: third
+          image: busybox
+          args: ["ls", "-la"]
+#+END_SRC
+** presubmits
+#+BEGIN_SRC yaml
+  presubmits:
+    cncf/apisnoop:
+    - name: apisnoop-presubmit
+      agent: knative-build
+      decorate: true
+      always_run: true
+      skip_report: false
+      build_spec:
+        steps:
+        - name: first
+          image: busybox
+          args: ["echo", "hello"]
+        - name: second
+          image: busybox
+          args: ["echo", "world"]
+        - name: third
+          image: busybox
+          args: ["ls", "-la"]
+#+END_SRC
+
+
+* testing
+
+This seems to be how to test prow jobs:
+
+#+BEGIN_SRC tmate
+go run k8s.io/test-infra/prow/cmd/mkpj \
+  --job=apisnoop-periodic \
+  --config=~/go/src/k8s.io/test-infra/config/jobs/cncf/apisnoop/apisnoop.yaml
+#+END_SRC

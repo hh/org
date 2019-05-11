@@ -1,0 +1,29 @@
+#+title: spacemacs keysbindings
+
+- ::^c \:: org-match-sparse-tree
+
+* Tags
+
+SPC o m => (org-tags-view)’
+
+* Info
+
+^o => (Info-history-back)
+r => (Info-history-forward)
+L => (Info-history)
+
+* Special Symbols
+
+[[info:org#Special%20symbols][info:org#Special symbols]]
+[[elisp:(org-entities-help)][Org-Entities-Help]]
+
+* Definitions
+‘C-c a m
+
+[[info:org#Dynamic%20blocks][info:org#Dynamic blocks]]
+[[info:org#Extracting%20agenda%20information][info:org#Extracting agenda information]]
+
+* [[info:org#Literal%20examples][info:org#Literal examples]]
+
+Some help formatting
+

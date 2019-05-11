@@ -1,0 +1,11 @@
+#+TITLE: Researching Anaconda for use with Data Science
+
+https://www.anaconda.com/distribution/
+
+Should we be using 2.7 or 3.7?
+
+bash Anaconda3-2019.03-Linux-x86_64.sh
+
+#+BEGIN_SRC shell
+wget https://repo.anaconda.com/archive/Anaconda3-2019.03-Linux-x86_64.sh
+#+END_SRC

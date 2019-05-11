@@ -1,0 +1,167 @@
+* Download and Verify Source
+** find key
+#+BEGIN_SRC shell
+  gpg --search-keys "D405 AA2C 862C 54F1 7EEE 6BE0 E8BC D786 6AFC F978"
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+  gpg: data source: https://51.38.91.189:443
+  (1)	Nicolas Petton <nicolas@petton.fr>
+    Nicolas Petton <petton.nicolas@gmail.com>
+    Nicolas Petton <nicolas@foretagsplatsen.se>
+    Nicolas Petton <nicolas.petton@wolterskluwer.com>
+      2048 bit RSA key 233587A47C207910, created: 2012-06-10
+  Keys 1-1 of 1 for "D405 AA2C 862C 54F1 7EEE 6BE0 E8BC D786 6AFC F978".  Enter number(s), N)ext, or Q)uit > 1
+  gpg: key 233587A47C207910: 28 signatures not checked due to missing keys
+  gpg: key 233587A47C207910: public key "Nicolas Petton <nicolas@petton.fr>" imported
+  gpg: no ultimately trusted keys found
+  gpg: Total number processed: 1
+  gpg:               imported: 1
+#+END_EXAMPLE
+
+** import key
+#+BEGIN_SRC shell
+  gpg --recv-keys 28D3BED851FDF3AB57FEF93C233587A47C207910 2>&1
+#+END_SRC
+#+BEGIN_EXAMPLE
+gpg: key 233587A47C207910: 28 signatures not checked due to missing keys
+gpg: key 233587A47C207910: "Nicolas Petton <nicolas@petton.fr>" not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+#+END_EXAMPLE
+** download and ensure signature of software
+#+BEGIN_SRC shell
+  cd ~/src
+  wget http://ftp.twaren.net/Unix/GNU/gnu/emacs/emacs-26.2.tar.xz.sig
+  wget http://ftp.twaren.net/Unix/GNU/gnu/emacs/emacs-26.2.tar.xz
+#+END_SRC
+** check signature
+#+BEGIN_SRC shell
+gpg --verify emacs-26.2.tar.xz.sig emacs-26.2.tar.xz
+#+END_SRC
+#+BEGIN_EXAMPLE
+gpg: Signature made Sat 13 Apr 2019 03:26:30 NZST
+gpg:                using RSA key D405AA2C862C54F17EEE6BE0E8BCD7866AFCF978
+gpg: Good signature from "Nicolas Petton <nicolas@petton.fr>" [unknown]
+gpg:                 aka "Nicolas Petton <petton.nicolas@gmail.com>" [unknown]
+gpg:                 aka "Nicolas Petton <nicolas@foretagsplatsen.se>" [unknown]
+gpg:                 aka "Nicolas Petton <nicolas.petton@wolterskluwer.com>" [unknown]
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 28D3 BED8 51FD F3AB 57FE  F93C 2335 87A4 7C20 7910
+     Subkey fingerprint: D405 AA2C 862C 54F1 7EEE  6BE0 E8BC D786 6AFC F978
+#+END_EXAMPLE
+** git
+#+BEGIN_SRC 
+git clone git://git.sv.gnu.org/emacs.git
+#+END_SRC
+* Unpack and ensure dependencies
+** unpack
+#+BEGIN_SRC shell
+tar xf emacs-26.2.tar.xz
+cd emacs-26.2
+#+END_SRC
+** options
+*** sound
+compile with sound support (VALUE one of:
+   yes, alsa, oss, bsd-ossaudio, no;
+   default yes).
+Only for GNU/Linux, FreeBSD, NetBSD, MinGW, Cygwin.
+*** graphics
+
+  --without-xpm           don't compile with XPM image support
+  --without-jpeg          don't compile with JPEG image support
+  --without-tiff          don't compile with TIFF image support
+  --without-gif           don't compile with GIF image support
+  --without-png           don't compile with PNG image support
+  --without-rsvg          don't compile with SVG image support
+  --without-imagemagick   don't compile with ImageMagick image support
+*** file formats
+  --without-xml2         --without-zlib          don't compile with zlib decompression support
+   don't compile with XML parsing support
+  --without-zlib          don't compile with zlib decompression support
+  --without-zlib          don't compile with zlib decompression support
+
+*** gui
+  --with-x                use the X Window System
+  --with-x-toolkit=KIT    use an X toolkit (KIT one of: yes or gtk, gtk2,
+                          gtk3, lucid or athena, motif, no)
+  --with-xwidgets         enable use of some gtk widgets in Emacs buffers
+  --without-xft           don't use XFT for anti aliased fonts
+  --without-libotf        don't use libotf for OpenType font support
+  --without-m17n-flt      don't use m17n-flt for text shaping
+  --without-xim           at runtime, default X11 XIM to off
+  --without-gpm           don't use -lgpm for mouse support on a GNU/Linux
+  --without-toolkit-scroll-bars
+
+*** settings
+  --with-modules          compile with dynamic modules support
+  --with-gconf            compile with Gconf support (Gsettings replaces this)
+  --without-gsettings     don't compile with GSettings support
+  --without-threads       don't compile with elisp threading support
+  --without-gnutls        don't use -lgnutls for SSL/TLS support
+** compile command
+#+BEGIN_SRC shell
+    ./configure --prefix=/usr/local/stow/emacs-26.2 \
+      --with-x \
+      --with-x-toolkit=gtk3 \
+      --with-xwidgets \
+      --with-xft \
+      --with-libotf \
+      --with-m17n-flt \
+      --with-xim \
+      --with-gpm \
+      --with-toolkit-scroll-bars \
+      --with-modules \
+      --with-gsettings \
+      --with-gconf \
+      --with-threads \
+      --with-gnutls \
+      --with-zlib \
+      --with-xml2 \
+      --with-xpm \
+      --with-jpeg \
+      --with-tiff \
+      --with-gif \
+      --with-png \
+      --with-rsvg \
+      --with-imagemagick \
+      --with-makeinfo \
+      --without-compress-install
+  make -j 8
+  make install
+#+END_SRC
+*** emacs-jupyter
+#+BEGIN_SRC shell
+make widgets
+#+END_SRC
+* after compilation
+
+
+ emacs --batch -l ~/.emacs.d/init.el
+#+BEGIN_EXAMPLE
+ZMQ module not found. Build it? (y on n)
+#+END_EXAMPLE
+ sudo apt-get install libzmq3-dev
+ configure: error: Need poller interface.
+
+Compile ZMQ with -DZMQ_BUILD_DRAFT_API=1
+
+http://zeromq.org/intro:get-the-software
+
+#+BEGIN_SRC shell
+  echo "deb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_19.04/ ./" \
+   | sudo tee  /etc/apt/sources.list.d/zerqmq.list
+  wget https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_19.04/Release.key -O- \
+   | sudo apt-key add   
+  sudo apt-get update
+  sudo apt-get install -y libzmq5-dev
+#+END_SRC
+
+* zmq
+
+https://github.com/dzop/emacs-zmq
+
+Looks like we need to use zmq... and build it.
+The Makefile downloads the specified version of ZMQ and builds it.
+(setenv "PATH" (concat "/home/hippie/.local/bin:/home/hippie/anaconda3/bin:/home/hippie/anaconda3/condabin:" (getenv "PATH")))
