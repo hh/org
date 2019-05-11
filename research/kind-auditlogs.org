@@ -1,0 +1,847 @@
+#+TITLE: Kind Audit Logs
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh.coop
+#+CREATOR: ii.coop
+#+DATE: 27 April, 2019
+#+STARTUP: showeverything
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+
+* Objective
+
+In order to get visibility into API usage, we need to generate auditlog artifacts when running conformance jobs.
+Kind is used throughout test-infra and conformance and is a good inital starting point for auditlog generation.
+
+** Update currently used script to support auditlogs
+
+These periodic test jobs are defined in https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-testing/conformance-e2e.yaml
+
+The previous script is
+
+
+The PR to update [[https://github.com/kubernetes/test-infra/blob/f22034530b7de92a17aa63bf6d73b837676fdc82/experiment/kind-e2e.sh][experiment/kind-e2e.sh]] : https://github.com/kubernetes/test-infra/pull/12388
+
+- [x] create audit-policy.yaml
+
+- [x] mount audit-policy.yaml onto the control-plane
+- [x] mount apiserver-audit.log onto the control-plane
+
+- [x] mount audit-policy.yaml into the apiserver pod
+- [x] mount apiserver-audit.log into apiserver pod
+
+These steps were a bit, as the 
+
+- [x] update the apiserver command line args
+- [x] ensure auditlogs are generated
+- [ ] ensure auditlogs appear in gcsweb/testgrid/prow
+
+* Sub Issues
+ 
+** Migrate away from using sig-testing/experiments/*
+
+[[https://github.com/kubernetes/test-infra/pull/12387]]
+
+- [ ] Get ./hack/update-config.sh to pass
+
+** Kubeadm Configuration differences
+
+We have CI jobs that run against every PR of kind that test against each release branch of k8s 1.11 and later.
+
+We needed configure kubeadm 1.12 and and 1.13 differently than 1.14 and later.
+
+*** kubeadm extraVolumes for v1beta1
+
+#+BEGIN_SRC yaml
+  apiVersion: kubeadm.k8s.io/v1beta1
+  kind: ClusterConfiguration
+  apiServer:
+    extraVolumes:
+    - hostPath: /host/read-only
+      mountPath: /mount/read-only
+      name: ReadOnlyVolume
+      readOnly: true
+#+END_SRC 
+
+*** kubeadm extraVolumes for v1alpha3
+#+BEGIN_SRC yaml
+  apiVersion: kubeadm.k8s.io/v1alpha3
+  kind: ClusterConfiguration
+  apiServerExtraVolumes:
+  - hostPath: /host/read-only
+    mountPath: /mount/read-only
+    name: ReadOnlyVolume
+    readOnly: true
+    pathType: FileOrCreate
+#+END_SRC 
+
+** Drop conformance job for 1.11
+   
+[[https://github.com/kubernetes/test-infra/pull/12387/commits/c9485374ac583a37f68e4f733536ffdabc555ab2][Maybe drop 1.11?]]
+    
+* loop
+** async
+#+BEGIN_SRC shell :async
+echo hello
+sleep 5
+echo hello
+sleep 5
+echo hello
+sleep 5
+echo hello
+sleep 5
+echo hello
+sleep 5
+echo hello
+sleep 5
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+hello
+hello
+hello
+hello
+hello
+hello
+#+END_EXAMPLE
+
+** ci loop
+
+#+BEGIN_SRC tmate
+  cd ~/kubernetes
+  rm -rf _artifacts/ _output/
+  ~/kind/hack/ci/e2e.sh
+#+END_SRC
+
+** control-plane
+
+*** pstree
+#+BEGIN_SRC shell :results drawer append raw output :wrap (symbol-value 'nil) 
+  pstree -pal $(pidof kind) | grep -A1 kind, | tail -1 | perl -pe 's:,.*?\ : :' | sed 's:  |-::'
+
+#+END_SRC 
+
+*** results
+#+RESULTS:
+    
+** interestings
+*** kind calling kubeadmn
+This is how kind calls kubeadm
+
+#+BEGIN_SRC shell :noeval
+docker exec --privileged -t kind-control-plane \
+  kubeadm init --ignore-preflight-errors=all \
+  --config=/kind/kubeadm.conf \
+  --skip-token-print \
+  --v=6
+#+END_SRC
+
+*** kind creating the cluster
+
+
+#+BEGIN_SRC shell
+kind create cluster \
+  --image=kindest/node:latest \
+  --retain --wait=1m --loglevel=debug \
+  --config=/home/hippie/go/src/k8s.io/kubernetes/_artifacts/kind-config.yaml
+#+END_SRC
+
+#+BEGIN_SRC tmate
+docker exec --privileged -t kind-control-plane \
+  kubectl --kubeconfig=/etc/kubernetes/admin.conf \
+  get nodes --selector=node-role.kubernetes.io/master \
+  -o=jsonpath='{.items..status.conditions[-1:].status}'
+#+END_SRC
+
+#+BEGIN_SRC tmate
+  docker ps -a
+#+END_SRC
+
+#+BEGIN_SRC tmate
+  docker exec -ti kind-control-plane /bin/bash
+#+END_SRC
+#+BEGIN_SRC 
+SKIP="${SKIP:-"Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]"}"
+FOCUS="${FOCUS:-"sig-apps.*rollover"}"
+#+END_SRC
+#+BEGIN_SRC tmate
+  docker exec -ti $(docker ps | grep k8s_kube-apiserver_kube-apiserver-kind-control-plane_kube-system | awk '{print $1}') /bin/sh
+#+END_SRC
+
+#+BEGIN_SRC tmate
+docker exec kind-control-plane grep Error /var/log/pods/kube-system_kube-apiserver-kind-control-plane*/kube-apiserver/*log
+#+END_SRC
+
+*** Searching for the apiserver startup error
+
+#+BEGIN_SRC shell :wrap "SRC json"
+  echo '[' $(
+      docker exec -i kind-control-plane /bin/bash -c \
+             'grep Error /var/log/containers/*apiserver*log' \
+       ) \
+  ']' | jq .[0].log
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC json
+null
+#+END_SRC
+
+#+BEGIN_SRC tmate
+  ps axwu
+#+END_SRC
+* Notes
+
+Because of the example in
+kubernetes/cmd/kubeadm/app/util/config/testdata/conversion/controlplane
+v1beta1.yaml
+I used CamelCase names.
+
+
+#+BEGIN_EXAMPLE
+Apr 27 04:03:20 kind-control-plane kubelet[1021]:
+E0427 04:03:20.551382    1021
+file.go:187]
+Can't process manifest file "/etc/kubernetes/manifests/kube-apiserver.yaml":
+invalid pod: [spec.volumes[0].name:
+Invalid value: "AuditLog":
+spec.volumes[1].name: Invalid value: "AuditPolicy":
+a DNS-1123 label must consist of lower case alphanumeric characters or '-',
+and must start and end with an alphanumeric character
+(e.g. 'my-name',  or '123-abc', regex used for validation is 
+'[a-z0-9]([-a-z0-9]*[a-z0-9])?') 
+
+#+END_EXAMPLE
+* References
+
+#+BEGIN_SRC bash :tangle test-noweb-ref.sh
+  <<Install Docker>>
+#+END_SRC
+
+* Failures on 1-11, 1-12, and 1-13
+
+https://github.com/kubernetes-sigs/kind/pull/457#issuecomment-487276162
+https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-13/1122010080514936835/build-log.txt
+
+#+BEGIN_EXAMPLE
+W0427 05:37:21.316] Error: failed to create cluster: failed to generate kubeadm config content:
+failed to find an object with kubeadm.k8s.io_v1beta1_ClusterConfiguration|config to apply the patch
+...
+W0427 05:37:38.089] subprocess.CalledProcessError:
+Command '('bash', '-c', 'cd ./../../k8s.io/kubernetes && ./../../sigs.k8s.io/kind/hack/ci/e2e.sh')' returned non-zero exit status 1
+#+END_EXAMPLE
+
+
+https://github.com/kubernetes-sigs/kind/pull/457#issuecomment-487257154
+
+Looks like it's only affecting versions prior to 1.14
+
+- pull-kind-conformance-parallel-1-11
+- pull-kind-conformance-parallel-1-12
+- pull-kind-conformance-parallel-1-13
+
+Jobs are defined here:
+
+https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes-sigs/kind/kind-presubmits.yaml
+
+I'm noting that the we pass **--repo=k8s.io/kubernetes=release-X** to kubekins-e2e for each of them.
+
+You can reproduce by checking out the branches that fail.
+
+```
+cd ~/go/src/k8s.io/kubernetes
+git checkout release-1.14
+rm -rf _output _artifacts
+./../../sigs.k8s.io/kind/hack/ci/e2e.sh
+```
+
+I suspect it's due to the changes in kubeadm.ics.io_v1{beta,alpha}{1,2} ClusterConfiguration.
+
+What should we do to dectect and change our ClusterConfiguration to match?
+
+[[file:~/go/src/k8s.io/test-infra/config/jobs/kubernetes-sigs/kind/kind-presubmits.yaml::-%20name:%20pull-kind-conformance-parallel-1-13]]
+
+I updated a PR to remove 1-11 am looking at a way to test more quickly.
+Since we need to test/build several versions of k8s, we'll need get the right versions of go.
+
+https://github.com/kubernetes/test-infra/blob/master/prow/cmd/phaino/README.md
+
+To have different logic, we need to know the version of kubeadm we are using.
+#+BEGIN_SRC shell
+kubectl version --client=true 2>&1 | perl -pe 's/(^.*Minor:")([0-9]+)(.*$)/\2/'
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+13
+#+END_EXAMPLE
+** set envs
+
+#+BEGIN_SRC shell :wrap "SRC shell"
+curl https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1122244878583992325/build-log.txt \
+| grep -P  '[0-9A-Z_]+=.*' | perl -pe 's:(^.*) ([0-9A-Z_]+=.*):\2:' | sort -n | uniq \
+| grep -v BOSKOS\\\|KUBERNETES\\\|JENKINS\\\|AWS\\\|BAZEL
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC shell
+ARTIFACTS=/workspace/_artifacts
+BOOTSTRAP_MIGRATION=yes
+BUILD_ID=1122244878583992325
+BUILD_NUMBER=1122244878583992325
+CLOUDSDK_CONFIG=/go/src/sigs.k8s.io/kind/.config/gcloud
+CLOUDSDK_CORE_DISABLE_PROMPTS=1
+DOCKER_IN_DOCKER_ENABLED=true
+E2E_GOOGLE_APPLICATION_CREDENTIALS=/etc/service-account/service-account.json
+GCS_ARTIFACTS_DIR=gs://kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1122244878583992325/artifacts
+GOBIN=/tmp/tmp.feQBONC6XS/bin go install sigs.k8s.io/kind
+GOOGLE_APPLICATION_CREDENTIALS=/etc/service-account/service-account.json
+GOPATH=/go
+GO_TARBALL=go1.10.8.linux-amd64.tar.gz
+HOME=/root
+HOSTNAME=d0cc3bcb-692f-11e9-b9ca-0a580a6c0add
+IMAGE=gcr.io/k8s-testimages/kubekins-e2e:v20190329-811f7954b-1.11
+JOB_NAME=pull-kind-conformance-parallel-1-11
+JOB_SPEC={"type":"presubmit","job":"pull-kind-conformance-parallel-1-11","buildid":"1122244878583992325","prowjobid":"d0cc3bcb-692f-11e9-b9ca-0a580a6c0add","refs":{"org":"kubernetes-sigs","repo":"kind","repo_link":"https://github.com/kubernetes-sigs/kind","base_ref":"master","base_sha":"161151a26faf0dbe962ac9f323cc0cdebac79ba8","base_link":"https://github.com/kubernetes-sigs/kind/commit/161151a26faf0dbe962ac9f323cc0cdebac79ba8","pulls":[{"number":457,"author":"hh","sha":"5ed276ed273bc3c9c367158e9d3b4e5d755ed286","link":"https://github.com/kubernetes-sigs/kind/pull/457","commit_link":"https://github.com/kubernetes-sigs/kind/pull/457/commits/5ed276ed273bc3c9c367158e9d3b4e5d755ed286","author_link":"https://github.com/hh"}]}}
+JOB_TYPE=presubmit
+KIND_IS_UP=true
+KUBETEST_IN_DOCKER=true
+NODE_NAME=gke-prow-containerd-pool-99179761-xlfp
+OLDPWD=/go/src/sigs.k8s.io/kind
+PARALLEL=true
+PATH=/go/src/k8s.io/kubernetes/bazel-bin/cmd/kubectl/linux_amd64_pure_stripped:/tmp/tmp.feQBONC6XS/bin:/go/bin:/go/bin:/usr/local/go/bin:/google-cloud-sdk/bin:/workspace:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=/tmp/tmp.feQBONC6XS/bin:/go/bin:/go/bin:/usr/local/go/bin:/google-cloud-sdk/bin:/workspace:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+POD_NAME=d0cc3bcb-692f-11e9-b9ca-0a580a6c0add
+PROW_JOB_ID=d0cc3bcb-692f-11e9-b9ca-0a580a6c0add
+PULL_BASE_REF=master
+PULL_BASE_SHA=161151a26faf0dbe962ac9f323cc0cdebac79ba8
+PULL_NUMBER=457
+PULL_PULL_SHA=5ed276ed273bc3c9c367158e9d3b4e5d755ed286
+PULL_REFS=master:161151a26faf0dbe962ac9f323cc0cdebac79ba8,457:5ed276ed273bc3c9c367158e9d3b4e5d755ed286
+PWD=/go/src/k8s.io/kubernetes
+REPO_NAME=kind
+REPO_OWNER=kubernetes-sigs
+SHLVL=4
+SOURCE_DATE_EPOCH=1555118044
+TERM=xterm
+TEST_TMPDIR=/bazel-scratch/.cache/bazel
+TMP_DIR=/tmp/tmp.feQBONC6XS
+_=/usr/bin/env
+WORKSPACE=/workspace
+#+END_SRC
+* Current Status
+
+https://github.com/kubernetes-sigs/kind/pull/457#issuecomment-490707549
+Shows there are still failing:
+** [[https://prow.k8s.io/view/gcs/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel/1126292107535847425/][pull-kind-conformance-parallel]] and  [[https://prow.k8s.io/view/gcs/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-14/1126292107535847424/][pull-kind-conformance-parallel-1.14]]
+
+*** kind
+
+#+BEGIN_SRC tmate
+  cd ~/go/src/sigs.k8s.io/kind/
+  git fetch origin -a
+  git rebase origin/master
+#+END_SRC
+*** loop
+#+BEGIN_SRC tmate
+cd ~/go/src/k8s.io/kubernetes
+git fetch origin -a
+git checkout release-1.11
+git pull origin/release-1.11
+rm -rf _output _artifacts build
+./../../sigs.k8s.io/kind/hack/ci/e2e.sh
+#+END_SRC
+
+As I make changes to my PR I visit:
+[[https://prow.k8s.io/?author=hh][prow.k8s.io/?author=hh]]
+*** log for 1.14
+
+Maybe an issue with the bazel cache?
+#+BEGIN_SRC tmate :session hippie:loop
+sudo rm -rf $HOME/.cache/bazel/_bazel_$USER
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+ERROR: /home/hippie/go/src/k8s.io/kubernetes/build/BUILD:63:2: no such package '@debian-base-amd64//image': Pull command failed: Traceback (most 
+recent call last):
+  File "/home/hippie/anaconda3/lib/python3.7/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home/hippie/anaconda3/lib/python3.7/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/__main__.py", line 30, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 668, in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 638, in _load_backward_compatible
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/containerregistry/client/__init__.py", line 23, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 668, in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 638, in _load_backward_compatible
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/containerregistry/client/docker_creds_.py", line 31, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 963, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 906, in _find_spec
+  File "<frozen importlib._bootstrap_external>", line 1280, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1254, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1235, in _legacy_get_spec
+  File "<frozen importlib._bootstrap>", line 441, in spec_from_loader
+  File "<frozen importlib._bootstrap_external>", line 594, in spec_from_file_location
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/httplib2/__init__.py", line 988
+    raise socket.error, msg
+                      ^
+SyntaxError: invalid syntax
+ (/home/hippie/anaconda3/bin/python /home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded --directory /home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/debian-base-amd64/image --os linux --os-version  --os-features  --architecture amd64 --variant  --features  --name k8s.gcr.io/debian-base@sha256:3801f944c765dc1b54900826ca67b1380bb8c73b9caf4a2a27ce613b3ba3e742) and referenced by '//build:kube-controller-manager-internal'
+ERROR: Analysis of target '//build:docker-artifacts' failed; build aborted: no such package '@debian-base-amd64//image': Pull command failed: Traceback (most recent call last):
+  File "/home/hippie/anaconda3/lib/python3.7/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home/hippie/anaconda3/lib/python3.7/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/__main__.py", line 30, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 668, in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 638, in _load_backward_compatible
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/containerregistry/client/__init__.py", line 23, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 668, in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 638, in _load_backward_compatible
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/containerregistry/client/docker_creds_.py", line 31, in <module>
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 963, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 906, in _find_spec
+  File "<frozen importlib._bootstrap_external>", line 1280, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1254, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1235, in _legacy_get_spec
+  File "<frozen importlib._bootstrap>", line 441, in spec_from_loader
+  File "<frozen importlib._bootstrap_external>", line 594, in spec_from_file_location
+  File "/home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded/httplib2/__init__.py", line 988
+    raise socket.error, msg
+                      ^
+SyntaxError: invalid syntax
+ (/home/hippie/anaconda3/bin/python /home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/puller/file/downloaded --directory /home/hippie/.cache/bazel/_bazel_hippie/09ea6a989b713544014bc4fc0fa72796/external/debian-base-amd64/image --os linux --os-version  --os-features  --architecture amd64 --variant  --features  --name k8s.gcr.io/debian-base@sha256:3801f944c765dc1b54900826ca67b1380bb8c73b9caf4a2a27ce613b3ba3e742)
+
+#+END_EXAMPLE
+*** logs
+
+Seems like kubeadm v1beta1 ClusterConfiguration does not have a "name" field.
+Though I'm unsure how to remove it.
+
+#+BEGIN_EXAMPLE
+I0509 01:14:21.339] time="01:14:21" level=debug msg="Using kubeadm config:
+....
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+kubernetesVersion: v1.15.0-alpha.3.99+5bd88c85bf76f8
+name: config
+---
+....
+ error unmarshaling configuration schema.GroupVersionKind{
+Group:\"kubeadm.k8s.io\", Version:\"v1beta1\", Kind:\"ClusterConfiguration\"}:
+ error unmarshaling JSON: while decoding JSON: json:
+ unknown field \"name\"\n
+[config] WARNING: Ignored YAML document with GroupVersionKind kubeadm.k8s.io/v1beta1, Kind=JoinConfiguration\n
+#+END_EXAMPLE
+
+#+NAME: manually curated dump of the log
+#+BEGIN_EXAMPLE
+I0509 01:14:21.339] time="01:14:21" level=debug msg="Using kubeadm config:
+apiServer:
+ certSANs:
+ - localhost
+ extraArgs:
+ audit-log-path: /var/log/apiserver-audit.log
+ audit-policy-file: /etc/kubernetes/audit-policy.yaml
+ extraVolumes:
+ - hostPath: /etc/kubernetes/audit-policy.yaml
+ mountPath: /etc/kubernetes/audit-policy.yaml
+ name: auditpolicy
+ pathType: File
+ readOnly: true
+ - hostPath: /var/log/apiserver-audit.log
+ mountPath: /var/log/apiserver-audit.log
+ name: auditlog pathType: File
+ readOnly: false
+apiVersion: kubeadm.k8s.io/v1beta1
+clusterName: kind
+controllerManager:
+ extraArgs:
+ enable-hostpath-provisioner: \"true\"
+kind: ClusterConfiguration
+kubernetesVersion: v1.15.0-alpha.3.99+5bd88c85bf76f8
+name: config
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+bootstrapTokens:
+- token: abcdef.0123456789abcdef
+kind: InitConfiguration
+localAPIEndpoint:
+ bindPort: 6443
+nodeRegistration:
+ criSocket: /run/containerd/containerd.sock
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: JoinConfiguration
+nodeRegistration:
+ criSocket: /run/containerd/containerd.sock
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+evictionHard:
+ imagefs.available: 0%
+ nodefs.available: 0%
+ nodefs.inodesFree: 0%
+imageGCHighThresholdPercent: 100
+kind: KubeletConfiguration
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+"
+...
+I0509 01:18:29.824] time="01:18:29" level=debug msg="I0509 01:14:24.124502 44 initconfiguration.go:186]
+loading configuration from \"/kind/kubeadm.conf\"\nW
+0509 01:14:24.127268 44 strict.go:54]
+ error unmarshaling configuration schema.GroupVersionKind{
+Group:\"kubeadm.k8s.io\", Version:\"v1beta1\", Kind:\"ClusterConfiguration\"}:
+ error unmarshaling JSON: while decoding JSON: json:
+ unknown field \"name\"\n
+[config] WARNING: Ignored YAML document with GroupVersionKind kubeadm.k8s.io/v1beta1, Kind=JoinConfiguration\n
+#+END_EXAMPLE
+
+** [[https://prow.k8s.io/view/gcs/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/][pull-kind-conformance-parallel-1.11]]
+
+I'm unsure if there is a way to debug these clusters if they don't come up.
+Possibly exploring the artifacts....
+
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/kind-config.yaml][artifacts/kind-config.yaml]]
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/docker-info.txt][artifacts/logs/docker-info.txt]]
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/kubernetes-version.txt][artifacts/logs/kind-control-plane/kubernetes-version.txt]]
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/kubelet.log][artifacts/logs/kind-control-plane/kubelet.log]]
+Noting that we get quite a few:
+
+#+BEGIN_EXAMPLE
+pkg/kubelet/kubelet.go:455: Failed to list *v1.Service:
+ Get https://172.17.0.3:6443/api/v1/services?limit=500&resourceVersion=0:
+ dial tcp 172.17.0.3:6443: connect: connection refused
+#+END_EXAMPLE
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/journal.log][artifacts/logs/kind-control-plane/journal.log]]
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/inspect.json][artifacts/logs/kind-control-plane/inspect.json]]
+
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/docker.log][artifacts/logs/kind-control-plane/docker.log]] no-entries
+
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/artifacts/logs/kind-control-plane/containers/etcd-kind-control-plane_kube-system_etcd-346597e9e09b567350c6edec755a56419f0212f0e170ca097d8f67c3236469b3.log][artifacts/logs/kind-control-plane/containers/etcd-kind-control-plane_kube-system_etcd-XXX.log]]
+embed: serving client requests on 127.0.0.1:2379
+
+*** [[https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel-1-11/1123817103258816517/build-log.txt][build-log.txt]]
+
+I don't see any evidence that APIServer even started... probably a command line arg issue.
+#+NAME: possibly not related, but the CNI config and errors bother me
+#+BEGIN_EXAMPLE
+I0502 05:15:56.886] INFO[2019-05-02T05:15:56.884912372Z]
+Start cri plugin with config {
+PluginConfig:{
+ContainerdConfig:{
+Snapshotter:overlayfs DefaultRuntime:{Type:io.containerd.runtime.v1.linux Engine: Root: Options:<nil>}
+UntrustedWorkloadRuntime:{Type: Engine: Root: Options:<nil>}
+Runtimes:map[]
+NoPivot:false
+}
+CniConfig:{
+NetworkPluginBinDir:/opt/cni/bin
+ NetworkPluginConfDir:/etc/cni/net.d
+ NetworkPluginConfTemplate:
+}
+ Registry:{
+ Mirrors:map[docker.io:{
+  Endpoints:[https://registry-1.docker.io]}]
+  Auths:map[]
+ }
+ StreamServerAddress:127.0.0.1
+ StreamServerPort:0
+ EnableSelinux:false
+ SandboxImage:k8s.gcr.io/pause:3.1
+ StatsCollectPeriod:10
+ SystemdCgroup:false
+ EnableTLSStreaming:false
+ X509KeyPairStreaming:{TLSCertFile: TLSKeyFile:}
+ MaxContainerLogLineSize:16384
+}
+ ContainerdRootDir:/var/lib/containerd
+ ContainerdEndpoint:/run/containerd/containerd.sock 
+ RootDir:/var/lib/containerd/io.containerd.grpc.v1.cri 
+ StateDir:/run/containerd/io.containerd.grpc.v1.cri}
+
+ I0502 05:15:56.887] ERRO[2019-05-02T05:15:56.885396870Z]
+Failed to load cni during init,
+please check CRI plugin status before setting up network for pods
+error="cni config load failed:
+no network config found in /etc/cni/net.d:
+cni plugin not initialized:
+failed to load cni config"
+
+I0502 05:16:11.303] ERRO[2019-05-02T05:16:11.302831934Z]
+ 
+ (*service).Write failed 
+ error="
+ rpc error:
+ code = Unavailable
+ desc = ref k8s.io/1/tar-repositories 
+ locked: unavailable
+ " 
+ ref=tar-repositories total=283
+#+END_EXAMPLE
+
+#+NAME: the apiServer extraArgs format for kubeadm is correct... however those args may be wrong for 1.11
+#+BEGIN_EXAMPLE
+I0502 05:19:33.672] time="05:19:33" level=debug msg="Using kubeadm config:
+api:
+ bindPort: 6443
+apiServer:
+ extraArgs:
+ audit-log-path: /var/log/apiserver-audit.log
+ audit-policy-file: /etc/kubernetes/audit-policy.yaml
+apiServerCertSANs:
+- localhost
+apiServerExtraVolumes:
+- hostPath: /etc/kubernetes/audit-policy.yaml
+ mountPath: /etc/kubernetes/audit-policy.yaml
+ name: auditpolicy
+ pathType: File
+ readOnly: true
+- hostPath: /var/log/apiserver-audit.log
+ mountPath: /var/log/apiserver-audit.log
+ name: auditlog
+ pathType: File
+ readOnly: false
+apiVersion: kubeadm.k8s.io/v1alpha2
+bootstrapTokens:
+- token: abcdef.0123456789abcdef
+clusterName: kind
+controllerManagerExtraArgs:
+ enable-hostpath-provisioner: \"true\"
+kind: MasterConfiguration
+kubeletConfiguration:
+ baseConfig:
+ evictionHard:
+ imagefs.available: 0%
+ nodefs.available: 0%
+ nodefs.inodesFree: 0%
+ imageGCHighThresholdPercent: 100
+kubernetesVersion: v1.11.11-beta.0.1+9016740a6ffe91
+name: config
+nodeRegistration:
+ criSocket: /run/containerd/containerd.sock
+---
+apiVersion: kubeadm.k8s.io/v1alpha2
+kind: NodeConfiguration
+nodeRegistration:
+ criSocket: /run/containerd/containerd.sock
+"
+#+END_EXAMPLE
+
+
+Or it might be do to the inability to download images.
+
+#+BEGIN_EXAMPLE
+round_trippers.go:405] GET https://172.17.0.3:6443/healthz?timeout=32s in 0 milliseconds
+
+\t\tUnfortunately, an error has occurred:
+\t\t\ttimed out waiting for the condition
+
+\t\tThis error is likely caused by:
+\t\t\t- The kubelet is not running
+\t\t\t- The kubelet is unhealthy due to a misconfiguration of the node in some way (required cgroups disabled)
+\t\t\t- No internet connection is available so the kubelet cannot pull or find the following control plane images:
+\t\t\t\t- k8s.gcr.io/kube-apiserver-amd64:v1.11.11-beta.0.1_9016740a6ffe91
+\t\t\t\t- k8s.gcr.io/kube-controller-manager-amd64:v1.11.11-beta.0.1_9016740a6ffe91
+\t\t\t\t- k8s.gcr.io/kube-scheduler-amd64:v1.11.11-beta.0.1_9016740a6ffe91
+\t\t\t\t- k8s.gcr.io/etcd-amd64:3.2.18
+\t\t\t\t- You can check or miligate this in beforehand with \"kubeadm config images pull\" to make sure the images
+\t\t\t\t are downloaded locally and cached.
+
+\t\tIf you are on a systemd-powered system, you can try to troubleshoot the error with the following commands:
+\t\t\t- 'systemctl status kubelet'
+\t\t\t- 'journalctl -xeu kubelet'
+
+\t\tAdditionally, a control plane component may have crashed or exited when started by the container runtime.
+\t\tTo troubleshoot, list all containers using your preferred container runtimes CLI, e.g. docker.
+\t\tHere is one example how you may list all Kubernetes containers running in docker:
+\t\t\t- 'docker ps -a | grep kube | grep -v pause'
+\t\t\tOnce you have found the failing container, you can inspect its logs with:
+\t\t\t- 'docker logs CONTAINERID'
+couldn't initialize a Kubernetes cluster"
+#+END_EXAMPLE
+
+* direct logs
+
+** kube-config.yaml pulled from artifacts
+#+BEGIN_SRC shell :wrap "SRC yaml"
+  curl https://storage.googleapis.com\
+/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457\
+/pull-kind-conformance-parallel/1127097770943975426\
+/artifacts/kind-config.yaml
+#+END_SRC
+
+#+BEGIN_SRC yaml
+# config for 1 control plane node and 2 workers
+# necessary for conformance
+kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+# the control plane node / apiservers
+- role: control-plane
+- role: worker
+- role: worker
+  extraMounts:
+  - hostPath: /tmp/audit-policy.yaml
+    containerPath: /etc/kubernetes/audit-policy.yaml
+  - hostPath: "/workspace/_artifacts/apiserver-audit.log"
+    containerPath: /var/log/apiserver-audit.log
+kubeadmConfigPatches:
+- |
+  # v1beta1 works for 1.14+
+  apiVersion: kubeadm.k8s.io/v1beta1
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+      audit-log-path: /var/log/apiserver-audit.log
+      audit-policy-file: /etc/kubernetes/audit-policy.yaml
+    extraVolumes:
+    - name: auditpolicy
+      pathType: File
+      readOnly: true
+      hostPath: /etc/kubernetes/audit-policy.yaml
+      mountPath: /etc/kubernetes/audit-policy.yaml
+    - name: auditlog
+      pathType: File
+      readOnly: false
+      hostPath: /var/log/apiserver-audit.log
+      mountPath: /var/log/apiserver-audit.log
+#+END_SRC
+** kubeadm config pulled from logs
+#+BEGIN_SRC shell :wrap "SRC yaml"
+  # The prow url only works while the job is active in the cluster
+  #curl 'https://prow.k8s.io/log?job=pull-kind-conformance-parallel&id=1127097770943975426' \
+  curl https://storage.googleapis.com\
+/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457\
+/pull-kind-conformance-parallel/1127097770943975426\
+/build-log.txt \
+  | grep 06:37:29.307 \
+  | awk -F\" '{print $4,$5,$6}' \
+  | sed 's:.*msg=\"::g' \
+  | sed 's:\\n:\n:g' \
+  | grep -v 'Using kubeadm config:' \
+  | cat
+#+END_SRC
+
+#+BEGIN_SRC yaml
+apiServer:
+  certSANs:
+  - localhost
+  extraArgs:
+    audit-log-path: /var/log/apiserver-audit.log
+    audit-policy-file: /etc/kubernetes/audit-policy.yaml
+  extraVolumes:
+  - hostPath: /etc/kubernetes/audit-policy.yaml
+    mountPath: /etc/kubernetes/audit-policy.yaml
+    name: auditpolicy
+    pathType: File
+    readOnly: true
+  - hostPath: /var/log/apiserver-audit.log
+    mountPath: /var/log/apiserver-audit.log
+    name: auditlog
+    pathType: File
+    readOnly: false
+apiVersion: kubeadm.k8s.io/v1beta1
+clusterName: kind
+controllerManager:
+  extraArgs:
+    enable-hostpath-provisioner: \ true\ 
+kind: ClusterConfiguration
+kubernetesVersion: v1.15.0-alpha.3.238+b4d2cb0001cc27
+name: config
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+bootstrapTokens:
+- token: abcdef.0123456789abcdef
+kind: InitConfiguration
+localAPIEndpoint:
+  bindPort: 6443
+nodeRegistration:
+  criSocket: /run/containerd/containerd.sock
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: JoinConfiguration
+nodeRegistration:
+  criSocket: /run/containerd/containerd.sock
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+evictionHard:
+  imagefs.available: 0%
+  nodefs.available: 0%
+  nodefs.inodesFree: 0%
+imageGCHighThresholdPercent: 100
+kind: KubeletConfiguration
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+
+#+END_SRC
+
+[[https://gubernator.k8s.io/build/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel/1127097770943975426]]
+
+** error has occured
+#+NAME: Unfortuneately an error has occurred
+#+BEGIN_SRC shell :wrap "SRC yaml"
+  curl https://storage.googleapis.com\
+/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457\
+/pull-kind-conformance-parallel/1127097770943975426\
+/build-log.txt \
+  | grep 'Unfortunately, an error has occurred' \
+  | sed 's:.*msg=\"::g' \
+  | sed 's:\\n:\n:g' \
+  | grep -A20 'Unfortunately, an error has occurred' \
+  | sed 's:\\t:  :g' \
+  | cat
+#+END_SRC
+
+#+BEGIN_SRC yaml
+Unfortunately, an error has occurred:
+  timed out waiting for the condition
+
+This error is likely caused by:
+  - The kubelet is not running
+  - The kubelet is unhealthy due to a misconfiguration of the node in some way (required cgroups disabled)
+
+If you are on a systemd-powered system, you can try to troubleshoot the error with the following commands:
+  - 'systemctl status kubelet'
+  - 'journalctl -xeu kubelet'
+
+Additionally, a control plane component may have crashed or exited when started by the container runtime.
+To troubleshoot, list all containers using your preferred container runtimes CLI, e.g. docker.
+Here is one example how you may list all Kubernetes containers running in docker:
+  - 'docker ps -a | grep kube | grep -v pause'
+  Once you have found the failing container, you can inspect its logs with:
+  - 'docker logs CONTAINERID'
+error execution phase wait-control-plane: couldn't initialize a Kubernetes cluster"
+#+END_SRC
+
+** failed to start control plane
+#+NAME: failed to start control plane
+#+BEGIN_SRC shell :wrap "SRC yaml"
+  curl https://storage.googleapis.com/kubernetes-jenkins/pr-logs/pull/sigs.k8s.io_kind/457/pull-kind-conformance-parallel/1127097770943975426/build-log.txt \
+  | grep '06:41:38' \
+  | sed 's:.*msg=\"::g' \
+  | sed 's:\\n:\n:g' \
+  | sed 's:\\t:  :g' \
+  | grep '06:41:38.417\|06:41:38.518' \
+  | cat
+#+END_SRC
+
+#+BEGIN_SRC yaml
+I0511 06:41:38.417]  ✗ Starting control-plane 🕹️
+W0511 06:41:38.518] Error: failed to create cluster: failed to init node with kubeadm: exit status 1
+W0511 06:41:38.518] + cleanup
+W0511 06:41:38.518] + kind export logs /workspace/_artifacts/logs
+#+END_SRC
