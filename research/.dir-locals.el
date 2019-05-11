@@ -13,6 +13,19 @@
      ;; (let ((socket-arg (concat ":socket " "FLOOPIE" ))))
      ;; (set (make-local-variable 'tmpdir)
      ;;      (make-temp-file (concat "/dev/shm/" user-buffer "-") t))
+     (set (make-local-variable 'ssh-user)
+          "pair")
+          ;; user-login-name)
+     ;; might be nice to set this as a global property in the org file
+     (set (make-local-variable 'ssh-host)
+          "ii.cncf.ci")
+     (set (make-local-variable 'ssh-user-host)
+          (concat ssh-user "@" ssh-host))
+     (set (make-local-variable 'time-stamp-zone)
+          "Pacific/Auckland")
+     (set (make-local-variable 'time-stamp-pattern)
+          ;; https://www.emacswiki.org/emacs/TimeStamp
+          "10/#+UPDATED: needs time-local formatted regexp")
      (set (make-local-variable 'user-buffer)
           (concat user-login-name "." (file-name-base load-file-name)))
      (set (make-local-variable 'socket)
@@ -25,25 +38,69 @@
           (list
            (cons 'header-args:tmate
                  (concat
-                  ":noweb-ref " item-str
+                  " :noweb yes"
+                  " :noweb-ref " item-str
+                  " :comments org"
+                  " :eval no-export"
+                  " :results silent "
                   " :session (concat user-login-name \":\" " item-str ")"
                   " :socket " socket
+                  " :window " user-login-name
+                  " :terminal sakura"
+                  ;; If you want each tmate command to run from a particular directory
+                  ;; " :prologue (concat \"cd \" ssh-dir \"\n\")"
                   ))
            (cons 'header-args:emacs-lisp
                  (concat
-                  ":noweb-ref " item-str
+                  " :noweb yes"
+                  " :noweb-ref " item-str
+                  " :comments org"
+                  " :eval no-export"
+                  " :results code"
                   ))
            (cons 'header-args:elisp
                  (concat
-                  ":noweb-ref " item-str
+                  " :noweb yes"
+                  " :noweb-ref " item-str
+                  " :comments org"
+                  " :eval no-export"
+                  " :results code"
                   ))
            (cons 'header-args:bash
                  (concat
-                  ":noweb-ref " item-str
+                  " :noweb yes"
+                  " :noweb-ref " item-str
+                  " :comments org"
+                  " :eval no-export"
+                  " :results output code verbatis replace"
+                  " :wrap EXAMPLE"
+                  ;; This can help catch stderr and other issues
+                  ;; " :prologue \"exec 2>&1\n\""
+                  ;; " :epilogue \":\n\""
+                  ;; If you want commands executing over tramp
+                  ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
+                  ;; " :dir (concat \"ssh:\" ssh-user \"@\" ssh-host \":~\""
                   ))
-           (cons 'header-args:bash
+           (cons 'header-args:shell
                  (concat
-                  ":noweb-ref " item-str
+                  " :noweb yes"
+                  " :noweb-ref " item-str
+                  " :comments org"
+                  " :eval no-export"
+                  " :results output code verbatis replace"
+                  " :wrap EXAMPLE"
+                  ))
+           (cons 'header-args:json
+                 (concat
+                  " :noweb yes"
+                  " :comments org"
+                  " :noweb-ref " item-str
+                  ))
+           (cons 'header-args:yaml
+                 (concat
+                  " :noweb yes"
+                  " :comments org"
+                  " :noweb-ref " item-str
                   ))
            )
           )
@@ -55,11 +112,16 @@
            socket
            " new-session -A -s "
            user-login-name
-           " -n main \"tmate wait tmate-ready "
+           " -n main "
+           "\"tmate wait tmate-ready "
            "&& TMATE_CONNECT=\\$("
            "tmate display -p '#{tmate_ssh} # "
            user-buffer
-           ".target # #{tmate_web} ') "
+           ".target # "
+           (concat
+            (format-time-string "%Y-%m-%d %T")
+            (funcall (lambda ($x) (format "%s:%s" (substring $x 0 3) (substring $x 3 5))) (format-time-string "%z")))
+           " #{tmate_web} ') "
            "; echo \\$TMATE_CONNECT "
            "; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null "
            "; echo Share the above with your friends and hit enter when done. "
@@ -67,20 +129,49 @@
            "; bash --login\""
            )
           )
+     ;; at some point we can bring back working on remote hosts
+     (set (make-local-variable 'start-tmate-over-ssh-command)
+          (concat
+           "tmate -S "
+           socket
+           " new-session -A -s "
+           user-login-name
+           " -n main "
+           "\"tmate wait tmate-ready "
+           "\\&\\& TMATE_CONNECT=\\$\\("
+           "tmate display -p '#{tmate_ssh} # "
+           user-buffer
+           ".target # "
+           (concat
+            (format-time-string "%Y-%m-%d %T")
+            (funcall (lambda ($x) (format "%s:%s" (substring $x 0 3) (substring $x 3 5))) (format-time-string "%z")))
+           " #{tmate_web} '\\) "
+           "; echo \\$TMATE_CONNECT "
+           "; \\(echo \\$TMATE_CONNECT \\| xclip -i -sel p -f \\| xclip -i -sel c \\) 2>/dev/null "
+           "; echo Share the above with your friends and hit enter when done. "
+           "; read "
+           "; bash --login\""
+           )
+          )
+     (xclip-mode 1)
+     ;; (gui-select-text (concat "rm -fi " socket "; ssh -tAX " ssh-user "@" ssh-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
      ;; (edebug-trace "TRACING socket:%S" socket)
      ;; (edebug-trace "TRACING org-babel-header-args:tmate %S" org-babel-header-args:emacs-lisp)
-     (xclip-mode 1)
      (gui-select-text start-tmate-command)
-     (xclip-mode 0)
      ;; we could try and create a buffer / clear it on the fly
      (setq tmate-command start-tmate-command)
      (with-current-buffer (get-buffer-create "start-tmate-command")
        (insert-for-yank
-        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
+        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-over-ssh-command)
         ))
      (switch-to-buffer "start-tmate-command")
      (y-or-n-p "Have you Pasted?")
-     ;;; FIXME! How do we find out what our local filname is?
+     (with-current-buffer (get-buffer-create "start-tmate-command")
+       (insert-for-yank
+        (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command)
+        ))
+     (xclip-mode 0)
+;;; FIXME! How do we find out what our local filname is?
      ;;; This was designed for dir-locals... can we reach in?
      ;; (switch-to-buffer (get-buffer buffer-file-name))
      ;; (spacemacs/toggle-maximize-buffer)
@@ -88,143 +179,7 @@
    )
   )
  )
- ;; (eval . (set (make-local-variable 'select-enable-clipboard) t))
- ;; (eval . (set (make-local-variable 'select-enable-primary) t))
- ;; (eval . (set (make-local-variable 'start-tmate-command)
-              ;; ( ;; (eval . (set (make-local-variable 'org-babel-default-header-args:emacs-lisp)
- ;;              (:dir-local-default-func . (concat "DIR" "-EMACS_LISP"))
- ;;              ))
- ;; (eval . (edebug-trace "TRACING socket:%S" socket))
- ;; (eval . (edebug-trace "TRACING org-babel-header-args:emacs-lisp %S" org-babel-header-args:emacs-lisp))
- ;; (eval . (edebug-trace "TRACING org-babel-default-header-args:emacs-lisp %S" org-babel-default-header-args:emacs-lisp))
- ;; (eval . (edebug-trace "AFTERTRACING org-babel-header-args:emacs-lisp %S" org-babel-header-args:emacs-lisp))
- ;; (eval . (edebug-trace "AFTERTRACING org-babel-default-header-args:emacs-lisp %S" org-babel-default-header-args:emacs-lisp))
-;               (list
-;;                (:dir-local-eval-func . (concat "DIR-FUNC" "-EMACS_LISP"))
-;;                (:dir-local-eval-quote . '(concat "DIR-QUOTE" "-EMACS_LISP"))
-;;                (:dir-local-eval-str . "(concat \"DIR-STR\" \"-EMACS_LISP\")")
-;;                )))
-;; ;
-                                        ; (eval . (xclip-mode 1))
- ;; (eval . (gui-select-text start-tmate-command))
- ;; (eval . (xclip-mode 0))
- ;; (eval . (setq tmate-command start-tmate-command))
- ;; (eval . (with-current-buffer (get-buffer-create "start-tmate-command")
- ;;           (insert-for-yank (concat "\nOpen another terminal on the same host and paste:\n\n" tmate-command))))
- ;; (eval . (switch-to-buffer "start-tmate-command"))
- ;; (eval . (y-or-n-p "Have you Pasted?"))
- ;; (eval . (switch-to-buffer (get-buffer buffer-file-name)))
- ;; (eval . (spacemacs/toggle-maximize-buffer))
- ;; (eval . (set (make-local-variable 'org-babel-default-header-args:tmate) '(
- ;;                                                                          (:noweb . "yes")
- ;;                                                                          (:results . "silent")
- ;;                                                                          (:window . "main")
- ;;                                                                          (:terminal . "sakura")
- ;;                                                                          ;; (:socket . '(symbol-value . 'socket))
- ;;                                                                          (:socket . (concat socket "XXXXX"))
- ;;                                                                         )))
- ;; https://emacs.stackexchange.com/questions/26185/using-a-function-as-an-org-babel-header-argument
- ;; (org-babel-default-header-args:elisp .
- ;;                                      (
- ;;                                       (:dir-default . (concat "DIR" "-ELISP"))
- ;;                                       (:results . "code")
- ;;                                       )
- ;;                                      )
-  ;; (org-babel-header-args:emacs-lisp .
-  ;;                                  (
-  ;;                                   (:dir-local-func . (concat "DIR" "-EMACS_LISP"))
-  ;;                                   (:dir-local-quote . '(concat "DIR" "-EMACS_LISP"))
-  ;;                                   (:dir-local-str . "(concat \"DIR\" \"-EMACS_LISP\")")
-  ;;                                   )
-  ;;                                  )
-;; (org-babel-default-header-args:tmate .
-;;                                       (
-;;                                        (:noweb . "yes")
-;;                                        (:results . "silent")
-;;                                        (:window . "main")
-;;                                        (:terminal . "sakura2")
-;;                                        ;; (:noweb-ref . '(nth 4 (org-heading-components)))
-;;                                        ;; (:socket . org-file-dir)
-;;                                        ;; (:socket . '(symbol-value . 'socket))
-;;                                        ;; (:socket . '(concat "S" "YYY" "XXXXX"))
-;;                                        ;; (:socket . (concat "S" socket "XXXXX"))
-;;                                        )
-;;                                       )
+;; Add Later
+;; https://www.emacswiki.org/emacs/AutomaticFileHeaders #templates / updates etc
+;; ^^ based on https://www.emacswiki.org/emacs/download/header2.el
 ;; ;; https://stackoverflow.com/questions/13228001/org-mode-nested-properties
-;; (org-babel-default-header-args:shell .
-;;                                       (
-;;                                        (:noweb . "yes")
-;;                                        (:results . "output code verbatim replace")
-;;                                        (:exports . "both")
-;;                                        (:wrap . "\"EXAMPLE :noeval t\"")
-;;                                        (:eval . "no-export")
-;;                                        ;; (:noweb-ref . "(nth 4 (org-heading-components))")
-;;                                        )
-;;                                       )
-;;  (org-babel-default-header-args:json .
-;;                                      (
-;;                                       (:noweb . "yes")
-;;                                       ;; (:noweb-ref . "(nth 4 (org-heading-components))")
-;;                                       )
-;;                                      )
-;;  (org-babel-default-header-args:yaml .
-;;                                      (
-;;                                       (:noweb . "yes")
-;;                                       (:comments . "org")
-;;                                       ;; (:noweb-ref . "(nth 4 (org-heading-components))")
-;;                                       )
-;;                                      )
-;;  ))
-;; (eval . (set (make-local-variable 'user-buffer)
-;;              (concat user-login-name "." (file-name-base load-file-name))))
-;; (eval . (set (make-local-variable 'tmpdir)
-;;              (make-temp-file (concat "/dev/shm/" user-buffer "-") t)))
-;; (eval . (set (make-local-variable 'socket)
-;;             (concat "/tmp/" user-buffer ".iisocket")))
-;; (eval
-;;  .
-;;  (progn
-;;    (let (
-;;          (user-buffer
-;;           (concat user-login-name "." (file-name-base load-file-name)))
-;;          (socket
-;;           (concat "/tmp/" user-buffer ".iisocket"))
-;;          (socket-arch
-;;           (concat ":socket " socket))
-;;          )
-;;      (
-;;       (set (make-local-variable 'org-global-properties)
-;;            '(
-;;             (header-args:emacs-lisp . socket)
-;;             )
-;;            )
-;;       )
-;;      )
-;;    )
-;;  )
-
-;; (org-global-properties .
-;;                        (
-;;                         (header-args:emacs-lisp . (concat ":tangle FOO"))
-;;                         (header-args:elisp . (concat ":tangle BAR"))
-;;                         ;; (header-args:emacs-lisp . (concat ":socket (symbol-value 'socket)"))
-;;                         ;; (header-args:elisp . (concat ":socket (symbol-value 'socket)"))
-;;                         )
-;;                        )
-;; (:socket . socket)
-;; (org-babel-default-header-args:emacs-lisp .
-;;                                           (
-;;  (:dir-local-default-func . (concat "DIR" "-EMACS_LISP"))
-;;  (:dir-local-default-quote . '(concat "DIR" "-EMACS_LISP"))
-;;  (:dir-local-str . "(concat \"DIR\" \"-EMACS_LISP\")")
-;;  )
-;;                                           )
-;; (eval . (set
-;;          (make-local-variable
-;;           'org-babel-default-header-args:emacs-lisp)
-;;          '(
-;;            (:dir-local-default-func . (concat "DIR" "-EMACS_LISP"))
-;;            (:dir-local-default-quote . '(concat "DIR" "-EMACS_LISP"))
-;;            (:dir-local-str . "(concat \"DIR\" \"-EMACS_LISP\")")
-;;            )
-;;           ))
