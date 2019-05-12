@@ -145,6 +145,34 @@
            "; bash --login\""
            )
           )
+     (set (make-local-variable 'start-tmate-for-togetherly-client)
+          (let ((togetherly-socket (make-temp-file (concat "/tmp/" user-buffer "-"))))
+            (concat
+             "tmate -S "
+             togetherly-socket
+             " new-session -A -s "
+             user-login-name
+             " -n main "
+             "\"tmate wait tmate-ready "
+             "&& TMATE_CONNECT=\\$("
+             "tmate display -p '#{tmate_ssh} # "
+             user-buffer
+             "."
+             togetherly-socket
+             ".target # "
+             ;; would like this to be shorter
+             (concat
+              (format-time-string "%Y-%m-%d %T")
+              (funcall (lambda ($x) (format "%s:%s" (substring $x 0 3) (substring $x 3 5))) (format-time-string "%z")))
+             " # #{tmate_web} ') "
+             "; echo \\$TMATE_CONNECT "
+             "; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null "
+             "; echo Share the above with your friends and hit enter when done. "
+             "; read "
+             "; emacs -nw --eval \\(togetherly-client-quick-start\\)\""
+             )
+            )
+          )
      ;; at some point we can bring back working on remote hosts
      (set (make-local-variable 'start-tmate-over-ssh-command)
           (concat
@@ -174,6 +202,53 @@
      ;; # eval: (set (make-local-variable 'start-tmate-locally-command) (concat "tmate -S " socket " new-session -A -s " user-login-name " -n main \\\"tmate wait tmate-ready \\&\\& tmate display -p \\'#{tmate_ssh}\\' \\| xclip -i -sel p -f \\| xclip -i -sel c \\&\\& bash --login\\\""))
      ;; # eval: (xclip-mode 1) 
      ;; # eval: (gui-select-text (concat "ssh -tAX " ssh-user-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
+     (defun togetherly-server-start-now ()
+       "Start a Togetherly server with this buffer."
+       (interactive)
+       (cond ((null togetherly--server)
+              (let* ((addr "127.0.0.1")
+                     (server-port "10000")
+                     (server-name user-login-name)
+                     (server-proc (make-network-process
+                                   :name "togetherly-server" :server t
+                                   :service server-port :noquery t :host addr
+                                   :sentinel 'togetherly--server-sentinel-function
+                                   :filter 'togetherly--server-filter-function))
+                     (rcolor (car togetherly-region-colors))
+                     (pcolor (car togetherly-cursor-colors)))
+                (setq togetherly-region-colors   (cdr togetherly-region-colors)
+                      togetherly-cursor-colors   (cdr togetherly-cursor-colors)
+                      togetherly--server         `(,server-proc ,server-name ,rcolor . ,pcolor)
+                      togetherly--server-buffer  (current-buffer)
+                      togetherly--server-clients nil
+                      togetherly--server-timer-object
+                      (run-with-timer nil togetherly-cursor-sync-rate
+                                      'togetherly--server-broadcast-cursor-positions))
+                (set (make-local-variable 'header-line-format)
+                     (concat " " (propertize server-name 'face `(:background ,pcolor)))))
+              (add-hook 'before-change-functions 'togetherly--server-before-change nil t)
+              (add-hook 'after-change-functions 'togetherly--server-after-change nil t)
+              (add-hook 'kill-buffer-query-functions 'togetherly--server-kill-buffer-query))
+             ((y-or-n-p "Togetherly server already started. Migrate to this buffer ? ")
+              (set (make-local-variable 'header-line-format)
+                   (buffer-local-value 'header-line-format togetherly--server-buffer))
+              (add-hook 'before-change-functions 'togetherly--server-before-change nil t)
+              (add-hook 'after-change-functions 'togetherly--server-after-change nil t)
+              (with-current-buffer togetherly--server-buffer
+                (remove-hook 'before-change-functions 'togetherly--server-before-change t)
+                (remove-hook 'after-change-functions 'togetherly--server-after-change t)
+                (kill-local-variable 'header-line-format))
+              (setq togetherly--server-buffer (current-buffer))
+              (togetherly--server-broadcast `(welcome ,(togetherly--buffer-string) . ,major-mode)))
+             (t
+              (message "Togetherly: Canceled."))))
+     (defun populate-x-togetherly ()
+       "Populate the clipboard with the command for a together client"
+       (interactive)
+       (message "Setting X Clipboard to contain the start-tmate command")
+       (xclip-mode 1)
+       (gui-select-text start-tmate-for-togetherly-client)
+       )
      (defun runs-and-exits-zero (program &rest args)
        "Run PROGRAM with ARGS and return the exit code."
        (with-temp-buffer
