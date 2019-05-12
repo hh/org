@@ -1,0 +1,76 @@
+#+NAME: generating definitions for API kinds with apisnoop
+#+PROPERTY: header-args:shell+ :dir ~/apisnoop
+
+* snooping
+  :PROPERTIES:
+   :header-args:shell+: :dir ~/apisnoop/data-gen
+  :END:
+
+python3 wasn't working ... no ipdb
+#+BEGIN_SRC tmate
+  cd ~/apisnoop/
+  python2 data-gen/snoopAuditlog.py \
+  ./data-gen/cache/ci-kubernetes-e2e-gci-gce/1125805116453031937/kube-apiserver-audit.log \
+  ./data-gen/processed/ci-kubernetes-e2e-gci-gce/1125805116453031937/
+#+END_SRC
+* the new function
+[[file:~/apisnoop/data-gen/snoopAuditlog.py::def%20generate_definitions_tree][snoopAuditlog.py generate_definitions_tree()]]
+depends on adding defenitions during load:
+[[file:~/apisnoop/data-gen/lib/parsers.py::def%20load_openapi_spec(url):]]
+* other
+#+BEGIN_SRC shell :async yes
+python /home/hippie/apisnoop/data-gen/snoopAuditlog.py \
+./data-gen/cache/ci-kubernetes-e2e-gci-gce/1125805116453031937/kube-apiserver-audit.log \
+./data-gen/processed/ci-kubernetes-e2e-gci-gce/1125805116453031937/
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+1.13-1.14.LinuxOnly
+1.15.summary.json
+cache
+conformance_summary.json
+conformance_summary.txt
+cors-config.json
+data.org
+discovery.py
+downloadArtifacts.py
+downloadAudits
+explore.org
+lib
+master_summary.json
+netlify.org
+new-tags.org
+processArtifacts.py
+processArtifacts.pyc
+processArtifacts.sh
+processed
+processed.old
+__pycache__
+README.md
+requirements.txt
+snoopAuditlog.py
+tests.1.13
+tests.1.14
+tests.master
+test_summary.json
+updateSources.py
+version_summary.json
+#+END_EXAMPLE
+
+* bar
+#+BEGIN_SRC shell
+
+#+END_SRC
+#+BEGIN_SRC elisp
+(symbol-value 'ssh-user)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+host
+#+END_SRC
+* Footers
+# Local Variables:
+# ssh-user: host
+# End:
