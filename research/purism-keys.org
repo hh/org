@@ -12,10 +12,6 @@
 Assumes an empty ~/.gnupg
 
 ** main key
-   :PROPERTIES:
-   :header-args:tmate+: :noweb-ref (concat "FOO+" "BAR")
-   # :header-args:elisp+: :noweb-ref (concat "PROPERTY+" "SET")
-   :END:
 
 Brainpool P-512 with Sign Certify and Authenticate:
 Name, Email, Comment towards bottom

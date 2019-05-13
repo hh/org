@@ -34,6 +34,8 @@
           (concat ":sockets " socket))
      (set (make-local-variable 'item-str)
           "(nth 4 (org-heading-components))")
+     (set (make-local-variable 'togetherly-port)
+           (+ (random 60000) 1024))
      (set (make-local-variable 'org-file-properties)
           (list
            (cons 'header-args:tmate
@@ -145,8 +147,10 @@
            "; bash --login\""
            )
           )
-     (set (make-local-variable 'start-tmate-for-togetherly-client)
-          (let ((togetherly-socket (make-temp-file (concat "/tmp/" user-buffer "-"))))
+      (set (make-local-variable 'start-tmate-for-togetherly-client)
+          (let (
+                (togetherly-socket (make-temp-file (concat "/tmp/" user-buffer "-")))
+                )
             (concat
              "tmate -S "
              togetherly-socket
@@ -159,7 +163,7 @@
              user-buffer
              "."
              togetherly-socket
-             ".target # "
+             ".TOGETHERLY # "
              ;; would like this to be shorter
              (concat
               (format-time-string "%Y-%m-%d %T")
@@ -167,9 +171,9 @@
              " # #{tmate_web} ') "
              "; echo \\$TMATE_CONNECT "
              "; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null "
-             "; echo Share the above with your friends and hit enter when done. "
+             "; echo Share this url with someone both be able to togethrly the same buffer. "
              "; read "
-             "; emacs -nw --eval \\(togetherly-client-quick-start\\)\""
+             "; emacs -nw --eval '\(togetherly-client-quick-start \"" (number-to-string togetherly-port) "\")'\""
              )
             )
           )
@@ -207,7 +211,7 @@
        (interactive)
        (cond ((null togetherly--server)
               (let* ((addr "127.0.0.1")
-                     (server-port "10000")
+                     (server-port togetherly-port)
                      (server-name user-login-name)
                      (server-proc (make-network-process
                                    :name "togetherly-server" :server t
@@ -228,7 +232,9 @@
                      (concat " " (propertize server-name 'face `(:background ,pcolor)))))
               (add-hook 'before-change-functions 'togetherly--server-before-change nil t)
               (add-hook 'after-change-functions 'togetherly--server-after-change nil t)
-              (add-hook 'kill-buffer-query-functions 'togetherly--server-kill-buffer-query))
+              (add-hook 'kill-buffer-query-functions 'togetherly--server-kill-buffer-query)
+              (populate-x-togetherly) ;; go ahead and create the tmate paste for the togetherly
+              )
              ((y-or-n-p "Togetherly server already started. Migrate to this buffer ? ")
               (set (make-local-variable 'header-line-format)
                    (buffer-local-value 'header-line-format togetherly--server-buffer))
@@ -239,7 +245,8 @@
                 (remove-hook 'after-change-functions 'togetherly--server-after-change t)
                 (kill-local-variable 'header-line-format))
               (setq togetherly--server-buffer (current-buffer))
-              (togetherly--server-broadcast `(welcome ,(togetherly--buffer-string) . ,major-mode)))
+              (togetherly--server-broadcast `(welcome ,(togetherly--buffer-string) . ,major-mode))
+              )
              (t
               (message "Togetherly: Canceled."))))
      (defun populate-x-togetherly ()
