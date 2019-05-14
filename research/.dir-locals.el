@@ -292,11 +292,9 @@
      ;; As we start on other OSes, we'll need to copy this differently
      (if (xclip-working)
          (populate-x-clipboard)
-       (
-        (with-current-buffer (get-buffer-create "start-tmate-command")
-          (insert-for-yank "You will need to copy this manually:\n\n")
-          )
-        )
+       (with-current-buffer (get-buffer-create "start-tmate-command" )
+         (insert-for-yank "You will need to copy this manually:\n\n" )
+         )
        )
      ;; needs to be global, so it's availabel to the other buffer
      (setq tmate-command start-tmate-command)
@@ -327,3 +325,6 @@
 ;; https://www.emacswiki.org/emacs/AutomaticFileHeaders #templates / updates etc
 ;; ^^ based on https://www.emacswiki.org/emacs/download/header2.el
 ;; ;; https://stackoverflow.com/questions/13228001/org-mode-nested-properties
+;; https://www.reddit.com/r/emacs/comments/4154bu/how_to_get_orgmode_to_recognize_markdownstyle/
+;; ^^ https://www.reddit.com/r/emacs/comments/4154bu/how_to_get_orgmode_to_recognize_markdownstyle/cz0bb45/
+;;http://endlessparentheses.com/markdown-style-link-ids-in-org-mode.html
