@@ -266,14 +266,15 @@
      (defun xclip-working ()
        "Quick Check to see if X is working."
        (if (getenv "DISPLAY")
-           (if (runs-and-exits-zero "xset" "q")
+           ;; this xset test is a bit flakey
+           ;; (if (runs-and-exits-zero "xset" "q")
                ;; Using xclip to set an invalid selection is as lightly intrusive
                ;; check I could come up with, and not overwriting anything
                ;; however it seems to hang
                ;; (if (runs-and-exits-zero "xclip" "-selection" "unused")
                ;;     'true)
                'true
-             )
+             ;; )
          )
        )
      (defun populate-x-clipboard ()
@@ -304,6 +305,20 @@
         ))
      (switch-to-buffer "start-tmate-command")
      (y-or-n-p "Have you Pasted?")
+     ;; https://www.wisdomandwonder.com/article/10630/how-fast-can-you-tangle-in-org-mode
+     (setq help/default-gc-cons-threshold gc-cons-threshold)
+     (defun help/set-gc-cons-threshold (&optional multiplier notify)
+       "Set `gc-cons-threshold' either to its default value or a
+   `multiplier' thereof."
+       (let* ((new-multiplier (or multiplier 1))
+              (new-threshold (* help/default-gc-cons-threshold
+                                new-multiplier)))
+         (setq gc-cons-threshold new-threshold)
+         (when notify (message "Setting `gc-cons-threshold' to %s"
+                               new-threshold))))
+     (defun help/double-gc-cons-threshold () "Double `gc-cons-threshold'." (help/set-gc-cons-threshold 2))
+     (add-hook 'org-babel-pre-tangle-hook #'help/double-gc-cons-threshold)
+     (add-hook 'org-babel-post-tangle-hook #'help/set-gc-cons-threshold)
      ;; (gui-select-text (concat "rm -fi " socket "; ssh -tAX " ssh-user "@" ssh-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
      ;; (edebug-trace "TRACING socket:%S" socket)
      ;; (edebug-trace "TRACING org-babel-header-args:tmate %S" org-babel-header-args:emacs-lisp)

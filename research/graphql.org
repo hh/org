@@ -1,0 +1,57 @@
+* checkout code
+#+BEGIN_SRC elisp :results none
+  (setq-local src-dir "~/src/k8s")
+  (setq-local src-repo "git@github.com:kubernetes/kubernetes.git")
+#+END_SRC
+
+#+BEGIN_SRC elisp :results none
+  (setq-local src-dir "~/src/graphql")
+  (setq-local src-repo "git@github.com:graphql/graphql-js.git")
+#+END_SRC
+
+#+BEGIN_SRC elisp :results none
+  (setq-local src-dir "~/src/graphql-js")
+  (setq-local src-repo "git@github.com:graphql/graphql-js.git")
+#+END_SRC
+
+
+#+BEGIN_SRC elisp :results none
+  (delete-directory src-dir t)
+#+END_SRC
+
+Clone the repository!
+
+Might be nice to be notified when it's finished cloning and open magit-status
+
+#+BEGIN_SRC elisp :results none
+  (progn
+    (magit-clone-regular src-repo src-dir "--progress")
+    ;; might be nice to delay here until the clone is done
+    (loop
+     (when (file-directory-p src-dir)
+       (return 
+        (display-buffer (magit-status-setup-buffer src-dir)))
+       )
+     )
+    )
+
+#+END_SRC
+
+This hack borrowed from:
+[[file:~/.emacs.d/elpa/26.2/develop/projectile-20190416.1458/projectile.el::(defun%20projectile-switch-project-by-name%20(project-to-switch%20&optional%20arg)][projectile.el::switch-project-by-name]]
+
+#+BEGIN_SRC elisp :results silent
+  (setq-local project-to-switch src-dir)
+  (let ((default-directory project-to-switch))
+    (with-temp-buffer
+      (hack-dir-local-variables-non-file-buffer))
+    (let (
+          (projectile-project-name
+           (funcall projectile-project-name-function
+                                              project-to-switch)))
+      (funcall 'projectile-find-file)))
+#+END_SRC
+
+
+* Poke around
+
