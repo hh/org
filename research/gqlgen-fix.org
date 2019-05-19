@@ -1,0 +1,78 @@
+* Issues
+https://github.com/99designs/gqlgen/issues/714
+
+
+#+BEGIN_SRC 
+
+#+END_SRC
+* checkout code
+#+BEGIN_SRC elisp :results none
+  (setq-local src-dir "~/src/gqlgen")
+  (setq-local src-repo "git@github.com:hh/gqlgen.git")
+#+END_SRC
+
+#+BEGIN_SRC elisp :results none
+  (delete-directory src-dir t)
+#+END_SRC
+
+Clone the repository!
+
+Might be nice to be notified when it's finished cloning and open magit-status
+
+#+BEGIN_SRC elisp :results none
+  (progn
+    (magit-clone-regular src-repo src-dir "--progress")
+    (display-buffer "magit-process: org")
+    ;; might be nice to delay here until the clone is done
+    (loop
+     (when (file-directory-p src-dir)
+       (return 
+        (display-buffer (magit-status-setup-buffer src-dir)))
+       )
+     )
+    )
+#+END_SRC
+
+#+BEGIN_SRC elisp
+  (defun ii/magit-branch-and-checkout (branch start-point)
+    "Create and checkout BRANCH at branch or revision START-POINT."
+    (if (string-match-p "^stash@{[0-9]+}$" start-point)
+        (magit-run-git "stash" "branch" branch start-point)
+      (magit-call-git "checkout" "-b" branch start-point)
+      (magit-branch-maybe-adjust-upstream branch start-point)
+      (magit-refresh)))
+
+  (with-current-buffer    (get-buffer "magit: gqlgen")
+
+    (ii/magit-branch-and-checkout "fix-docs" "master")
+  ;; (magit-branch-and-checkout "fix-docs" "master")
+  ;; (magit-svn-create-branch "fix-docs")
+    )
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+nil
+#+END_SRC
+
+This hack borrowed from:
+[[file:~/.emacs.d/elpa/26.2/develop/projectile-20190416.1458/projectile.el::(defun%20projectile-switch-project-by-name%20(project-to-switch%20&optional%20arg)][projectile.el::switch-project-by-name]]
+
+#+BEGIN_SRC elisp :results silent
+  (setq-local project-to-switch src-dir)
+  (let ((default-directory project-to-switch))
+    (with-temp-buffer
+      (hack-dir-local-variables-non-file-buffer))
+    (let (
+          (projectile-project-name
+           (funcall projectile-project-name-function
+                                              project-to-switch)))
+      (funcall 'projectile-find-file)))
+#+END_SRC
+
+* FIxing
+
+- [x] Noted in fix in https://github.com/99designs/gqlgen/issues/714
+- [x] Fixed in our branch
+- [x] Submitted PR https://github.com/99designs/gqlgen/pull/718
+

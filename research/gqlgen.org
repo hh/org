@@ -116,7 +116,7 @@ go run github.com/99designs/gqlgen
   )
 
   type Resolver struct {
-    todos []Todo
+    todos []*Todo
   }
 
   func (r *Resolver) Mutation() MutationResolver {
@@ -137,13 +137,13 @@ go run github.com/99designs/gqlgen
       ID:     fmt.Sprintf("T%d", rand.Int()),
       UserID: input.UserID,
     }
-    r.todos = append(r.todos, *todo)
+    r.todos = append(r.todos, todo)
     return todo, nil
   }
 
   type queryResolver struct{ *Resolver }
 
-  func (r *queryResolver) Todos(ctx context.Context) ([]Todo, error) {
+  func (r *queryResolver) Todos(ctx context.Context) ([]*Todo, error) {
     return r.todos, nil
   }
 
