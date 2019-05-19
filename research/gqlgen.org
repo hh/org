@@ -206,3 +206,50 @@ Mainly for populating that left query side.
 #+BEGIN_SRC elisp
 (setq-local compile-command "go run server/server.go ")
 #+END_SRC
+* My Environment
+** environ
+
+#+BEGIN_SRC shell
+go version
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+go version go1.12.3 linux/amd64
+#+END_EXAMPLE
+
+** go env
+
+#+BEGIN_SRC shell
+go env
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+GOARCH="amd64"
+GOBIN=""
+GOCACHE="/home/hippie/.cache/go-build"
+GOEXE=""
+GOFLAGS=""
+GOHOSTARCH="amd64"
+GOHOSTOS="linux"
+GOOS="linux"
+GOPATH="/home/hippie/go"
+GOPROXY=""
+GORACE=""
+GOROOT="/usr/local/go"
+GOTMPDIR=""
+GOTOOLDIR="/usr/local/go/pkg/tool/linux_amd64"
+GCCGO="gccgo"
+CC="gcc"
+CXX="g++"
+CGO_ENABLED="1"
+GOMOD="/home/hippie/gqlgen-todos/go.mod"
+CGO_CFLAGS="-g -O2"
+CGO_CPPFLAGS=""
+CGO_CXXFLAGS="-g -O2"
+CGO_FFLAGS="-g -O2"
+CGO_LDFLAGS="-g -O2"
+PKG_CONFIG="pkg-config"
+GOGCCFLAGS="-fPIC -m64 -pthread -fmessage-length=0 -fdebug-prefix-map=/tmp/go-build045453696=/tmp/go-build -gno-record-gcc-switches"
+#+END_EXAMPLE
