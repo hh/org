@@ -213,7 +213,6 @@ Mainly for populating that left query side.
 go version
 #+END_SRC
 
-#+RESULTS:
 #+BEGIN_EXAMPLE
 go version go1.12.3 linux/amd64
 #+END_EXAMPLE
@@ -224,7 +223,6 @@ go version go1.12.3 linux/amd64
 go env
 #+END_SRC
 
-#+RESULTS:
 #+BEGIN_EXAMPLE
 GOARCH="amd64"
 GOBIN=""
