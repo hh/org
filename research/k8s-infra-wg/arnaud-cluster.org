@@ -13,12 +13,14 @@ git clone --depth 1 -b cncf-k8s-cluster https://github.com/ameukam/k8s.io.git
 
 #+BEGIN_SRC shell :dir ~/k8s.io
 git branch -av
+date
 #+END_SRC
 
 #+RESULTS:
 #+begin_EXAMPLE
 ,* cncf-k8s-cluster                a0960f1 Add script that spin up a canary GKE cluster for jobs.
   remotes/origin/cncf-k8s-cluster a0960f1 Add script that spin up a canary GKE cluster for jobs.
+Mon May 20 16:36:10 CEST 2019
 #+end_EXAMPLE
 
 * Ensure gcloud is happy
