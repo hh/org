@@ -4,7 +4,7 @@
  (org-mode
   (org-babel-tmate-session-prefix . "")
   (org-babel-tmate-default-window-name . "main")
-  (org-confirm-babel-evaluate . t)
+  (org-confirm-babel-evaluate . nil)
   (org-use-property-inheritance . t)
   (org-file-dir . (file-name-directory buffer-file-name))
   (eval
@@ -123,6 +123,11 @@
           )
      (set (make-local-variable 'select-enable-clipboard) t)
      (set (make-local-variable 'select-enable-primary) t)
+     (defun ii-org-confirm-babel-evaluate (lang body)
+       nil ;; allow everything for now
+       ;;(not (string= lang "ditaa"))  ;don't ask for ditaa
+       )
+     (set (make-local-variable 'org-confirm-babel-evaluate) #'ii-org-confirm-babel-evaluate)
      (set (make-local-variable 'start-tmate-command)
           (concat
            "tmate -S "
@@ -319,6 +324,15 @@
      (defun help/double-gc-cons-threshold () "Double `gc-cons-threshold'." (help/set-gc-cons-threshold 2))
      (add-hook 'org-babel-pre-tangle-hook #'help/double-gc-cons-threshold)
      (add-hook 'org-babel-post-tangle-hook #'help/set-gc-cons-threshold)
+     ;; info:org#Conflicts for org 9 and very recent yas
+     (defun yas/org-very-safe-expand ()
+       (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
+
+     (yas/expand)
+     (make-variable-buffer-local 'yas/trigger-key)
+     (setq yas/trigger-key [tab])
+     (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
+     (define-key yas/keymap [tab] 'yas/next-field)
      ;; (gui-select-text (concat "rm -fi " socket "; ssh -tAX " ssh-user "@" ssh-host " -L " socket ":" socket " " start-tmate-over-ssh-command))
      ;; (edebug-trace "TRACING socket:%S" socket)
      ;; (edebug-trace "TRACING org-babel-header-args:tmate %S" org-babel-header-args:emacs-lisp)

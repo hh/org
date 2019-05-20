@@ -1,0 +1,52 @@
+* Upstream
+** Issue
+https://github.com/kubernetes/k8s.io/issues/243
+** PR
+https://github.com/kubernetes/k8s.io/pull/250
+* Geting the code into our computer!!!
+
+#+BEGIN_SRC tmate
+cd ~/
+git clone --depth 1 -b cncf-k8s-cluster https://github.com/ameukam/k8s.io.git
+#+END_SRC
+
+#+BEGIN_SRC shell :dir ~/k8s.io
+git branch -av
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+,* cncf-k8s-cluster                a0960f1 Add script that spin up a canary GKE cluster for jobs.
+  remotes/origin/cncf-k8s-cluster a0960f1 Add script that spin up a canary GKE cluster for jobs.
+#+end_EXAMPLE
+
+* Ensure gcloud is happy
+** check version
+#+BEGIN_SRC shell
+gcloud version
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Google Cloud SDK 241.0.0
+alpha 2019.04.02
+beta 2019.04.02
+bq 2.0.43
+core 2019.04.02
+gsutil 4.38
+kubectl 2019.04.02
+#+end_EXAMPLE
+** check project
+
+#+BEGIN_SRC shell
+gcloud projects list | grep k8s-infra-dev
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+k8s-infra-dev-cluster-turnup  k8s-infra-dev-cluster-turnup  396460694993
+#+end_EXAMPLE
+
+** Take a look at the file
+
+[[file:~/k8s.io/infra/ensure-canary-gke.sh][k8s.io/infra/ensure-canary-gke.sh]] 
