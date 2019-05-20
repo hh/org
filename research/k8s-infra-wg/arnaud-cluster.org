@@ -3,8 +3,9 @@
 https://github.com/kubernetes/k8s.io/issues/243
 ** PR
 https://github.com/kubernetes/k8s.io/pull/250
-* Geting the code into our computer!!!
 
+* Geting the code into our computer!!!
+  
 #+BEGIN_SRC tmate
 cd ~/
 git clone --depth 1 -b cncf-k8s-cluster https://github.com/ameukam/k8s.io.git
@@ -50,3 +51,16 @@ k8s-infra-dev-cluster-turnup  k8s-infra-dev-cluster-turnup  396460694993
 ** Take a look at the file
 
 [[file:~/k8s.io/infra/ensure-canary-gke.sh][k8s.io/infra/ensure-canary-gke.sh]] 
+* What to do now?
+#+BEGIN_SRC tmate
+gcloud projects list
+#+END_SRC
+
+#+BEGIN_SRC shell :async yes
+gcloud projects list | grep k8s-inf
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+k8s-infra-dev-cluster-turnup  k8s-infra-dev-cluster-turnup  396460694993
+#+end_EXAMPLE
