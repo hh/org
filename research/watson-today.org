@@ -1,0 +1,10 @@
+* apisnoop stuff
+
+We'd like to explore some temporary work around [[https://apisnoop.cncf.io][APISnoop]] which hase some code at[[https://github.com/cncf/apisnoop]] 
+
+#+BEGIN_SRC tmate
+cd /tmp
+ls -la
+date
+echo hhii!!
+#+END_SRC
