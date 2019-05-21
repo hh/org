@@ -1,0 +1,126 @@
+#+STARTUP: content
+#+STARTUP: showeverything
+* [[https://www.howtographql.com/graphql-js/1-getting-started/][Getting Started]]
+  :PROPERTIES:
+    :header-args:tmate+: :session session:graphql
+    :header-args:tmate+: :noweb yes
+    :header-args:js+: :session skewer-mode:"*skewer-repl*"
+  :END:
+** reset existance
+#+BEGIN_SRC tmate
+cd ~/
+rm -rfi <<default-directory()>>
+#+END_SRC
+
+** prerequisites
+
+Here we create an empty folder to start our project:
+
+#+BEGIN_SRC tmate :dir ~/ :noweb yes
+  mkdir -p <<default-directory()>>
+  cd <<default-directory()>>
+#+END_SRC
+
+** Creating the project
+ 
+#+BEGIN_SRC tmate
+ npm init -y
+#+END_SRC
+
+** Creating a raw GraphQL server
+
+#+BEGIN_SRC tmate
+  mkdir -p src
+  touch src/index.js
+  node src/index.js
+#+END_SRC
+
+#+BEGIN_SRC tmate
+npm install graphql-yoga
+#+END_SRC
+
+*** src/index.js
+
+Save this as src/index.js
+
+#+BEGIN_SRC javascript :tangle src/index.js
+  const { GraphQLServer } = require('graphql-yoga')
+
+  //1
+  const typeDefs = `
+  type Query {
+    info: String!
+  }
+  `
+
+  // 2
+  const resolvers = {
+    Query: {
+      info: () => `This is the API of a Hackernews Clone`
+    }
+  }
+
+  // 3
+  const server = new GraphQLServer({
+    typeDefs,
+    resolvers,
+  })
+  server.start(() => console.log(`Server is running on http://localhost:4000`))
+#+END_SRC
+
+#+BEGIN_SRC elisp :results none
+(run-skewer) ;; launches a browser
+#+END_SRC
+
+#+BEGIN_SRC elisp :results none
+  (compile "node src/index.js" t)
+  (sleep-for 2)
+  (display-buffer "*compilation*")
+  (browse-url-chromium "http:localhost:4000")
+#+END_SRC
+
+
+#+BEGIN_SRC js :session "*skewer-repl*"
+  alert("Hello from iiMacs")
+  ;; console.log("Hello from iiMacs")
+#+END_SRC
+
+
+** prerequisites
+
+* My Environment
+** default-directory
+#+NAME: default-directory
+#+BEGIN_SRC elisp
+(symbol-value 'default-directory)
+#+END_SRC
+** github-user
+#+NAME: github-user
+#+BEGIN_SRC elisp :results scalar
+(princ (symbol-value 'github-user))
+#+END_SRC
+** skewer-research
+(spacemacs/load-yasnippet)
+
+#+BEGIN_SRC js :session "*skewer-repl*"
+  //alert("AOEU")
+  console.log("AOEU")
+#+END_SRC
+#+BEGIN_SRC tmate
+
+#+END_SRC
+#+BEGIN_SRC tmate
+
+#+END_SRC
+
+#+BEGIN_SRC 
+
+#+END_SRC
+
+# Local Variables:
+# eval: (setq-local target-directory (expand-file-name "~/hackernews-node"))
+# eval: (make-directory target-directory t)
+# eval: (setq-local default-directory (symbol-value 'target-directory))
+# compile-command: "node src/index.js"
+# github-user: "hh"
+# End:
