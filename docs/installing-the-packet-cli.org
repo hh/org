@@ -1,0 +1,1277 @@
+* [[https://github.com/packethost/packet-cli#installation][Upstream Documentaton]]
+https://www.packet.com/developers/libraries/
+* Installing [[https://github.com/packethost/packet-cli/releases][PacketCLI releases]]
+** download packet-cli
+
+#+BEGIN_SRC emacs-lisp :results code :item-param (concat "ITEM" "-PARAM")
+  (org-babel-get-src-block-info)
+#+END_SRC
+
+#+RESULTS:
+#+begin_src emacs-lisp
+("emacs-lisp" "(org-babel-get-src-block-info)"
+ ((:colname-names)
+  (:rowname-names)
+  (:result-params "code" "replace")
+  (:result-type . value)
+  (:results . "code replace")
+  (:exports . "both")
+  (:item-param . "ITEM-PARAM")
+  (:eval . "no-export")
+  (:comments . "org")
+  (:noweb-ref . "download packet-cli binary")
+  (:noweb . "yes")
+  (:lexical . "no")
+  (:tangle . "no")
+  (:hlines . "no")
+  (:cache . "no")
+  (:session . "none"))
+ "" nil 203 "(ref:%s)")
+#+end_src
+
+*** place binary in HOME
+
+#+NAME: place binary in HOME
+#+BEGIN_SRC shell :async yes
+cd $HOME
+mkdir -p packet-cli
+curl -L -o packet-cli/packet \
+  https://github.com/packethost/packet-cli/releases/download/0.0.2/packet-linux-amd64
+chmod +x packet-cli/packet
+ls -lah $HOME/packet-cli/packet
+#+END_SRC
+
+#+RESULTS: place binary in HOME
+#+begin_EXAMPLE
+-rwxr-xr-x 1 hippie hippie 12M May 22 09:10 /home/hippie/packet-cli/packet
+#+end_EXAMPLE
+
+#+RESULTS:
+#+begin_EXAMPLE
+-rwxr-xr-x 1 hippie hippie 12M May 22 05:34 /home/hippie/packet-cli/packet
+#+end_EXAMPLE
+
+*** tmate
+
+#+BEGIN_SRC tmate
+<<place binary in HOME>>
+#+END_SRC
+
+** ensuring you can execute it
+*** bash
+#+BEGIN_SRC tmate 
+export PATH=$HOME/packet-cli:$PATH
+#+END_SRC
+*** emacs
+
+#+BEGIN_SRC elisp
+  (setenv "PATH" (format "%s:%s" "~/packet-cli/" (getenv "PATH")))
+#+END_SRC
+
+#+RESULTS:
+#+begin_src elisp
+"~/packet-cli/:/home/hippie/anaconda3/bin:/home/hippie/anaconda3/condabin:/home/hippie/.cask/bin:/home/hippie/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/home/hippie/go/bin:/home/hippie/go/bin:/usr/local/go/bin:/usr/local/node-v10.15.1-linux-x64/bin"
+#+end_src
+
+** checking version
+
+#+BEGIN_SRC shell
+  echo $PATH
+  packet --version
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+/home/zz/packet-cli/:~/packet-cli/:/home/zz/.nimble/bin:/home/zz/.nvm/versions/node/v8.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/zz/go/bin:/usr/local/go/bin
+#+END_EXAMPLE
+
+* TLDR
+** Tokens / Project
+Go get a packet token:
+
+https://app.packet.net/users/dc2144c3-1c61-4479-9728-0315d6ea30dc/api-keys
+
+#+BEGIN_SRC elisp :results silent
+  (setenv "PACKET_TOKEN" (read-passwd "Packet Token from https://app.packet.net? "))
+#+END_SRC
+
+#+BEGIN_SRC tmate 
+export PATH=$HOME/packet-cli:$PATH
+#+END_SRC
+
+#+BEGIN_SRC elisp
+  (setenv "PATH" (format "%s:%s" (expand-file-name "~/packet-cli/") (getenv "PATH")))
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+"~/packet-cli/:/home/zz/.nimble/bin:/home/zz/.nvm/versions/node/v8.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/zz/go/bin:/usr/local/go/bin"
+#+END_SRC
+
+#
+
+project refers to the group within packet. 
+
+#+BEGIN_SRC elisp :results silent
+  (setenv "PACKET_PROJECT" "7a44b778-41d2-49fa-9c92-99148516c600")
+  ;; (setenv "PACKET_PROJECT" (read-passwd "Packet Project ID from https://app.packet.net? "))
+#+END_SRC
+
+#+BEGIN_SRC shell :var SOCKET=(symbol-value 'socket) :results silent
+tmate -S $SOCKET set-option default-path $HOME/packet-cli:$PATH
+tmate -S $SOCKET set-option default-shell /bin/bash
+tmate -S $SOCKET set-environment -g PACKET_PROJECT $PACKET_PROJECT
+tmate -S $SOCKET set-environment -g PACKET_TOKEN $PACKET_TOKEN
+tmate -S $SOCKET update-environment PACKET_TOKEN PACKET_PROJECT DISPLAY SSH_ASKPASS SSH_AUTH_SOCK SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY
+tmate -S $SOCKET show-environment
+#+END_SRC
+*** place binary in HOME
+
+#+BEGIN_SRC shell :async yes
+cd $HOME
+mkdir -p packet-cli
+curl -L -o packet-cli/packet \
+  https://github.com/packethost/packet-cli/releases/download/0.0.2/packet-linux-amd64
+chmod +x packet-cli/packet
+ls -lah $HOME/packet-cli/packet
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+-rwxrwxr-x 1 zz zz 12M May 22 21:52 /home/zz/packet-cli/packet
+#+END_EXAMPLE
+
+
+** [[https://github.com/packethost/packet-cli/blob/master/docs/packet_ssh-key_get.md][SSH Keys]]
+
+#+BEGIN_SRC shell
+env | grep PACK
+packet ssh-key get
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+PACKET_PROJECT=7a44b778-41d2-49fa-9c92-99148516c600
+PACKET_TOKEN=7iELDvREHBomL951gxLrvw6GCP9c8trH
++--------------------------------------+------------------------+----------------------+
+|                  ID                  |         LABEL          |       CREATED        |
++--------------------------------------+------------------------+----------------------+
+| c1246f64-4e2d-4df4-935e-d67f22078724 | solarizo               | 2019-04-30T05:11:22Z |
+| 4ccbde01-275f-4013-9517-24f3c8065281 | zz-home                | 2019-05-20T10:38:49Z |
+| b6ac23ce-5749-4768-8761-99aadd3329f1 | zz@ii.coop@macbook-air | 2019-01-22T09:49:00Z |
++--------------------------------------+------------------------+----------------------+
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+   SSH_KEY_FILE=$HOME/.ssh/id_rsa_packet
+   # rm ~/.ssh/id_rsa_packet* ?
+   ssh-keygen -f $SSH_KEY_FILE -t rsa -N ''
+   SSH_PUBLIC_KEY=$(cat $SSH_KEY_FILE.pub)
+   SSH_KEY_LABEL=$USER-packet-specific-key
+   curl -X POST \
+     --header 'Accept: application/json' \
+     --header "Content-Type: application/json" \
+     --header "X-Auth-Token: $PACKET_TOKEN" \
+     --data-ascii "{\
+   \"label\": \"$SSH_KEY_LABEL\", \
+   \"key\": \"$SSH_PUBLIC_KEY\"\
+   }" \
+     https://api.packet.net/ssh-keys
+#+END_SRC
+
+#+BEGIN_SRC shell
+packet ssh-key get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+----------------------------+----------------------+
+|                  ID                  |           LABEL            |       CREATED        |
++--------------------------------------+----------------------------+----------------------+
+| c33a7616-6a0a-4b0e-b3f1-c338be2e175d | old-4096                   | 2019-03-20T16:06:51Z |
+| 11bd4498-7e1a-4781-bf2c-a849daea2343 | hippie-packet-specific-key | 2019-05-22T07:19:13Z |
++--------------------------------------+----------------------------+----------------------+
+#+end_EXAMPLE
+
+** [[https://github.com/packethost/packet-cli/blob/master/docs/packet_device_create.md][Device Create]]
+#+BEGIN_SRC tmate
+  PACKET_PROJECT="54b17c77-89d8-4db4-b8dc-719aa3025827"
+  packet device create \
+    --hostname kind-ii-packet \
+    --plan c2.medium.x86 \
+    --facility sjc1 \
+    --operating-system ubuntu_18_04 \
+    --project-id $PACKET_PROJECT
+#+END_SRC
+
+#+BEGIN_SRC shell
+  packet device get \
+    --project-id $PACKET_PROJECT
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+-------------------------+------------------+--------------+----------------------+
+|                  ID                  |        HOSTNAME         |        OS        |    STATE     |       CREATED        |
++--------------------------------------+-------------------------+------------------+--------------+----------------------+
+| dc2ef934-2892-472b-9d93-64cc020bf59f | staging.cncf.ci         | Debian 8         | active       | 2017-12-04T16:06:36Z |
+| 33d666d3-959e-4950-b3fa-0bf1a9ed9315 | cidev.cncf.ci           | Debian 8         | active       | 2018-04-29T21:28:46Z |
+| 11806cbc-dc1b-404c-b5f7-f72df88fe538 | d.ii.coop               | Ubuntu 16.04 LTS | active       | 2018-05-16T22:02:00Z |
+| 1315b7ab-9e5b-4b08-a842-e0a5f1c8bdc3 | c1smallworkstation-01   | Ubuntu 18.04 LTS | active       | 2018-11-07T01:00:43Z |
+| 3c0beb22-1231-4ecd-902a-6a38e9f7789b | etcd.dns.local          | Debian 8         | active       | 2018-04-23T13:46:29Z |
+| d0f67ac9-67be-4c77-984b-4a1dc3aa1806 | mx                      | Debian 8         | active       | 2017-09-16T17:37:04Z |
+| 5789680e-bd3a-472f-9361-cbb24ea3bd96 | apisnoop.bigbuildbox    | Debian 9         | active       | 2018-08-20T15:05:07Z |
+| bc6f04f7-618e-4333-abd5-6a694deae972 | smallatomworkstation-01 | Ubuntu 18.04 LTS | active       | 2018-11-07T01:00:37Z |
+| fe85784b-9670-4c44-9743-890ab581b31b | x1smallworkstation-02   | Ubuntu 18.04 LTS | active       | 2018-11-07T01:00:41Z |
+| 25f836af-4097-4242-8d67-a704cdbbefd6 | kind-ii-packet          | Ubuntu 18.04 LTS | provisioning | 2019-05-22T05:51:52Z |
+| d1ffe639-4c71-40e9-9188-967490c977bb | vulk.coop-cncf          | Debian 8         | active       | 2017-09-05T21:32:50Z |
+| 3287d21c-9473-4556-a514-e4a9a93dde77 | dev.cncf.ci             | Debian 8         | active       | 2017-11-09T21:03:31Z |
+| 9c86ad6f-ab0a-4607-ad00-4ae1af4bdea7 | ii.coop                 | Debian 8         | active       | 2017-05-28T21:53:47Z |
+| 10d4f228-e7d5-4bfe-9f4f-56d176865bd4 | gitlab.cncf.ci          | Debian 8         | active       | 2017-05-28T21:55:50Z |
+| ef3dd95f-8d0a-44e6-8f38-ebca814e38b4 | apisnoop.cncf.ci        | Debian 8         | active       | 2018-02-06T09:26:40Z |
++--------------------------------------+-------------------------+------------------+--------------+----------------------+
+#+end_EXAMPLE
+
+#+BEGIN_SRC shell
+  packet device get \
+    --id 25f836af-4097-4242-8d67-a704cdbbefd6
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+----------------+------------------+--------+----------------------+
+|                  ID                  |    HOSTNAME    |        OS        | STATE  |       CREATED        |
++--------------------------------------+----------------+------------------+--------+----------------------+
+| 25f836af-4097-4242-8d67-a704cdbbefd6 | kind-ii-packet | Ubuntu 18.04 LTS | active | 2019-05-22T05:51:52Z |
++--------------------------------------+----------------+------------------+--------+----------------------+
+#+end_EXAMPLE
+
+** ip
+#+BEGIN_SRC shell :wrap "SRC json"
+  packet device get -j \
+    --id 25f836af-4097-4242-8d67-a704cdbbefd6 \
+  | jq -r .ip_addresses[0].address
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+147.75.69.121
+#+end_SRC
+
+
+* [[https://github.com/packethost/packet-cli#authentication][Authentication]]
+
+The ~PACKET_TOKEN~ environment variable needs to be set.
+
+*** emacs
+
+#+BEGIN_SRC elisp :results silent
+  (setenv "PACKET_TOKEN" (read-passwd "Packet Token from https://app.packet.net? "))
+#+END_SRC
+*** bash
+
+#+BEGIN_SRC tmate
+export PACKET_TOKEN=TOKEN_FROM_APP_PACKET_NET
+#+END_SRC
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_organization.md][Organizations]]
+#+BEGIN_SRC shell
+packet organization get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+------+----------------------+
+|                  ID                  | NAME |       CREATED        |
++--------------------------------------+------+----------------------+
+| 670f523c-7a91-4757-b152-a2160ca4c807 | CNCF | 2018-01-16T09:16:30Z |
++--------------------------------------+------+----------------------+
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_project.md][Projects]]
+
+#+BEGIN_SRC shell
+packet project get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+--------------+----------------------+
+|                  ID                  |     NAME     |       CREATED        |
++--------------------------------------+--------------+----------------------+
+| 00953a82-a507-4e51-9b91-732e72dad159 | SIG-kind     | 2019-01-30T01:11:29Z |
+| 54b17c77-89d8-4db4-b8dc-719aa3025827 | CNCF Sandbox | 2017-03-25T14:15:16Z |
+| 7a44b778-41d2-49fa-9c92-99148516c600 | APISnoop     | 2019-01-18T21:18:53Z |
++--------------------------------------+--------------+----------------------+
+#+end_EXAMPLE
+
+#+BEGIN_SRC elisp
+  (setenv "PACKET_PROJECT" (read-passwd "Packet Project ID from https://app.packet.net? "))
+#+END_SRC
+
+#+RESULTS:
+#+begin_src elisp
+"54b17c77-89d8-4db4-b8dc-719aa3025827"
+#+end_src
+* Plan
+#+BEGIN_SRC shell
+packet plan get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+---------------+------------------+
+|                  ID                  |     SLUG      |       NAME       |
++--------------------------------------+---------------+------------------+
+| d16a68ff-b21c-4781-a22b-3a0f37c435f8 | c2.large.arm  | c2.large.arm     |
+| 5aeee4f9-1137-4514-8f3e-a1e103b02966 | c2.medium.x86 | c2.medium.x86    |
+| 18810cec-1711-4f30-b323-a1001804b10f | g2.large.x86  | g2.large.x86     |
+| c5a9c64a-07e4-46a9-8dfe-2437f521dcb8 | m2.xlarge.x86 | m2.xlarge.x86    |
+| 174c4bec-7090-4651-9b81-567080a4a7cb | n2.xlarge.x86 | n2.xlarge.x86    |
+| 87728148-3155-4992-a730-8d1e6aca8a32 | storage_1     | Standard         |
+| d6570cfb-38fa-4467-92b3-e45d059bb249 | storage_2     | Performance      |
+| c3ee2482-060c-4d17-949f-377ee3c18b08 | x2.xlarge.x86 | x2.xlarge.x86    |
+| 3bc8a214-b807-4058-ad4a-6925f2411155 | baremetal_2a  | c1.large.arm     |
+| 556d25ec-000f-4a75-86ad-682cc54049fa | baremetal_2a2 | c1.large.arm.xda |
+| 6d1f1ffa-7912-4b78-b50d-88cc7c8ab40f | baremetal_1   | c1.small.x86     |
+| 741f3afb-bb2f-4694-93a0-fcbad7cd5e78 | baremetal_3   | c1.xlarge.x86    |
+| a3729923-fdc4-4e85-a972-aafbad3695db | baremetal_2   | m1.xlarge.x86    |
+| 66173669-84fc-43b3-92b5-64f84497c887 | baremetal_s   | s1.large.x86     |
+| e69c0169-4726-46ea-98f1-939c9e8a3607 | baremetal_0   | t1.small.x86     |
+| e829e15f-bfa0-4d8f-806e-cc92bb6567b4 | baremetal_1e  | x1.small.x86     |
++--------------------------------------+---------------+------------------+
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_ssh-key_get.md][SSH Keys]]
+
+#+BEGIN_SRC shell
+packet ssh-key get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+----------+----------------------+
+|                  ID                  |  LABEL   |       CREATED        |
++--------------------------------------+----------+----------------------+
+| c33a7616-6a0a-4b0e-b3f1-c338be2e175d | old-4096 | 2019-03-20T16:06:51Z |
++--------------------------------------+----------+----------------------+
+#+end_EXAMPLE
+
+#+BEGIN_SRC tmate
+   SSH_KEY_FILE=$HOME/.ssh/id_rsa_packet
+   ssh-keygen -f $SSH_KEY_FILE -t rsa -N ''
+   SSH_PUBLIC_KEY=$(cat $SSH_KEY_FILE.pub)
+   SSH_KEY_LABEL=$USER-packet-specific-key
+   curl -X POST \
+     --header 'Accept: application/json' \
+     --header "Content-Type: application/json" \
+     --header "X-Auth-Token: $PACKET_TOKEN" \
+     --data-ascii "{\
+   \"label\": \"$SSH_KEY_LABEL\", \
+   \"key\": \"$SSH_PUBLIC_KEY\"\
+   }" \
+     https://api.packet.net/ssh-keys
+#+END_SRC
+
+#+BEGIN_SRC tmate
+SSH_KEY_UUID=$(packet ssh-key get -j | jq -r '.[1].id')
+echo $SSH_KEY_UUID
+packet ssh-key delete --id $SSH_KEY_UUID
+#+END_SRC
+
+#+BEGIN_SRC tmate
+  SSH_KEY_FILE=$HOME/.ssh/id_rsa_packet
+  ssh-keygen -f $SSH_KEY_FILE -t rsa -N ''
+  SSH_PUBLIC_KEY=$(cat $SSH_KEY_FILE.pub)
+  SSH_KEY_LABEL=$USER-packet-specific-key
+ 
+    --header 'Accept: application/json' \
+    --header "Content-Type: application/json" \
+    --header "X-Auth-Token: $PACKET_TOKEN" \
+    --data-ascii "{\
+  \"label\": \"$SSH_KEY_LABEL\", \
+  \"key\": \"$SSH_PUBLIC_KEY\"\
+  }" \
+    https://api.packet.net/ssh-keys
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+dc7422d2-ef45-49d2-b757-24c5e891d4d3
+[?25l[2K[1m[34m?[0m [1mAre you sure you want to delete project : [0m? [2m[y/N][0m █
+[1A[2K[2K
+[?25h
+#+end_EXAMPLE
+
+
+#+BEGIN_SRC tmate
+  SSH_KEY_FILE=$HOME/.ssh/id_rsa_packet
+  SSH_KEY_LABEL=$USER-packet-specific-key
+  ## UUID needs to be checked against SSH_KEY_LABEL
+  SSH_KEY_UUID=$(packet ssh-key get -j | jq -r '.[1].id')
+  packet ssh-key get --id $SSH_KEY_UUID
+  echo Are you sure? Hit Control-C if not!
+  sleep 5
+  curl -X DELETE \
+    --header 'Accept: application/json' \
+    --header "X-Auth-Token: $PACKET_TOKEN" \
+    https://api.packet.net/ssh-keys/$SSH_KEY_UUID
+#+END_SRC
+
+#+BEGIN_SRC shell
+packet ssh-key get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+----------------------------+----------------------+
+|                  ID                  |           LABEL            |       CREATED        |
++--------------------------------------+----------------------------+----------------------+
+| c33a7616-6a0a-4b0e-b3f1-c338be2e175d | old-4096                   | 2019-03-20T16:06:51Z |
+| dc7422d2-ef45-49d2-b757-24c5e891d4d3 | hippie-packet-specific-key | 2019-05-22T05:13:13Z |
++--------------------------------------+----------------------------+----------------------+
+#+end_EXAMPLE
+
+#+RESULTS: packetapi
+#+begin_SRC json
+{
+  "id": "dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "short_id": "dc2144c3",
+  "first_name": "Hippie",
+  "last_name": "Hacker",
+  "full_name": "Hippie Hacker",
+  "email": "hh@ii.coop",
+  "social_accounts": {
+    "github": "https://github.com/hh",
+    "twitter": "",
+    "linkedin": ""
+  },
+  "created_at": "2017-04-17T20:02:12Z",
+  "updated_at": "2019-05-22T03:15:37Z",
+  "default_organization_id": "670f523c-7a91-4757-b152-a2160ca4c807",
+  "avatar_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "avatar_thumb_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "customdata": {},
+  "opt_in": true,
+  "opt_in_updated_at": "2018-05-25T17:08:37Z",
+  "default_project_id": "54b17c77-89d8-4db4-b8dc-719aa3025827",
+  "timezone": "Pacific/Auckland",
+  "language": "en",
+  "mailing_address": null,
+  "verification_stage": "verified",
+  "two_factor_auth": "",
+  "max_projects": 150,
+  "vpn": false,
+  "last_login_at": "2019-05-22T04:50:52Z",
+  "emails": [
+    {
+      "href": "/emails/c5f4f02e-0566-4852-93ab-d23e8a892047"
+    }
+  ],
+  "href": "/users/dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "phone_number": "+18065432100",
+  "restricted": false
+}
+#+end_SRC
+
+
+#+BEGIN_SRC shell :wrap "SRC json"
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+{
+  "ssh_keys": [
+    {
+      "id": "c33a7616-6a0a-4b0e-b3f1-c338be2e175d",
+      "label": "old-4096",
+      "key": "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAgEAsUXHYuDzE6fs2KkCj91qSqpMXyxozb9gDKcx3mlh87hCegevld75gQAhujVYGRgJLsdf7W0/lX81clCRP1FjbaYYrPkVWGR291U6K5rkL9kZqd9dC0h9iCvFTKdKC7sA/uaolFPWav3QFWdEp3geNNuAm/NKSckUs9yGgr1inANQNsHFl0JFzU34D2Kt43rKA0Qz3kkDKCnXzl+wltIKq5f1SH1HDlv0hoLgikVwg5CLLKCsZ8IFuxur1pdb26uM0vtFp2LJUNad6hK8RsU6p/NeTtOLjbKGsLkqCgSvoPxCAIbFKWIRuAfGd6CrNc2kAD4qM45jAvI9dLuzbopVfhXS16F0i3EzL8/VWuCk7l2mYRdjHAy+9fJksx1zx2wfeEXSoSUX8/ROxpWZaDA8gLAxUrp/hqHU351QDDEdunMfmlrGc6ixyIaxMugRuNsNB4eY91mmbiljeoSCs1GFbVRhC8KejdKpo266hSDdS7f1sV9dnxVhHBhCxWzN7+mfk4KzpjEVFoDR73X8IUOLGFikORl918i86bH2uqJ5zZLvOA4a0BqaRIExmAi7wQrm4iLcDH3THMpvEuy4965JZz1uPJYtGBD/Zj1O2sMA8K6zvSB/8q86fe1VdwIJxOHh50HqAH1jPHHfkxIdrL4nBmvF9Pkzpg/OWlyVjqWmWj0= hh\n",
+      "fingerprint": "1b:a8:6e:48:d5:de:83:7e:1e:58:80:33:a6:03:0b:c6",
+      "created_at": "2019-03-20T16:06:51Z",
+      "updated_at": "2019-05-20T10:41:26Z",
+      "owner": {
+        "href": "/users/dc2144c3-1c61-4479-9728-0315d6ea30dc"
+      },
+      "href": "/ssh-keys/c33a7616-6a0a-4b0e-b3f1-c338be2e175d"
+    }
+  ]
+}
+#+end_SRC
+
+
+#+BEGIN_SRC tmate
+  SSH_PUBLIC_KEY=$(cat ~/.ssh/id_rsa-4096-20090605-ccc.pub)
+  packet ssh-key create --key=$SSH_PUBLIC_KEY  --label mii-ssh-public-key
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Client error: POST https://api.packet.net/ssh-keys: 422 Key is not a valid SSH public key 
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_user.md][Users]]
+#+BEGIN_SRC shell
+packet user get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+---------------+------------+----------------------+
+|                  ID                  |   FULL NAME   |   EMAIL    |       CREATED        |
++--------------------------------------+---------------+------------+----------------------+
+| dc2144c3-1c61-4479-9728-0315d6ea30dc | Hippie Hacker | hh@ii.coop | 2017-04-17T20:02:12Z |
++--------------------------------------+---------------+------------+----------------------+
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_facilities.md][Facilities]]
+
+#+BEGIN_SRC shell
+packet facilities get
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++-------------------+------+--------------------------------------------------------+
+|       NAME        | CODE |                        FEATURES                        |
++-------------------+------+--------------------------------------------------------+
+| Toronto, ON, CA   | yyz1 | baremetal,layer_2                                      |
+| Marseille, France | mrs1 | baremetal,layer_2,backend_transfer                     |
+| Hong Kong 1, HK   | hkg1 | baremetal,layer_2,backend_transfer                     |
+| Amsterdam, NL     | ams1 | baremetal,storage,global_ipv4,backend_transfer,layer_2 |
+| Sydney, Australia | syd1 | baremetal,layer_2                                      |
+| Seattle, WA       | sea1 | baremetal,layer_2,backend_transfer                     |
+| Dallas, TX        | dfw2 | baremetal,global_ipv4,backend_transfer,layer_2,storage |
+| Tokyo, JP         | nrt1 | baremetal,layer_2,storage,global_ipv4,backend_transfer |
+| Atlanta, GA       | atl1 | baremetal,layer_2,backend_transfer                     |
+| Sunnyvale, CA     | sjc1 | baremetal,storage,layer_2,global_ipv4,backend_transfer |
+| Parsippany, NJ    | ewr1 | baremetal,storage,backend_transfer,layer_2,global_ipv4 |
+| Los Angeles, CA   | lax1 | baremetal,layer_2,backend_transfer                     |
+| Dallas, TX        | dfw1 | baremetal,layer_2,backend_transfer                     |
+| Singapore         | sin1 | baremetal,layer_2                                      |
+| Chicago, IL       | ord1 | baremetal,layer_2,backend_transfer                     |
+| Ashburn, VA       | iad1 | baremetal,layer_2,backend_transfer                     |
+| Frankfurt 2, DE   | fra2 | baremetal,layer_2,backend_transfer                     |
++-------------------+------+--------------------------------------------------------+
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_operating-systems.md][Operating Systems]]
+#+BEGIN_SRC shell
+packet operating-systems get 
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++---------------------------+--------------------+-------------+------------+
+|           NAME            |        SLUG        |   DISTRO    |  VERSION   |
++---------------------------+--------------------+-------------+------------+
+| Alpine 3                  | alpine_3           | alpine      | 3          |
+| CentOS 6                  | centos_6           | centos      | 6          |
+| CentOS 7                  | centos_7           | centos      | 7          |
+| Container Linux - Alpha   | coreos_alpha       | coreos      | alpha      |
+| Container Linux - Beta    | coreos_beta        | coreos      | beta       |
+| Container Linux - Stable  | coreos_stable      | coreos      | stable     |
+| Custom iPXE               | custom_ipxe        | custom_ipxe | 1          |
+| Debian 8                  | debian_8           | debian      | 8          |
+| Debian 9                  | debian_9           | debian      | 9          |
+| Deprovision               | deprovision        | centos      |            |
+| FreeBSD 10.4              | freebsd_10_4       | freebsd     | 10.4       |
+| FreeBSD 11.1              | freebsd_11_1       | freebsd     | 11.1       |
+| FreeBSD 11.2              | freebsd_11_2       | freebsd     | 11.2       |
+| FreeBSD 12-testing        | freebsd_12_testing | freebsd     | 12-testing |
+| NixOS 18.03               | nixos_18_03        | nixos       | 18.03      |
+| NixOS 19.03               | nixos_19_03        | nixos       | 19.03      |
+| OpenSUSE 42.3             | opensuse_42_3      | opensuse    | 42.3       |
+| RancherOS                 | rancher            | rancher     | latest     |
+| RedHat Enterprise Linux 7 | rhel_7             | rhel        | 7          |
+| Scientific Linux 6        | scientific_6       | scientific  | 6          |
+| SLES 12 SP3               | suse_sles12_sp3    | suse        | 12 SP3     |
+| Ubuntu 14.04 LTS          | ubuntu_14_04       | ubuntu      | 14.04      |
+| Ubuntu 16.04 LTS          | ubuntu_16_04       | ubuntu      | 16.04      |
+| Ubuntu 17.10              | ubuntu_17_10       | ubuntu      | 17.10      |
+| Ubuntu 18.04 LTS          | ubuntu_18_04       | ubuntu      | 18.04      |
+| VMware ESXi 6.5           | vmware_esxi_6_5    | vmware      | 6.5        |
+| Windows 2012 R2           | windows_2012_r2    | windows     | 2012 R2    |
+| Windows 2016 Standard     | windows_2016       | windows     | 2016       |
++---------------------------+--------------------+-------------+------------+
+#+end_EXAMPLE
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_virtual-network.md][Virtual Network]] 
+
+#+BEGIN_SRC shell
+packet virtual-network get
+#+END_SRC
+
+* [[https://github.com/packethost/packet-cli/blob/master/docs/packet_volume.md][Volumes]]
+#+BEGIN_SRC shell
+packet project get -i $PACKET_PROJECT
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
++--------------------------------------+--------------+----------------------+
+|                  ID                  |     NAME     |       CREATED        |
++--------------------------------------+--------------+----------------------+
+| 54b17c77-89d8-4db4-b8dc-719aa3025827 | CNCF Sandbox | 2017-03-25T14:15:16Z |
++--------------------------------------+--------------+----------------------+
+#+end_EXAMPLE
+
+#+BEGIN_SRC shell
+packet volume get -i $PACKET_PROJECT
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Client error: GET https://api.packet.net/storage/54b17c77-89d8-4db4-b8dc-719aa3025827?include=facility,snapshot_policies,attachments.device: 404 Not found 
+#+end_EXAMPLE
+
+* apisstuff
+
+#+NAME: packetapi
+#+BEGIN_SRC shell :var query="user" :wrap "SRC json" :eval ask
+curl -X GET \
+  --header 'Accept: application/json' \
+  --header "X-Auth-Token: $PACKET_TOKEN" \
+  https://api.packet.net/${query}
+#+END_SRC
+
+#+BEGIN_SRC shell
+cat <<EOF | jq .
+<<packetapi(query="/user?include=memberships.projects")>>
+EOF
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+{
+  "id": "dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "short_id": "dc2144c3",
+  "first_name": "Hippie",
+  "last_name": "Hacker",
+  "full_name": "Hippie Hacker",
+  "email": "hh@ii.coop",
+  "social_accounts": {
+    "github": "https://github.com/hh",
+    "twitter": "",
+    "linkedin": ""
+  },
+  "created_at": "2017-04-17T20:02:12Z",
+  "updated_at": "2019-05-22T03:15:37Z",
+  "default_organization_id": "670f523c-7a91-4757-b152-a2160ca4c807",
+  "avatar_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "avatar_thumb_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "customdata": {},
+  "opt_in": true,
+  "opt_in_updated_at": "2018-05-25T17:08:37Z",
+  "default_project_id": "54b17c77-89d8-4db4-b8dc-719aa3025827",
+  "timezone": "Pacific/Auckland",
+  "language": "en",
+  "mailing_address": null,
+  "verification_stage": "verified",
+  "two_factor_auth": "",
+  "max_projects": 150,
+  "vpn": false,
+  "last_login_at": "2019-05-22T04:53:54Z",
+  "emails": [
+    {
+      "href": "/emails/c5f4f02e-0566-4852-93ab-d23e8a892047"
+    }
+  ],
+  "href": "/users/dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "phone_number": "+18065432100",
+  "restricted": false
+}
+#+end_EXAMPLE
+#+BEGIN_SRC shell :wrap "SRC json"
+curl -X GET \
+  --header 'Accept: application/json' \
+  --header "X-Auth-Token: $PACKET_TOKEN" \
+  https://api.packet.net/user?include=memberships.projects \
+  | jq .
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+{
+  "id": "dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "short_id": "dc2144c3",
+  "first_name": "Hippie",
+  "last_name": "Hacker",
+  "full_name": "Hippie Hacker",
+  "email": "hh@ii.coop",
+  "social_accounts": {
+    "github": "https://github.com/hh",
+    "twitter": "",
+    "linkedin": ""
+  },
+  "created_at": "2017-04-17T20:02:12Z",
+  "updated_at": "2019-05-22T03:15:37Z",
+  "default_organization_id": "670f523c-7a91-4757-b152-a2160ca4c807",
+  "avatar_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "avatar_thumb_url": "https://www.gravatar.com/avatar/3c02899206bfa208ad6b147e5f747080?d=mm",
+  "customdata": {},
+  "opt_in": true,
+  "opt_in_updated_at": "2018-05-25T17:08:37Z",
+  "default_project_id": "54b17c77-89d8-4db4-b8dc-719aa3025827",
+  "timezone": "Pacific/Auckland",
+  "language": "en",
+  "mailing_address": null,
+  "verification_stage": "verified",
+  "two_factor_auth": "",
+  "max_projects": 150,
+  "vpn": false,
+  "last_login_at": "2019-05-22T04:54:39Z",
+  "emails": [
+    {
+      "href": "/emails/c5f4f02e-0566-4852-93ab-d23e8a892047"
+    }
+  ],
+  "href": "/users/dc2144c3-1c61-4479-9728-0315d6ea30dc",
+  "phone_number": "+18065432100",
+  "restricted": false
+}
+#+end_SRC
+** overkill
+#+BEGIN_SRC shell :wrap "SRC json"
+   DEVICE_ID=25f836af-4097-4242-8d67-a704cdbbefd6
+   curl -X GET \
+     --header 'Accept: application/json' \
+     --header "X-Auth-Token: $PACKET_TOKEN" \
+     https://api.packet.net/devices/$DEVICE_ID/events \
+   | jq .events
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+{
+  "events": [
+    {
+      "id": "3fd8e46b-27ed-48eb-b08e-a99883b8da80",
+      "type": "provisioning.110",
+      "body": "Provision complete! Your device is ready to go.",
+      "state": null,
+      "created_at": "2019-05-22T05:59:23Z",
+      "relationships": [
+        {
+          "href": "#ff2da34d-e35e-4537-9f4b-8d88e84f96e0"
+        }
+      ],
+      "ip": "157.52.67.30",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Provision complete! Your device is ready to go.",
+      "href": "/events/3fd8e46b-27ed-48eb-b08e-a99883b8da80"
+    },
+    {
+      "id": "6b2f46c8-a108-4951-bb47-f4a644e463bb",
+      "type": "provisioning.109",
+      "body": "Installation finished, rebooting server",
+      "state": null,
+      "created_at": "2019-05-22T05:56:52Z",
+      "relationships": [
+        {
+          "href": "#6ba9109d-33d8-4d53-ae66-a7ddc35fbbdb"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Installation finished, rebooting server",
+      "href": "/events/6b2f46c8-a108-4951-bb47-f4a644e463bb"
+    },
+    {
+      "id": "db0fb96c-f308-4c83-9bcd-04446c9705a5",
+      "type": "provisioning.107",
+      "body": "Server networking interfaces configured",
+      "state": null,
+      "created_at": "2019-05-22T05:56:50Z",
+      "relationships": [
+        {
+          "href": "#167e6398-a962-4569-99fb-9e85f7afe5be"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Server networking interfaces configured",
+      "href": "/events/db0fb96c-f308-4c83-9bcd-04446c9705a5"
+    },
+    {
+      "id": "b9fea4f3-a774-4fa9-bf26-483fdd4c438f",
+      "type": "provisioning.108",
+      "body": "Cloud-init packages installed and configured",
+      "state": null,
+      "created_at": "2019-05-22T05:56:47Z",
+      "relationships": [
+        {
+          "href": "#a1ac68e2-8f85-43a0-a96f-cb5c7fa431a5"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Cloud-init packages installed and configured",
+      "href": "/events/b9fea4f3-a774-4fa9-bf26-483fdd4c438f"
+    },
+    {
+      "id": "0a0a7641-041c-491f-b49b-ef080223c69d",
+      "type": "provisioning.106",
+      "body": "Operating system packages installed",
+      "state": null,
+      "created_at": "2019-05-22T05:56:41Z",
+      "relationships": [
+        {
+          "href": "#57e51493-cfd5-43b7-9b72-756543194b45"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Operating system packages installed",
+      "href": "/events/0a0a7641-041c-491f-b49b-ef080223c69d"
+    },
+    {
+      "id": "ff0f83bf-ae4d-4300-ab4d-8aa2c17a0f44",
+      "type": "provisioning.105",
+      "body": "Server partitions created",
+      "state": null,
+      "created_at": "2019-05-22T05:56:00Z",
+      "relationships": [
+        {
+          "href": "#a8e33610-60b3-45d4-84bf-a05540a13d07"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Server partitions created",
+      "href": "/events/ff0f83bf-ae4d-4300-ab4d-8aa2c17a0f44"
+    },
+    {
+      "id": "7eaef63f-45e7-4ee5-965f-6f9918c9b289",
+      "type": "provisioning.104",
+      "body": "Connected to magic install system",
+      "state": null,
+      "created_at": "2019-05-22T05:55:58Z",
+      "relationships": [
+        {
+          "href": "#89a89a91-be78-4e86-8196-3e2af7183abd"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Connected to magic install system",
+      "href": "/events/7eaef63f-45e7-4ee5-965f-6f9918c9b289"
+    },
+    {
+      "id": "16a8b79e-8b70-45eb-9bcd-3a75b82fa1fd",
+      "type": "provisioning.104.01",
+      "body": "Device connected to DHCP system",
+      "state": null,
+      "created_at": "2019-05-22T05:54:48Z",
+      "relationships": [
+        {
+          "href": "#568d74df-5905-4e8d-b527-bbc90c56f685"
+        }
+      ],
+      "ip": "157.52.67.22",
+      "modified_by": {
+        "id": "0ff7f54a-8999-4102-8c74-f64813ebc57c",
+        "full_name": "PacketBot ​",
+        "avatar_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/original?1519335086",
+        "avatar_thumb_url": "/users/0ff7f54a-8999-4102-8c74-f64813ebc57c/avatars/thumb?1519335086"
+      },
+      "interpolated": "Device connected to DHCP system",
+      "href": "/events/16a8b79e-8b70-45eb-9bcd-3a75b82fa1fd"
+    },
+    {
+      "id": "caff17d0-7917-4dbc-b66c-fab2b2996661",
+      "type": "provisioning.103",
+      "body": "Configuration written, restarting device",
+      "state": null,
+      "created_at": "2019-05-22T05:53:11Z",
+      "relationships": [
+        {
+          "href": "#ab682afd-dee2-4f4f-bca4-82e2b4f693b8"
+        }
+      ],
+      "ip": null,
+      "modified_by": null,
+      "interpolated": "Configuration written, restarting device",
+      "href": "/events/caff17d0-7917-4dbc-b66c-fab2b2996661"
+    },
+    {
+      "id": "c9e6022b-3c27-4846-b645-71de4f8eb030",
+      "type": "provisioning.102",
+      "body": "Network configured with addresses 147.75.69.121, 2604:1380:1001:5500::1, and 10.88.160.131",
+      "state": null,
+      "created_at": "2019-05-22T05:52:04Z",
+      "relationships": [
+        {
+          "href": "#0cb5a750-bea1-446f-803e-7f056ed5fb8d"
+        }
+      ],
+      "ip": null,
+      "modified_by": null,
+      "interpolated": "Network configured with addresses 147.75.69.121, 2604:1380:1001:5500::1, and 10.88.160.131",
+      "href": "/events/c9e6022b-3c27-4846-b645-71de4f8eb030"
+    }
+  ],
+  "meta": {
+    "first": {
+      "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6/events?page=1"
+    },
+    "previous": null,
+    "self": {
+      "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6/events?page=1"
+    },
+    "next": {
+      "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6/events?page=2"
+    },
+    "last": {
+      "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6/events?page=2"
+    },
+    "current_page": 1,
+    "last_page": 2,
+    "total": 13
+  }
+}
+#+end_SRC
+
+** device_id itself
+#+BEGIN_SRC shell :wrap "SRC json"
+  packet device get -j \
+    --id 25f836af-4097-4242-8d67-a704cdbbefd6 \
+  | jq .
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+{
+  "id": "25f836af-4097-4242-8d67-a704cdbbefd6",
+  "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6",
+  "hostname": "kind-ii-packet",
+  "state": "provisioning",
+  "created_at": "2019-05-22T05:51:52Z",
+  "updated_at": "2019-05-22T05:54:56Z",
+  "billing_cycle": "hourly",
+  "ip_addresses": [
+    {
+      "id": "e4303dde-8130-4dd9-8262-8cd0b687a7f9",
+      "address": "147.75.69.121",
+      "gateway": "147.75.69.120",
+      "network": "147.75.69.120",
+      "address_family": 4,
+      "netmask": "255.255.255.254",
+      "public": true,
+      "cidr": 31,
+      "created_at": "2019-05-22T05:52:02Z",
+      "href": "/ips/e4303dde-8130-4dd9-8262-8cd0b687a7f9",
+      "management": true,
+      "manageable": true,
+      "project": {
+        "href": ""
+      },
+      "assigned_to": {
+        "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6"
+      }
+    },
+    {
+      "id": "65824ac8-d151-469c-b873-a440b0458fff",
+      "address": "2604:1380:1001:5500::1",
+      "gateway": "2604:1380:1001:5500::",
+      "network": "2604:1380:1001:5500::",
+      "address_family": 6,
+      "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+      "public": true,
+      "cidr": 127,
+      "created_at": "2019-05-22T05:52:02Z",
+      "href": "/ips/65824ac8-d151-469c-b873-a440b0458fff",
+      "management": true,
+      "manageable": true,
+      "project": {
+        "href": ""
+      },
+      "assigned_to": {
+        "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6"
+      }
+    },
+    {
+      "id": "ad6c7026-e812-4695-9ada-fde4b6d7c2bc",
+      "address": "10.88.160.131",
+      "gateway": "10.88.160.130",
+      "network": "10.88.160.130",
+      "address_family": 4,
+      "netmask": "255.255.255.254",
+      "public": false,
+      "cidr": 31,
+      "created_at": "2019-05-22T05:52:02Z",
+      "href": "/ips/ad6c7026-e812-4695-9ada-fde4b6d7c2bc",
+      "management": true,
+      "manageable": true,
+      "project": {
+        "href": ""
+      },
+      "assigned_to": {
+        "href": "/devices/25f836af-4097-4242-8d67-a704cdbbefd6"
+      }
+    }
+  ],
+  "volumes": [],
+  "operating_system": {
+    "name": "Ubuntu 18.04 LTS",
+    "slug": "ubuntu_18_04",
+    "distro": "ubuntu",
+    "version": "18.04"
+  },
+  "plan": {
+    "id": "5aeee4f9-1137-4514-8f3e-a1e103b02966",
+    "slug": "c2.medium.x86",
+    "name": "c2.medium.x86",
+    "description": "Our c2.medium.x86 configuration is an AMD 7401P EPYC server.",
+    "line": "baremetal",
+    "specs": {
+      "cpus": [
+        {
+          "count": 1,
+          "type": "AMD EPYC 7401P 24-Core Processor @ 2.0GHz"
+        }
+      ],
+      "memory": {
+        "total": "64GB"
+      },
+      "drives": [
+        {
+          "count": 2,
+          "size": "120GB",
+          "type": "SSD"
+        },
+        {
+          "count": 2,
+          "size": "480GB",
+          "type": "SSD"
+        }
+      ],
+      "nics": [
+        {
+          "count": 2,
+          "type": "10Gbps"
+        }
+      ],
+      "features": {}
+    },
+    "pricing": {}
+  },
+  "facility": {
+    "id": "2b70eb8f-fa18-47c0-aba7-222a842362fd",
+    "name": "Sunnyvale, CA",
+    "code": "sjc1",
+    "features": [
+      "baremetal",
+      "storage",
+      "layer_2",
+      "global_ipv4",
+      "backend_transfer"
+    ],
+    "address": {}
+  },
+  "project": {
+    "id": "",
+    "organization": {
+      "id": "",
+      "address": {}
+    },
+    "href": "/projects/54b17c77-89d8-4db4-b8dc-719aa3025827",
+    "payment_method": {
+      "id": "",
+      "organization": {
+        "id": "",
+        "address": {}
+      },
+      "billing_address": {}
+    }
+  },
+  "provisioning_events": [
+    {
+      "id": "53df650e-ebcf-45aa-8584-ea57e87906a3",
+      "type": "provisioning.101",
+      "body": "Provisioning started",
+      "relationships": [
+        {
+          "href": "#27658871-b4e1-4882-9d9a-a69a21c85a68"
+        }
+      ],
+      "interpolated": "Provisioning started",
+      "created_at": "2019-05-22T05:51:53Z",
+      "href": "/events/53df650e-ebcf-45aa-8584-ea57e87906a3"
+    },
+    {
+      "id": "c9e6022b-3c27-4846-b645-71de4f8eb030",
+      "type": "provisioning.102",
+      "body": "Network configured with addresses 147.75.69.121, 2604:1380:1001:5500::1, and 10.88.160.131",
+      "relationships": [
+        {
+          "href": "#0cb5a750-bea1-446f-803e-7f056ed5fb8d"
+        }
+      ],
+      "interpolated": "Network configured with addresses 147.75.69.121, 2604:1380:1001:5500::1, and 10.88.160.131",
+      "created_at": "2019-05-22T05:52:04Z",
+      "href": "/events/c9e6022b-3c27-4846-b645-71de4f8eb030"
+    },
+    {
+      "id": "caff17d0-7917-4dbc-b66c-fab2b2996661",
+      "type": "provisioning.103",
+      "body": "Configuration written, restarting device",
+      "relationships": [
+        {
+          "href": "#ab682afd-dee2-4f4f-bca4-82e2b4f693b8"
+        }
+      ],
+      "interpolated": "Configuration written, restarting device",
+      "created_at": "2019-05-22T05:53:11Z",
+      "href": "/events/caff17d0-7917-4dbc-b66c-fab2b2996661"
+    },
+    {
+      "type": "provisioning.104",
+      "body": "Connected to magic install system",
+      "interpolated": "Connected to magic install system"
+    },
+    {
+      "type": "provisioning.105",
+      "body": "Server partitions created",
+      "interpolated": "Server partitions created"
+    },
+    {
+      "type": "provisioning.106",
+      "body": "Operating system packages installed",
+      "interpolated": "Operating system packages installed"
+    },
+    {
+      "type": "provisioning.107",
+      "body": "Server networking interfaces configured",
+      "interpolated": "Server networking interfaces configured"
+    },
+    {
+      "type": "provisioning.108",
+      "body": "Cloud-init packages installed and configured",
+      "interpolated": "Cloud-init packages installed and configured"
+    },
+    {
+      "type": "provisioning.109",
+      "body": "Installation finished, rebooting server",
+      "interpolated": "Installation finished, rebooting server"
+    },
+    {
+      "type": "provisioning.110",
+      "body": "Device phoned home and is ready to go",
+      "interpolated": "Device phoned home and is ready to go"
+    }
+  ],
+  "provisioning_percentage": 30,
+  "root_password": "UU5xm6c5[]",
+  "hardware_reservation": {
+    "href": ""
+  },
+  "network_ports": [
+    {
+      "id": "3aaef93f-03ea-4d99-83bd-c6a1e68c0f97",
+      "type": "NetworkBondPort",
+      "name": "bond0",
+      "data": {
+        "mac": "",
+        "bonded": true
+      },
+      "virtual_networks": []
+    },
+    {
+      "id": "cd6f7191-3d51-4e49-90e5-d6b3a12b6f7a",
+      "type": "NetworkPort",
+      "name": "eth0",
+      "data": {
+        "mac": "98:03:9b:30:1d:5e",
+        "bonded": true
+      },
+      "virtual_networks": []
+    },
+    {
+      "id": "3aa4a93e-aedc-4e28-ace0-5ceb5116b5ba",
+      "type": "NetworkPort",
+      "name": "eth1",
+      "data": {
+        "mac": "98:03:9b:30:1d:5f",
+        "bonded": true
+      },
+      "virtual_networks": []
+    }
+  ]
+}
+#+end_SRC
+** Packet CLI
+
+[[https://github.com/packethost/packet-cli/releases][PacketCLI releases]]
+
+#+BEGIN_SRC shell
+curl -O ./packethttps://github.com/packethost/packet-cli/releases/download/0.0.2/packet-linux-amd64
+#+END_SRC
+
+
+** [[https://www.packet.com/developers/api/#authentication][Authentication]]
+
+[[file:img/packet-dropdown.png][Packet Dropdown showing link to SSH/API Key generation]]
+
+Be sure and create an ssh-key locally, and upload the resulting public key.
+Put the path to your public key
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(setenv "P
+#+END_SRC
+
+#+BEGIN_SRC shell
+curl -H "X-Auth-Token: my_authentication_token"
+#+END_SRC
+
+We will be exporing the use of the PacketAPI https://www.packet.com/developers/api/
+
+* tmate stuff
+
+Some variable need to be set for new tmate windows, like project and token.
+This allows them to be set before we create the new sesions.
+
+Probably still missing something like set-directory
+
+#+BEGIN_SRC shell :var SOCKET=(symbol-value 'socket) :results silent
+tmate -S $SOCKET set-option default-path $HOME/packet-cli:$PATH
+tmate -S $SOCKET set-option default-shell /bin/bash
+tmate -S $SOCKET set-environment -g PACKET_PROJECT $PACKET_PROJECT
+tmate -S $SOCKET set-environment -g PACKET_TOKEN $PACKET_TOKEN
+tmate -S $SOCKET update-environment PACKET_TOKEN PACKET_PROJECT DISPLAY SSH_ASKPASS SSH_AUTH_SOCK SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY
+tmate -S $SOCKET show-environment
+#+END_SRC
+
