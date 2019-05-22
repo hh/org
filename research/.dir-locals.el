@@ -40,12 +40,14 @@
           (list
            (cons 'header-args:tmate
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :noweb-ref " item-str
                   " :comments org"
                   " :eval no-export"
                   " :results silent "
-                  " :session (concat user-login-name \":\" " item-str ")"
+                  " :session (concat user-login-name \":main\" )"
+                  ;; " :session (concat user-login-name \":\" " "main" ")"
+                  ;; " :session (concat user-login-name \":\" " item-str ")"
                   " :socket " socket
                   " :window " user-login-name
                   " :terminal sakura"
@@ -56,7 +58,7 @@
                   ))
            (cons 'header-args:emacs-lisp
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :noweb-ref " item-str
                   " :comments org"
                   " :eval no-export"
@@ -65,7 +67,7 @@
                   ))
            (cons 'header-args:elisp
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :noweb-ref " item-str
                   " :comments org"
                   " :eval no-export"
@@ -74,7 +76,7 @@
                   ))
            (cons 'header-args:bash
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :noweb-ref " item-str
                   " :comments org"
                   " :eval no-export"
@@ -97,7 +99,7 @@
                   ))
            (cons 'header-args:shell
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :noweb-ref " item-str
                   " :comments org"
                   " :eval no-export"
@@ -107,14 +109,14 @@
                   ))
            (cons 'header-args:json
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :comments org"
                   " :noweb-ref " item-str
                   " :exports both"
                   ))
            (cons 'header-args:yaml
                  (concat
-                  " :noweb yes"
+                  ":noweb yes"
                   " :comments org"
                   " :noweb-ref " item-str
                   " :exports both"

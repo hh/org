@@ -18,6 +18,19 @@ Name, Email, Comment towards bottom
 Supported Keys: https://docs.puri.sm/Librem_Key/Getting_Started/User_Manual.html#technical-specs
 
 
+#+BEGIN_SRC shell :async yes
+sleep 1
+date
+sleep 3
+date
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Tue May 21 12:54:24 CEST 2019
+Tue May 21 12:54:27 CEST 2019
+#+end_EXAMPLE
+
 #+BEGIN_SRC tmate
   
   gpg --expert --full-generate-key

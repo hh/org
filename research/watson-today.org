@@ -2,9 +2,13 @@
 
 We'd like to explore some temporary work around [[https://apisnoop.cncf.io][APISnoop]] which hase some code at[[https://github.com/cncf/apisnoop]] 
 
-#+BEGIN_SRC tmate
-cd /tmp
-ls -la
+#+BEGIN_SRC shell
 date
 echo hhii!!
 #+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Tue May 21 10:46:21 CEST 2019
+hhii!!
+#+end_EXAMPLE

@@ -1,0 +1,47 @@
+* aoeu
+aoeu
+* snth
+snth
+#+BEGIN_SRC elisp
+ (set (make-local-variable 'start-tmate-for-togetherly-client)
+          (let (
+                (togetherly-socket (make-temp-file (concat "/tmp/" user-buffer "-")))
+                )
+            (concat
+             "tmate -S "
+             togetherly-socket
+             " new-session -A -s "
+             user-login-name
+             " -n main "
+             "\"tmate wait tmate-ready "
+             "&& TMATE_CONNECT=\\$("
+             "tmate display -p '#{tmate_ssh} # "
+             user-buffer
+             "."
+             togetherly-socket
+             ".TOGETHERLY # "
+             ;; would like this to be shorter
+             (concat
+              (format-time-string "%Y-%m-%d %T")
+              (funcall (lambda ($x) (format "%s:%s" (substring $x 0 3) (substring $x 3 5))) (format-time-string "%z")))
+             " # #{tmate_web} ') "
+             "; echo \\$TMATE_CONNECT "
+             "; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null "
+             "; echo Share this url with someone both be able to togethrly the same buffer. "
+             "; read "
+             "; emacs -nw --eval '\(togetherly-client-quick-start \"" (number-to-string togetherly-port) "\")'\""
+             )
+            )
+          )  
+
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+"tmate -S /tmp/hippie.togetherly-x0Tcrh new-session -A -s hippie -n main \"tmate wait tmate-ready && TMATE_CONNECT=\\$(tmate display -p '#{tmate_ssh} # hippie.togetherly./tmp/hippie.togetherly-x0Tcrh.TOGETHERLY # 2019-05-13 13:14:54+12:00 # #{tmate_web} ') ; echo \\$TMATE_CONNECT ; (echo \\$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c ) 2>/dev/null ; echo Share this url with someone both be able to togethrly the same buffer. ; read ; emacs -nw --eval '(togetherly-client-quick-start 7045\")'\""
+#+END_SRC
+
+#+BEGIN_SRC tmate
+id
+#+END_SRC
+* I olso have ideas

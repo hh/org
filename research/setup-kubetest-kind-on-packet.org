@@ -3,23 +3,75 @@
 #+EMAIL: stephen@ii.coop
 #+CREATOR: ii.coop
 #+DATE: 12th April, 2019
-#+PROPERTY: header-args:bash  :tangle ./setup-kubetest.sh
-#+PROPERTY: header-args:bash+ :noweb yes
-#+PROPERTY: header-args:bash+ :noeval
-#+PROPERTY: header-args:bash+ :comments org
-#+PROPERTY: header-args:bash+ :noweb-ref (nth 4 (org-heading-components))
+#+PROPERTY: header-args:bash+  :tangle ./setup-kubetest.sh
+#+NOPROPERTY: header-args:bash+  :dir (symbol-value 'ssh-tramp-dir)
+#+NOPROPERTY: header-args:shell+  :dir (symbol-value 'ssh-tramp-dir)
+#+PROPERTY: header-args:tmate+  :session ii:packet
 #+STARTUP: showeverything
 
 * Objective
 
 Get kubetest working with kind on a server located on packet infrastucture.
 
+* Connect to fresh ubuntu 18.04 box as root
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+** ssh-user
+#+BEGIN_SRC elisp :results output value
+(concat ssh-user)
+#+END_SRC
+
+#+RESULTS:
+#+begin_src elisp
+"root"
+#+end_src
+** packet-host
+
+#+NAME: packet-host
+#+BEGIN_SRC elisp :results output value
+(concat ssh-host)
+#+END_SRC
+
+#+RESULTS: packet-host
+#+begin_src elisp
+"147.75.69.121"
+#+end_src
+
+** ssh
+
+#+BEGIN_SRC tmate
+  ssh root@<<packet-host()>>
+#+END_SRC
+
+#+BEGIN_SRC shell
+hostname
+date
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+kind-ii-packet
+Wed May 22 07:29:22 UTC 2019
+#+end_EXAMPLE
+
+#+BEGIN_SRC bash
+hostname
+date
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+p70
+Wed May 22 09:29:35 CEST 2019
+#+end_EXAMPLE
 
 * Install Dependencies
 
 ** Install Docker
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
   export TIME_START=$(date)
   apt-get update
   apt-get install -y \
@@ -38,13 +90,13 @@ Get kubetest working with kind on a server located on packet infrastucture.
 
 ** Install git & gcc
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
   apt-get install -y git gcc
 #+END_SRC
 
 ** Install go
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
   curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
   export GOROOT=/usr/local/go/
   export GOPATH=~/go
@@ -52,9 +104,14 @@ Get kubetest working with kind on a server located on packet infrastucture.
   go version
 #+END_SRC
 
+#+RESULTS:
+#+begin_EXAMPLE
+go version go1.12.3 linux/amd64
+#+end_EXAMPLE
+
 ** Install kubectl
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
 sudo apt-get update
@@ -63,21 +120,42 @@ sudo apt-get install -y kubectl
 
 
 * Get Kubernetes, kubetest & KIND
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+
 
 - Following feedback from [[https://kubernetes.slack.com/messages/CEKK1KTN2/convo/CEKK1KTN2-1555018633.255400/?thread_ts=1555018633.255400][@neolit123 on kubernetes.slack.com #kind]]
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
   echo "Getting Kubernetes..."
   go get k8s.io/kubernetes
   echo "Getting Kubetest..."
   go get k8s.io/test-infra
+#+END_SRC
+
+I ran into errors trying to build kind from master...
+#+BEGIN_SRC tmate
   echo "Getting Kind..."
   go get sigs.k8s.io/kind
 #+END_SRC
 
+Try building from tag v0.3.0
+
+#+BEGIN_SRC tmate
+cd ~/go/src/sigs.k8s.io/kind
+git checkout v0.3.0
+git branch v0.3.0
+make
+mkdir -p /root/go/bin
+make install
+export PATH=/root/go/bin:$PATH
+#+END_SRC
+
 ** Build kubetest
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC tmate
   echo "Build kubetest"
   cd ~/go/src/k8s.io/test-infra/kubetest
   go build
@@ -89,28 +167,81 @@ sudo apt-get install -y kubectl
 
 ** Check on Docker
 
-#+BEGIN_SRC bash
-  echo -e "\nChecking on docker..."
+#+BEGIN_SRC shell
   docker ps -a
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                         PORTS                                  NAMES
+a3485ff92aa0        kindest/node:latest   "/usr/local/bin/entr…"   About an hour ago   Up About an hour               38123/tcp, 127.0.0.1:38123->6443/tcp   kind-kubetest-control-plane
+8bd7c017b8c8        09fe45bc8b84          "chown -R 0:0 /go/sr…"   About an hour ago   Exited (0) About an hour ago                                          kube-build-data-68c83d270b-5-v1.12.5-1
+#+end_EXAMPLE
+
+#+BEGIN_SRC shell
   docker images
 #+END_SRC
 
+#+RESULTS:
+#+begin_EXAMPLE
+REPOSITORY                         TAG                            IMAGE ID            CREATED             SIZE
+kindest/node                       latest                         46c257674ce5        16 minutes ago      1.45GB
+kube-build                         build-68c83d270b-5-v1.12.5-1   2700b5f22614        18 minutes ago      2.39GB
+<none>                             <none>                         09fe45bc8b84        20 minutes ago      2.39GB
+k8s.gcr.io/ip-masq-agent           v2.4.1                         19bb968f77bb        7 days ago          50.1MB
+kindest/kindnetd                   0.1.0                          f227066bdc5f        12 days ago         35.6MB
+golang                             1.12.5                         7ced090ee82e        13 days ago         774MB
+k8s.gcr.io/kube-cross              v1.12.5-1                      834eab288e26        2 weeks ago         1.75GB
+kindest/base                       v20190506-d0ac573              a8f0b40de44b        2 weeks ago         329MB
+k8s.gcr.io/coredns                 1.5.0                          7987f0908caf        6 weeks ago         42.5MB
+k8s.gcr.io/debian-iptables-amd64   v11.0.2                        01a746008995        7 weeks ago         45.4MB
+k8s.gcr.io/debian-base-amd64       v1.0.0                         204e96332c91        8 weeks ago         42.3MB
+k8s.gcr.io/etcd                    3.3.10                         2c4adeb21b4f        5 months ago        258MB
+k8s.gcr.io/pause                   3.1                            da86e6ba6ca1        17 months ago       742kB
+#+end_EXAMPLE
+
+
 ** Check Cluster State
 
-#+BEGIN_SRC bash
-  echo -e "\nCheck on the state of the cluster..."
+#+BEGIN_SRC shell
   ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
   kubectl version
-  kubectl get nodes
-  echo "Waiting on all pods to start..."
-  sleep 30
-  kubectl get pods --all-namespaces
-
-  export TIME_STOP=$(date)
-  echo "Time taken..."
-  echo $TIME_START
-  echo $TIME_STOP
 #+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Client Version: version.Info{Major:"1", Minor:"14", GitVersion:"v1.14.2", GitCommit:"66049e3b21efe110454d67df4fa62b08ea79a19b", GitTreeState:"clean", BuildDate:"2019-05-16T16:23:09Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"16+", GitVersion:"v1.16.0-alpha.0.303+1c100619671dfa-dirty", GitCommit:"1c100619671dfaffe09f555a67bd9c43099f12ed", GitTreeState:"dirty", BuildDate:"2019-05-22T06:31:38Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+#+end_EXAMPLE
+
+#+BEGIN_SRC shell
+kubectl get nodes
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAME                          STATUS   ROLES    AGE   VERSION
+kind-kubetest-control-plane   Ready    master   16m   v1.16.0-alpha.0.303+1c100619671dfa-dirty
+#+end_EXAMPLE
+
+
+#+BEGIN_SRC shell
+  kubectl get pods --all-namespaces
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAMESPACE     NAME                                                  READY   STATUS    RESTARTS   AGE
+kube-system   coredns-65546fffc9-4fvnp                              1/1     Running   0          16m
+kube-system   coredns-65546fffc9-qz99l                              1/1     Running   0          16m
+kube-system   etcd-kind-kubetest-control-plane                      1/1     Running   0          15m
+kube-system   ip-masq-agent-tsfzc                                   1/1     Running   0          16m
+kube-system   kindnet-psnd6                                         1/1     Running   1          16m
+kube-system   kube-apiserver-kind-kubetest-control-plane            1/1     Running   0          15m
+kube-system   kube-controller-manager-kind-kubetest-control-plane   1/1     Running   0          15m
+kube-system   kube-proxy-vz4jp                                      1/1     Running   0          16m
+kube-system   kube-scheduler-kind-kubetest-control-plane            1/1     Running   0          15m
+#+end_EXAMPLE
 
 * References
 
@@ -120,4 +251,18 @@ sudo apt-get install -y kubectl
 
 * Footnotes
 
+#+BEGIN_SRC shell
+hostname
+#+END_SRC
 
+#+RESULTS:
+#+begin_EXAMPLE
+p70
+#+end_EXAMPLE
+
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) "root")
+# eval: (setq-local ssh-host "147.75.69.121")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# eval: (set (make-local-variable 'ssh-tramp-dir) (concat "/ssh:" ssh-user "@" ssh-host ":" ssh-dir))
+# End:

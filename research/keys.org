@@ -27,3 +27,27 @@ L => (Info-history)
 
 Some help formatting
 
+* re-builder
+
+#+BEGIN_SRC elisp
+(re-builder)
+#+END_SRC
+
+To quit run ~reb-quit~ or C-c C-q
+
+* debug-on-X
+
+** message
+
+To identify the message, switch to *messages* and run re-builder
+I couln't get this to fire.
+
+#+BEGIN_SRC elisp
+(setq debug-on-message "File local-variables.*")
+(setq debug-on-message "if: Invalid function:.*")
+#+END_SRC
+** error
+#+BEGIN_SRC elisp
+  (setq debug-on-error t)
+  (setq debug-on-error nil)
+#+END_SRC

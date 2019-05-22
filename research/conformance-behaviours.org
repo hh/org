@@ -1,0 +1,46 @@
+* how might we approach behaviors 
+Generating a yaml file 
+What is the approach we might want to use in general.
+
+How do we define the behaivours that might be conforming.
+The tooling being able to cennect them back to tests.
+
+Currently wrt test
+we write
+We promote
+
+But what % of behavoursl that we want to cover does that actually cover.
+
+They are somewhat defined
+in schema, docs, blogs etc etc
+Most are actually in the docs
+The schema has a few, should be able to use the schema to boostrap
+or a portiono of a list.
+
+
+Wee need someway to know, when a tset covers it.
+
+- 1 Labels?
+- 2 Field Introspection
+
+
+
+There is just one place whete they are structured.
+
+
+The kep is trying to structure them so
+-1 we can agree on the list (what it is we will covered)
+-2 so we can see if they are tested ( what it is we have covered)
+
+
+Pod REadyness check.... Does it fire, produce anything useful? It's a more
+complex test.... whet you change the readiness delay, from 60 to 240 seconds...
+does that actually happen.^
+The test itself has to have some logic...
+
+Is it tweaking.
+* what we might trying
+- [ ] identify three markdown docs that describe important behaviors
+- [ ] update them to include the test setup PodSpec interisting
+- [ ] new doc style auto defines behavour
+* show what ii is currently doing wrt living docs

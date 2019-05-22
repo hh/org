@@ -97,19 +97,25 @@ Exactly how is the non-default header-arg calculated?
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_SRC elisp
+#+begin_src elisp
 ("elisp"
  ((:results . "code")
-  (:exports . "")
-  (:noweb-ref . "PROPERTY-ELISP"))
+  (:exports . "both")
+  (:eval . "no-export")
+  (:comments . "org")
+  (:noweb-ref . "org-babel-get-src breakdown")
+  (noweb . "yes"))
  "" nil "(ref:%s)")
-#+END_SRC
+#+end_src
+
 #+BEGIN_SRC elisp
 (org-src-coderef-format (org-element-context))
 #+END_SRC
 
 #+RESULTS:
-: aoeu
+#+begin_src elisp
+"(ref:%s)"
+#+end_src
 
 
 #+BEGIN_SRC elisp :results code
@@ -117,9 +123,9 @@ Exactly how is the non-default header-arg calculated?
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_SRC elisp
+#+begin_src elisp
 ((:lexical . "no"))
-#+END_SRC
+#+end_src
 
 
 #+BEGIN_SRC elisp
@@ -127,33 +133,36 @@ Exactly how is the non-default header-arg calculated?
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_SRC elisp
-"/tmp/hippie.org-babel.iisocket"
-#+END_SRC
+#+begin_src elisp
+"/tmp/hippie.org-babel.target.iisocket"
+#+end_src
 
 #+BEGIN_SRC emacs-lisp :results code :item-param (concat "ITEM" "-PARAM")
   (org-babel-get-src-block-info)
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
 ("emacs-lisp" "(org-babel-get-src-block-info)"
  ((:colname-names)
   (:rowname-names)
   (:result-params "code" "replace")
   (:result-type . value)
   (:results . "code replace")
-  (:exports . "code")
+  (:exports . "both")
   (:item-param . "ITEM-PARAM")
-  (:file-prop . "FILE-PROPERTY")
-  (:dir-default concat "DIR" "-ELISP")
+  (:eval . "no-export")
+  (:comments . "org")
+  (:noweb-ref . "org-babel-get-src breakdown")
+  (noweb . "yes")
+  (:lexical . "no")
   (:tangle . "no")
   (:hlines . "no")
   (:noweb . "no")
   (:cache . "no")
   (:session . "none"))
- "" nil 3415 "(ref:%s)")
-#+END_SRC
+ "" nil 3542 "(ref:%s)")
+#+end_src
 
 * debugging
   :PROPERTIES:

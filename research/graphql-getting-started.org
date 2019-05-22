@@ -38,6 +38,32 @@ Here we create an empty folder to start our project:
 #+BEGIN_SRC tmate
 npm install graphql-yoga
 #+END_SRC
+ ;; "SRC json"
+;;#+BEGIN_SRC shell :wrap "EXAMPLE"
+
+
+#+BEGIN_SRC shell :wrap "SRC json"
+cat package.json
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC json
+{
+  "name": "hackernews-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "graphql-yoga": "^1.17.4"
+  }
+}
+#+end_SRC
 
 *** src/index.js
 
