@@ -1,0 +1,290 @@
+#+TITLE: Setup kubetest / kind on packet
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 12th April, 2019
+#+PROPERTY: header-args:bash+  :tangle ./setup-kubetest.sh
+#+NOPROPERTY: header-args:bash+  :dir (symbol-value 'ssh-tramp-dir)
+#+NOPROPERTY: header-args:shell+  :dir (symbol-value 'ssh-tramp-dir)
+#+PROPERTY: header-args:tmate+  :session ii:packet
+#+STARTUP: showeverything
+
+* Objective
+By the end of this document, we should havekubetest working with kind on a server located on packet infrastucture.
+
+We will be starting from scratch, and so by moving through this document we will:
+- ssh into our packet box
+- Install Docker and Go and any other necessary dependencies
+- Install kind
+- Setup a kubernetes cluster on kind
+- Once built, get the cluster's info  to verify it works.
+- Cheer and celebrate.
+
+*  Prerequisites
+  This document assumes you are:
+- reading it from within iimacs, and so have both target and tmate sessions open.
+- have a packet box ready.  
+
+To learn about how to setup a machine on packet, [[file:installing-the-packet-cli.org][Read our Guide on Installing the Packet-CLI]]  
+
+To be able to execute all the code you see here directly onto that box, you just need to add the ip address [[*Footnotes][into our Footnotes.]] In the footnotes you will see a variable like so:
+
+#+BEGIN_EXAMPLE
+# eval: (setq-local ssh-host "147.75.80.39")
+#+END_EXAMPLE
+
+Simply replace the ip address in quotations with your own.
+
+Now let's get STARTED!
+
+* Connect to fresh ubuntu 18.04 box as root
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+  
+We want to establish the ssh user and packet host, you don't need to worry about these two code blocks, as they're just used to make the rest of the doc easier.
+** ssh-user
+#+BEGIN_SRC elisp :results output value
+(concat ssh-user)
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+"root"
+#+END_SRC
+** packet-host
+
+#+NAME: packet-host
+#+BEGIN_SRC elisp :results output value
+(concat ssh-host)
+#+END_SRC
+
+#+RESULTS: packet-host
+#+BEGIN_SRC elisp
+"147.75.80.39"
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_SRC elisp
+"147.75.80.39"
+#+END_SRC
+
+** ssh
+
+   Now let's ssh into the machine.  You should see a login in your target window.
+#+BEGIN_SRC tmate
+  ssh root@<<packet-host()>>
+#+END_SRC
+
+
+All *shell* code blocks refer to your packet box, but print the results into this org file.  So by executing the below code, you will see your own unique results below.
+
+#+BEGIN_SRC shell
+hostname
+date
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+zpair
+Wed May 22 10:13:24 UTC 2019
+#+END_EXAMPLE
+
+#+BEGIN_SRC bash
+hostname
+date
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+zolarizo
+Wed May 22 22:13:28 NZST 2019
+#+END_EXAMPLE
+
+* Install Dependencies
+
+** Install Docker
+
+#+BEGIN_SRC tmate
+  export TIME_START=$(date)
+  apt-get update
+  apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg-agent \
+      software-properties-common
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+  add-apt-repository \
+     "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+     $(lsb_release -cs) \
+     stable"
+  apt-get install -y docker-ce docker-ce-cli containerd.io
+#+END_SRC
+
+** Install git & gcc
+
+#+BEGIN_SRC tmate
+  apt-get install -y git gcc
+#+END_SRC
+
+** Install go
+
+#+BEGIN_SRC tmate
+  curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+  export GOROOT=/usr/local/go/
+  export GOPATH=~/go
+  export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+  go version
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+go version go1.12.3 linux/amd64
+#+end_EXAMPLE
+
+** Install kubectl
+
+#+BEGIN_SRC tmate
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
+#+END_SRC
+
+
+* Get Kubernetes, kubetest & KIND
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+
+
+- Following feedback from [[https://kubernetes.slack.com/messages/CEKK1KTN2/convo/CEKK1KTN2-1555018633.255400/?thread_ts=1555018633.255400][@neolit123 on kubernetes.slack.com #kind]]
+
+#+BEGIN_SRC tmate
+  echo "Getting Kubernetes..."
+  go get k8s.io/kubernetes
+  echo "Getting Kubetest..."
+  go get k8s.io/test-infra/kubetest
+#+END_SRC
+
+I ran into errors trying to build kind from master...
+#+BEGIN_SRC tmate
+  echo "Getting Kind..."
+  go get sigs.k8s.io/kind
+#+END_SRC
+
+Try building from tag v0.3.0
+
+#+BEGIN_SRC tmate
+cd ~/go/src/sigs.k8s.io/kind
+git checkout v0.3.0
+git branch v0.3.0
+make
+mkdir -p /root/go/bin
+make install
+export PATH=/root/go/bin:$PATH
+#+END_SRC
+
+** Build kubetest
+
+#+BEGIN_SRC tmate
+  echo "Build kubetest"
+  cd ~/go/src/k8s.io/test-infra/kubetest
+  go build
+  cp kubetest ../../kubernetes
+  cd ../../kubernetes
+  echo "Getting a cluster up with Kind..."
+  ./kubetest --deployment=kind --kind-binary-version=build --provider=skeleton --build --up
+#+END_SRC
+
+** Check on Docker
+
+#+BEGIN_SRC shell
+  docker ps -a
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+CONTAINER ID        IMAGE                                     COMMAND                  CREATED             STATUS              PORTS               NAMES
+c679f00d5586        kube-build:build-2aa32e7d50-5-v1.12.5-1   "chown -R 0:0 /go/sr…"   6 seconds ago       Up 5 seconds                            kube-build-data-2aa32e7d50-5-v1.12.5-1
+#+END_EXAMPLE
+
+#+BEGIN_SRC shell
+  docker images
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+golang              1.12.5              7ced090ee82e        2 weeks ago         774MB
+#+END_EXAMPLE
+
+
+** Check Cluster State
+
+#+BEGIN_SRC shell
+  ln -sf ~/.kube/kind-config-kind-kubetest ~/.kube/config
+  kubectl version
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Client Version: version.Info{Major:"1", Minor:"14", GitVersion:"v1.14.2", GitCommit:"66049e3b21efe110454d67df4fa62b08ea79a19b", GitTreeState:"clean", BuildDate:"2019-05-16T16:23:09Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"16+", GitVersion:"v1.16.0-alpha.0.303+1c100619671dfa-dirty", GitCommit:"1c100619671dfaffe09f555a67bd9c43099f12ed", GitTreeState:"dirty", BuildDate:"2019-05-22T06:31:38Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+#+end_EXAMPLE
+
+#+BEGIN_SRC shell
+kubectl get nodes
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAME                          STATUS   ROLES    AGE   VERSION
+kind-kubetest-control-plane   Ready    master   16m   v1.16.0-alpha.0.303+1c100619671dfa-dirty
+#+end_EXAMPLE
+
+
+#+BEGIN_SRC shell
+  kubectl get pods --all-namespaces
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAMESPACE     NAME                                                  READY   STATUS    RESTARTS   AGE
+kube-system   coredns-65546fffc9-4fvnp                              1/1     Running   0          16m
+kube-system   coredns-65546fffc9-qz99l                              1/1     Running   0          16m
+kube-system   etcd-kind-kubetest-control-plane                      1/1     Running   0          15m
+kube-system   ip-masq-agent-tsfzc                                   1/1     Running   0          16m
+kube-system   kindnet-psnd6                                         1/1     Running   1          16m
+kube-system   kube-apiserver-kind-kubetest-control-plane            1/1     Running   0          15m
+kube-system   kube-controller-manager-kind-kubetest-control-plane   1/1     Running   0          15m
+kube-system   kube-proxy-vz4jp                                      1/1     Running   0          16m
+kube-system   kube-scheduler-kind-kubetest-control-plane            1/1     Running   0          15m
+#+end_EXAMPLE
+
+* References
+
+#+BEGIN_SRC bash :tangle test-noweb-ref.sh
+  <<Install Docker>>
+#+END_SRC
+
+* Footnotes
+
+#+BEGIN_SRC shell
+hostname
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+p70
+#+end_EXAMPLE
+
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) "root")
+# eval: (setq-local ssh-host "147.75.80.39")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# eval: (set (make-local-variable 'ssh-tramp-dir) (concat "/ssh:" ssh-user "@" ssh-host ":" ssh-dir))
+# End:
