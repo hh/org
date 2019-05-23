@@ -36,7 +36,7 @@ Get kubetest working with kind on a server located on packet infrastucture.
 
 #+RESULTS: packet-host
 #+begin_src elisp
-"147.75.69.121"
+  "147.75.69.121"
 #+end_src
 
 ** ssh
@@ -53,7 +53,7 @@ date
 #+RESULTS:
 #+begin_EXAMPLE
 kind-ii-packet
-Wed May 22 07:29:22 UTC 2019
+Thu May 23 06:42:20 UTC 2019
 #+end_EXAMPLE
 
 #+BEGIN_SRC bash
@@ -97,7 +97,7 @@ Wed May 22 09:29:35 CEST 2019
 ** Install go
 
 #+BEGIN_SRC tmate
-  curl -L https://dl.google.com/go/go1.12.4.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+  curl -L https://dl.google.com/go/go1.12.5.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
   export GOROOT=/usr/local/go/
   export GOPATH=~/go
   export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin

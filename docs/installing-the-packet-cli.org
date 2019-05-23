@@ -1275,3 +1275,7 @@ tmate -S $SOCKET update-environment PACKET_TOKEN PACKET_PROJECT DISPLAY SSH_ASKP
 tmate -S $SOCKET show-environment
 #+END_SRC
 
+* foo
+#+BEGIN_SRC tmate
+echo "hhii!!"
+#+END_SRC
