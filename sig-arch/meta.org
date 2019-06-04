@@ -1,0 +1,11 @@
+#+TITLE: Sig-Arch WG
+
+
+* Sig-Arch Overview
+This is a kubernetes working group managing the architecture of kubernetes.  They have a sig-arch conformance group, which discusses what makes a kubernetes cluster 'conformant' based on the intended behaviors and abilities of a kubernetes cluster.  This sets a standard for what someone deploying  cluster can expect to e able tod o, no matter what service they use to deploy the cluster.
+- [[https://github.com/kubernetes/community/tree/master/sig-architecture][Website]]
+
+* Meetings
+- 2019-03-26 Sig Arch Conformance
+
+

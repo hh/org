@@ -1,0 +1,29 @@
+#+TITLE: People of Sig-Architecture
+* B
+** John Belamaric
+- @johnbelamaric
+- Google
+- [[https://twitter.com/johnbelamaric][twitter]]
+- [[https://github.com/johnbelamaric][github]]
+- [[https://www.amazon.com/Learning-CoreDNS-Configuring-Cloud-Native-Environments/dp/1492047961/ref=sr_1_1?keywords=john+belamaric&qid=1559617239&s=digital-text&sr=1-1-catcorr][Learning CoreDNS Book]]
+- [[https://www.amazon.com/OpenStack-Cloud-Application-Development-Adkins-ebook/dp/B0186I3KKY/ref=sr_1_1?keywords=john+belamaric&qid=1559617239&s=digital-text&sr=1-1-catcorr][OpenStack cloud Application Development]]
+
+* C
+** Aaron Crickenberger
+   - @spiffxp
+   - Google
+   - [[https://twitter.com/spiffxp][twitter]]
+   - [[https://github.com/spiffxp][github]]
+   - [[https://soundcloud.com/spiffxp][soundcloud]]
+* S
+** Timothy St. Clair
+- @timothysc
+- works for VMWare
+- [[https://github.com/timothysc][github]]
+- [[https://twitter.com/timothysc][twitter]]
+- [[https://medium.com/@timothysc][Medium]]
+** Jaice Singer DuMars 
+- @jdumars
+- Google 
+- [[https://github.com/jdumars][github]]
+   

@@ -1,0 +1,64 @@
+#+TITLE: Sig Arch Conformance Meeting Notes
+#+DATE: 2019-03-26
+
+* Overview
+ - [[https://invidio.us/watch?v=uqA1JtRtLXs][Recorded Meeting]]
+ - [[https://docs.google.com/document/d/1W31nXh9RYAb_VaYkwuPLd1hFxuRX3iU0DmaQ4lkCsX8/edit#heading=h.rbnrz4srokbt][Meeting Notes]]
+* Attendees
+- [[file:people.org::*Timothy%20St.%20Clair][Timothy St. Clair - VMware (@timothysc)]] 
+- [[file:people.org::*Aaron%20Crickenberger][Aaron Crickenberger - Google (@spiffxp)]]
+- [[file:people.org::*Jaice%20Singer%20DuMars][Jaice Singer DuMars - Google (@jdumars)]]
+- [[file:people.org::*John%20Belamaric][John Belamaric - Google (@johnbelamaric)]]
+- Patrick Lang - MSFT (@patricklang)
+- Srini Brahmaroutu (@srbrahma)
+- Andrew Sy Kim - VMware
+- John Schnake - VMware (@jschnake)
+- Claudiu Belu - Cloudbase Solutions (@claudiubelu)
+- Steve Sloka
+- Justin SB - Google
+- Hippie Hacker (@hh)
+- Devan Carpenter (@devaii)
+* Our Meeting Notes
+- inagural meeting
+** Administrivia
+   - tim: Have a project board but things are flying all over the place
+     - unsure if board matches reality
+     - You have to manage project boards
+   - Aaron has a particular method where he goes to add card, queries for label:area-conformance and moves everything to triage
+     - he then walks it backwards if doing a review scrub, going from review column to see if his feedback has been responded/or if feedback is needed
+     - If there's something there that looks good, he adds /lgtm and moves it to needs approval
+     - then works on the pr's, and if he starts to review goes to the 'in-review' column.
+     - set up so if any pr is closed it moves to the done column.
+   - Another person who I cannot tell says they _also_ use it.
+     - checks it once a week or so.  Hasn't done it last few weeks so things could pile up for discussions.
+     - If things are sent their way, makes sure its on the board.
+     - This has also been populated with things that previously were just on a spreadsheet.
+     - most everything is in k8s/k8s repo, but not all.
+   - What is method of automation, currently?
+     - PR's that touch a datafile that have a list of conformance tests, will auto have area-conformance applied to them.  Literally everything else is manually applied: updating docs, umbrella or tracking issues, etc.  We expect someone to manually apply the label.  Trickiest is if someone is modifying an existing test case, which is already in list of conformance, then whoever is reviewing this needs to notice conformance is involved and be diligent enough to apply the label.  One good example of this is talking about DNS because there's splitting up DNS and whether each one works on linux or windows.  for this PR, there was no automation to make sure this was part of area-conformance.
+     - we need more automation.  the tricky thing is that the owner and labelling mechanisms is hierarchical.  Hard to manage when the conformance tests are a subset of another testing group.
+     - This issue dovetails nicely with work being done in testing commons.  An audit needs to happen in tickets, and this would be overseen by TSC.
+     - Working to get a DAG-Flow so things ripple down properly.
+     - TSC could have an audit by next time.
+** Brian Walk-Through
+- Not enough time this week to go over planned walkthrough, but wanted to bring up issue seen with some of the promotion tests in "in-review"
+
+- Often the changes here are subtle, but can significantly alter the meaning or usefulness of a test.
+
+- And so if youa re looking to promote and unsure, be sure to reach out to a domain expert to review the pr.
+
+- you can ask the sig-chair or sig-tl to find someone.
+
+- it is not just sufficient to determine what's being covered by test and whether it should be covered by conformance...but also _how_ is it testing that, because there are certain behaviours that are not guaranteed to be portable or stable.  What mechanism is being used to evaluate that behavior?
+
+- We care about whether test is stable or flaky,and so we ask for the test to be run for a bit before its promoted...but there's been cases where tests have looked at 'event contents' or other aspects that are not guaranteed to be portable.
+
+- general advice is 'if you are not sure, and it's not covered by officially documented conformance criteria, then raise the issue and ask for guidance from other people.
+
+- If we come up with some new general principle to apply to conformance, we should add it to documentation.
+
+- With this list: we have a small number of reviewers, including some who have not been in community for a while.  Should we reviise the sig-arch owners file?
+
+
+- Brian wanted to mention with tests
+
