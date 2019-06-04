@@ -1,0 +1,44 @@
+#+TITLE: SIG-Architure Mailing List Review
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE:  4th June, 2019
+#+STARTUP: showeverything
+
+* Objective
+
+Review [[https://groups.google.com/forum/#!forum/kubernetes-sig-architecture][SIG-Architecture Mailing List]] with a focus on [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance%257Csort:date][conformance]] discussions.  
+
+
+* May 2019
+
+** [[https://github.com/kubernetes/enhancements/pull/959][Add KEP for Behavior-driven Conformance Testing #959]]  
+
+ - [[https://groups.google.com/d/msg/kubernetes-sig-architecture/6shCb9qTqAI/wtw5wBpWBAAJ][Discuss PR]] at KubeCon: Intro + Deep Dive: Kubernetes Conformance WG session
+
+** [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance|sort:date/kubernetes-sig-architecture/eRQ_4o-KPok/6_pIVmNUAAAJ][API review bandwidth discussion]]
+
+ - The number of people that have the skill and knowledge to review PRs.
+ - Current workloads and how that effects time given to large PRs. 
+ - Concerns around a feature missing the release 'train'
+ - Current review process [[https://github.com/kubernetes/community/blob/master/sig-architecture/api-review-process.md#mechanics][mechanics]]
+
+** [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance|sort:date/kubernetes-sig-architecture/LYphMQLhu4w/Z2RJi_LoAQAJ][SIG Architecture Issue Triage Process]]  
+
+ - /"Unlike active development (i.e., coding) areas of the project, in SIG Architecture we generally don’t need to try to reproduce and debug reported defects, but we might decide behaviors are working as intended, and even design and feature requests may be underspecified, unclear, or otherwise inadequately expressed."/
+ - Notifications via Github will likely overwell. No easy way to manage the noise.
+ - /"The API review and Conformance subprojects are developing their own processes for identifying and addressing their backlogs, using project boards"/
+ - /"Just because someone added the sig/architecture label doesn’t make it so. In addition to API reviews and conformance testing, SIG Architecture also just kicked off the Code Organization subproject, and has a general responsibility to document the API conventions and architectural and design principles and conventions for the project. Most issues not related to those topics fall under the purview of other SIGs."/
+ - Request: [[https://github.com/kubernetes/test-infra/issues/12489][We need a bot command to edit titles]] (of PRs).
+ - /"SIG Arch receives a number of requests that, objectively, will never happen. Politely convey that to the filer and close the issue./" 
+ - /"In general, the project needs to increase its focus on reliability and reliability testing. It needs to happen across all the relevant SIGs, but perhaps we also need a dedicated effort, either in SIG Scalability, or in another SIG like it."/
+ - Triage PR: [[https://github.com/kubernetes/kubernetes/issues/70137][Decide what to do with conformance tests that need privileged mode #70137]]
+ - Triage PR: [[https://github.com/kubernetes/kubernetes/issues/66859][Unable to run "PersistentVolumes-local" e2e tests due to SecurityContext and /rootfs permission denial #66859]]  
+
+
+* References
+
+- [[https://github.com/kubernetes/community/blob/master/sig-list.md][SIGs and Working Groups]]
+- [[https://github.com/kubernetes/community/blob/master/sig-architecture/charter.md#sig-architecture-charter][SIG Architecture Charter]]  
+
+
