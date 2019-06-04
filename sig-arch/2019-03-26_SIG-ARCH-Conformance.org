@@ -9,8 +9,9 @@
 - [[file:people.org::*Aaron%20Crickenberger][Aaron Crickenberger - Google (@spiffxp)]]
 - [[file:people.org::*Jaice%20Singer%20DuMars][Jaice Singer DuMars - Google (@jdumars)]]
 - [[file:people.org::*John%20Belamaric][John Belamaric - Google (@johnbelamaric)]]
-- Patrick Lang - MSFT (@patricklang)
-- Srini Brahmaroutu (@srbrahma)
+- [[file:people.org::*Patrick%20Lang][Patrick Lang - MSFT (@patricklang)]]
+- [[file:people.org::*Srini%20Brahmaroutu][Srini Brahmaroutu (@srbrahma)]]
+- [[file:people.org::*Brian%20Grant][Brian Grant (@bgrant0607)]]
 - Andrew Sy Kim - VMware
 - John Schnake - VMware (@jschnake)
 - Claudiu Belu - Cloudbase Solutions (@claudiubelu)
@@ -51,14 +52,45 @@
 
 - it is not just sufficient to determine what's being covered by test and whether it should be covered by conformance...but also _how_ is it testing that, because there are certain behaviours that are not guaranteed to be portable or stable.  What mechanism is being used to evaluate that behavior?
 
+- the example used was [[https://github.com/kubernetes/kubernetes/pull/75471/files][pr 75471]]
+
 - We care about whether test is stable or flaky,and so we ask for the test to be run for a bit before its promoted...but there's been cases where tests have looked at 'event contents' or other aspects that are not guaranteed to be portable.
 
 - general advice is 'if you are not sure, and it's not covered by officially documented conformance criteria, then raise the issue and ask for guidance from other people.
 
 - If we come up with some new general principle to apply to conformance, we should add it to documentation.
+  - With this list: we have a small number of reviewers, including some who have not been in community for a while.  Should we reviise the sig-arch owners file?
 
-- With this list: we have a small number of reviewers, including some who have not been in community for a while.  Should we reviise the sig-arch owners file?
-
-
-- Brian wanted to mention with tests
-
+  - listed as approve just for cf test data.  approver in directory called conformance doesn't mean yr an approver for everything labelled conformance
+  - We don't have a way to connect labels to reviewers.
+  - Brian wanted to mention with tests
+  - minute 14'26.  Work around querying the tests for syntax to make sure they're written right and such, and if there are people who want to help with the tooling around how we are managing these tix they should be the ones in this owners file.
+  - A way to lint conformance tests to make sure they aren't doing they things we don't want them to do.
+  - this is a great place to improve our tooling.
+  - 
+** Due Diligence/ Portability
+   - making sure promotions are actually portable, and not linuxonly or windows only or what-have-you.
+   - 'in this particular case, the comment from windows-sig that an emptydir works fine but medium=memory doesn't.  in this case should we split into two tests, one for emptydir and one for medium=memory"?
+     - We already went through a ton, and where it had some functionality that was linuxOnly we tagged it as so. We have not gone the add'l step of saying its a windows test.
+     - Many of these tests dont' describe what they're t5rrying to test.  we have to do reverse engineering or ask the test writer. it's not obvious.
+     - Also, many times they are reusing code, but they are exercising functionality they dont' actually test.  This is something we should clean up, but haven't had the time to....we just doing brute-force.  at some point we'll wanna do that next level of detail.
+       - minute 19'49, important explanation of that test cleanup.
+   - 'biggest advantage to this is to feel comfy asking others for help.  the mailing list and slack are good for this.' 
+** Discussion of Multi-Arch
+   - this was talk of ensuring things work on windows and linux containers, notes are detailed in the meeting notes and doesn't feel fullllly relevantto us, and so not notating.
+** Timeline for making conformance tests
+** Walk-Through of Approving a Test to Conformance
+   - this continued a gory bikeshed of violent agreement on how to handle linux-only tests and whether they should be promoted to conformance.  Essnetially, it's how to figure out if the behavior being tested is essential to the description of a cluster and, if so, whether it can be tested in a non-linux way.  If it is essential, and can only be done with linux, then it's a Sig-Windows task to ensure that it can now be done by windows too.  If the behavior works across architectures, but the particular way its tested is linux-only, then the test should not be promoted.  This is detailed better within the meeting-notes section.
+* Useful Links
+- the example pr for review due-diligence used was [[https://github.com/kubernetes/kubernetes/pull/75471/files][pr 75471]].
+- good discussion around test cleanup [[https://youtu.be/uqA1JtRtLXs?t=1159][19'19]]
+- good discussion around tooling, to help ensure portability: [[https://youtu.be/uqA1JtRtLXs?t=860][14'20]]
+* Zach's Takeaway
+  - A major theme throughout this call was 'portability', and ensuring a test can work for all environments (if that behavior is possible on all environments).  Often, there will be changes to a test that makes it no longer portable, and so due-diligence around reading the effects of the test and its' original description and intent are v. important.
+  - Another theme was organization.  There is a project board and meetings to manage this, and some automation possible, but the majority of work around conformance related tickets is manual.  For example, the conformance-area label will be applied to pr's that touch cofnormance data, but that's far from all conformance-area tickets.  The remainder have to be found and manually given the ticket.  Similarly, there'd be a far better/more-efficient test-writing if people were comfortable talking to domain experts about the test, and knowing where they are-- but there isn't an easy, established process for doing this.
+  - can we help see what sort of tests  that contain elements that are not portable?  Just to give a good chunk of tests to focus on revising or discussing?
+  -similarly, seeing the tests that are reusing code from a framework...and touching feature sthey aren't actually testing, would be useful as it would help us focus on what the test is actually trying to look at.  This has been requested previously.  There's work that is needed around the tooling of test-reviewing that would help increase coverage.  It feels like right now we have a coverage metric we're trying to reach,b ut we aren't helping people reach it successfully.
+  - side-note of interest: owner files where an owner has not contributed to project in certain number of months (to ensure the owners/domain experts are up to date).  This could help people find the current domain expeerts to talk to.
+  - We don't have a way to connect labels to reviewers. e.g., having reviewers for all conformance-area labels...instead it's based on a hierarchy of folders.  thismeans that people who would be good to review a pr do not show up in the prow becaus they are not a part of that repo.
+  - side-note: Brought up during a call: all non-optional GA's should have a conformance test.  How many of these don't?  How would we investigate this, and would it be useful?  This was brought up during the discussion around timing (writing conformance tests during code freeze), and so might be creating unnecessary additional work for the community..
+  -  helping the organization around reviewing, and the tooling for test-writing, will help make promotion quicker and more confident.  

@@ -7,7 +7,10 @@
 - [[https://github.com/johnbelamaric][github]]
 - [[https://www.amazon.com/Learning-CoreDNS-Configuring-Cloud-Native-Environments/dp/1492047961/ref=sr_1_1?keywords=john+belamaric&qid=1559617239&s=digital-text&sr=1-1-catcorr][Learning CoreDNS Book]]
 - [[https://www.amazon.com/OpenStack-Cloud-Application-Development-Adkins-ebook/dp/B0186I3KKY/ref=sr_1_1?keywords=john+belamaric&qid=1559617239&s=digital-text&sr=1-1-catcorr][OpenStack cloud Application Development]]
-
+** Srini Brahmaroutu
+   - IBM
+   - @srbrahma
+   - [[https://github.com/brahmaroutu][github]]
 * C
 ** Aaron Crickenberger
    - @spiffxp
@@ -15,6 +18,12 @@
    - [[https://twitter.com/spiffxp][twitter]]
    - [[https://github.com/spiffxp][github]]
    - [[https://soundcloud.com/spiffxp][soundcloud]]
+* G
+** Brian Grant  
+   - Google
+   - bgrant0607
+   - [[https://twitter.com/bgrant0607][twitter]]
+   - [[https://github.com/bgrant0607][github]]
 * S
 ** Timothy St. Clair
 - @timothysc
@@ -26,4 +35,10 @@
 - @jdumars
 - Google 
 - [[https://github.com/jdumars][github]]
+* L
+** Patrick Lang  
+   - Microsoft
+   - @patricklang
+   - [[https://github.com/patricklang][github]]
+
    
