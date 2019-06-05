@@ -47,12 +47,12 @@ Review [[https://groups.google.com/forum/#!forum/kubernetes-sig-architecture][SI
 - "We have a bit of a bootstrapping problem as we get organized: defining processes, roles, backlog work items, etc. We could use help with that, too."
 
 - "Conformance testing: The main effort at the moment is to improve test coverage in critical areas. The Conformance WG meets monthly. We're going to start more frequent meetings to onboard new contributors, by reviewing the backlog and some conformance test changes/additions as a group. Timothy St. Clair will send a doodle to arrange a time -- put your email address here if you want to help. Aaron Crickenberger's most recent message about next steps is here:"
-  - https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E
-  - Project board: https://github.com/orgs/kubernetes/projects/9
+  - [[https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E][https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E]]
+  - Project board: [[https://github.com/orgs/kubernetes/projects/9][https://github.com/orgs/kubernetes/projects/9]]
 
 ** Conformance: next steps
 
-- https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E
+- [[https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E][https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E]]
 - [[https://github.com/kubernetes-retired/architecture-tracking/issues/55][Deprecate conformance project board here favor of kubernetes/cncf-k8s-conformance-wg #55]] 
 
 * Stephen's Takeaways 
