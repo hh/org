@@ -1,0 +1,195 @@
+#+TITLE: How To Graphql Introduction
+
+* Background
+This org is a collection of notes pulled from the howtographql tutorial.  The tutorial walks through building a fullstack application that utilizes graphql.  You can follows the tutuorial here: [[https://www.howtographql.com/basics/0-introduction/][HowToGraphql Website]]
+
+This org will have useful steps for getting started, but will likely not be a full literate programming guide.
+
+* What is Graphql?
+  - An API Standard developed initially by facebook but now open-source and maintained by the community.
+  - An alternative to REST API's.
+  - Enables declarative data fetching, where a client can specify exactly what data it needs (instead of the exact path to get the data).
+  - Graphql *is not a database, nor is it database technology*.  It is a querying language for an api.  It doesn't matter what sort of database that api is allowing access too.  Graphql can be used in any context where an API is used.
+* Advantage over Rest
+  This is answered well throug hthis article: https://www.howtographql.com/basics/1-graphql-is-the-better-rest/
+  In short:
+- Allows for faster iteration (you don't need to change your whole endpoint structure because the frontend ui changed and has different needs.)
+- Prevents over and under fetching (you are only grabbing the exact data youa sked for.)
+- Easy to analyze on the backend (you can see the specific queries people are asking for, instead of the endpoints that contain some of the info they're actually seeking.)
+- Better collaboration through schema and types (all types that are exposed in the api are defined in a schema.  This schema serves as the contract between the clietn and the server.  This means there is immediate shared understanding between front and backend devs on what can be requested and how that request should be structured.)
+, 
+* Core Concepts
+** Schema Definition Language
+   - graphql encourages "Schema driven development".  The syntax for these schemas is called the Schema Definition Language
+  
+     #+NAME: Example Schema
+     #+BEGIN_EXAMPLE graphql
+       type Person {
+         name: String!
+         age: Int!
+       }
+     #+END_EXAMPLE
+     
+     So we can now query a Person, and know that a person should have a name and age available.  The name must be a string, the age must be an integer.  The exclamation point means that this field is required (A person's name cannot be null in other words.)
+     
+     you can include one schema inside another, this expresses the relationship between types.
+     
+     #+NAME: Example Relational Schema
+     #+BEGIN_EXAMPLE graphql
+       type Post {
+         title: String!
+         author: Person!
+       }
+     #+END_EXAMPLE
+     
+     So if we query a post, we know it will have an author attached, the author will have a name and age available (since it is a Person type, which we defined above.)
+     
+     You can also easily show one to many relationships.  We can redefine the Person schema, to account for the relation to posts.
+     
+     #+NAME: One-To-Many Example
+     #+BEGIN_EXAMPLE graphql
+       type Person {
+         name: String!
+         age: Int!
+         posts: [Post!]!
+       }
+     #+END_EXAMPLE
+     
+     So their posts section is an array of post types.  Both the array and Posts are required (if someone doesn't have any8thing yet, it would return an empty array.)  I don't fuuuuuullly grok the required thign yet, but I will!
+** Fetching Data with Queries
+   instead of requesting a specific endpoint, to get its data, we will write up a query that follows our defined schema.  This query can request as much or as little of the type as it requires.
+
+Let's say we have an AllPersons schema, which is an array of Person types
+
+#+NAME: Basic AllPersons Query
+#+BEGIN_EXAMPLE
+{
+  allPersons {
+    name 
+  }
+}
+#+END_EXAMPLE
+
+The allPersons field is called the *root field* of the query.   Everything after is called the *payload*.
+
+Sinced we only asked for name, it iwll only return the name.  If we put in age as well, it would include that. 
+
+We can also nest a query,  We know persons have posts, and posts have titles and authors.  So we can ask for all persons and just the title of their posts.
+
+#+NAME: Nested Query
+#+BEGIN_EXAMPLE
+{
+  allPersons {
+    name 
+    age 
+    posts {
+      title
+   }
+  }
+}
+#+END_EXAMPLE
+
+You can alsol provide arguments to the query, like only asking for the last two entries.
+
+#+NAME: Nested Query
+#+BEGIN_EXAMPLE
+{
+  allPersons(last: 2) {
+    name 
+    age 
+    posts {
+      title
+   }
+  }
+}
+#+END_EXAMPLE
+** Mutation
+   Mutations are whenever you make a change to the data in the backend.  They woudl handle the CUD of CRUD.
+   They are structured like queries, but start with =mutation=
+   #+NAME: Mutation Example
+   #+BEGIN_EXAMPLE graphql
+     mutation {
+       createPerson(name: "Bob", age: 36) {
+         name
+         age
+       }
+     } 
+   #+END_EXAMPLE
+   
+   We put in our changes ihe parenthesis, and then specify the response w ewant.  IKn th is case, the server will return {name: bob, age: 36}.
+** Subscriptions
+   This covers when you want realtime updates form the server (like getting all new posts as they appear)
+   Instead of a "request-response" between client and server, subscriptions open up a "stream of data".
+   
+  They follow same structure as query and mutation, but start with =subscription= 
+  
+  #+NAME: Subscription Example
+  #+BEGIN_EXAMPLE graphql
+  subscription {
+    newPerson {
+      name
+      age
+    }
+  }  
+  #+END_EXAMPLE
+** Defining a Schema
+   - Teh contract between server and client.  One of the most important parts of this whole thing.
+   - Generally it is a collection of types, However, when writing out yr schemas, there are alwasy some special /root types/.
+   - These roots are the entry points for the requests, and all other schemas that follow.
+   - The roots are query, mutation, subscription.
+   
+     #+NAME: Root Types Example
+     #+BEGIN_EXAMPLE
+       type Query { ... }
+       type Mutation { ... }
+       type Subscription { ... }
+     #+END_EXAMPLE
+     
+     
+   So if you wanted to define Allpersons, we know it is a query, so our Query type would be its entrypoint.
+   
+   #+NAME: Defining AllPersons
+   #+BEGIN_EXAMPLE
+    type Query {
+      allPersons(last: Int): [Person!]!
+    }
+   #+END_EXAMPLE
+   
+   So here we are defining the arguments, (this lets us do the last X entries) and the response that should be back (an array of persons),
+   
+   The full schema Defintiion from these examples would be
+   
+   #+NAME: FUll Schema Definition
+   #+BEGIN_EXAMPLE
+     type Query {
+       allPersons(last: Int): [Person!]!
+     }
+
+     type Mutation {
+       createPerson(name: String!, age: Int!): Person!
+     }
+
+     type Subscription {
+       newPerson: Person!
+     }
+
+     type Person {
+       name: String!
+       age: Int!
+       posts: [Post!]!
+     }
+
+     type Post {
+       title: String!
+       author: Person!
+     }
+   #+END_EXAMPLE
+   
+   
+   
+
+
+
+
+     
+     
