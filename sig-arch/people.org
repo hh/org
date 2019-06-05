@@ -11,6 +11,10 @@
    - IBM
    - @srbrahma
    - [[https://github.com/brahmaroutu][github]]
+** Claudiu Belu
+   - Cloudbase
+   - @bclau
+   - [[https://github.com/bclau][github]]
 * C
 ** Aaron Crickenberger
    - @spiffxp
@@ -24,6 +28,11 @@
    - bgrant0607
    - [[https://twitter.com/bgrant0607][twitter]]
    - [[https://github.com/bgrant0607][github]]
+* Hoole
+** Quintin Hoole
+   - Huawei
+   - @quintinhoole
+   - [[https://github.com/quinton-hoole][Github]]
 * S
 ** Timothy St. Clair
 - @timothysc

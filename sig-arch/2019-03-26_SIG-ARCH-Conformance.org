@@ -14,7 +14,7 @@
 - [[file:people.org::*Brian%20Grant][Brian Grant (@bgrant0607)]]
 - Andrew Sy Kim - VMware
 - John Schnake - VMware (@jschnake)
-- Claudiu Belu - Cloudbase Solutions (@claudiubelu)
+- [[file:people.org::*Claudiu%20Belu][Claudiu Belu - Cloudbase Solutions (@claudiubelu)]]
 - Steve Sloka
 - Justin SB - Google
 - Hippie Hacker (@hh)

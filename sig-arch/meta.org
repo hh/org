@@ -6,6 +6,7 @@ This is a kubernetes working group managing the architecture of kubernetes.  The
 - [[https://github.com/kubernetes/community/tree/master/sig-architecture][Website]]
 
 * Meetings
-- 2019-03-26 Sig Arch Conformance
+- [[file:2019-03-26_SIG-ARCH-Conformance.org][2019-03-26 Sig Arch Conformance]]
+- 2019-04-02 Sig Arch Comformance
 
 

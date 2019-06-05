@@ -1,0 +1,52 @@
+#+TITLE: Sig Arch Conformance Meeting Notes
+#+DATE: 2019-004-02
+
+* Overview
+ - [[https://invidio.us/watch?v=HZ_Vd1APCX8][Recorded Meeting]]
+ - [[https://docs.google.com/document/d/1W31nXh9RYAb_VaYkwuPLd1hFxuRX3iU0DmaQ4lkCsX8/edit#heading=h.cwqmhl2tc0fj][Meeting Notes]]
+* Attendees
+- [[file:people.org::*Timothy%20St.%20Clair][Timothy St. Clair - VMware (@timothysc)]] 
+- [[file:people.org::*Aaron%20Crickenberger][Aaron Crickenberger - Google (@spiffxp)]]
+- [[file:people.org::*Jaice%20Singer%20DuMars][Jaice Singer DuMars - Google (@jdumars)]]
+- [[file:people.org::*John%20Belamaric][John Belamaric - Google (@johnbelamaric)]]
+- [[file:people.org::*Patrick%20Lang][Patrick Lang - MSFT (@patricklang)]]
+- [[file:people.org::*Srini%20Brahmaroutu][Srini Brahmaroutu (@srbrahma)]]
+- [[file:people.org::*Brian%20Grant][Brian Grant (@bgrant0607)]]
+- [[file:people.org::*Quintin%20Hoole][Quinton Hoole - Huawei (@quinton-hoole)]]
+- [[file:people.org::*Claudiu%20Belu][Claudiu Belu (@claudiubelu)
+]]- Leah Hanson - Pivotal (@astrieanna)
+- Brad Topol - IBM  (@bradtopol)
+- Craig Peters (@craiglpeters)
+- Lubomir I. Ivanov - VMware (@neolit123)
+- Andrew Sy Kim - VMware (@andrewsykim)
+- Walter Fender - Google (@cheftako)
+- John Schnake - VMware (@johnschnake)
+- Kenichi Omichi - NEC (@oomici)
+- Dhawal Yogesh Bhanushali (s@dbhanushali, g@imkin)
+* Our Meeting Notes
+  //Note: This is not a transcription, as that is done in the meeting notes, linked within [[Overview]]. So I will only notate that which seems of interest to our work with APISnoop//
+** New Windows Image 
+   - Claudiu put in PR for an image for testing that is host agnostic, for testing DNS. It needed to be reviewed by mutiple people. Tim St. Clair and Belamaric volunteered.
+** De-Promotion of Conformance tests
+   - Requires having same reviewers/approvers
+   - Haven't really removed tests much, but have removed content from tests when it was no longer appropriate.
+   - This came up because of the number of tests that are conformant, but not viable on windows.
+   - The speaker wanted to also look at 'privilaged access tests'
+** E2E Proposal: PR #76007
+   - work being doen by globant, to write tests for these tcpSockets that are not curently covered.
+   - Curious on the prcoess for getting it accepted.
+   - Has to run through a few cycles, to make sure it is not flaky.
+   - Also wanted to know who to talk to review that they are well-written tests.
+** Review Walkthroughs
+   - Worked back to front, from need approval to triage.
+   - Much of the work was just assigning people, and knowing who to assign.
+   - It was tough to find an ideal ticket to do the walkthrough as automation had not been done to assign tickets properly and better understand the process and such.
+** Assigning Reviewers
+   - Do we have the info we need to assign reviewers to the need review?
+   - How do we loop in the new folks, and match to the technical understanding.
+   - Any of us should be able to pick up one of these and go to the right people.
+* Zach's Takeaway
+  - Good question: 'How many conformance tests are privileged tests.  What are the plans for them what can we do about them?"  Can we use apisnoop to find this?
+    - This might have already been taken care of though.
+  - Review was a bit hard to track without the context for k8s, but interesting to see that there isn't an ingrained process for how to review/approve these.  There are guidelines, but even those are being iterated upon.
+  - It seemed the biggest need for this group wasn't a look ato overall coverage, but help with the project board.  Which makes sense why that became a part of our roadmap.
