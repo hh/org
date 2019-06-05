@@ -25,20 +25,45 @@ Review [[https://groups.google.com/forum/#!forum/kubernetes-sig-architecture][SI
 
 ** [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance|sort:date/kubernetes-sig-architecture/LYphMQLhu4w/Z2RJi_LoAQAJ][SIG Architecture Issue Triage Process]]  
 
- - /"Unlike active development (i.e., coding) areas of the project, in SIG Architecture we generally don’t need to try to reproduce and debug reported defects, but we might decide behaviors are working as intended, and even design and feature requests may be underspecified, unclear, or otherwise inadequately expressed."/
+ - "Unlike active development (i.e., coding) areas of the project, in SIG Architecture we generally don’t need to try to reproduce and debug reported defects, but we might decide behaviors are working as intended, and even design and feature requests may be underspecified, unclear, or otherwise inadequately expressed."
  - Notifications via Github will likely overwell. No easy way to manage the noise.
- - /"The API review and Conformance subprojects are developing their own processes for identifying and addressing their backlogs, using project boards"/
- - /"Just because someone added the sig/architecture label doesn’t make it so. In addition to API reviews and conformance testing, SIG Architecture also just kicked off the Code Organization subproject, and has a general responsibility to document the API conventions and architectural and design principles and conventions for the project. Most issues not related to those topics fall under the purview of other SIGs."/
+ - "The API review and Conformance subprojects are developing their own processes for identifying and addressing their backlogs, using project boards"
+ - "Just because someone added the sig/architecture label doesn’t make it so. In addition to API reviews and conformance testing, SIG Architecture also just kicked off the Code Organization subproject, and has a general responsibility to document the API conventions and architectural and design principles and conventions for the project. Most issues not related to those topics fall under the purview of other SIGs."
  - Request: [[https://github.com/kubernetes/test-infra/issues/12489][We need a bot command to edit titles]] (of PRs).
- - /"SIG Arch receives a number of requests that, objectively, will never happen. Politely convey that to the filer and close the issue./" 
- - /"In general, the project needs to increase its focus on reliability and reliability testing. It needs to happen across all the relevant SIGs, but perhaps we also need a dedicated effort, either in SIG Scalability, or in another SIG like it."/
+ - "SIG Arch receives a number of requests that, objectively, will never happen. Politely convey that to the filer and close the issue." 
+ - "In general, the project needs to increase its focus on reliability and reliability testing. It needs to happen across all the relevant SIGs, but perhaps we also need a dedicated effort, either in SIG Scalability, or in another SIG like it."
  - Triage PR: [[https://github.com/kubernetes/kubernetes/issues/70137][Decide what to do with conformance tests that need privileged mode #70137]]
  - Triage PR: [[https://github.com/kubernetes/kubernetes/issues/66859][Unable to run "PersistentVolumes-local" e2e tests due to SecurityContext and /rootfs permission denial #66859]]  
+
+
+* March 2019
+
+** [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance|sort:date/kubernetes-sig-architecture/4bg8ZExJi3M/K5btKJreBgAJ][Conformance Subproject Meeting Times]] 
+
+- "We plan to use the time for group shadowing of conformance test reviews, go over the process, define some roles, prioritize work, discuss test criteria changes, and so on."
+
+** [[https://groups.google.com/forum/#!searchin/kubernetes-sig-architecture/conformance|sort:date/kubernetes-sig-architecture/ZqBMEKBds84/2HB3xMqiBgAJ][Where SIG Architecture needs help]] 
+
+- "We have a bit of a bootstrapping problem as we get organized: defining processes, roles, backlog work items, etc. We could use help with that, too."
+
+- "Conformance testing: The main effort at the moment is to improve test coverage in critical areas. The Conformance WG meets monthly. We're going to start more frequent meetings to onboard new contributors, by reviewing the backlog and some conformance test changes/additions as a group. Timothy St. Clair will send a doodle to arrange a time -- put your email address here if you want to help. Aaron Crickenberger's most recent message about next steps is here:"
+  - https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E
+  - Project board: https://github.com/orgs/kubernetes/projects/9
+
+** Conformance: next steps
+
+- https://groups.google.com/forum/#!topic/kubernetes-sig-architecture/iCvufd0Tk5E
+- [[https://github.com/kubernetes-retired/architecture-tracking/issues/55][Deprecate conformance project board here favor of kubernetes/cncf-k8s-conformance-wg #55]] 
+
+* Stephen's Takeaways 
+ 
+- Due to the size of the kubernetes project, the resources to move conformance forward has "stalled" for various reasons. There has been a new project board created to help the workflow going forward. As this was done in March, how soon before it shows results is not known.
 
 
 * References
 
 - [[https://github.com/kubernetes/community/blob/master/sig-list.md][SIGs and Working Groups]]
-- [[https://github.com/kubernetes/community/blob/master/sig-architecture/charter.md#sig-architecture-charter][SIG Architecture Charter]]  
-
-
+- [[https://github.com/kubernetes/community/blob/master/sig-architecture/charter.md#sig-architecture-charter][SIG Architecture Charter]]
+- [[https://github.com/cncf/k8s-conformance][CNCF K8s Conformance Working Group]]
+- [[https://lists.cncf.io/g/cncf-k8s-conformance][cncf-k8s-conformance@lists.cncf.io]]   
+- [[https://github.com/orgs/kubernetes/projects/9][Project Board: cncf-k8s-conformance-wg]] 
