@@ -1,0 +1,738 @@
+#+TITLE: Graphql Node Backend
+#+PROPERTY: header-args :dir ~/ii/learning/graphql/
+#+PROPERTY: header-args:shell :results output replace drawer
+#+PROPERTY: header-args:js :dir ~/ii/learning/graphql/hackernews-node/src :results silent :noweb yes :mkdirp yes
+#+PROPERTY: header-args:json :mkdirp yes
+
+* Background
+  This is following the HowToGraphql tutorial for building a hackernews clone from the ground up.
+  We are doing the Node version for the backend, as that's the language I feel most comfortable in!
+  
+  [[https://www.howtographql.com/graphql-js/1-getting-started/][Link to Tutorial]]
+
+ *I've set the directory for this to ~/ii/learning/graphql.  To change it for your own case, adjust line 2 to yr preferred dir!* 
+
+* Create the Project
+  
+  We'll set up some basic scaffolding for the project.  We want an npm module and we want graphql-yoga.
+  Graphql-yoga will act as our backend server.  It is based on the common node server [[https://expressjs.com/][Express]], but optimized to be Grapqhl spec-compliant and work well as a dev experience (tie into the graphql playground and ability to be deployed anywhere.)
+  
+  This entire tutorial is sponsored by Prisma, and graphql-yoga is a prisma server.  Prisma is also free and open source, but I'm not sure if there's better quality servers available. Their tutorials are supremely helpful, so I am trusting their tools too.  [[https://oss.prisma.io/content/graphql-yoga/01-overview][Find out more about graphql-yoga on its homepage]].
+  
+  bcrypt and jsonwebtoekn are used for authentication
+  
+  #+NAME: Create the Project
+  #+BEGIN_SRC shell :results output replace drawer
+    mkdir hackernews-node
+    cd hackernews-node
+    npm init -y
+    npm install graphql-yoga jsonwebtoken bcryptjs
+    mkdir src
+    touch src/index.js
+  #+END_SRC
+
+  This gives us the following package.json
+  
+  #+NAME: Our Package.json
+  #+BEGIN_SRC shell :results output replace drawer
+  cat hackernews-node/package.json
+  #+END_SRC
+
+  #+RESULTS: Our Package.json
+  :RESULTS:
+  {
+    "name": "hackernews-node",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+      "bcryptjs": "^2.4.3",
+      "graphql": "^14.3.1",
+      "graphql-yoga": "^1.17.4",
+      "jsonwebtoken": "^8.5.1",
+      "prisma-client-lib": "^1.34.0"
+    }
+  }
+  :END:
+  
+  And the following file structure;
+  
+  #+NAME: File Structure
+  #+BEGIN_SRC shell :results output replace drawer
+    tree -I "node_modules" hackernews-node/ 
+  #+END_SRC
+
+  #+RESULTS: File Structure
+  :RESULTS:
+  hackernews-node/
+  ├── package.json
+  ├── package-lock.json
+  └── src
+      └── index.js
+
+  1 directory, 3 files
+  :END:
+
+* Setting Up Prisma
+  
+  Once we've set up a few queries and  mutations (see our [[*src]]), we'll want to start storing them in a database, and we'll want to start writing more complex queries.  This tutorial uses Prisma (its server and client) to simplify this process for us.  Essentially, Prisma acts as a layer between our client writing graphql queries and our server and database which needs to know hwo to turn them into db calls.  What it will end up doing is writing the complex resolver functions for us, based on the simple declarative ones we give it.  This made be too much sugar/magic, but the alternative is writing raw sql queries for every single resolve we have, which I dont' much wanna do.
+  
+#+NAME: Setting up Prisma  
+#+BEGIN_SRC shell
+  mkdir hackernews-node/prisma
+  cd hackernews-node/prisma
+  touch prisma.yml
+  touch datamodel.prisma
+#+END_SRC
+
+Our project structure is now
+#+BEGIN_SRC shell
+tree -I "node_modules" hackernews-node 
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+hackernews-node
+├── index.js
+├── package.json
+├── package-lock.json
+├── prisma
+│   ├── datamodel.prisma
+│   └── prisma.yml
+└── src
+    ├── index.js
+    └── schema.graphql
+
+2 directories, 7 files
+:END:
+
+Lastly, we'll install a prisma client cli.  This helps us deploy our app, and generate all our boilerplate code based on our datamodel.
+
+#+BEGIN_SRC shell
+npm install --global prisma
+#+END_SRC
+
+#+BEGIN_SRC shell
+  cd hackernews-node
+  npm install prisma-client-lib
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
++ prisma-client-lib@1.34.0
+added 55 packages from 84 contributors and audited 502 packages in 5.297s
+found 0 vulnerabilities
+
+:END:
+
+* src
+  :PROPERTIES:
+  :PRJ-DIR: ~/ii/learning/graphql/hackernews-node/src/
+  :END:
+** index.js
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "index.js")
+   :END:
+*** Initial File   
+    
+   Our initial source file looks as such
+   
+   #+NAME: Initial index.js
+   #+BEGIN_SRC js :tangle no
+     const { GraphQLServer } = require('graphql-yoga')
+
+     const typeDefs = `
+     type Query {
+       info: String!
+     }
+     `;
+
+     const resolvers = {
+       Query: {
+         info: () => `you got yrself a string`
+       }
+     };
+
+     const server = new GraphQLServer({
+       typeDefs,
+       resolvers
+     });
+
+     server.start(()=>("Server is running on http://localhost:4000"));
+
+   #+END_SRC
+   
+   We define an initial Query schema that returns info, which is a string (and cannot be null).  Our resolver is the implementation of the schema, It translates the schema into a function that will return the right results from our server.  It follows the same  structure as the typedef, with String! replaced by a function that returns a string!
+   
+   Checkout [[*Testing and Playgrounds]] to run up the grapql playground, what happens if you replace the return of our info resolver to be null instead of a string?
+   Interestingly, if you return a number, graphQL will convert it into a string for you.
+   
+*** Adding a Feed Query
+    
+    Now we'll add a feed query.  When we query the feed we return all links added by the users.  This means we are going to have to expand our Type Definitions to include the link schema and the feed schema.
+    
+#+BEGIN_QUOTE
+Pretty straightforward. You’re defining a new Link type that represents the links that can be posted to Hacker News. Each Link has an id, a description and url. You’re then adding another root field to the Query type that allows you to retrieve a list of Link elements. This list is guaranteed to never be null (if anything, it will be empty) and never contain any elements that are null - that’s what the two exclamation marks are for
+#+END_QUOTE    
+
+Then we implement the resolver functions for every field in the schema.  In other words, if the schema says we should return something, we need to write the function that shows how we'd return them.  In this case it'd be for our feed, links, description, url, and id.
+
+We'll make dummy links, since we do not yet have a database.
+
+   #+NAME: index.js: adding feed query
+   #+BEGIN_SRC js :tangle no
+     const { GraphQLServer } = require('graphql-yoga')
+
+     const typeDefs = `
+     type Query {
+       info: String!
+       feed: [Link!]!
+     }
+
+     type Link {
+       id: ID!
+       description: String!
+       url: String!
+     }
+     `;
+
+     let links = [
+       {
+         id: 'link-0',
+         url: 'www.howtographql.com',
+         description: "the site i'm learning from!"
+       }
+     ]
+
+     const resolvers = {
+       Query: {
+         info: () => `you got yrself a string`,
+         feed: () => links
+       },
+       Link: {
+         id: (parent) => parent.id,
+         url: (parent) => parent.url,
+         description: (parent) => parent.description
+       }
+     };
+
+     const server = new GraphQLServer({
+       typeDefs,
+       resolvers
+     });
+
+     server.start(()=>("Server is running on http://localhost:4000"));
+
+   #+END_SRC
+   
+   Abot the parent argument, from the tutorial:
+   
+   #+BEGIN_QUOTE
+  First, it’s important to note that every GraphQL resolver function actually receives four input arguments. As the remaining three are not needed in our scenario right now, we’re simply omitting them. Don’t worry, you’ll get to know them soon.
+
+  The first argument, commonly called parent (or sometimes root) is the result of the previous resolver execution level. But what does that mean? 🤔
+
+  Well, as you already saw, GraphQL queries can be nested. Each level of nesting (i.e. nested curly braces) corresponds to one resolver execution level. The above query therefore has two of these execution levels.
+
+  On the first level, it invokes the feed resolver and returns the entire data stored in links. For the second execution level, the GraphQL server is smart enough to invoke the resolvers of the Link type (because thanks to the schema, it knows that feed returns a list of Link elements) for each element inside the list that was returned on the previous resolver level. Therefore, in every of the three Link resolvers, the incoming parent object is the element inside the links list.
+   #+END_QUOTE
+
+*** A Simple Mutation
+    
+    To add a feature like the mutation, we expand our schema to describe it.  As our schema is getting large, we'll make it its own file located at [[*schema.graphal][src/schema.graphql]].  Then we'll import it and reference it in our typedefs section.  To see the new schema, check out the linked file.
+    
+    We then update our resolvers.  We remove Link because, since it is so simple, our graphql server is able to infer what it should be.  In the scehma for our post mutation we defined that it has two necessary arguments, url and description, we can pass these into our resolver using the second args parameter.  Then we createa  link, push it to our array of links, and return the created link (since the schema defined that the post mustation should return a Link)
+    
+    
+
+   #+NAME: index.js: A simple Mutation
+   #+BEGIN_SRC js :tangle no
+     const { GraphQLServer } = require('graphql-yoga')
+
+     let links = [
+       {
+         id: 'link-0',
+         url: 'www.howtographql.com',
+         description: "the site i'm learning from!"
+       }
+     ]
+
+     let idCount = links.length
+
+     const resolvers = {
+       Query: {
+         info: () => `you got yrself a string`,
+         feed: () => links
+       },
+       Mutation: {
+         post: (parent, args) => {
+           const link = {
+             id: `link-${idCount++}`,
+             description: args.description,
+             url: args.url
+           }
+           links.push(link)
+           return link
+         }
+       }
+     };
+
+     const server = new GraphQLServer({
+       typeDefs: './schema.graphql',
+       resolvers
+     });
+
+     server.start(()=>("Server is running on http://localhost:4000"));
+
+   #+END_SRC
+
+*** Connecting Server and Db with the Prisma Client
+    
+    We will now move away from our local variables to storing everything in the prisma db.  So we can get rid of idCount and  links
+    
+    We can then update our resolvers to no longer use the local variables and use our generate prisma code instead.  We'll access the client through our =context= arg.  Context in this case is similar to context in a react/redux app; it is an object that every resolver has access to, so it's a way to pass in data that carries across the entire app (like passing state into all react components).  This requires some dependency setup, Which is covered in  [[*Setting Up Prisma]]
+    
+   Our generated prisma client lets us access the database through the prisma API, through the CRUD operations it generated based on our data model.  This is why we can do context.prisma.links() and context.prisma.createLink()
+    
+   #+NAME: index.js: Connecting Server and Db
+   #+BEGIN_SRC js :tangle no
+     const { GraphQLServer } = require('graphql-yoga');
+     const { prisma } = require('./generated/prisma-client');
+
+     const resolvers = {
+       Query: {
+         info: () => `This is the API of our tutorial hackernews app`,
+         feed: (root, args, context, info) => context.prisma.links()
+       },
+       Mutation: {
+         post: (root, args, context, info) => {
+           return context.prisma.createLink({
+             url: args.url,
+             description: args.description
+           });
+         }
+       }
+     };
+
+     const server = new GraphQLServer({
+       typeDefs: './src/schema.graphql',
+       resolvers,
+       context: { prisma }
+     });
+
+     server.start(()=>("Server is running on http://localhost:4000"));
+
+   #+END_SRC
+
+*** Authentication
+    
+    As part of our authentication we moved all our resolvers into their own files, and then import the files into here.  We also are starting to use the https request header in our resolvers, which means it needs to be a part of the context they draw from.  So we change up our context to include the http request.
+    
+   #+NAME: index.js: Connecting Server and Db
+   #+BEGIN_SRC js
+     const { GraphQLServer } = require('graphql-yoga');
+     const { prisma } = require('./generated/prisma-client');
+
+     const Query = require('./resolvers/Query')
+     const Mutation = require('./resolvers/Mutation')
+     const User = require('./resolvers/User')
+     const Link = require('./resolvers/Link')
+
+
+     const resolvers = {
+       Query,
+       Mutation,
+       User,
+       Link
+     };
+
+     const server = new GraphQLServer({
+       typeDefs: './src/schema.graphql',
+       resolvers,
+       context: (request) => {
+         return {
+           ...request,
+           prisma
+         }
+       }
+     });
+
+     server.start(()=>("Server is running on http://localhost:4000"));
+
+   #+END_SRC
+
+** schema.graphql
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "schema.graphql")
+   :END:
+*** A Simple Mutation   
+    #+NAME: schema: a simple mutation
+    #+BEGIN_SRC js :tangle no
+      type Query {
+        info: String!
+        feed: [Link!]!
+      }
+
+      type Mutation {
+        post(url: String!, description: String!): Link!
+      }
+
+      type Link {
+        id: ID!
+        description: String!
+        url: String!
+      }
+    #+END_SRC
+*** Authentication
+    
+    We're following a  nice pattern for new features: update the datamodel so the db understands, update our grapqhl schema to account for htis new model, then update our resolvers to account for this new schema.  Here we'll update our schema to now handle the signup and login of users.
+    
+    We're creating a new type for USer (that follows our datamodel) and also an AuthPayload.  This will give us a token when someone succesffully logs in that will be stored in their browser so they can make repeated calls to the api (e.g. stay logged in throughout session)
+    
+    #+NAME: schema: authentication
+    #+BEGIN_SRC js
+      type Query {
+        info: String!
+        feed: [Link!]!
+      }
+
+      type Mutation {
+        post(url: String!, description: String!): Link!
+        signup(email: String!, password: String!, name: String!): AuthPayload
+        login(email: String!, password: String!): AuthPayload
+      }
+
+      type Link {
+        id: ID!
+        description: String!
+        url: String!
+        postedBy: User
+      }
+
+      type AuthPayload {
+        token: String
+        user: User
+      }
+
+      type User {
+        id: ID!
+        name: String!
+        email: String!
+        links: [Link!]!
+      }
+    #+END_SRC
+** utils.js
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "utils.js")
+   :END:
+   This will hold any utility functions we use in multiple files.  Mainly it'sll be used for authentication.
+*** Initial Setup
+    #+NAME: schema: a simple mutation
+    #+BEGIN_SRC js
+      const jwt = require('jsonwebtoken')
+      const APP_SECRET = 'GraphQL-is-aw3some'
+
+      function getUserId (context) {
+        const Authorization = context.request.get('Authorization')
+        if (Authorization) {
+          const token = Authorization.replace('Bearer ', '')
+          const { userId } = jwt.verify(token, APP_SECRET)
+          return userId
+        }
+
+        throw new Error('not authenticated. What the hell is happppening!')
+      }
+
+      module.exports = {
+        APP_SECRET,
+        getUserId
+      }
+    #+END_SRC
+** Resolvers
+  :PROPERTIES:
+  :PRJ-DIR: ~/ii/learning/graphql/hackernews-node/src/resolvers/
+  :END:
+*** Intro  
+   We want to have a more modular setup, so as our resolvers expanded in [[*index.js]], it was necessary to split them out here.
+   
+   Let's make sure we have a resolvers directory first:
+   
+   #+BEGIN_SRC shell 
+     mkdir hackernews-node/src/resolvers
+     tree -I 'node_modules' hackernews-node
+   #+END_SRC
+
+   #+RESULTS:
+   :RESULTS:
+   hackernews-node
+   ├── index.js
+   ├── package.json
+   ├── package-lock.json
+   ├── prisma
+   │   ├── datamodel.prisma
+   │   └── prisma.yml
+   ├── src
+   │   ├── generated
+   │   │   └── prisma-client
+   │   │       ├── index.d.ts
+   │   │       ├── index.js
+   │   │       └── prisma-schema.js
+   │   ├── index.js
+   │   ├── resolvers
+   │   └── schema.graphql
+   └── xclip
+
+   5 directories, 11 files
+   :END:
+   
+*** Query
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "Query.js")
+   :END:
+**** Initial Setup
+     #+NAME: Query.js: Initial Setup
+     #+BEGIN_SRC js
+       function feed(parent, args, context, info) {
+         return context.prisma.links()
+       }
+
+       module.exports = {
+         feed
+       }
+     #+END_SRC
+*** Mutation
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "Mutation.js")
+   :END:
+**** Initial Setup
+     #+NAME: Mutation.js: Initial Setup
+     #+BEGIN_SRC js
+       const bcrypt = require('bcryptjs')
+       const jwt = require('jsonwebtoken')
+       const { APP_SECRET, getUserId } = require('../utils')
+
+       async function signup(parent, args, context, info) {
+         const password = await bcrypt.hash(args.password, 10)
+         const user = await context.prisma.createUser({...args, password })
+         const token = jwt.sign({ userId: user.id}, APP_SECRET)
+
+         return {
+           token,
+           user
+         }
+       }
+
+       async function login (parent, args, context, info) {
+         const user = await context.prisma.user({ email: args.email })
+         if (!user) {
+           throw new Error('What is happening? No such user found! What is going ON?')
+         }
+
+         const valid = await bcrypt.compare(args.password, user.password)
+         if (!valid) {
+           throw new Error("Come on! It's the wrong Password!")
+         }
+
+         const token = jwt.sign({userId: user.id }, APP_SECRET)
+
+         return {
+           token,
+           user
+         }
+       }
+
+       function post (parent, args, context, info) {
+         const userId = getUserId(context)
+         return context.prisma.createLink({
+           url: args.url,
+           description: args.description,
+           postedBy: { connect: { id: userId }}
+         })
+       }
+
+       module.exports = {
+         signup,
+         login,
+         post
+       }
+     #+END_SRC
+*** User
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "User.js")
+   :END:
+**** Initial Setup
+     #+NAME: User.js: Initial Setup
+     #+BEGIN_SRC js
+       function links (parent, args, context) {
+         return context.prisma.user({ id: parent.id}).links()
+       }
+
+       module.exports = {
+         links
+       }
+     #+END_SRC
+*** Link
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "Link.js")
+   :END:
+**** Initial Setup
+     #+NAME: Link.js: Initial Setup
+     #+BEGIN_SRC js
+       function postedBy (parent, args, context, info) {
+         return context.prisma.link({ id: parent.id }).postedBy()
+       }
+
+       module.exports = {
+         postedBy
+       }
+     #+END_SRC
+* prisma
+  :PROPERTIES:
+  :PRJ-DIR: ~/ii/learning/graphql/hackernews-node/prisma/
+  :END:
+  #+BEGIN_QUOTE
+ prisma.yml is the main configuration file for your Prisma setup. datamodel.prisma on the other hand contains the definition of your datamodel. The Prisma datamodel defines your application’s models. Each model will be mapped to a table in the underlying database. 
+  #+END_QUOTE
+** datamodel.prisma
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "datamodel.prisma")
+   :END:
+*** Initial Setup   
+    #+NAME: datamodel.prisma: Initial Setup
+    #+BEGIN_SRC js :tangle no
+      type Link {
+        id: ID! @id
+        createdAt: DateTime! @createdAt
+        description: String!
+        url: String!
+      }
+    #+END_SRC
+    
+    This is essentially the same as our graphql schema for Link, but adding some prisma magic to it through our @functions.  @id will auto-generate a unique id, and @createdAt will put a timestamp for when the entry was created.  This will be a model that maps to our database tables, and derived from our graphql schemas.  There's a number of steps, or passageways, that our data has to take to get to the db...but I like that the overall structure is basically the same.
+*** Authentication: Adding a User Model
+    #+NAME: datamodel.prisma: Authentication
+    #+BEGIN_SRC js
+      type Link {
+        id: ID! @id
+        createdAt: DateTime! @createdAt
+        description: String!
+        url: String!
+        postedBy: User
+      }
+
+      type User {
+        id:ID! @id
+        name: String!
+        email: String! @unique
+        password: String!
+        links: [Link!]!
+      }
+    #+END_SRC
+    
+    Notice the links section of user, and the postedBy section of Link.  the link is aware of the user that posts it, and the user is aware of the links its posted.  This is how you show a one-to-many relationship in the SDL.
+
+** prisma.yml
+   :PROPERTIES:
+   :header-args: :tangle (projdir+ "prisma.yml")
+   :END:
+*** Initial Setup   
+    #+NAME: prisma.yml: Initial Setup
+    #+BEGIN_SRC yaml :tangle no
+      # The HTTP endpoint for your Prisma API
+      endpoint: ''
+
+      # Points to the file that contains your datamodel
+      datamodel: datamodel.prisma
+
+      # Specifies language & location for the generated Prisma client
+      generate:
+        - generator: javascript-client
+          output: ../src/generated/prisma-client
+
+    #+END_SRC
+    
+    This is essentially the same as our graphql schema for Link, but adding some prisma magic to it through our @functions.  @id will auto-generate a unique id, and @createdAt will put a timestamp for when the entry was created.  This will be a model that maps to our database tables, and derived from our graphql schemas.  There's a number of steps, or passageways, that our data has to take to get to the db...but I like that the overall structure is basically the same.
+
+*** After the deploy
+    
+    In the initial interactive deploy, it added the location of our server and such to the yaml, we'll update that here too  to avoid tangling issues
+    #+NAME: prisma.yml: Initial Setup
+    #+BEGIN_SRC yaml
+      # The HTTP endpoint for your Prisma API
+      endpoint: https://us1.prisma.sh/zz/hackernews-node/dev
+
+      # Points to the file that contains your datamodel
+      datamodel: datamodel.prisma
+
+      # Specifies language & location for the generated Prisma client
+      generate:
+        - generator: javascript-client
+          output: ../src/generated/prisma-client
+    #+END_SRC
+    
+    This is essentially the same as our graphql schema for Link, but adding some prisma magic to it through our @functions.  @id will auto-generate a unique id, and @createdAt will put a timestamp for when the entry was created.  This will be a model that maps to our database tables, and derived from our graphql schemas.  There's a number of steps, or passageways, that our data has to take to get to the db...but I like that the overall structure is basically the same.
+
+* Testing and Playgrounds
+  Once you have [[*Create The Project][Created the Project]], and set up the initial [[*index.js][Index.js file]], we can run our graphql playground, to test out all our schemas.
+  
+  #+NAME: Running Grapqhl Playground
+  #+BEGIN_SRC shell :results silent
+  node ./hackernews-node/src/index.js 
+  #+END_SRC
+** A simple mutation
+   #+NAME: test a simple mutation
+   #+BEGIN_EXAMPLE
+     mutation {
+       post(
+         url: "www.prisma.io"
+         description: "Prisma replaces traditional ORMs"
+       ) {
+         id
+       }
+     } 
+   #+END_EXAMPLE
+** connected to db
+   Once you've connected, you can run the same feed and post queries as before, but now they are connected to yr prisa db.  You can see that db by visiting https://app.prisma.io
+** Authentication
+   #+NAME: test signing up new user
+   #+BEGIN_EXAMPLE
+     mutation {
+       signup(
+         name: "Alice"
+         email: "alice@prisma.io"
+         password: "graphql"
+       ) {
+         token
+         user {
+           id
+         }
+       }
+     }
+   #+END_EXAMPLE
+
+
+* Deploying And Generating with Prisma
+  This sets up where our app (namely our database) will live.  Prisma offers a cloud service (with free demo site), but is also open source and so we could host it ourselves if we chose.
+  
+  Generating generates a prisma client that interacts with the coded in our src file, that will help us write out our schemas and models.
+  
+  #+BEGIN_SRC 
+ prisma deploy 
+  #+END_SRC
+  
+  #+BEGIN_SRC 
+ prisma generate 
+  #+END_SRC
+
+* footnote
+  
+#Local Variables:
+#eval: (defun projdir+ (filepath) (concat (org-entry-get nil "PRJ-DIR" t) filepath))
+#End:
+  

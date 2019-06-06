@@ -184,6 +184,25 @@ You can alsol provide arguments to the query, like only asking for the last two 
        author: Person!
      }
    #+END_EXAMPLE
+** The Exclamation point
+   in https://www.howtographql.com/graphql-js/1-getting-started/, there's a good explanation of how to use the exlamation point.  
+   For something like this:
+   #+BEGIN_EXAMPLE graphql
+     type Query {
+     users: [User!]!
+     user(id: ID!): User
+     }
+   #+END_EXAMPLE
+   
+   the users query returns =[User!]!=.  the Exclamation point means the field is required and cannot return null.  Since the Array itself is required, that means that no matter what we must return an array.  Within the array we can only have non-null User objects.  
+   So if we don't yet hae any users, and query Users, it'll return =[]=, since it must return something,  
+
+   The second query takes an id argument, which must be a valid ID type.  It returns =User= //without exclamation point//, which means it can return null  This makes sense: you query a user by their id, and that id may not exist.  When that's the case, you want to return nothing.
+   
+   
+
+
+
    
    
    
