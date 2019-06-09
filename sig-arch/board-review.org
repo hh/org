@@ -1,0 +1,48 @@
+#+TITLE: Conformance Board Review                                                                                                                                                                        
+#+AUTHOR: Devan Carpenter                                                                                                                                                                                           
+#+EMAIL: devan@ii.coop                                                                                                                                                                                            
+#+CREATOR: ii.coop                                                                                                                                                                                                  
+#+DATE:  4th June, 2019                                                                                                                                                                                             
+#+STARTUP: showeverything  
+
+
+Analysing the [[https://github.com/orgs/kubernetes/projects/9][Conformance WG Project Board]] to find useful patterns, and anti-patterns.
+
+* Pull Requests
+A large portion of the cards on the board are linked to Pull Requests. 
+There are a some common kinds of PR: 
+
+** Upgrade to Conformance
+
+   [[https://github.com/kubernetes/kubernetes/pull/70639][Here is a good example of a Pull Request for promoting a test to Conformance]]
+
+   It would also be useful to create issues for tests which could/should get promoted to Conformance.
+
+
+** Cleanup
+   [[https://github.com/kubernetes/kubernetes/pull/77518][Example of a cleanup PR]]
+
+
+** Failing Test
+   [[https://github.com/kubernetes/kubernetes/pull/75128][Here is an example]]
+
+
+* Appropriate Tagging 
+
+It appears to be relatively common to find PRs and issues which could use some additional tagging.
+
+One that stands out is the tag "LinuxOnly". It appears that ther are not many eyes watching out for this, which sometimes slows things down.
+
+[[https://github.com/kubernetes/kubernetes/pull/74977#issuecomment-470940543][See here for an example.]]
+
+
+* Issues and PRs Left Hanging
+
+There are tickets and PRs which could simply use a bump to get some follow-up on.
+
+[[https://github.com/kubernetes/kubernetes/issues/76344][See issue #76433 for example.]]
+
+
+* Organizing
+
+At the time of writing there are 43 cards in the "To Triage" column. Appears to be a lack of work-bandwidth to get the cards in front of the right people, and get the flowing through the pipeline.
