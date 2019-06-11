@@ -1,0 +1,24 @@
+{
+  "query":"{
+    search(query: \"project:kubernetes/9\", type: ISSUE, last: 100, after: \"Y3Vyc29yOjEwMA==\") {
+      issueCount
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+      edges {
+        node {
+          __typename
+          ... on Issue {
+            id
+            title
+          }
+          ... on PullRequest {
+            id
+            title
+          }
+        }
+      }
+    }
+  }"
+}

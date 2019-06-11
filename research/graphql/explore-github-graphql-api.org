@@ -1,0 +1,151 @@
+#+TITLE: Explore GitHub GraphQL API
+#+AUTHOR: Stephen Heywood
+#+EMAIL: stephen@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 11th June, 2019
+#+STARTUP: showeverything
+
+* Objective
+
+Research options to complete the tasks listed in [[https://github.com/cncf/apisnoop/issues/253][APISnoop Issue #253]], focusing on the [[https://github.com/orgs/kubernetes/projects/9][cncf-k8s-conformance-wg]] project board.
+
+** Short description:
+
+To prepare for more indepth exploration of tests, issues, and PRs it is good to first know what sort of data is possible to grab, and how to structure those queries for GitHub's [[https://developer.github.com/v4/explorer/][explorer]].
+
+Questions to ask:
+
+- Can we pull all issues in the sig-conformance board?
+- Can we pull all PR's?
+- What metadata can be grabbed related to project boards?
+- What metadata can be grabbed from issues?
+- Can we see all issues with a particular label across an org?
+
+
+* Prep
+
+** Auth Token
+
+"To communicate with the [[https://api.github.com/graphql][GraphQL server]], you'll need an OAuth token with the right scopes."
+Permissions for the token are listed in the '[[https://developer.github.com/v4/guides/forming-calls/#authenticating-with-graphql][Authenticating with GraphQL]]' section with the general setup of the token in the support document '[[https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line][Creating a personal access token for the command line]]'.
+
+** Enivorment Variables
+
+To keep testing and script easy to read and troubleshoot the following variables will be used.
+
+*UPDATE:* Please use the value that you have created as directed above for the =GITHUB_TOKEN=
+
+#+BEGIN_SRC shell
+GITHUB_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#+END_SRC
+
+The current version of the GitHub API (v4) uses a single end point. 
+
+#+BEGIN_SRC shell 
+END_POINT=https://api.github.com/graphql
+#+END_SRC
+
+** Data collection point
+
+The results will be placed in a =data= directory which needs to be created.
+
+#+BEGIN_SRC shell 
+mkdir data
+#+END_SRC
+
+
+* Collect Project Board 
+
+The current task is to pull the primary IDs and titles for each issue or PR from the [[https://github.com/orgs/kubernetes/projects/9][CNCF Kubernetes Conformance Working Group Project Board]] before requesting details for each item.
+Due to the rate limits that GitHub set will need to use a number of requests. 
+
+** Get first block
+
+ #+BEGIN_SRC shell
+ curl -o data/result-wg-board-first-block.json  -H "Content-Type: application/json" -H "Authorization: bearer $GITHUB_TOKEN" -X POST -d @query-wg-board-first-block.json $END_POINT
+ #+END_SRC
+
+Query will collect the first 100 IDs with their titles.
+
+#+BEGIN_SRC json
+ {
+   "query":"{
+     search(query: \"project:kubernetes/9\", type: ISSUE, first: 100, after: null) {
+       issueCount
+       pageInfo {
+         endCursor
+         hasNextPage
+       }
+       edges {
+         node {
+           __typename
+           ... on Issue {
+             id
+             title
+           }
+           ... on PullRequest {
+             id
+             title
+           }
+         }
+       }
+     }
+   }"
+ }
+#+END_SRC
+
+
+** Get next block
+
+This query will use pagination to get the next block of results. 
+
+#+BEGIN_SRC shell
+curl -o data/result-wg-board-next-block.json  -H "Content-Type: application/json" -H "Authorization: bearer $GITHUB_TOKEN" -X POST -d @query-wg-board-next-block.json $END_POINT
+#+END_SRC
+
+
+#+BEGIN_SRC json
+ {
+   "query":"{
+     search(query: \"project:kubernetes/9\", type: ISSUE, last: 100, after: \"Y3Vyc29yOjEwMA==\") {
+       issueCount
+       pageInfo {
+         endCursor
+         hasNextPage
+       }
+       edges {
+         node {
+           __typename
+           ... on Issue {
+             id
+             title
+           }
+           ... on PullRequest {
+             id
+             title
+           }
+         }
+       }
+     }
+   }"
+ }
+#+END_SRC
+
+
+* References
+
+- [[https://github.com/cncf/apisnoop/issues/253][https://github.com/cncf/apisnoop/issues/253]]
+
+- [[https://developer.github.com/v4/breaking_changes/][https://developer.github.com/v4/breaking_changes/]]
+
+- [[https://developer.github.com/v4/][https://developer.github.com/v4/]]
+
+- [[https://developer.github.com/v4/explorer/][https://developer.github.com/v4/explorer/]]
+
+- [[https://github.community/t5/GitHub-API-Development-and/bd-p/api][https://github.community/t5/GitHub-API-Development-and/bd-p/api]]
+
+- [[https://github.community/t5/GitHub-API-Development-and/GraphQL-API-Pagination/m-p/22404][https://github.community/t5/GitHub-API-Development-and/GraphQL-API-Pagination/m-p/22404]]
+
+- [[https://developer.github.com/v4/guides/using-the-explorer/][https://developer.github.com/v4/guides/using-the-explorer/]]
+
+- [[https://developer.github.com/v4/guides/using-global-node-ids/][https://developer.github.com/v4/guides/using-global-node-ids/]]
