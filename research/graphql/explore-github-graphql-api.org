@@ -8,6 +8,8 @@
 * Objective
 
 Research options to complete the tasks listed in [[https://github.com/cncf/apisnoop/issues/253][APISnoop Issue #253]], focusing on the [[https://github.com/orgs/kubernetes/projects/9][cncf-k8s-conformance-wg]] project board.
+The initial inspection of the board was through the [[https://developer.github.com/v4/explorer/][GitHub GraphQL Explorer]] which provided quick insight through a simple interface to the board data.
+Searching the documentation was very helpful and efficient.
 
 ** Short description:
 
@@ -39,7 +41,7 @@ To keep testing and script easy to read and troubleshoot the following variables
 GITHUB_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #+END_SRC
 
-The current version of the GitHub API (v4) uses a single end point. 
+The current version of the GitHub API (v4) uses a single end point. This is a quaility of the GraphQL API, and what makes it disinct from the REST API. You will have a single endpoint, but it can take any kind of query that matches the API schema.
 
 #+BEGIN_SRC shell 
 END_POINT=https://api.github.com/graphql
