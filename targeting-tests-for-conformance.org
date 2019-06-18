@@ -1,0 +1,52 @@
+* Targeting Tests to promote for conformance
+  This doc shows a set of kinds that have tested, but not conformance tested, endpoints.  We list the verbs these endpoints cover, and the tests that are currently not-conformant.  Through this, you can get an estimate of how much covderage could increase by investigating and potentially promoting these tests.
+  
+  When possible, we link to the line number of the test on a current open pull request that references it.
+** LimitRange  
+*** replace, delete, create, read
+    [[https://github.com/kubernetes/kubernetes/blob/06e10c7e88a7c195d429a4bb92c2429163d26a51/test/e2e/scheduling/limit_range.go#L49][{{sig-scheduling} LimitRange should create a LimitRange with defaults and ensure pod has those defaults applied.]]
+
+** Persistent Volume Claim
+*** Create, Delete, Read, Replace
+ [sig-storage] Volume expand should not allow expansion of pvcs without AllowVolumeExpansion property
+ [sig-storage] Volume expand Verify if offline PVC expansion works
+ [sig-storage] Volume expand should resize volume when PVC is edited while pod is using it
+ [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ [sig-storage] Volume expand should allow expansion of block volumes  
+
+** Resource Quota
+*** delete, replace
+ [sig-scheduling] LimitRange should create a LimitRange with defaults and ensure pod has those defaults applied.
+
+ https://github.com/kubernetes/kubernetes/issues/78831
+
+** ConfigMap
+*** patch
+
+ [[https://github.com/kubernetes/kubernetes/blob/254781b9ecadb411767787f564ce10cc451cfaef/test/e2e/apimachinery/webhook.go#L133][{sig-api-machinery} AdmissionWebhook Should be able to deny pod and configmap creation]]
+
+ https://github.com/kubernetes/kubernetes/issues/78832
+** Node
+*** replace, patch, read
+ - [sig-scheduling] PreemptionExecutionPath runs ReplicaSets to verify preemption running path 
+ - [k8s.io] [sig-node] kubelet [k8s.io] [sig-node] Clean up pods on node kubelet should be able to delete 10 pods per node in 1m0s.
+ - [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ - [k8s.io] NodeLease when the NodeLease feature is enabled the kubelet should report node status infrequently
+ - [sig-scheduling] PreemptionExecutionPath runs ReplicaSets to verify preemption running path
+ - [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error
+** Scale
+*** Replace, Read
+ - [[https://github.com/kubernetes/kubernetes/blob/68530b150c377d6ffae80e745a7080169789b948/test/e2e/network/service.go#L1253][{sig-network} Services should create endpoints for unready pods]]   
+** ServiceAccount
+*** replace
+    [[https://github.com/kubernetes/kubernetes/blob/523b9516435d2c3b671a0d86fabec4a8dd7c7bc6/test/e2e/auth/service_accounts.go#L57][{sig-auth} ServiceAccounts should ensure a single API token exists]]
+** Pod
+*** Patch, List
+ - [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error
+ - [k8s.io] Pods should support pod readiness gates [NodeFeature:PodReadinessGate]
+** PodTemplate 
+*** create
+   [sig-api-machinery] Servers with support for API chunking should return chunks of results for list calls
+   [sig-api-machinery] Servers with support for Table transformation should return chunks of table results for list calls
+
+
