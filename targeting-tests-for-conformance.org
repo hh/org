@@ -1,52 +1,53 @@
-* Targeting Tests to promote for conformance
-  This doc shows a set of kinds that have tested, but not conformance tested, endpoints.  We list the verbs these endpoints cover, and the tests that are currently not-conformant.  Through this, you can get an estimate of how much covderage could increase by investigating and potentially promoting these tests.
-  
-  When possible, we link to the line number of the test on a current open pull request that references it.
-** LimitRange  
-*** replace, delete, create, read
-    [[https://github.com/kubernetes/kubernetes/blob/06e10c7e88a7c195d429a4bb92c2429163d26a51/test/e2e/scheduling/limit_range.go#L49][{{sig-scheduling} LimitRange should create a LimitRange with defaults and ensure pod has those defaults applied.]]
+* Promote 15 tests to get 22 more endpoints covered
 
-** Persistent Volume Claim
-*** Create, Delete, Read, Replace
- [sig-storage] Volume expand should not allow expansion of pvcs without AllowVolumeExpansion property
- [sig-storage] Volume expand Verify if offline PVC expansion works
- [sig-storage] Volume expand should resize volume when PVC is edited while pod is using it
- [sig-storage] Mounted volume expand Should verify mounted devices can be resized
- [sig-storage] Volume expand should allow expansion of block volumes  
+APISnoop filtering to [[https://apisnoop.cncf.io/?zoomed=category-stable-core&showUntested=false&showConformanceTested=false&level=stable][tested but not conformant Stable/Core endpoints]] allows us
+to readily see 30 endpoints that have associated tests that could be promoted to
+increase coverage.
 
-** Resource Quota
-*** delete, replace
- [sig-scheduling] LimitRange should create a LimitRange with defaults and ensure pod has those defaults applied.
+If we further filter to each of those 30 endpoints, we can see the exact tests
+associated with those endpoints.
 
- https://github.com/kubernetes/kubernetes/issues/78831
-
-** ConfigMap
-*** patch
-
- [[https://github.com/kubernetes/kubernetes/blob/254781b9ecadb411767787f564ce10cc451cfaef/test/e2e/apimachinery/webhook.go#L133][{sig-api-machinery} AdmissionWebhook Should be able to deny pod and configmap creation]]
-
+** Node: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1Node&showUntested=false&showConformanceTested=false][read]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NodeStatus&showUntested=false&showConformanceTested=false][replace]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-patchCoreV1Node&showUntested=false&showConformanceTested=false][patch]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/node/kubelet.go#L252][{k8s.io} {sig-node} kubelet {k8s.io} {sig-node} Clean up pods on node kubelet should be able to delete 10 pods per node in 1m0s.]]
+** NodeStatus: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NodeStatus&showUntested=false&showConformanceTested=false][replace]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/scheduling/preemption.go#L463][{sig-scheduling} PreemptionExecutionPath runs ReplicaSets to verify preemption running path]]
+** Namespaced Endpoints: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-createCoreV1NamespacedEndpoints&showUntested=false&showConformanceTested=false][create]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-deleteCoreV1NamespacedEndpoints&showUntested=false&showConformanceTested=false][delete]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/testsuites/subpath.go#L182][{sig-storage} In-tree Volumes {Driver: gluster} {Testpattern: Inline-volume (default fs)} subPath should support existing directory]]
+** Namespace: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedLimitRange&showUntested=false&showConformanceTested=false][replace]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apimachinery/webhook.go#L236][{sig-api-machinery} AdmissionWebhook Should honor timeout]]
+** Namespace: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-listCoreV1Namespace&showUntested=false&showConformanceTested=false][list]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/persistent_volumes-gce.go#L152][{sig-storage} PersistentVolumes GCEPD should test that deleting the Namespace of a PVC and Pod causes the successful detach of Persistent Disk]]
+** Namespaced PodEviction: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-createCoreV1NamespacedPodEviction&showUntested=false&showConformanceTested=false][create]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apps/disruption.go#L201][{sig-apps} DisruptionController should block an eviction until the PDB is updated to allow it]]
+** PostNamespacedServiceProxyWithPath: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-connectCoreV1PostNamespacedServiceProxyWithPath&showUntested=false&showConformanceTested=false][connect]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/autoscaling/horizontal_pod_autoscaling.go#L70][{sig-autoscaling} {HPA} Horizontal pod autoscaling (scale resource: CPU) {sig-autoscaling} ReplicationController light Should scale from 1 pod to 2 pods]]
+** PodForAllNamespaces: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-listCoreV1PodForAllNamespaces&showUntested=false&showConformanceTested=false][list]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/node/node_problem_detector.go#L57][{k8s.io} {sig-node} NodeProblemDetector {DisabledForLargeClusters} should run without error]]
+** Namespaced PodStatus: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-patchCoreV1NamespacedPodStatus&showUntested=false&showConformanceTested=false&level=stable][patch]] 
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/common/pods.go#L775][{k8s.io} Pods should support pod readiness gates {NodeFeature:PodReadinessGate}]]
+** Namespaced PodTemplate: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-createCoreV1NamespacedPodTemplate&showUntested=false&showConformanceTested=false][create]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apimachinery/chunking.go#L78][{sig-api-machinery} Servers with support for API chunking should return chunks of results for list calls]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apimachinery/table_conversion.go#L78][{sig-api-machinery} Servers with support for Table transformation should return chunks of table results for list calls]]
+** Namespaced ConfigMap: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-patchCoreV1NamespacedConfigMap&showUntested=false&showConformanceTested=false][patch]]
  https://github.com/kubernetes/kubernetes/issues/78832
-** Node
-*** replace, patch, read
- - [sig-scheduling] PreemptionExecutionPath runs ReplicaSets to verify preemption running path 
- - [k8s.io] [sig-node] kubelet [k8s.io] [sig-node] Clean up pods on node kubelet should be able to delete 10 pods per node in 1m0s.
- - [sig-storage] Mounted volume expand Should verify mounted devices can be resized
- - [k8s.io] NodeLease when the NodeLease feature is enabled the kubelet should report node status infrequently
- - [sig-scheduling] PreemptionExecutionPath runs ReplicaSets to verify preemption running path
- - [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error
-** Scale
-*** Replace, Read
- - [[https://github.com/kubernetes/kubernetes/blob/68530b150c377d6ffae80e745a7080169789b948/test/e2e/network/service.go#L1253][{sig-network} Services should create endpoints for unready pods]]   
-** ServiceAccount
-*** replace
-    [[https://github.com/kubernetes/kubernetes/blob/523b9516435d2c3b671a0d86fabec4a8dd7c7bc6/test/e2e/auth/service_accounts.go#L57][{sig-auth} ServiceAccounts should ensure a single API token exists]]
-** Pod
-*** Patch, List
- - [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error
- - [k8s.io] Pods should support pod readiness gates [NodeFeature:PodReadinessGate]
-** PodTemplate 
-*** create
-   [sig-api-machinery] Servers with support for API chunking should return chunks of results for list calls
-   [sig-api-machinery] Servers with support for Table transformation should return chunks of table results for list calls
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/254781b9ecadb411767787f564ce10cc451cfaef/test/e2e/apimachinery/webhook.go#L133][{sig-api-machinery} AdmissionWebhook Should be able to deny pod and configmap creation]]
+** Namespaced LimitRange: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1NamespacedLimitRange&showUntested=false&showConformanceTested=false&level=stable][read]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedLimitRange&showUntested=false&showConformanceTested=false][replace]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-deleteCoreV1NamespacedLimitRange&showUntested=false&showConformanceTested=false&level=stable][delete]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/scheduling/limit_range.go#L44][{sig-scheduling} LimitRange should create a LimitRange with defaults and ensure pod has those defaults applied.]]
+** Namespaced ResourceQuota: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-deleteCoreV1NamespacedResourceQuota&showUntested=false&showConformanceTested=false&level=stable][delete]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedResourceQuota&showUntested=false&showConformanceTested=false&level=stable][replace]]
+ https://github.com/kubernetes/kubernetes/issues/78831
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apimachinery/resource_quota.go#L753][{sig-api-machinery} ResourceQuota Should be able to update and delete ResourceQuota.]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/apimachinery/resource_quota.go#L493][{sig-api-machinery} ResourceQuota should create a ResourceQuota and capture the life of a custom resource.]]
+** Namespaced ReplicationControllerScale: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1NamespacedReplicationControllerScale&showUntested=false&showConformanceTested=false][read]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedReplicationControllerScale&showUntested=false&showConformanceTested=false][replace]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/68530b150c377d6ffae80e745a7080169789b948/test/e2e/network/service.go#L1253][{sig-network} Services should create endpoints for unready pods]]   
+** Namespaced ServiceAccount: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedServiceAccount&showUntested=false&showConformanceTested=false][replace]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/523b9516435d2c3b671a0d86fabec4a8dd7c7bc6/test/e2e/auth/service_accounts.go#L57][{sig-auth} ServiceAccounts should ensure a single API token exists]]
 
-
+* With a conformant PVCs testing solution we would get another 7 endpoints
+** Namespaced PersistentVolumeClaim: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-createCoreV1NamespacedPersistentVolumeClaim&showUntested=false&showConformanceTested=false][create]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1NamespacedPersistentVolumeClaim&showUntested=false&showConformanceTested=false][read]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-replaceCoreV1NamespacedPersistentVolumeClaim&showUntested=false&showConformanceTested=false][replace]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-deleteCoreV1NamespacedPersistentVolumeClaim&showUntested=false&showConformanceTested=false][delete]]
+Promotion Issue: [[https://github.com/kubernetes/kubernetes/issues/78830]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/volume_expand.go#L211][{sig-storage} Volume expand should allow expansion of block volumes]]  
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/volume_expand.go#L107][{sig-storage} Volume expand should resize volume when PVC is edited while pod is using it]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/volume_expand.go#L107][{sig-storage} Volume expand Verify if offline PVC expansion works]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/volume_expand.go#L90][{sig-storage} Volume expand should not allow expansion of pvcs without AllowVolumeExpansion property]]
+- [ ] [[https://github.com/kubernetes/kubernetes/blob/0e499be526bc91ad2d2e187428da12daa03a1eae/test/e2e/storage/mounted_volume_resize.go#L112][{sig-storage} Mounted volume expand Should verify mounted devices can be resized]]
+** PersistentVolume: [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-createCoreV1PersistentVolume&showUntested=false&showConformanceTested=false][create]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1NamespacedPersistentVolumeClaim&showUntested=false&showConformanceTested=false][read]], [[https://apisnoop.cncf.io/?zoomed=operationId-stable-core-readCoreV1PersistentVolume&showUntested=false&showConformanceTested=false][delete]]
