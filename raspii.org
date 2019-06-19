@@ -1,0 +1,99 @@
+#+TITLE: Raspii in the Skii
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+
+* Putting Raspbian onto a USB Flashy disk
+[[https://www.raspberrypi.org/downloads/][Raspberry Pi Downloads - Software for the Raspberry Pi]]
+There were two images to choose from:
+- [[https://www.raspberrypi.org/downloads/noobs/][Download NOOBS for Raspberry Pi]] 
+- [[https://www.raspberrypi.org/downloads/raspbian/][Download Raspbian for Raspberry Pi]]
+We choose NOOBS:
+Upon visiting https://downloads.raspberrypi.org/NOOBS_latest
+
+Our browser started downloading a zip file:
+http://director.downloads.raspberrypi.org/NOOBS/images/NOOBS-2019-04-09/NOOBS_v3_0_1.zip
+
+* Verify and Unzip NOOBS
+** Verify our Zipfile
+
+#+NAME: Verify the File Exists!
+#+BEGIN_SRC shell :results verbatim :exports both :eval never-export
+ls -lah ~/Downloads/NOOBS_v3_0_1.zip
+sha256sum ~/Downloads/NOOBS_v3_0_1.zip 
+#+END_SRC
+
+#+RESULTS: Verify the File Exists!
+: -rw-rw-r-- 1 hippie hippie 1.7G May 31 20:37 /home/hippie/Downloads/NOOBS_v3_0_1.zip
+: 551d8d9352dc02a6feef010dec217aefee11f08c44b391b7c42804317b318db4  /home/hippie/Downloads/NOOBS_v3_0_1.zip
+
+** List Contents
+#+NAME: List contents of file
+#+BEGIN_SRC shell :results verbatim :exports both
+unzip -l ~/Downloads/NOOBS_v3_0_1.zip *.txt
+#+END_SRC
+
+#+RESULTS: List contents of file
+: Archive:  /home/hippie/Downloads/NOOBS_v3_0_1.zip
+:   Length      Date    Time    Name
+: ---------  ---------- -----   ----
+:      2356  2018-11-14 06:09   INSTRUCTIONS-README.txt
+:     18171  2019-04-08 22:58   os/Raspbian_Full/release_notes.txt
+:       429  2019-02-21 21:09   os/LibreELEC_RPi/release_notes.txt
+:       429  2019-02-22 00:47   os/LibreELEC_RPi2/release_notes.txt
+: ---------                     -------
+:     21385                     4 files
+
+** Make temp dir and extract
+
+#+NAME: unzip!
+#+BEGIN_SRC shell :results verbatim :exports both :eval never-export
+mkdir -p ~/Downloads/NOOBS
+cd ~/Downloads/NOOBS
+unzip ~/Downloads/NOOBS_v3_0_1.zip
+#+END_SRC
+
+* Verify and format the SDCard
+** Find the Disk
+#+BEGIN_SRC shell :results verbatim :exports both  :eval never-export
+lsblk | grep mmc
+#+END_SRC
+
+#+RESULTS:
+: mmcblk0     179:0    0  29.6G  0 disk 
+: └─mmcblk0p1 179:1    0  29.6G  0 part 
+** Create a partition
+
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :results silent :eval never-export
+sudo parted -s -a optimal /dev/mmcblk0 mklabel msdos
+#+END_SRC
+
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :results silent :eval never-export
+sudo parted -s -a optimal /dev/mmcblk0 mkpart primary fat32 1MiB 100%
+sudo parted -s -a optimal /dev/mmcblk0 set 1 boot on
+#+END_SRC
+
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :results silent :eval never-export
+sudo mkfs.vfat /dev/mmcblk0p1
+#+END_SRC
+
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :eval never-export
+df | grep mmc
+#+END_SRC
+
+#+RESULTS:
+: /dev/mmcblk0p1  30964944        16  30964928   1% /media/hippie/FA1B-00B0
+
+#+BEGIN_SRC shell :eval never-export
+cd /media/hippie/FA1B-00B0
+unzip ~/Downloads/NOOBS_v3_0_1.zip
+#+END_SRC
+
+#+BEGIN_SRC shell :eval never-export
+umount /media/hippie/FA1B-00B0
+#+END_SRC
+
+#+BEGIN_SRC shell :eval never-export
+eject /dev/mmcblk0
+#+END_SRC
+
+#+RESULTS:
+

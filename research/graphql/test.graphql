@@ -1,0 +1,11 @@
+{
+  search(query: "project:kubernetes/9", type: ISSUE, first: 1, after: null) {
+    issueCount
+  }
+}
+# Local Variables:
+# no-graphql-extra-headers: (("Authorization" . "bearer FIXME"))
+# no-graphql-url: "https://api.github.com/graphql"
+# no-graphql-variables-file: "graphql-variables"
+# End:
+

@@ -1,0 +1,841 @@
+#+TITLE: Debootstraping the iiusb
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 17th of June, 2019
+
+* prologue
+#+BEGIN_SRC emacs-lisp
+(symbol-value 'tmpdir)
+#+END_SRC
+
+* Create base Docker Image from an ISO
+  
+** Prerequisites
+
+You'll need to have an ubuntu based ISO, be sure and set the ISO variable.
+
+#+NAME: prereqs
+#+BEGIN_SRC shell
+sudo apt-get install -y squashfs-tools genisoimage p7zip-full aria2
+#+END_SRC
+
+#+RESULTS: prereqs
+#+begin_EXAMPLE
+Reading package lists...
+Building dependency tree...
+Reading state information...
+genisoimage is already the newest version (9:1.1.11-3+b2).
+p7zip-full is already the newest version (16.02+dfsg-3+deb9u1).
+squashfs-tools is already the newest version (1:4.3-3+deb9u1).
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+#+end_EXAMPLE
+
+** extract content from ISO
+   
+#+NAME: iteration loop
+#+BEGIN_SRC shell :epilogue ") 2>&1\n:" :prologue "(\n" :noweb yes :async :var tmpdir=(symbol-value 'tmpdir)
+  # cd $tmdir && aria2c http://releases.ubuntu.com/19.04/ubuntu-19.04-desktop-amd64.metalink
+  ISO=$tmpdir/ubuntu-19.04-desktop-amd64.iso
+  #ubuntu-18.04.1-desktop-amd64.iso
+  mkdir -p $tmpdir/cd
+  7z x -o$tmpdir/cd $ISO
+#+END_SRC
+
+#+RESULTS: iteration loop
+#+begin_EXAMPLE
+
+7-Zip [64] 16.02 : Copyright (c) 1999-2016 Igor Pavlov : 2016-05-21
+p7zip Version 16.02 (locale=en_US.UTF-8,Utf16=on,HugeFiles=on,64 bits,8 CPUs Intel(R) Xeon(R) CPU E3-1505M v5 @ 2.80GHz (506E3),ASM,AES-NI)
+
+Scanning the drive for archives:
+1 file, 2097152000 bytes (2000 MiB)
+
+Extracting archive: /run/user/54321/ii-usb/ubuntu-19.04-desktop-amd64.iso
+
+WARNINGS:
+There are data after the end of archive
+
+--
+Path = /run/user/54321/ii-usb/ubuntu-19.04-desktop-amd64.iso
+Type = Iso
+WARNINGS:
+There are data after the end of archive
+Physical Size = 2096625664
+Tail Size = 526336
+Created = 2019-04-17 07:19:59
+Modified = 2019-04-17 07:19:59
+
+Everything is Ok
+
+Archives with Warnings: 1
+
+Warnings: 1
+Folders: 47
+Files: 593
+Size:       2099373520
+Compressed: 2097152000
+#+end_EXAMPLE
+
+
+** inspect the Squashfs File
+#+NAME list cd
+#+BEGIN_SRC shell :noweb yes :var tmpdir=(symbol-value 'tmpdir)
+  ls -lah $tmpdir/cd/casper/filesystem.squashfs
+  file $tmpdir/cd/casper/filesystem.squashfs
+  df -H | grep sh
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+-rw-r--r-- 1 hh hh 1.9G Apr 17 07:17 /run/user/54321/ii-usb/cd/casper/filesystem.squashfs
+/run/user/54321/ii-usb/cd/casper/filesystem.squashfs: Squashfs filesystem, little endian, version 4.0, 2027322708 bytes, 168066 inodes, blocksize: 131072 bytes, created: Tue Apr 16 19:15:02 2019
+tmpfs               34G  491M   34G   2% /dev/shm
+#+end_EXAMPLE
+
+** Extract / verify the Squashfs
+
+#+NAME extract squashfs
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :eval never-export :var tmpdir=(symbol-value 'tmpdir) :async yes
+  sudo unsquashfs -d $tmpdir/casperfs $tmpdir/cd/casper/filesystem.squashfs
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Parallel unsquashfs: Using 8 processors
+150656 inodes (170750 blocks) to write
+
+[=========================================================/] 170750/170750 100%
+
+created 121710 files
+created 17436 directories
+created 28911 symlinks
+created 9 devices
+created 0 fifos
+#+end_EXAMPLE
+
+#+NAME inspect editable extraction
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :eval never-export :var tmpdir=(symbol-value 'tmpdir) :async yes :dir (symbol-value 'tmpdir)
+  sudo ls -la casperfs/bin/bash
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+-rwxr-xr-x 1 root root 1166912 Apr  4 16:11 casperfs/bin/bash
+#+end_EXAMPLE
+
+** import extraction into docker
+
+#+NAME: import rootfs into docker
+#+BEGIN_SRC shell :var DISPLAY=":0.0" :var SUDO_ASKPASS="/usr/bin/ssh-askpass" :prologue "export SUDO_ASKPASS" :eval never-export :var tmpdir=(symbol-value 'tmpdir) :async yes :dir (symbol-value 'tmpdir)
+  sudo tar -C casperfs -c -f - .  | docker import - iiusb:base
+#+END_SRC
+
+#+RESULTS: import rootfs into docker
+: e1128dcc427ca8a0ff9b3ca85d05f06c
+
+* Create image from Dockerfile
+   :PROPERTIES:
+   :header-args: dockerfile  :tangle iiusb/Dockerfile
+   :END:
+
+Ensure en_US.UTF-8 everywhere, for now
+Enable universe so jq, tmate, silvesearcher-ag...
+
+Tangle this and run:
+
+#+BEGIN_SRC tmate :tangle no
+docker build -t iiusb:today ~/ii/org/research/iiusb
+#+END_SRC
+
+** Dockerfile 
+#+NAME: iiUSB Dockerfile
+#+BEGIN_SRC dockerfile
+  FROM iiusb:base
+  RUN echo 'Acquire::http { Proxy "http://192.168.1.15:8000"; }' \
+    | sudo tee -a /etc/apt/apt.conf.d/proxy \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && locale-gen --purge en_US.UTF-8 \
+    && sed -i s:restricted:restricted\ universe: /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -yq \
+      apt-file \
+      apt-transport-https \
+      aptitude \
+      awesome \
+      autoconf \
+      build-essential \
+      byzanz \
+      ca-certificates \
+      debian-goodies \
+      curl \
+      figlet \
+      git \
+      gpg \
+      gtk-redshift \
+      htop \
+      jq \
+      kvmtool \
+      linux-headers-generic \
+      locales \
+      lolcat \
+      macchanger \
+      nmap \
+      pass \
+      qemu-kvm \
+      sakura \
+      silversearcher-ag \
+      software-properties-common \
+      strace \
+      sudo \
+      texinfo \
+      thunar \
+      tig \
+      tmate \
+      tmux \
+      tshark \
+      unzip \
+      whois \
+      wireshark \
+      vlc \
+      xfonts-terminus \
+      xfonts-terminus-dos \
+      xfonts-terminus-oblique \
+      zfs-initramfs \
+      zfsutils-linux \
+      zip
+#+END_SRC
+      whowatch \
+      #zfs-dkms \
+
+*** Kubernetes 
+
+#+NAME: Openscad
+#+BEGIN_SRC dockerfile :tangle no
+  RUN apt-key adv \
+    --keyserver keyserver.ubuntu.com \
+    --recv-keys CB86A1742C718B1EEA0440B3176F9F68AD382CA4 \
+    && add-apt-repository \
+    "deb http://ppa.launchpad.net/openscad/releases/ubuntu bionic main" \
+    && apt-get install -yq \
+    openscad
+#+END_SRC
+
+#+NAME: Kubernetes
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 6A030B21BA07F4FB \
+  && add-apt-repository \
+  "deb http://apt.kubernetes.io/ kubernetes-xenial main" \
+  && apt-get install -y \
+  kubelet kubeadm kubectl
+#+END_SRC
+
+*** Google Cloud SDK
+
+https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu
+
+Uses the same apt-key as kubernetes.
+
+#+NAME: Google SDK
+#+BEGIN_SRC dockerfile
+RUN add-apt-repository \
+  "deb http://packages.cloud.google.com/apt cloud-sdk-disco main" \
+  && apt-get install -y \
+  google-cloud-sdk
+#+END_SRC
+
+*** Docker
+
+#+NAME: Docker
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --recv-keys 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://download.docker.com/linux/ubuntu cosmic stable" \
+  && apt-get install -y \
+  docker-ce
+#+END_SRC
+
+*** Go
+
+ https://golang.org/doc/install#install
+ https://github.com/golang/go/wiki/Ubuntu
+
+#+NAME: go
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 52B59B1571A79DBC054901C0F6BC817356A3D45E \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu cosmic main" \
+  && apt-get install -y \
+  golang-1.12 \
+  && echo 'export PATH=$PATH:$HOME/go/bin' \
+     > /etc/profile.d/homedir-go-path.sh \
+  && echo 'export PATH=/usr/lib/go-1.12/bin:$PATH' \
+     > /etc/profile.d/system-go-path.sh
+#+END_SRC
+
+*** kind
+
+#+NAME: kind
+#+BEGIN_SRC dockerfile :tangle no
+RUN . /etc/profile.d/homedir-go-path.sh \
+  &&  . /etc/profile.d/system-go-path.sh \
+  && mkdir /etc/skel/go \
+  && ln -s /etc/skel/go /root/go \
+  && GO111MODULE="on" go get sigs.k8s.io/kind@v0.3.0
+#+END_SRC
+
+*** helm
+
+#+NAME helm
+#+BEGIN_SRC dockerfile
+RUN curl -L \
+  https://storage.googleapis.com/kubernetes-helm/helm-v2.14.1-linux-amd64.tar.gz \
+  | tar xvz -f - --strip-components 1 -C /usr/local/bin linux-amd64/helm linux-amd64/tiller
+#+END_SRC
+
+*** NodeJS
+
+    Take a look at nvm instead: https://github.com/creationix/nvm 
+    
+    A node version manager, which ends up being an easier way to install node,
+    switch between versions of it as needed, and get npm included
+    
+ https://github.com/nodesource/distributions/blob/master/README.md#debinstall
+
+#+NAME: node.tpl
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280 \
+  && add-apt-repository \
+  "deb https://deb.nodesource.com/node_11.x disco main" \
+  && apt-get install -y \
+  nodejs
+#+END_SRC
+
+*** Bazel
+
+ https://docs.bazel.build/versions/master/install-ubuntu.html#install-on-ubuntu
+
+We install oracle-java8, so we should be good.
+I'm unsure which ubuntu ppa we should be using.
+
+# #+NAME: openjdk-8-jdk.tpl
+# #+BEGIN_SRC dockerfile
+# RUN apt-key adv \
+#    --keyserver keyserver.ubuntu.com \
+#    --recv-keys DA1A4A13543B466853BAF164EB9B1D8886F44E2A \
+#   && add-apt-repository \
+#   "deb http://ppa.launchpad.net/openjdk-r/ppa/ubuntu trusty main" \
+#   && apt-get install -y openjdk-8-jdk
+# #+END_SRC
+
+#+NAME: bazel.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 48457EE0 \
+  && add-apt-repository \
+  "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" \
+  && apt-get install -y \
+  bazel
+#+END_SRC
+
+*** Google Chrome
+
+ https://dl-ssl.google.com/linux/linux_signing_key.pub
+
+#+NAME: chrome
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796 \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update \
+  && apt-get install -y \
+  google-chrome-stable
+#+END_SRC
+
+*** Fish Shell
+
+ Devan says this is the bomb, and I believe him
+
+#+NAME: fish
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 59FDA1CE1B84B3FAD89366C027557F056DC33CA5 \
+  && add-apt-repository \
+  "deb http://ppa.launchpad.net/fish-shell/release-3/ubuntu disco main" \
+  && apt-get install -y \
+  fish
+#+END_SRC
+
+*** Zoom
+
+#+NAME: Zoom
+#+BEGIN_SRC dockerfile
+RUN apt-get install -y ibus libgl1-mesa-glx \
+  && apt-key adv \
+   --keyserver keyserver.ubuntu.com \
+   --recv-keys 396060CADD8A75220BFCB369B903BF1861A7C71D \
+  && curl -L -o /tmp/zoom.deb \
+     https://zoom.us/client/latest/zoom_amd64.deb \
+  && dpkg -i /tmp/zoom.deb \
+  && rm /tmp/zoom.deb
+#+END_SRC
+
+*** Google Talk Plugin
+
+#+NAME: google-talkplugin.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN add-apt-repository \
+  "deb http://dl.google.com/linux/talkplugin/deb/ stable main" \
+  && apt-get install -y \
+  google-talkplugin
+#+END_SRC
+
+*** Spotify
+
+This is bad, provide alternatives soon!
+Artist are starving!
+
+#+NAME: spotify.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90 \
+  && add-apt-repository \
+  "deb http://repository.spotify.com stable non-free" \
+  && apt-get install -y \
+  spotify-client
+#+END_SRC
+
+*** Signal
+
+#+NAME: signal.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys DBA36B5181D0C816F630E889D980A17457F6FB06 \
+  && add-apt-repository \
+  "deb [arch=amd64] https://updates.signal.org/desktop/apt xenial main" \
+  && apt-get install -y \
+  signal-desktop
+ #+END_SRC
+
+*** Emacs
+
+https://launchpad.net/~ubuntu-elisp/+archive/ubuntu/ppa
+
+#+NAME: Emacs
+#+BEGIN_SRC dockerfile
+RUN apt-get install -y emacs
+#+END_SRC
+
+*** Skype
+
+Skype does bad things. Don't actually run it, just leave it on disk for now.
+Skype also installs it's own apt repo
+
+#+NAME: skype.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --recv-keys D4040146BE3972509FD57FC71F3045A5DF7587C3 \
+  && echo "deb [arch=amd64] https://repo.skype.com/deb stable main" \
+    > /etc/apt/sources.list.d/skype-stable.list \
+  && apt-get install -y \
+  skypeforlinux
+#+END_SRC
+
+*** Oracle Java 8
+
+ We need this to access our old DL380P systems iLO (Integrated Lights Out / Virtual Console)
+
+#+NAME: oracle-java8.tpl
+#+BEGIN_SRC dockerfile :tangle no
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys 7B2C3B0889BF5709A105D03AC2518248EEA14886 \
+  && add-apt-repository \
+  "http://ppa.launchpad.net/webupd8team/java/ubuntu bionic main " \
+  && apt-get install -y \
+  oracle-java8-installer
+#+END_SRC
+
+*** Virtualbox
+
+#+NAME: virtualbox.tpl
+#+BEGIN_SRC dockerfile
+RUN apt-key adv \
+  --keyserver keyserver.ubuntu.com \
+  --recv-keys B9F8D658297AF3EFC18D5CDFA2F683C52980AECF \
+  && add-apt-repository \
+  "deb http://download.virtualbox.org/virtualbox/debian bionic contrib" \
+  && apt-get install -y \
+  virtualbox-6.0
+#+END_SRC
+
+*** Configuring Emacs in /etc/skel
+
+We use spacemacs, and it takes a while to download / configure / compile all the
+lisp files.
+
+One of the larger components that is much faster to have local is our elpa-mirror.
+
+#+NAME: configure-elpa-mirror
+#+BEGIN_SRC dockerfile
+RUN git clone --depth 1 --recurse-submodules \
+    https://github.com/iimacs/site-lisp \
+    /usr/local/share/emacs/site-lisp
+#+END_SRC
+
+Here we attempt to put our config into /etc/skel
+
+/etc/skel/.emacs.d and /etc/skel/.spacemacs will be copied to all new users
+$HOME
+
+#+NAME: configure-emacs
+#+BEGIN_SRC dockerfile
+RUN emacs --batch -l /usr/local/share/emacs/site-lisp/default.el
+RUN mv /root/.emacs.d /root/.spacemacs /etc/skel \
+  && rm -f /etc/skel/.emacs.d/elpa/gnupg/S.gpg-agent*
+#+END_SRC
+
+On first start, emacs will want to compile all our elisp files. Instead we copy
+symlink from root, and compile everything via a batch run of init.el, then
+remove the symlink.
+
+This means startup time for the user will be greatly reduced.
+The S.gpg-agent.* files are sockets, and don't work well being in /etc/skel.
+
+#+BEGIN_EXAMPLE
+Copying files from `/etc/skel' ...
+Stopped: Cannot deal with /etc/skel/./.emacs.d/elpa/gnupg/S.gpg-agent.ssh.
+It is not a dir, file, or symlink.
+#+END_EXAMPLE
+*** Pandoc
+#+NAME: Pandoc
+#+BEGIN_SRC dockerfile
+RUN cd /tmp \
+  && wget https://github.com/jgm/pandoc/releases/download/2.7.3/pandoc-2.7.3-1-amd64.deb \
+  && dpkg -i pandoc-2.7.3-1-amd64.deb \
+  && rm pandoc-2.7.3-1-amd64.deb
+#+END_SRC
+
+
+* Verify base Docker Image 
+
+#+NAME: check docker image
+#+BEGIN_SRC shell
+docker images | grep iiusb
+#+END_SRC
+
+#+RESULTS: check docker image
+#+begin_EXAMPLE
+iiusb               latest              1610bfa38e29        39 seconds ago      9.4GB
+#+end_EXAMPLE
+
+#+NAME: verify container works
+#+BEGIN_SRC shell
+  docker run -i iiusb:today lsb_release -a
+#+END_SRC
+
+#+RESULTS: verify container works
+#+begin_EXAMPLE
+#+end_EXAMPLE
+
+* Export docker image into folder
+
+#+BEGIN_SRC shell :epilogue ") 2>&1\n:" :prologue "(\n" :noweb yes :async :var tmpdir=(symbol-value 'tmpdir)
+  sudo mount -o remount,size=50g /run/user/54321
+  docker run -i --name iiusb --entrypoint /bin/echo iiusb:today
+  mkdir -p $tmpdir/docker_export
+  docker export iiusb | sudo tar xfC - $tmpdir/docker_export
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+
+#+end_EXAMPLE
+* debootstick export into usb image
+    --kernel-package kernel-image-generic \
+
+#+BEGIN_SRC shell :epilogue ") 2>&1\n:" :prologue "(\n" :noweb yes :async :var tmpdir=(symbol-value 'tmpdir)
+  sudo debootstick \
+    --system-type live \
+    --config-hostname ii-usb-monday \
+    --config-kernel-bootargs "" \
+    --config-root-password-first-boot \
+    $tmpdir/docker_export \
+    $tmpdir/iiusb.img
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+I: generating a UEFI bootloader binary... done
+I: draft image - computing a size large enough... done
+I: draft image - partitioning and formatting...   /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+done
+I: draft image - copying filesystem tree... done
+I: draft image - updating package manager database... done
+I: draft image - setting up bootloader...   /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+cryptsetup: WARNING: The initramfs image may not contain cryptsetup binaries 
+    nor crypto modules. If that's on purpose, you may want to uninstall the 
+    'cryptsetup-initramfs' package in order to disable the cryptsetup initramfs 
+    integration and avoid this warning.
+Sourcing file `/etc/default/grub'
+Sourcing file `/etc/default/grub.d/init-select.cfg'
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+Found Ubuntu 19.04 (19.04) on /dev/sda2
+Found Ubuntu 19.04 (19.04) on /dev/sda6
+Adding boot menu entry for EFI firmware configuration
+done
+I: draft image - updating fstab... done
+I: draft image - setting hostname... done
+I: draft image - performing sanity checks... done
+I: draft image - generating /etc/hosts (it was empty or missing)... done
+I: final image - computing minimal image size... done
+I: final image - partitioning and formatting...   /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+done
+I: final image - copying content from draft image... done
+I: final image - setting up the bootloader...   /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+cryptsetup: WARNING: The initramfs image may not contain cryptsetup binaries 
+    nor crypto modules. If that's on purpose, you may want to uninstall the 
+    'cryptsetup-initramfs' package in order to disable the cryptsetup initramfs 
+    integration and avoid this warning.
+Sourcing file `/etc/default/grub'
+Sourcing file `/etc/default/grub.d/init-select.cfg'
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 0: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319677952: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 9319735296: Input/output error
+  /dev/DBSTCK-d030acc16f954225b25d1ffb714df08b/ROOT: read failed after 0 of 4096 at 4096: Input/output error
+Found Ubuntu 19.04 (19.04) on /dev/sda2
+Found Ubuntu 19.04 (19.04) on /dev/sda6
+Adding boot menu entry for EFI firmware configuration
+done
+I: final image - setting up the EFI boot partition... done
+I: cleaning up... done
+I: /run/user/54321/ii-usb/iiusb.img ready (size: 12G). 
+#+end_EXAMPLE
+
+* Footnotes
+
+
+# Local Variables:
+# eval: (setq-local tmpdir (concat "/run/user/" (number-to-string (user-uid)) "/ii-usb"))
+# eval: (setenv tmpdir tmpdir)
+# End:
