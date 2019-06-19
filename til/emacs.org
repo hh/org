@@ -1,0 +1,9 @@
+* Insert a Unicode character
+
+You want to run the function ~insert-char~ which is bound to ~C-x 8 RET~
+
+I needed a block character:
+
+█
+
+Which is similar to the cursor used by emacs for the point.

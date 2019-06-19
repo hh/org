@@ -1,0 +1,60 @@
+* kube-*
+** apiregistration
+*** APIService
+**** replaceApiregistrationV1APIServiceStatus                     :apiserver:
+**** listApiregistrationV1APIService                              :apiserver:
+** storage
+*** VolumeAttachment
+**** listStorageV1VolumeAttachment                         :apiserver:ctlmgr:
+**** createStorageV1VolumeAttachment                                 :ctlmgr:
+**** readStorageV1VolumeAttachment                                   :ctlmgr:
+**** deleteStorageV1VolumeAttachment                                 :ctlmgr:
+** scheduling
+*** PriorityClass
+**** listSchedulingV1PriorityClass                         :apiserver:ctlmgr:
+** apps
+*** ReplicaSet
+**** listAppsV1ReplicaSetForAllNamespaces                    :scheduler:
+*** StatefulSet
+** core
+*** Endpoints
+**** listCoreV1EndpointsForAllNamespaces                    :apiserver:proxy:
+*** PersistentVolumeClaim
+**** listCoreV1PersistentVolumeClaimForAllNamespaces          :scheduler:
+*** ResourceQuota
+**** replaceCoreV1NamespacedResourceQuotaStatus                   :apiserver:
+**** listCoreV1ResourceQuotaForAllNamespaces                      :apiserver:
+*** LimitRange
+**** listCoreV1LimitRangeForAllNamespaces                         :apiserver:
+*** Secret
+**** listCoreV1SecretForAllNamespaces                             :apiserver:
+*** Service
+**** listCoreV1ServiceForAllNamespaces    :apiserver:proxy:scheduler:ctrlmgr:
+*** Binding
+**** createCoreV1NamespacedPodBinding                         :scheduler:
+*** Pod
+**** replaceCoreV1NamespacedPodStatus                         :scheduler:
+*** ReplicationController
+**** listCoreV1ReplicationControllerForAllNamespaces          :scheduler:
+*** ServiceAccount
+**** listCoreV1ServiceAccountForAllNamespaces             :apiserver:ctrlmgr:
+**** deleteCoreV1CollectionNamespacedServiceAccount                 :ctrlmgr:
+** rbacAuthorization
+*** ClusterRole
+**** readRbacAuthorizationV1ClusterRole                           :apiserver:
+**** replaceRbacAuthorizationV1ClusterRole                          :ctrlmgr:
+*** ClusterRoleBinding
+**** readRbacAuthorizationV1ClusterRoleBinding                    :apiserver:
+**** listRbacAuthorizationV1ClusterRoleBinding            :apiserver:ctrlmgr:
+*** Role
+**** listRbacAuthorizationV1RoleForAllNamespaces          :apiserver:ctrlmgr:
+**** readRbacAuthorizationV1NamespacedRole                        :apiserver:
+**** deleteRbacAuthorizationV1CollectionNamespacedRole              :ctrlmgr:
+*** RoleBinding
+**** listRbacAuthorizationV1RoleBindingForAllNamespaces   :apiserver:ctrlmgr:
+**** readRbacAuthorizationV1NamespacedRoleBinding                 :apiserver:
+**** deleteRbacAuthorizationV1CollectionNamespacedRoleBinding       :ctrlmgr:
+** networking
+*** NetworkPolic
+**** listNetworkingV1NetworkPolicyForAllNamespaces
+**** deleteNetworkingV1CollectionNamespacedNetworkPolicy
