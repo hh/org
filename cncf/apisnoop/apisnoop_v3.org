@@ -94,11 +94,42 @@ Perhaps more importantly, though, is that our frontend becomes a _bonus_ instead
 In our new version, as soon as we have a backend and a means of populating this backend, then we can quickly generate reports giving insights to our work.  We can write these reports in a literate style, using the org-mode integrations we've been exploring.  Then, based on the feedback, we can translate this work into presentational frontend components.  Our feedback and iteration loops become faaaar faster,a dn the distribution of labor more evenly spread.
 * Map: The steps to realize our strategy
 ** Discuss and Document Schemas (2 days)
+   We'll add data definitions and a schema for the general logic of our site.  It's relatively simple, though, and a lot of the work was started incidentally within apisnoop's app.org.
    
+   The schema will be how we define our database, our api, and what is queryable in our front-end all at once.  
+
+   #+NAME: Example Schema Type
+   #+BEGIN_EXAMPLE graphql
+    type Endpoint {
+      operationId: String!,
+      category: String!,
+      release: Release!,
+      kind: String!,
+      group: String!,
+      description: String!,
+      conformanceHits: Int!,
+      level: String,
+      isDeprecated: Boolean!,
+      hits: Int!,
+      testHits: Int!,
+      version: String,
+      path: String
+    }
+   #+END_EXAMPLE
+
 ** Build Backend that is seeded with sample, schema-matching data (1 week)
+   We can use prisma for this.  It has a good dev experience and community, and has the benefit of the datamodel being written in graphql syntax, so we are only learning one new type of language.
+
+Another option is Hasura, though this feels a bit too complex for our need (it assumes some PostGres database knowledge, which we may not have).
+
+Success would look like a graphql ide where we can query for a release, endpoint, test, useragent, or test tag and get accurate results back. 
 ** Refactor processing scripts to post to our backend (1 week)
+   We would either write a new script, or adapt the existing one, so that it walks through the openAPI spec in the same way, but now fashions objects that match our posting schema, and posts it to our db.  We'd also take the opportunity to reduce the code down and add documentation to it--to make it v. clear where a dev should look for relevant code and what hte code does.
 ** Begin generating numbers and reports using our backend api  (ongoing)
-** Refactor frontend to React-Apollo (2-3 Weeks)
+   As soon as we have a backend that is being filled with new logs, then we can start generating org-mode reports for the different questions being asked.   Whenever someone says "I just want the numbers", this is what we could give them.  We can also work on the integration between org and graphql, so that you are querying our backend directly   
+** Refactor frontend to React-Apollo (2 Weeks)
+   We would both adpat the current feature set to this new architecture, and fix a number of the requested changes: a different url scheme, a view of endpoints by test name, a facelift on the styles, etc.  Our current system is built around redux, and this new version would be not using it as predominately, and so I am estimating the most time toa ccount for the change in perspective and code.
 * Downsides
-** Time
-** Somewhat new domain
+** It will take time (though this is relative)
+** Graphql and Databases are a somewhat new domain
+** Centralized-Ish
