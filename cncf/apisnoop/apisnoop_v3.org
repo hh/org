@@ -1,0 +1,104 @@
+#+TITLE: APISnoop V.3
+#+AUTHOR: Zach Mandeville
+
+* Intention of this Document
+  This is a Request for Comment.  I would like to outline a path that I think we should take with APISnoop that would improve the development time and cognitive load of the project.  This path requires a structural refactor to the site, but I do not think it would be as heavy as those words imply, and I think it would save us time in the long-run.
+
+In short: I think we should move to using a graphql-compliant database as a backend for the site, then build from that to create easy data-querying tools that can be translated into ui elements in our existing front-end.  
+
+The rest of this document outlines why I think this is important, and how we could get it done.
+* Goals of v3
+** Everyone on Apisnoop team can contribute directly to the APISnoop repo.
+** Getting new insights from our data does not require waiting on new UI elements
+** We can easily share the insights we find between team members
+** We can share the insights between codebases, or components of our software.
+** New UI elements can be built directly from our data work, with minimal rewrites.
+** It is easy for others to verify and audit the numbers we display in the UI.
+** It is easy to show progress over time, from any perspective (e.g. endpoint coverage, test-writing, conformance promotion)
+** We can incorporate and cross-reference multiple sources of data (e.g. our processed data and github)
+* Why This Is Important
+The way APISnoop is currently structured, means:
+** The stated goals are not possible, or overly complex
+** There is unnecessary friction in implementing new features/ideas
+   If someone wants to get some insight about the audit logs, and thinks our processed data will have it, the most accessible way for them to do this is through the frontend UI.  It does not matter how simple of a question they're asking, or if they know how to query JSON in any number of ways, the relevant files to query are essentially inacessible, and so they have to do it through our curated ui features.
+
+   This creates friction for our audience and for our developers.  If the audience has a question that cannot be investigated through the existing ui, then they have to request a new type of widget, and then wait an unknown amount of time for this widget to be made, and then check whether we successfully understood what they asked for.  
+
+For the developers, any new request for insight inherently involves ux/ui design and user-testing before we can start to explore. We have to put in considerations for design to any estimate we give, and this work is hidden, so there's a tension around the audience asking for something simple, and us not being able to deliver it fast enough, and not being able to articulate why.
+
+With a queryable backend, you can ask a question of the data and immediately get an answer. In many cases, our audience doesn't need to ask us for insights, they can easily find it for themselves, and we can easily help them refine and extend their queries. There's a clean separation of concerns in the frontend now too, where deign is not intermixed with data generation, and can get the focus it needs.  The overall structure of the site becomes far simpler too, so that an extension of the ui is really just an adjustment to a query being written.
+** Much of the work we do is hidden, or done outside of the visible repos.
+   We recently had a question about which tests covered which endpoint, starting with a specific lists of tests.  To get the results we used:
+- git
+- jq
+- sed
+- tig
+- a set of text files
+- apisnoop's frontend
+- a calculator
+  This work is important, and will likely feed into a ui feature we build for exploring by test, but it is hard to make this work visible to the larger community.  This is a specific example, but a pattern that happens often for us.  Much of the work around apisnoop cannot be done within apisnoop, and ends up hidden.  
+
+If we build our architecture in a way that the data is accessible through multiple ends, and these queries can be reused in multiple ways, then the work started in one way directly extends the work done in other places, and remains visible throughout.
+** Our code promotes a non-collaborative work style, that slows with time.
+  The codebase has three major components:
+  - python scripts that generate apisnoop data.
+  - a javascript frontend that provides a ui for exploring the data.
+  - pipeline shell scripts for triggering the processing and uploading of data.
+  
+  There are four people actively developing apisnoop. The front-end is the most public component, but currently the bulk of the work on it can only be done by one person.  It relies on data being accurately processed and uploaded via our python scripts, and these scripts can only be worked on by a different person.  The pipeline shell scripts could be written by all four of us, but they have subtle gotchas that depend upon understanding how the front-end and data-generation are implemented.
+  
+  Our codebase has two major bottlenecks, that put unnecessary stress on two people.  It is hard for anyone else in the team to meaningfully contribute to either side, even if they understand the domain well.  This is not due to coding ability, its that our architecture leans itself to idiosyncratic design that can be hard to follow even if you understand the language.And our current working method, with one person undersatnding and writing code, means the codebase becomes more personalized and idiosyncratic with each iteration.  It also means that its hard for the person working on the code to ask for help.
+  
+  If we have shared schema, and an accessible querying language, then all of us can contribute to getting new insights from APISnoop, without having to understand the implementation, and any understanding you gain is easy to communicate to the rest of the team.  We can distribute labor more easily, quickening our development time. 
+** Our code is fragile and hard to debug
+   If you visit apisnoop and see something that appears incorrect-- the graph not appearing, numbers seeming off, filters acting strangely-- it could be due to any number of reasons:
+- our react code dispalying data improperly
+- our redux code having faulty logic on what shoudl be displayed
+- a change in the data fed to redux, so that our correct logic no longer works as expected.
+- a change in our pipeline and GCS bucket so that our frontend couldn't properly fetch the data.
+- incorrect logic in the python script that created and uploaded the data.
+- a change in the openapi spec, or some other external context, that makes our python script work improperly.
+- some other thing we haven't discovered yet.
+
+While each part may be easy to debug, the overall structure of the app is opaque that it can be hard to know where to look first.  And as you move through the app, you are continually having to re-learn the code written to understand what was intended.
+
+A shared schema means less context-switching no matter where we look.   Since graphql schemas are typesafe, bad data is caught early and loudly before it can affect the frontend.
+** The numbers we show are hard to verify, and incorrect logic can be hard to find.
+   This ties to the point above, but it's important to note that the way we work means that our redux code has to apply its own logic to determine what should be displayed.  If this code is in disagreement with the data-generation code in any way, then the numbers we are showing may not match what we _think_ we're showing.  If we are not able to follow the logic on either side, it is tough for us to intenrally audit our own logic.  It's near impossible for anyone outside our team.
+
+   It is simple to read through a graphql query, and it can be verified outside of our own code through the graphql explorer.  Our codebase becomes more transparent and easy to work on intenrally, and with more trust externally.
+** We are repeating each others work unnecessarily.
+   This is a repeat of the point above.  We are working through the data multiple times, to fit the needs of our language or framework.  This makes it more prone to bugs, but also means we are working slower and less efficiently than we could.
+** We have a hard time implementing the requests from the community.
+   All of the points above leads to thsi one.  A change to our structure is important because we are not moving as quickly as we could, and our current method causes us to get slower over time, and with more of a gap between what the community wants and what we are able to give.
+* Strategy: How we achieve our goals
+** A graphql-compliant backend
+   
+   In short: we want some known area we can query and get predictable results back.  A graphql backend would provide a shared language for query-writing, and a documented schema for what type of data we can ask for and how it would be structured.  Our queries could be shared and reproduced by other code, like our front end.   
+
+   Having a database would make the implementation of progress over time trivial.  It would also make cross-referencing information trivial.  Implementing either in our present currentbase is non-trivial.
+** A shared schema for the data we want from the audit logs.
+   This is part of making the backend graphql-compliant.  We'd write out schemas for what endpoints, useragents, tests, test-tags, etc. should look like.  We'd also write schemas for how a query and mutation(graphql term for 'create/update/delete' in CRUD) should be structured.  We'd create these through discussion, and based off the existing jsons.
+   
+   Once we have that, the schema acts as a contract between any service and our backend.  Whether we are pinging the database through the command line, or a graphql explorer that comes built-into the backend, or any frontend component, the query will be structured the same.  
+
+This means that the research into the data, and the visualization of the research results, become the same work.  
+
+** A data-gen script that runs through the audit logs and posts to our db, based on our schema.
+   We currently have a python script that reads through audit logs and generates a list of jsons from it, before posting these to our GCS bucket.  Our new version would have a similar flow, but would now be generating graphql mutations that are posted to our backend endpoint.  We could either adapt the existing script, or write a new one so that we have logs, jsons, and db entries.  Upon first glance, it seems we can follow much of the same logic of the existing script--we read a stream of data and walk through the open api spec, calculating hit counts and tested counts as we go.  The main difference is where we output the processed data.
+** A React-Apollo Frontend and literate org documents
+   Our current architecture is React and Redux.  Redux handles the data fetching, all the filtering set up by the ui, and any processing required to visualize the data.   When we are working with graphql, redux becomes less important (perhaps even unnecessary).  Instead, we'd use a library called Apollo, which would allow us to fashion queries from the react component and send them directly to our backend.  Inthis way, there'd be no code translation happening.  Whatever query worked on the command line will work from within the front-end.  There will also no longer be an opaque logic to the numbers we are presenting, as there is no calculation hidden in a redux selector.  Our frontend becomes much simpler to reason about, as it is just an aesthetically pleasing presentation of data you could get in any number of ways.
+
+Perhaps more importantly, though, is that our frontend becomes a _bonus_ instead of a requirement.  A lot of work goes into the processing of audit logs into apisnoop data, but right now the only accessible way to look into this data is through the frontend.  That means that when you have new questions to ask, you have to wait for a ui feature that will let you ask it, and hope that this feature understood and translated your question directly.  This also means that when our team is asked to find new insights into the data, it inherently requires design and frontend work. 
+
+In our new version, as soon as we have a backend and a means of populating this backend, then we can quickly generate reports giving insights to our work.  We can write these reports in a literate style, using the org-mode integrations we've been exploring.  Then, based on the feedback, we can translate this work into presentational frontend components.  Our feedback and iteration loops become faaaar faster,a dn the distribution of labor more evenly spread.
+* Map: The steps to realize our strategy
+** Discuss and Document Schemas (2 days)
+   
+** Build Backend that is seeded with sample, schema-matching data (1 week)
+** Refactor processing scripts to post to our backend (1 week)
+** Begin generating numbers and reports using our backend api  (ongoing)
+** Refactor frontend to React-Apollo (2-3 Weeks)
+* Downsides
+** Time
+** Somewhat new domain
