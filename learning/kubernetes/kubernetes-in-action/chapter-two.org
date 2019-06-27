@@ -778,10 +778,10 @@ We'll put this whole chapter together now, by deploying our simple node app onto
       kubectl get pods
     #+END_SRC
 
-    #+RESULTS: list pods
+    #+RESULTS: list pods Running
     #+begin_EXAMPLE
-    NAME          READY   STATUS              RESTARTS   AGE
-    kubia-rthp9   0/1     ContainerCreating   0          9m57s
+    NAME          READY   STATUS    RESTARTS   AGE
+    kubia-rthp9   1/1     Running   0          12m
     #+end_EXAMPLE
 
     #+RESULTS: list pods ContainerCreating
@@ -827,7 +827,9 @@ ated and ran the container.
     #+end_EXAMPLE
 
 *** Listing Services
-    We can see that we've exposed it using kubectl again
+    We can see that we've exposed it using kubectl again. 
+    
+    We want an external ip to test that our app works.  This can take some time for the loadbalancer to create it, though, so it's showing pending currently. 
     #+NAME: List Services
     #+BEGIN_SRC shell
 kubectl get services
@@ -837,6 +839,71 @@ kubectl get services
     #+begin_EXAMPLE
     NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
     kubernetes   ClusterIP      10.96.0.1       <none>        443/TCP          3d
-    kubia-http   LoadBalancer   10.104.38.250   <pending>     8080:31311/TCP   44s
+    kubia-http   LoadBalancer   10.104.38.250   <pending>     8080:31311/TCP   12m
     #+end_EXAMPLE
+
+    #+RESULTS: List Services Pending
+    #+begin_EXAMPLE
+    NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+    kubernetes   ClusterIP      10.96.0.1       <none>        443/TCP          3d
+    kubia-http   LoadBalancer   10.104.38.250   <pending>     8080:31311/TCP   4m29s
+    #+end_EXAMPLE
+
+** Horizontally Scaling your App
+   The replicationcontroller sets how many pods should be fitting the types we specified.   It doesn't matter where the pods are or what they're named, with K8s it is less baout working with individual pods/nodes/containers.  Rather, you have a desired state and you send that state to k8s to ensure your cluster matches it.
+   
+   So for example, you can delete invidiual pods...but that's not the same as deleting an app or service as your ReplicationController will quickly see that you've desired 1 kubia pod, there's now 0, and it needs to spin up 1 more.  
+   
+   You can see this in more depth with kubectl
+*** See Pods through ReplicationController   
+    
+    #+NAME: See Pods through ReplicationController
+    #+BEGIN_SRC shell
+kubectl get replicationcontrollers
+    #+END_SRC
+
+    #+RESULTS: See Pods through ReplicationController
+    #+begin_EXAMPLE
+    NAME    DESIRED   CURRENT   READY   AGE
+    kubia   1         1         1       17m
+    #+end_EXAMPLE
+
+    #+NAME: Get Current Pods
+    #+BEGIN_SRC shell
+    kubectl get pods
+    #+END_SRC
+
+    #+RESULTS: Get Current Pods
+    #+begin_EXAMPLE
+    NAME          READY   STATUS    RESTARTS   AGE
+    kubia-rthp9   1/1     Running   0          18m
+    #+end_EXAMPLE
+
+
+*** Scale Up Pods
+    
+    Now we'll scale up how many pods we want and watch what happens.
+    
+    #+NAME: Scale Up Pods
+    #+BEGIN_SRC shell
+kubectl scale rc kubia --replicas=3
+    #+END_SRC
+
+    #+RESULTS: Scale Up Pods
+    #+begin_EXAMPLE
+    replicationcontroller/kubia scaled
+    #+end_EXAMPLE
+    
+    #+BEGIN_SRC shell
+kubectl get pods
+    #+END_SRC
+
+    #+RESULTS:
+    #+begin_EXAMPLE
+    NAME          READY   STATUS    RESTARTS   AGE
+    kubia-8jp76   1/1     Running   0          7s
+    kubia-gsc8q   1/1     Running   0          7s
+    kubia-rthp9   1/1     Running   0          19m
+    #+end_EXAMPLE
+
 
