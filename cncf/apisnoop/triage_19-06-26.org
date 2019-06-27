@@ -1,0 +1,31 @@
+#+TITLE: Triage Session for 26 06 2019
+
+* Cleaning Out Empties
+  I can clean out empty project and milestones.  These are the ones I removed:
+- https://github.com/cncf/apisnoop/projects/23
+* Close completed tickets
+ - https://github.com/cncf/apisnoop/issues/256
+   - this is done pending a merge.
+   - merged!
+ - https://github.com/cncf/apisnoop/issues/229
+   - related to 256, could be closed together.
+   - Merged!
+ - https://github.com/cncf/apisnoop/issues/114
+   - not exactly as requested, but our filters do now handle this.
+ - https://github.com/cncf/apisnoop/issues/177
+   - feel this might be completed now and we forgot to close it,
+ - https://github.com/cncf/apisnoop/issues/168
+   this feels done as of the org file, or at least for our work now?
+ - https://github.com/cncf/apisnoop/issues/117
+   - feel the ui issues have since been corrected.
+ - https://github.com/cncf/apisnoop/projects/25
+   - projectboard with two testing tickets that can likely be closed.  so put in as reminder to close this too.
+* Check in on Boards
+* Delete irrelevant issues
+* Find and combine duplicates
+  - https://github.com/cncf/apisnoop/issues/224
+    - possible duplicate of 229.  One leads to the other.  The initial spirit of this was for us to better understand our audience, and build out use cases for who is using apinsoop and why.  This perhaps doesn't need to be a visible ticket tho?
+* Assign takss for updating tickets
+ - https://github.com/cncf/apisnoop/issues/114
+   - check in on this in a week.
+ - ensure metaview contains all four our existing projects.
