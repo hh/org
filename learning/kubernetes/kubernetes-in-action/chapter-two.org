@@ -1,0 +1,842 @@
+#+TITLE: Kubernetes in Action Chapter Two
+#+PROPERTY: header-args:shell+ :results output list
+#+PROPERTY: header-args:shell+ :noweb yes
+
+
+* [1/5] Goals of this Chapter
+- [X] Creating, running, and sharing a container image
+with Docker
+- [ ] Running a single-node Kubernetes cluster locally
+- [ ] Setting up a Kubernetes cluster on Google
+Kubernetes Engine
+- [ ] Setting up and using the kubectl command-line
+client
+- [ ] Deploying an app on Kubernetes and scaling it
+horizontally
+* Creating, running, and sharing a container image
+** Ensure we have docker, or install it, and run hello world.
+   
+   
+   We can check if we have docker by checking its version
+   #+BEGIN_SRC tmate
+   docker --version
+   #+END_SRC
+   
+   This should return something like
+   
+   #+begin_EXAMPLE
+   Docker version 18.09.6, build 481bc77156
+   #+end_EXAMPLE
+   
+   If you get nothing, then you'll want to install it from docs.docker.com/engine/installation
+   
+   Then, we can run our first container, a hello world from busybox
+   
+   #+BEGIN_SRC tmate
+     docker run busybox echo "hello world"
+   #+END_SRC
+   
+   #+NAME: Run Hello World Container
+   #+BEGIN_SRC shell
+docker run busybox echo "hello world"
+   #+END_SRC
+
+   If it all works well, then we'll have hello world below.
+   
+   #+RESULTS: Run Hello World Container
+   #+begin_EXAMPLE
+   hello world
+   #+end_EXAMPLE
+   
+   heck yah.
+  
+
+#+BEGIN_QUOTE
+UNDERSTANDING WHAT HAPPENS BEHIND THE SCENES
+Figure 2.1 shows exactly what happened when you performed the docker run com-
+mand. First, Docker checked to see if the busybox:latest image was already present
+on your local machine. It wasn’t, so Docker pulled it from the Docker Hub registry at
+http://docker.io. After the image was downloaded to your machine, Docker created a
+container from that image and ran the command inside it. The echo command
+printed the text to STDOUT and then the process terminated and the container
+stopped.
+
+#+END_QUOTE
+
+
+  
+** Create a trivial node.js app
+   This is to practice containerization.  So we'll make an app, then package it into a container image and run it with docker.
+   
+   We'll store it in =trivial-node=
+   #+BEGIN_SRC shell
+   mkdir trivial-node
+   #+END_SRC
+
+   Here is the app (type =,bt= to tangle this file)
+   #+NAME: app.js 
+   #+BEGIN_SRC js :tangle ./trivial-node/app.js
+     const http = require('http');
+     const os = require('os');
+     console.log("Kubia server starting...");
+     var handler = function(request, response) {
+       console.log("Received request from " + request.connection.remoteAddress);
+       response.writeHead(200);
+       response.end("You've hit " + os.hostname() + "\n");
+     };
+     var www = http.createServer(handler);
+     www.listen(8080);
+   #+END_SRC
+   
+   This code starts up a server and when it gets a response, tells you where the response is coming from, and then responds with the hostname you hit.  This will help us so that when running it inside a container we can see that the hostname of the container is different from the hostname of our computer.
+   
+** Creating a Dockerfile for the image   
+   
+   The Dockerfile contains the list of instructions for docker when building up our app image.
+   
+   #+NAME: Dockerfile
+   #+BEGIN_SRC text :tangle ./trivial-node/Dockerfile
+  FROM node:7
+  ADD app.js /app.js
+  ENTRYPOINT ["node", "app.js"]
+   #+END_SRC
+   
+   FROM tells us the base image we are starting from.
+   ADD is adding app.js from our local directory to the root of the image, under the same name.
+   The entrypoint is what to execute when someone runs the image, so we wanna execute =node app.js=
+** Building our Image   
+   The app.js file and the Dockerfile are all we need to build an image.  let's do it!
+   
+   #+NAME: Building the Image
+   #+BEGIN_SRC shell
+     cd trivial-node
+     docker build -t kubia .
+   #+END_SRC
+
+   Your results will look like so.
+   #+RESULTS: Building the Image
+   #+begin_EXAMPLE
+   Sending build context to Docker daemon  4.096kB
+   Step 1/3 : FROM node:7
+   7: Pulling from library/node
+   ad74af05f5a2: Pulling fs layer
+   2b032b8bbe8b: Pulling fs layer
+   a9a5b35f6ead: Pulling fs layer
+   3245b5a1c52c: Pulling fs layer
+   afa075743392: Pulling fs layer
+   9fb9f21641cd: Pulling fs layer
+   3f40ad2666bc: Pulling fs layer
+   49c0ed396b49: Pulling fs layer
+   3245b5a1c52c: Waiting
+   9fb9f21641cd: Waiting
+   afa075743392: Waiting
+   3f40ad2666bc: Waiting
+   49c0ed396b49: Waiting
+   2b032b8bbe8b: Verifying Checksum
+   2b032b8bbe8b: Download complete
+   a9a5b35f6ead: Verifying Checksum
+   a9a5b35f6ead: Download complete
+   afa075743392: Verifying Checksum
+   afa075743392: Download complete
+   9fb9f21641cd: Verifying Checksum
+   9fb9f21641cd: Download complete
+   ad74af05f5a2: Verifying Checksum
+   ad74af05f5a2: Download complete
+   3f40ad2666bc: Verifying Checksum
+   49c0ed396b49: Verifying Checksum
+   49c0ed396b49: Download complete
+   ad74af05f5a2: Pull complete
+   2b032b8bbe8b: Pull complete
+   a9a5b35f6ead: Pull complete
+   3245b5a1c52c: Verifying Checksum
+   3245b5a1c52c: Download complete
+   3245b5a1c52c: Pull complete
+   afa075743392: Pull complete
+   9fb9f21641cd: Pull complete
+   3f40ad2666bc: Pull complete
+   49c0ed396b49: Pull complete
+   Digest: sha256:af5c2c6ac8bc3fa372ac031ef60c45a285eeba7bce9ee9ed66dad3a01e29ab8d
+   Status: Downloaded newer image for node:7
+    ---> d9aed20b68a4
+   Step 2/3 : ADD app.js /app.js
+    ---> 6e13438759f9
+   Step 3/3 : ENTRYPOINT ["node", "app.js"]
+    ---> Running in 95fe5b208c3c
+   Removing intermediate container 95fe5b208c3c
+    ---> 1572ce73f826
+   Successfully built 1572ce73f826
+   Successfully tagged kubia:latest
+   #+end_EXAMPLE
+   
+   #+NAME: Understanding how an image is built
+   #+BEGIN_QUOTE 
+The build process isn’t performed by the Docker client. Instead, the contents of the whole directory are uploaded to the Docker daemon and the image is built there. The client and daemon don’t need to be on the same machine at all. If you’re using Docker on a non-Linux OS, the client is on your host OS, but the daemon runs inside a VM. Because all the files in the build directory are uploaded to the daemon, if it contains many large files and the daemon isn’t running locally, the upload may take longer.
+
+TIP Don’t include any unnecessary files in the build directory, because they’ll slow down the build process—especially when the Docker daemon is on a remote machine.
+
+During the build process, Docker will first pull the base image (node:7) from the pub- lic image repository (Docker Hub), unless the image has already been pulled and is stored on your machine.
+   #+END_QUOTE
+** Running Container Image
+   
+   When we run this, docker will return a hash id for the container.
+   the command explained:
+- docker run :: tell your docker program to run a specific container
+- --name kubia-container :: this sets up a custom name for htis, otherwise docker would assign it something like 'flumpy-lumpia' randomly.
+- -p 8080:8080 :: Port forward(-p) our local port 8080 to the container's port 8080.  This way, when we go to localhost:8080 we are actually accessing the container.
+- -d :: run this container detached from the console (so it runs in the background).
+- kubia :: the image we are going to execute inside this container.  It'll look for it locally (which is great cos we built it up above) and if it can't find it, then grab it from docker hub.
+  #+NAME: Running Container Image
+  #+BEGIN_SRC shell
+    docker run --name kubia-container -p 8080:8080 -d kubia
+  #+END_SRC
+   
+  #+RESULTS: Running Container Image
+  #+begin_EXAMPLE
+  175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848
+  #+end_EXAMPLE
+** Accessing your app  
+   We can test that it's working with curl
+   
+   #+NAME: Accessing App
+   #+BEGIN_SRC shell
+curl localhost:8080
+   #+END_SRC
+
+   #+RESULTS: Accessing App
+   #+begin_EXAMPLE
+   You've hit 175d12d23477
+   #+end_EXAMPLE
+
+our app is designed to respond to requests by giving its hostname.  We can see, then, that our app is running on its own hostname...since your computer's name is likely not a random numberletter combo.
+** List All Running Containers
+   #+NAME: List all running containers
+   #+BEGIN_SRC shell
+   docker ps
+   #+END_SRC
+
+   #+RESULTS: List all running containers
+   #+begin_EXAMPLE
+   CONTAINER ID        IMAGE                       COMMAND                  CREATED             STATUS              PORTS                    NAMES
+   175d12d23477        kubia                       "node app.js"            7 minutes ago       Up 7 minutes        0.0.0.0:8080->8080/tcp   kubia-container
+   b3c45fd16f23        prismagraphql/prisma:1.34   "/bin/sh -c /app/sta…"   2 weeks ago         Up 3 days           0.0.0.0:4466->4466/tcp   import-example_prisma_1
+   9522f0efd055        mysql:5.7                   "docker-entrypoint.s…"   2 weeks ago         Up 3 days           3306/tcp, 33060/tcp      import-example_mysql_1
+   #+end_EXAMPLE
+
+   If you've worked with docker before, you might already have containers running (I do).  But the top container is kubia, showing how long it's been up, the port its own, and the command executed inside its image.
+** Getting Additional Info about a container
+   =docker ps= gives us the basics.  If we want an indpeth json rundown of the conatiner than we can use =docker inspect {container}=
+   
+   #+NAME: getting additonal info about a container
+   #+BEGIN_SRC shell
+docker inspect kubia-container
+   #+END_SRC
+
+   #+RESULTS: getting additonal info about a container
+   #+begin_EXAMPLE
+   [
+       {
+           "Id": "175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848",
+           "Created": "2019-06-27T21:09:16.478089089Z",
+           "Path": "node",
+           "Args": [
+               "app.js"
+           ],
+           "State": {
+               "Status": "running",
+               "Running": true,
+               "Paused": false,
+               "Restarting": false,
+               "OOMKilled": false,
+               "Dead": false,
+               "Pid": 21948,
+               "ExitCode": 0,
+               "Error": "",
+               "StartedAt": "2019-06-27T21:09:17.434934153Z",
+               "FinishedAt": "0001-01-01T00:00:00Z"
+           },
+           "Image": "sha256:1572ce73f826d39d6159d0334bdeee37f3655ca8e83e195f8ce72b3e0fe3689b",
+           "ResolvConfPath": "/var/lib/docker/containers/175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848/resolv.conf",
+           "HostnamePath": "/var/lib/docker/containers/175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848/hostname",
+           "HostsPath": "/var/lib/docker/containers/175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848/hosts",
+           "LogPath": "/var/lib/docker/containers/175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848/175d12d234774d81bc1df07ac98e03c1386cbaa255f6cab1279ab63092f15848-json.log",
+           "Name": "/kubia-container",
+           "RestartCount": 0,
+           "Driver": "overlay2",
+           "Platform": "linux",
+           "MountLabel": "",
+           "ProcessLabel": "",
+           "AppArmorProfile": "docker-default",
+           "ExecIDs": null,
+           "HostConfig": {
+               "Binds": null,
+               "ContainerIDFile": "",
+               "LogConfig": {
+                   "Type": "json-file",
+                   "Config": {}
+               },
+               "NetworkMode": "default",
+               "PortBindings": {
+                   "8080/tcp": [
+                       {
+                           "HostIp": "",
+                           "HostPort": "8080"
+                       }
+                   ]
+               },
+               "RestartPolicy": {
+                   "Name": "no",
+                   "MaximumRetryCount": 0
+               },
+               "AutoRemove": false,
+               "VolumeDriver": "",
+               "VolumesFrom": null,
+               "CapAdd": null,
+               "CapDrop": null,
+               "Dns": [],
+               "DnsOptions": [],
+               "DnsSearch": [],
+               "ExtraHosts": null,
+               "GroupAdd": null,
+               "IpcMode": "shareable",
+               "Cgroup": "",
+               "Links": null,
+               "OomScoreAdj": 0,
+               "PidMode": "",
+               "Privileged": false,
+               "PublishAllPorts": false,
+               "ReadonlyRootfs": false,
+               "SecurityOpt": null,
+               "UTSMode": "",
+               "UsernsMode": "",
+               "ShmSize": 67108864,
+               "Runtime": "runc",
+               "ConsoleSize": [
+                   0,
+                   0
+               ],
+               "Isolation": "",
+               "CpuShares": 0,
+               "Memory": 0,
+               "NanoCpus": 0,
+               "CgroupParent": "",
+               "BlkioWeight": 0,
+               "BlkioWeightDevice": [],
+               "BlkioDeviceReadBps": null,
+               "BlkioDeviceWriteBps": null,
+               "BlkioDeviceReadIOps": null,
+               "BlkioDeviceWriteIOps": null,
+               "CpuPeriod": 0,
+               "CpuQuota": 0,
+               "CpuRealtimePeriod": 0,
+               "CpuRealtimeRuntime": 0,
+               "CpusetCpus": "",
+               "CpusetMems": "",
+               "Devices": [],
+               "DeviceCgroupRules": null,
+               "DiskQuota": 0,
+               "KernelMemory": 0,
+               "MemoryReservation": 0,
+               "MemorySwap": 0,
+               "MemorySwappiness": null,
+               "OomKillDisable": false,
+               "PidsLimit": 0,
+               "Ulimits": null,
+               "CpuCount": 0,
+               "CpuPercent": 0,
+               "IOMaximumIOps": 0,
+               "IOMaximumBandwidth": 0,
+               "MaskedPaths": [
+                   "/proc/asound",
+                   "/proc/acpi",
+                   "/proc/kcore",
+                   "/proc/keys",
+                   "/proc/latency_stats",
+                   "/proc/timer_list",
+                   "/proc/timer_stats",
+                   "/proc/sched_debug",
+                   "/proc/scsi",
+                   "/sys/firmware"
+               ],
+               "ReadonlyPaths": [
+                   "/proc/bus",
+                   "/proc/fs",
+                   "/proc/irq",
+                   "/proc/sys",
+                   "/proc/sysrq-trigger"
+               ]
+           },
+           "GraphDriver": {
+               "Data": {
+                   "LowerDir": "/var/lib/docker/overlay2/fdadb7eb987b42a41b9d88fa5d9c8e65f1a2878a86a71b1ace0699155e38cade-init/diff:/var/lib/docker/overlay2/761bb03d706f49a3efec653187135b73ae89b2a519c8d0abc99a0362ad670f05/diff:/var/lib/docker/overlay2/099d49dddfa6503e89b108b17370cdf61ccb61eb89a2b2ed97483e7cc44783d7/diff:/var/lib/docker/overlay2/d40a6053c0e13abba966126bda2f2e59259c24d609c4b4897a518adeec1de3ca/diff:/var/lib/docker/overlay2/4492baf4496326707d4e69f5e097880892d8b71dfff82f8709f81c066cb07776/diff:/var/lib/docker/overlay2/8f559e6bd08f0f734a20a2a188de2d78af7d12d5ef6c8b934bdb61d5e1cde459/diff:/var/lib/docker/overlay2/0e131747c6f60e3628e0b68fb5d10dbd67041346bfe32c2cbacbe85af452670d/diff:/var/lib/docker/overlay2/fb03d4f3cbcca36ce62ed93c6b1a2eda804e40ba24e84ed17b00582e3ec96855/diff:/var/lib/docker/overlay2/92f6f41bc3d136ff642076e3a7e4c61a2e7b70f87a9aa0b4593c42548dd82871/diff:/var/lib/docker/overlay2/c5b8929cb53b942957d73ca0a498c2b70fb6ae216df55f43cb937712620b721a/diff",
+                   "MergedDir": "/var/lib/docker/overlay2/fdadb7eb987b42a41b9d88fa5d9c8e65f1a2878a86a71b1ace0699155e38cade/merged",
+                   "UpperDir": "/var/lib/docker/overlay2/fdadb7eb987b42a41b9d88fa5d9c8e65f1a2878a86a71b1ace0699155e38cade/diff",
+                   "WorkDir": "/var/lib/docker/overlay2/fdadb7eb987b42a41b9d88fa5d9c8e65f1a2878a86a71b1ace0699155e38cade/work"
+               },
+               "Name": "overlay2"
+           },
+           "Mounts": [],
+           "Config": {
+               "Hostname": "175d12d23477",
+               "Domainname": "",
+               "User": "",
+               "AttachStdin": false,
+               "AttachStdout": false,
+               "AttachStderr": false,
+               "ExposedPorts": {
+                   "8080/tcp": {}
+               },
+               "Tty": false,
+               "OpenStdin": false,
+               "StdinOnce": false,
+               "Env": [
+                   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                   "NPM_CONFIG_LOGLEVEL=info",
+                   "NODE_VERSION=7.10.1",
+                   "YARN_VERSION=0.24.4"
+               ],
+               "Cmd": null,
+               "ArgsEscaped": true,
+               "Image": "kubia",
+               "Volumes": null,
+               "WorkingDir": "",
+               "Entrypoint": [
+                   "node",
+                   "app.js"
+               ],
+               "OnBuild": null,
+               "Labels": {}
+           },
+           "NetworkSettings": {
+               "Bridge": "",
+               "SandboxID": "ab1834d2171c6c8bc436019b0f5eb21f96d3feb8e9594fcdb417fc87522a2f55",
+               "HairpinMode": false,
+               "LinkLocalIPv6Address": "",
+               "LinkLocalIPv6PrefixLen": 0,
+               "Ports": {
+                   "8080/tcp": [
+                       {
+                           "HostIp": "0.0.0.0",
+                           "HostPort": "8080"
+                       }
+                   ]
+               },
+               "SandboxKey": "/var/run/docker/netns/ab1834d2171c",
+               "SecondaryIPAddresses": null,
+               "SecondaryIPv6Addresses": null,
+               "EndpointID": "bb84bc957e2e4bf4c60d89806b199ed254327f53fc3b12f8ab086edd289b697a",
+               "Gateway": "172.17.0.1",
+               "GlobalIPv6Address": "",
+               "GlobalIPv6PrefixLen": 0,
+               "IPAddress": "172.17.0.2",
+               "IPPrefixLen": 16,
+               "IPv6Gateway": "",
+               "MacAddress": "02:42:ac:11:00:02",
+               "Networks": {
+                   "bridge": {
+                       "IPAMConfig": null,
+                       "Links": null,
+                       "Aliases": null,
+                       "NetworkID": "ea38bad09da43d7a830d3342f57400ca99fb3f6f76cdfe8287026b695b703851",
+                       "EndpointID": "bb84bc957e2e4bf4c60d89806b199ed254327f53fc3b12f8ab086edd289b697a",
+                       "Gateway": "172.17.0.1",
+                       "IPAddress": "172.17.0.2",
+                       "IPPrefixLen": 16,
+                       "IPv6Gateway": "",
+                       "GlobalIPv6Address": "",
+                       "GlobalIPv6PrefixLen": 0,
+                       "MacAddress": "02:42:ac:11:00:02",
+                       "DriverOpts": null
+                   }
+               }
+           }
+       }
+   ]
+   #+end_EXAMPLE
+
+** Running a shell inside a docker container
+   This is useful for debugging, as we'll enter the actual container and be able to see what processes it has, and are running, and ore.
+   
+   we'll run this as a tmate session, so in your right eye you'll see we've logged in and you can explore like any other linux machine.
+   
+Explanation:
+- docker exec :: our command
+- -ti :: open a teletype and have it be interactive.  in other words: open a terminal and stay open for responses.  Without this, we'd run the command exit immediately.
+- kubia-container :: the container we are executing inside.
+- bash :: the command we want to execute (which'll give us the terminal we want).
+
+#+NAME:Running a shell inside a docker container
+#+BEGIN_SRC tmate
+docker exec -ti kubia-container bash
+#+END_SRC
+** Stopping and Removing a Container
+   
+   Let's stop it.  If successful, it'll return the name of the container we stopped.
+
+#+NAME: stop container
+#+BEGIN_SRC shell
+docker stop kubia-container
+#+END_SRC
+
+#+RESULTS: stop container
+#+begin_EXAMPLE
+kubia-container
+#+end_EXAMPLE
+
+And now let's remove it.  If successful, it'll return name of removed container.
+
+#+NAME: remove container
+#+BEGIN_SRC shell
+docker rm kubia-container
+#+END_SRC
+
+#+RESULTS: remove container
+#+begin_EXAMPLE
+kubia-container
+#+end_EXAMPLE
+** Push to docker registry
+   This is important for deploying the app to our cluster later.  It'll require registering for an account on docker hub.
+   you can sign up at [[https://hub.docker.com]]
+   When you have a username, add it to the below code block.
+
+   #+NAME: Set DOCKER_ID
+   #+BEGIN_SRC shell
+   DOCKER_ID=zachboyofdestiny
+   #+END_SRC
+
+   
+   Now we'll need to tag our container with our docker username.
+   #+NAME: Tag container
+   #+BEGIN_SRC shell
+     <<Set DOCKER_ID>>
+     docker tag kubia $DOCKER_ID/kubia
+   #+END_SRC
+
+   #+RESULTS: Tag container
+   #+begin_EXAMPLE
+   #+end_EXAMPLE
+
+   We can confirm this worked by listing our container images, we should see our newly tagged kubia
+   #+BEGIN_SRC shell
+docker images | head
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   REPOSITORY                 TAG                 IMAGE ID            CREATED             SIZE
+   kubia                      latest              1572ce73f826        7 days ago          660MB
+   zachboyofdestiny/kubia     latest              1572ce73f826        7 days ago          660MB
+   busybox                    latest              e4db68de4ff2        12 days ago         1.22MB
+   mysql                      5.7                 a1aa4f76fab9        2 weeks ago         373MB
+   prismagraphql/prisma       1.34                2554e1a11e94        4 weeks ago         318MB
+   <none>                     <none>              b4bd13f89770        5 weeks ago         1.95GB
+   iimacs                     snapshot            32367cea574b        5 weeks ago         1.95GB
+   emacs-snapshot             local               54d82a15404b        5 weeks ago         642MB
+   <none>                     <none>              7c326baa3da1        5 weeks ago         282MB
+   #+end_EXAMPLE
+
+   There it is!
+   
+Now let's push it
+NOTE: you'll need to be logged into docker on your machine, so we'll use tmate for all this.
+
+#+NAME: login
+#+BEGIN_SRC tmate
+docker login
+#+END_SRC
+
+In yr right eye, put in your login and password as needed.
+
+Now we can push
+
+#+NAME: push to docker
+#+BEGIN_SRC shell
+<<Set DOCKER_ID>>
+  docker push $DOCKER_ID/kubia
+#+END_SRC
+
+#+RESULTS: push to docker
+#+begin_EXAMPLE
+The push refers to repository [docker.io/zachboyofdestiny/kubia]
+b833d8d32fdf: Preparing
+ab90d83fa34a: Preparing
+8ee318e54723: Preparing
+e6695624484e: Preparing
+da59b99bbd3b: Preparing
+5616a6292c16: Preparing
+f3ed6cb59ab0: Preparing
+654f45ecb7e3: Preparing
+2c40c66f7667: Preparing
+f3ed6cb59ab0: Waiting
+654f45ecb7e3: Waiting
+2c40c66f7667: Waiting
+5616a6292c16: Waiting
+e6695624484e: Mounted from library/node
+da59b99bbd3b: Mounted from library/node
+ab90d83fa34a: Mounted from library/node
+8ee318e54723: Mounted from library/node
+b833d8d32fdf: Pushed
+5616a6292c16: Mounted from library/node
+654f45ecb7e3: Mounted from library/node
+f3ed6cb59ab0: Mounted from library/node
+2c40c66f7667: Mounted from library/node
+latest: digest: sha256:9180cbaeae58985f9a1d05478af2eb81457b51f7460cb12066c0f8a9a42fb6da size: 2213
+#+end_EXAMPLE
+
+Success!
+
+#+NAME: check it out
+#+BEGIN_SRC tmate
+<<Set DOCKER_ID>>
+firefox https://hub.docker.com/r/$DOCKER_ID/kubia
+#+END_SRC
+
+* Deploying a kubernetes cluster
+** Make sure we have all pre-reqs  
+We'll be running our cluster locally, so we can use minimal wifi.  We'll do this using minikube
+*** install minikube 
+    There are differing instructions for this whether yr on linux, windows, or mac and so the best option is to follow the instructions on their github: https://github.com/kubernetes/minikube    
+    
+   Once minikube and all its prerequisites are installed, you can check with
+   
+   #+NAME: minikube version
+   #+BEGIN_SRC shell
+   minikube version
+   #+END_SRC
+
+   #+RESULTS: minikube version
+   #+begin_EXAMPLE
+   minikube version: v1.1.1
+   #+end_EXAMPLE
+
+   
+*** Install kubectl
+    Same as minikube, best is to follow instructions: https://kubernetes.io/docs/tasks/tools/install-kubectl/ 
+    
+    when installed, check its successful
+    #+NAME: Check kubectl version
+    #+BEGIN_SRC shell
+kubectl version
+    #+END_SRC
+
+    #+RESULTS: Check kubectl version
+    #+begin_EXAMPLE
+    Client Version: version.Info{Major:"1", Minor:"15", GitVersion:"v1.15.0", GitCommit:"e8462b5b5dc2584fdcd18e6bcfe9f1e4d970a529", GitTreeState:"clean", BuildDate:"2019-06-19T16:40:16Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+    Server Version: version.Info{Major:"1", Minor:"14", GitVersion:"v1.14.3", GitCommit:"5e53fd6bc17c0dec8434817e69b04a25d8ae0ff0", GitTreeState:"clean", BuildDate:"2019-06-06T01:36:19Z", GoVersion:"go1.12.5", Compiler:"gc", Platform:"linux/amd64"}
+    #+end_EXAMPLE
+
+    If you get results, it's a success!
+    
+** Start up cluster
+We can do this using minikube start
+#+NAME: Start up cluster
+#+BEGIN_SRC tmate
+minikube start
+#+END_SRC
+
+This will require a network connection, so it can download it's correct kubernetes vm and all dependencies.  This will also take a whiiiile.  On my macbook, it tooka bout 10 minutes.
+** grab cluster info
+   
+you can get cluster info with kubectl.  This will ensure that our cluster successfully started up AND that kubectl can talk to it.
+
+#+NAME: grab cluster info
+#+BEGIN_SRC shell
+kubectl cluster-info
+#+END_SRC
+
+#+RESULTS: grab cluster info
+#+begin_EXAMPLE
+Kubernetes master is running at https://192.168.39.222:8443
+KubeDNS is running at https://192.168.39.222:8443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+#+end_EXAMPLE
+
+We can also get information about the nodes we have up and running.  When doing locally thru minikube, it's going to be a single node cluster.  If we'd done this on something like google kubernetes engine, we could run a multi node system.  This command is stil useful to ensure everythings working properly.
+
+#+BEGIN_SRC shell
+kubectl get nodes
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAME       STATUS   ROLES    AGE   VERSION
+minikube   Ready    <none>   3d    v1.14.3
+#+end_EXAMPLE
+
+We can also get rich detail about a node
+
+#+BEGIN_SRC shell
+kubectl describe node minikube
+
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Name:               minikube
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=minikube
+                    kubernetes.io/os=linux
+Annotations:        node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Tue, 25 Jun 2019 09:55:25 +1200
+Taints:             <none>
+Unschedulable:      false
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Fri, 28 Jun 2019 10:12:58 +1200   Fri, 28 Jun 2019 09:37:55 +1200   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Fri, 28 Jun 2019 10:12:58 +1200   Fri, 28 Jun 2019 09:37:55 +1200   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Fri, 28 Jun 2019 10:12:58 +1200   Fri, 28 Jun 2019 09:37:55 +1200   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            True    Fri, 28 Jun 2019 10:12:58 +1200   Fri, 28 Jun 2019 09:37:55 +1200   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  192.168.122.80
+  Hostname:    minikube
+Capacity:
+ cpu:                2
+ ephemeral-storage:  16954240Ki
+ hugepages-2Mi:      0
+ memory:             1942288Ki
+ pods:               110
+Allocatable:
+ cpu:                2
+ ephemeral-storage:  15625027559
+ hugepages-2Mi:      0
+ memory:             1839888Ki
+ pods:               110
+System Info:
+ Machine ID:                 344b82990508480baf60b578f299f0b0
+ System UUID:                344B8299-0508-480B-AF60-B578F299F0B0
+ Boot ID:                    f43961be-c21d-4b7c-bcb3-49c37743f23f
+ Kernel Version:             4.15.0
+ OS Image:                   Buildroot 2018.05
+ Operating System:           linux
+ Architecture:               amd64
+ Container Runtime Version:  docker://18.9.6
+ Kubelet Version:            v1.14.3
+ Kube-Proxy Version:         v1.14.3
+Non-terminated Pods:         (10 in total)
+  Namespace                  Name                                CPU Requests  CPU Limits  Memory Requests  Memory Limits  AGE
+  ---------                  ----                                ------------  ----------  ---------------  -------------  ---
+  default                    kubia-2vmr9                         0 (0%)        0 (0%)      0 (0%)           0 (0%)         2d22h
+  kube-system                coredns-fb8b8dccf-lnkv5             100m (5%)     0 (0%)      70Mi (3%)        170Mi (9%)     3d
+  kube-system                coredns-fb8b8dccf-pqwg9             100m (5%)     0 (0%)      70Mi (3%)        170Mi (9%)     3d
+  kube-system                etcd-minikube                       0 (0%)        0 (0%)      0 (0%)           0 (0%)         3d
+  kube-system                kube-addon-manager-minikube         5m (0%)       0 (0%)      50Mi (2%)        0 (0%)         3d
+  kube-system                kube-apiserver-minikube             250m (12%)    0 (0%)      0 (0%)           0 (0%)         3d
+  kube-system                kube-controller-manager-minikube    200m (10%)    0 (0%)      0 (0%)           0 (0%)         3d
+  kube-system                kube-proxy-89w8v                    0 (0%)        0 (0%)      0 (0%)           0 (0%)         3d
+  kube-system                kube-scheduler-minikube             100m (5%)     0 (0%)      0 (0%)           0 (0%)         3d
+  kube-system                storage-provisioner                 0 (0%)        0 (0%)      0 (0%)           0 (0%)         3d
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests     Limits
+  --------           --------     ------
+  cpu                755m (37%)   0 (0%)
+  memory             190Mi (10%)  340Mi (18%)
+  ephemeral-storage  0 (0%)       0 (0%)
+Events:
+  Type    Reason                   Age                   From               Message
+  ----    ------                   ----                  ----               -------
+  Normal  NodeNotReady             36m (x7 over 2d20h)   kubelet, minikube  Node minikube status is now: NodeNotReady
+  Normal  NodeHasSufficientMemory  35m (x43 over 3d)     kubelet, minikube  Node minikube status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    35m (x43 over 3d)     kubelet, minikube  Node minikube status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     35m (x43 over 3d)     kubelet, minikube  Node minikube status is now: NodeHasSufficientPID
+  Normal  NodeReady                35m (x13 over 2d22h)  kubelet, minikube  Node minikube status is now: NodeReady
+#+end_EXAMPLE
+
+As you can see, it gives us a _lot_ of details.
+
+** Running an app on k8s
+
+We'll put this whole chapter together now, by deploying our simple node app onto kubernetes.
+
+*** Run it with kubectl run
+    
+    You can run your docker image simply, using =kubectl run=.  Most of the times, we'll be using a more complex setup with a yaml file or helm chart of our configuration, but for a single app  that we just testing, this kubectl command works
+    
+    #+NAME: Run kubia on kubernetes
+    #+BEGIN_SRC shell
+      <<Set DOCKER_ID>>
+      kubectl run kubia --image=$DOCKER_ID/kubia --port=8080 --generator=run/v1
+    #+END_SRC
+
+    #+RESULTS: Run kubia on kubernetes
+    #+begin_EXAMPLE
+    replicationcontroller/kubia created
+    #+end_EXAMPLE
+
+    it's v. similar to docker run.  we give a name to the app we're deploying, and the docker image we are using for it.   The port tells k8s that the app should be listening on port 8080.  The generator is used so we make a replicationcontroller instead of a deployment for this app, which are both new terms that the book has not gotten into yet.
+    
+** Containers and Pods
+   
+   After deploying, we can see the pod we made with =kubectl get pods=
+    #+NAME: list pods
+    #+BEGIN_SRC shell
+      kubectl get pods
+    #+END_SRC
+
+    #+RESULTS: list pods
+    #+begin_EXAMPLE
+    NAME          READY   STATUS              RESTARTS   AGE
+    kubia-rthp9   0/1     ContainerCreating   0          9m57s
+    #+end_EXAMPLE
+
+    #+RESULTS: list pods ContainerCreating
+    #+begin_EXAMPLE
+    NAME          READY   STATUS              RESTARTS   AGE
+    kubia-rthp9   0/1     ContainerCreating   0          7s
+    #+end_EXAMPLE
+
+    #+BEGIN_QUOTE
+UNDERSTANDING WHAT HAPPENED BEHIND THE SCENES
+To help you visualize what transpired, look at figure 2.6. It shows both steps you had to
+perform to get a container image running inside Kubernetes. First, you built the
+image and pushed it to Docker Hub. This was necessary because building the image
+on your local machine only makes it available on your local machine, but you needed
+to make it accessible to the Docker daemons running on your worker nodes.
+When you ran the kubectl command, it created a new ReplicationController
+object in the cluster by sending a REST HTTP request to the Kubernetes API server.
+The ReplicationController then created a new pod, which was then scheduled to one
+of the worker nodes by the Scheduler. The Kubelet on that node saw that the pod was
+scheduled to it and instructed Docker to pull the specified image from the registry
+because the image wasn’t available locally. After downloading the image, Docker cre-
+ated and ran the container.
+    #+END_QUOTE
+
+*** What is a pod?
+    A pod is a group of one or more tightly related containers, that are all running on the same worker node and linux namespace.  Each pod is like its own logic machine, with its own set of processes and hostname and ip and all that.
+    
+    
+
+
+** Accessing The Web Application
+*** Create a Service Object
+    To create our service, we want to expose our ReplicaitonController responsible for the pod
+    
+    #+NAME: Expose ReplicationController
+    #+BEGIN_SRC shell
+ kubectl expose rc kubia --type=LoadBalancer --name kubia-http
+    #+END_SRC
+
+    #+RESULTS: Expose ReplicationController
+    #+begin_EXAMPLE
+    service/kubia-http exposed
+    #+end_EXAMPLE
+
+*** Listing Services
+    We can see that we've exposed it using kubectl again
+    #+NAME: List Services
+    #+BEGIN_SRC shell
+kubectl get services
+    #+END_SRC
+
+    #+RESULTS: List Services
+    #+begin_EXAMPLE
+    NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+    kubernetes   ClusterIP      10.96.0.1       <none>        443/TCP          3d
+    kubia-http   LoadBalancer   10.104.38.250   <pending>     8080:31311/TCP   44s
+    #+end_EXAMPLE
+
