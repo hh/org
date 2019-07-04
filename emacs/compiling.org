@@ -131,6 +131,28 @@ Only for GNU/Linux, FreeBSD, NetBSD, MinGW, Cygwin.
   make -j 8
   make install
 #+END_SRC
+#+BEGIN_SRC shell
+    ./configure --prefix=/usr/local/ \
+      --without-x \
+      --with-modules \
+      --with-gsettings \
+      --with-gconf \
+      --with-threads \
+      --with-gnutls \
+      --with-zlib \
+      --with-xml2 \
+      --with-xpm \
+      --with-jpeg \
+      --with-tiff \
+      --with-gif \
+      --with-png \
+      --with-rsvg \
+      --with-imagemagick \
+      --with-makeinfo \
+      --without-compress-install
+  make -j 8
+  make install
+#+END_SRC
 *** emacs-jupyter
 #+BEGIN_SRC shell
 make widgets

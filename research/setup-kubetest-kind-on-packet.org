@@ -141,12 +141,12 @@ I ran into errors trying to build kind from master...
   go get sigs.k8s.io/kind
 #+END_SRC
 
-Try building from tag v0.3.0
+Try building from tag v0.4.0
 
 #+BEGIN_SRC tmate
 cd ~/go/src/sigs.k8s.io/kind
-git checkout v0.3.0
-git branch v0.3.0
+git checkout v0.4.0
+git branch v0.4.0
 make
 mkdir -p /root/go/bin
 make install
