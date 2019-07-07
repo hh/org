@@ -1,0 +1,37 @@
+* Clocking
+  
+* something
+  :PROPERTIES:
+  :Effort:   0:05
+  :END:
+  :CLOCKBOOK-hippie:
+  CLOCK: [2019-05-26 Sun 20:40]
+  CLOCK: [2019-05-26 Sun 20:30]--[2019-05-26 Sun 20:31] =>  0:01
+  CLOCK: [2019-05-26 Sun 19:25]--[2019-05-27 Mon 06:31] => 11:06
+  :END:
+  :LOGBOOK:
+  :END:
+* else
+  :CLOCKBOOK-hippie:
+  CLOCK: [2019-05-26 Sun 17:37]--[2019-05-26 Sun 19:35] =>  1:58
+  CLOCK: [2019-05-26 Sun 20:34]--[2019-05-26 Sun 20:36] =>  0:02
+  CLOCK: [2019-05-26 Sun 20:36]--[2019-05-26 Sun 20:37] =>  0:01
+  :END:
+
+
+#+BEGIN: clocktable :scope file :maxlevel 2
+#+CAPTION: Clock summary at [2019-05-26 Sun 20:46]
+| Headline     |    Time |
+|--------------+---------|
+| *Total time* | *13:08* |
+|--------------+---------|
+| something    |   11:07 |
+| else         |    2:01 |
+#+END:
+
+
+# Local Variables:
+# eval: (setq-local org-log-into-drawer (concat "LOGBOOK-" user-login-name))
+# eval: (setq-local org-log-note-clock-out t)
+# eval: (setq-local org-clock-into-drawer (concat "CLOCKBOOK-" user-login-name))
+# End:

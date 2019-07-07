@@ -1,0 +1,8 @@
+* Installing Emacs as a Systemd Service
+
+#+BEGIN_SRC shell
+  mkdir -p .config/systemd/user/
+  cp  /usr/local/stow/emacs-26.2/lib/systemd/user/emacs.service ~/.config/systemd/user/
+  systemctl --user daemon-reload
+  systemctl --user status emacs
+#+END_SRC

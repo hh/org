@@ -1,0 +1,7 @@
+* Conformance Walking / Generating the Docs
+
+#+BEGIN_SRC tmate
+cd ~/go/src/k8s.io/kubernetes
+git checkout v1.12
+go run test/conformance/walk.go --conformance --url https://github.com/kubernetes/kubernetes/tree/v1.12.0 test
+#+END_SRC

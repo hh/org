@@ -1,0 +1,14 @@
+#+TITLE: Exploring Git via Go
+
+* go-git
+https://github.com/src-d/go-git
+https://godoc.org/gopkg.in/src-d/go-git.v4
+** Examples
+https://github.com/src-d/go-git/tree/master/_examples
+https://github.com/src-d/go-git/blob/master/_examples/showcase/main.go
+https://github.com/src-d/go-git/blob/master/_examples/log/main.go
+* Git2Go
+https://github.com/libgit2/git2go
+https://godoc.org/github.com/libgit2/git2go
+** Examples
+Could not find any, but the API is much more rich

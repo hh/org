@@ -1,0 +1,12 @@
+* Create USB
+** Create blank file 
+* Test with QEMU
+** EFI
+** BIOS
+* Test with VirtualBox
+** EFI
+** BIOS
+* Test with Real Hardware
+** EFI
+** BIOS
+   

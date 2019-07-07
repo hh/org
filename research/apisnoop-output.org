@@ -1,0 +1,34 @@
+#+TITLE: Where do API Snoop audits files live  
+
+
+* Prow.cncf.ci jobs
+
+http://prow.cncf.ci/pr-history/?org=cncf&repo=apisnoop&pr=265
+
+http://prow.cncf.ci/job-history/apisnoop/pr-logs/directory/apisnoop-process-audits
+
+http://prow.cncf.ci/view/gcs/apisnoop/pr-logs/pull/265/apisnoop-process-audits/1146114906240585728
+
+* GCS prefixes
+
+
+** Master branch commits
+#+BEGIN_SRC shell
+gsutil ls gs://apisnoop/logs/apisnoop-postprocess-audits/
+#+END_SRC
+
+
+** PR commits
+note: the pr-logs are held in a different bucket with slight different structure.
+gs://apisnoop/pr-logs/pull/$PR_ID/apisnoop-process-audits/$PR_JOB_ID
+
+#+BEGIN_SRC #+BEGIN_SRC shell
+gsutil ls gs://apisnoop/pr-logs/pull/265/apisnoop-process-audits/1146114906240585728
+#+END_SRC
+
+** Copying down the logs
+#+BEGIN_SRC tmateocurp
+TMPDIR=$(mktemp -d)
+gsutil -m cp -r gs://apisnoop/pr-logs/pull/265/apisnoop-process-audits/1146114906240585728 $TMPDIR
+cd $TMPDIR
+#+END_SRC

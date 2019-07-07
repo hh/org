@@ -187,3 +187,5 @@ They did ask for my email, in exchange for emailing me a ballot once a month to
  #+END_QUOTE
 **  [[https://github.com/hakimel/reveal.js/wiki/Plugins,-Tools-and-Hardware#tools][Plugins, Tools and Hardware · hakimel/reveal.js Wiki?body]] 
  Captured On: [2019-06-03 Mon 09:38]
+**  [[https://github.com/DATA-DOG/godog][DATA-DOG/godog: Cucumber for golang?body]] 
+ Captured On: [2019-07-04 Thu 14:52]

@@ -63,6 +63,8 @@ MimeType=x-scheme-handler/org-protocol;
 EOF
 #+END_SRC
 
+#+RESULTS:
+
 * Capture Templates
 
 We put this in our .spacemacs 
