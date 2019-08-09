@@ -1,0 +1,74 @@
+#+TITLE: udev / actioning when devices are attached
+
+* Who What Why, Given When Then
+
+#+BEGIN_SRC feature
+As a user of a simple window manager without automount support
+I want to plug in my MMC and USB drives and easily read and write files to usb
+So I can speed up the process of writing files from my favorite apps
+
+Feature: auto mount MMC / USB
+Given a usb or MMC
+When I plug in into my computer
+Then it can be written to via /media/usbX/
+
+Feature: unmount / eject MMC / USB
+Given a mounted usb at /media/usb0
+When I run `pumount /media/usb0`
+And I remove the media
+Then the file system is safe for use again
+#+END_SRC
+
+
+* USB / MMC
+
+** montoring when my MMC card is inserted
+
+#+NAME: run this while plugging and unplugging
+#+BEGIN_SRC shell
+udevadm monitor
+#+END_SRC
+
+** find attributes
+
+#+NAME: run this on a device to find it's udev attributes
+#+BEGIN_SRC shell
+udevadm info -a /dev/mmcblk0
+#+END_SRC
+
+** Drop a line matching the attribs to run a program on the ADD or REMOVE action
+
+#+NAME: drop this into /etc/udev/rules.d/NN-myrule.rules
+#+BEGIN_SRC shell
+KERNEL=="mmc*", SUBSYSTEMS=="block",   ACTION=="add",  PROGRAM="/bin/systemd-escape -p --template=usbmount@.service $env{DEVNAME}", ENV{SYSTEMD_WANTS}+="%c"
+#+END_SRC
+
+** reload udevadm rules to find your new rule
+
+#+BEGIN_SRC shell
+udevadm control --reload-rules
+#+END_SRC
+
+** ensure the disks mount as my user and that my user can unmount
+
+#+NAME: add to /etc/usbmount/usbmount.conf
+#+BEGIN_SRC ini
+FS_MOUNTOPTIONS="--fstype=vfat,uid=hh,gid=hh,dmask=0007,fmask=0117"
+#+END_SRC
+
+
+* Install usbmount
+
+https://github.com/rbrito/usbmount
+
+** clone build and install
+
+#+BEGIN_SRC shell
+git clone https://github.com/rbrito/usbmount
+cd usbmount
+sudo apt-get update && sudo apt-get install -y debhelper build-essential
+sudo dpkg-buildpackage -us -uc -b
+sudo dpkg -i ../usbhelper*deb
+sudo apt-get install pmount
+#+END_SRC
+
