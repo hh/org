@@ -1,0 +1,220 @@
+#+TITLE: Setup Our Box
+#+AUTHOR: Hippie Hacker
+#+EMAIL: hh@ii.coop
+#+CREATOR: ii.coop
+#+DATE: 21st of August, 2019
+#+STARTUP: showeverything
+#+PROPERTY: header-args:shell+ :dir "/ssh:root@147.75.69.215:/root"
+#+PROPERTY: header-args:shell+ :dir (symbol-value 'org-file-dir)
+
+[[/ssh:root@147.75.69.215:/]]
+* Networking
+[[/ssh:root@147.75.69.215:/etc/network/interfaces]]
+
+#+NAME: add 
+#+BEGIN_SRC text
+  auto bond0:1
+  iface bond0:1 inet static
+      address 146.75.88.217
+      netmask 255.255.255.248
+  auto bond0:2
+  iface bond0:2 inet static
+      address 146.75.88.218
+      netmask 255.255.255.248
+  auto bond0:3
+  iface bond0:3 inet static
+      address 146.75.88.219
+      netmask 255.255.255.248
+  auto bond0:4
+  iface bond0:4 inet static
+      address 146.75.88.220
+      netmask 255.255.255.248
+  auto bond0:5
+  iface bond0:5 inet static
+      address 146.75.88.221
+      netmask 255.255.255.248
+  auto bond0:6
+  iface bond0:6 inet static
+      address 146.75.88.222
+      netmask 255.255.255.248
+#+END_SRC
+
+#+NAME: add to /etc/network/interfaces
+#+BEGIN_SRC text
+auto lo:1
+iface lo:1 inet static
+    address 146.75.88.217
+    netmask 255.255.255.248
+auto lo:2
+iface lo:2 inet static
+    address 147.75.61.218
+    netmask 255.255.255.248
+auto lo:3
+iface lo:3 inet static
+    address 147.75.61.219
+    netmask 255.255.255.248
+auto lo:4
+iface lo:4 inet static
+    address 147.75.61.220
+    netmask 255.255.255.248
+auto lo:5
+iface lo:5 inet static
+    address 147.75.61.221
+    netmask 255.255.255.248
+auto lo:6
+iface lo:6 inet static
+    address 147.75.61.222
+    netmask 255.255.255.248
+#+END_SRC
+
+#+BEGIN_SRC tmate
+ifup lo:1
+ifup lo:2
+ifup lo:3
+ifup lo:4
+ifup lo:5
+ifup lo:6
+#+END_SRC
+
+
+* Setting up ZFS
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+
+[[https://github.com/zfsonlinux/zfs/wiki/Debian#installation][ZFS on Linux Debian (buster) installation directions]]
+
+#+NAME: adding buster-backports as a repo
+#+BEGIN_SRC debian :tangle (concat "/ssh:" ssh-user "@" ssh-host ":/etc/apt/sources.list.d/buster-backports.list")
+deb http://deb.debian.org/debian buster-backports main contrib
+deb-src http://deb.debian.org/debian buster-backports main contrib
+#+END_SRC
+
+#+NAME: apt preferences pinning zfs to buster-backports
+#+BEGIN_SRC debian :tangle (concat "/ssh:" ssh-user "@" ssh-host ":/etc/apt/preferences.d/90_zfs")
+Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
+Pin: release n=buster-backports
+Pin-Priority: 990
+#+END_SRC
+
+#+NAME: install kernel headers and zfs-dkms
+#+BEGIN_SRC tmate
+(
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt install --yes dpkg-dev linux-headers-$(uname -r) linux-image-amd64
+apt-get install -yq zfs-dkms zfsutils-linux
+) 2>&1
+:
+#+END_SRC
+
+#+NAME: connect over ssh
+#+BEGIN_SRC tmate :session hh:baz :noweb yes
+ssh <<ssh-user()>>@<<ssh-host()>>
+#+END_SRC
+** zpool
+*** check for block devices
+#+NAME: zpool setup
+#+BEGIN_SRC shell
+lsblk
+#+END_SRC
+
+#+RESULTS: zpool setup
+#+begin_EXAMPLE
+NAME    MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda       8:0    0 223.6G  0 disk 
+├─sda1    8:1    0     2M  0 part 
+├─sda2    8:2    0   1.9G  0 part [SWAP]
+└─sda3    8:3    0 221.7G  0 part /
+sdb       8:16   0 223.6G  0 disk 
+nvme0n1 259:0    0   3.5T  0 disk 
+#+end_EXAMPLE
+
+*** zpool on nvme0n1
+#+NAME: create zpool on nvme
+#+BEGIN_SRC shell :prologue "(\n" :epilogue ") 2>&1\n:"
+zpool create -m /zfs pool /dev/nvme0n1
+#+END_SRC
+
+
+#+NAME: inital state of the zpool
+#+BEGIN_SRC shell
+zpool list
+#+END_SRC
+
+#+RESULTS: inital state of the zpool
+#+begin_EXAMPLE
+NAME   SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+pool  3.47T   120K  3.47T         -     0%     0%  1.00x  ONLINE  -
+#+end_EXAMPLE
+
+*** restore snapshot
+#+BEGIN_SRC 
+zfs snapshot ssd/backups/nextcloud@backup
+zfs send ssd/backups/nextcloud@snapshot | root@147.75.69.215 zfs receive pool/nextcloud.sharing.io
+#+END_SRC
+
+** packet attach disk
+https://github.com/packethost/packet-block-storage
+
+#+BEGIN_SRC tmate
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -yq open-iscsi multipath-tools jq
+#+END_SRC
+
+#+BEGIN_SRC tmate
+wget -O /usr/local/bin/packet-block-storage-attach https://raw.githubusercontent.com/packethost/packet-block-storage/master/packet-block-storage-attach
+wget -O /usr/local/bin/packet-block-storage-detach https://raw.githubusercontent.com/packethost/packet-block-storage/master/packet-block-storage-detach
+chmod u+x /usr/local/bin/packet-block-storage-*
+packet-block-storage-attach
+#+END_SRC
+** zpool create backups
+#+BEGIN_SRC shell
+zpool create -m /zfsbackup ocean /dev/mapper/volume-415c5f23
+#+END_SRC
+
+
+
+* Install tmate and xclip
+  :PROPERTIES:
+    :header-args:shell+: :dir (symbol-value 'ssh-tramp-dir)
+    :header-args:bash+: :dir (file-name-directory buffer-file-name)
+  :END:
+
+#+NAME: install tmate and xclip
+#+BEGIN_SRC shell
+apt install -y tmate xclip
+#+END_SRC
+
+#+NAME: tmate config
+#+BEGIN_SRC sh :eval never :tangle (concat "/ssh:" ssh-user "@" ssh-host ":~/.tmate.conf")
+set-option -g set-clipboard on
+set-option -g mouse on
+set-option -g history-limit 50000
+set -g tmate-identity ""
+set -s escape-time 0
+;uncomment to use pair.ii.nz
+;set -g tmate-server-host pair.ii.nz
+;set -g tmate-server-port 22
+;set -g tmate-server-rsa-fingerprint   "f9:af:d5:f2:47:8b:33:53:7b:fb:ba:81:ba:37:d3:b9"
+;set -g tmate-server-ecdsa-fingerprint   "32:44:b3:bb:b3:0a:b8:20:05:32:73:f4:9a:fd:ee:a8"
+#+END_SRC
+
+
+
+* Org stuff
+
+#+NAME: write remote config files
+#+BEGIN_SRC elisp :results none
+(org-babel-tangle)
+#+END_SRC
+
+* Footnotes
+# Local Variables:
+# eval: (set (make-local-variable 'ssh-user) "root")
+# eval: (setq-local ssh-host "147.75.69.215")
+# eval: (set (make-local-variable 'ssh-dir) "~")
+# eval: (set (make-local-variable 'ssh-tramp-dir) (concat "/ssh:" ssh-user "@" ssh-host ":" ssh-dir))
+# eval: (org-babel-lob-ingest "lob.org")
+# End:
