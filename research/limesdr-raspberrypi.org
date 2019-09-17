@@ -1,0 +1,41 @@
+#+TITLE: Setting up a Raspberry Pi to talk to a LimeSDR
+#+AUTHOR: Caleb Woodbine
+#+EMAIL: caleb@ii.coop
+#+CREATOR: ii.coop
+#+STARTUP: showeverything
+#+DATE: 17th September, 2019
+
+Steps to setting up a Raspberry Pi to talk to a LimeSDR.
+
+* Initial steps and dependencies
+** Dependencies
+- make
+- git
+
+** ScratchRadio
+ScratchRadio is a library for Scratch which allows it to talk to a LimeSDR device.
+The install scripts also install LimeSuite, which is what we'll be mostly using.
+
+#+BEGIN_SRC shell
+# prepare
+mkdir -p ~/Documents/git
+cd ~/Documents/git
+git clone https://github.com/myriadrf/ScratchRadio
+cd ScratchRadio
+
+# setup
+sudo ./scripts/install_deps.sh
+make LimeSuite
+make GnuRadio
+make ScratchRadio
+make clean
+#+END_SRC
+
+* Connection and accessing
+Connecting to the SDR is done via raw/serial USB.
+
+1. Plug the LimeSDR device into the Raspberry Pi, using the USB-A 3.0 ports if available
+2. Launch `LimeSuiteGUI` 
+3. Go to Options -> Connection Settings
+4. Highlight the board and press Connect
+
