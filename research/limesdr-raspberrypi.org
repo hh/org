@@ -39,3 +39,9 @@ Connecting to the SDR is done via raw/serial USB.
 3. Go to Options -> Connection Settings
 4. Highlight the board and press Connect
 
+* Useful links
+- https://amsat-uk.org/2016/03/14/listen-iss-raspberry-pi-3-limesdr/
+- https://www.linux.com/tutorials/open-source-limesdr-mini-ships-and-takes-satellites/
+- https://myriadrf.org/projects/component/limesdr/
+- https://discourse.myriadrf.org/t/limesdr-with-gqrx-is-working/314/7 
+
