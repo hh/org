@@ -1,0 +1,97 @@
+#+TITLE: Flashing a Nexus 5
+#+AUTHOR: Caleb Woodbine
+#+EMAIL: caleb@ii.coop
+#+STARTUP: showeverything
+#+DATE: 2nd October, 2019
+
+Steps in order to flash a Nexus 5 phone with ASOP Extended.
+
+* Initial setup and dependencies
+** Dependencies
+- adb
+- fastboot
+
+** Preparations
+1. Depending on your distribution, some udev rules may be required to allow your workstation to talk to the phone -- if the following steps do not work, please refer to your favourite search engine.
+2. Connect your phone to your workstation
+
+** Firmware files
+Please download and prepare the following firmware asset files:
+- [[https://dl.twrp.me/hammerhead/twrp-3.3.1-0-hammerhead.img.html][TWRP recovery ROM version 3.3.1-0 for LG Nexus 5 (Hammerhead)]] 
+- [[https://downloads.aospextended.com/download/hammerhead/oreo/AospExtended-v5.7-hammerhead-20180709-1832-OFFICIAL.zip][ASOP Extended - Android 8 (Oreo) - LG Nexus 5 (Hammerhead)]] 
+- [[https://opengapps.org/][opengapps]] (choose version Platform: ARM, Android 8.1, Variant: pico)
+
+* Flashing
+** Recovery
+*** Preparing the device's state
+Boot into the bootloader for flashing
+#+BEGIN_SRC shell
+adb reboot bootloader
+#+END_SRC
+
+List devices which are in fastboot mode (low level bootloader)
+#+BEGIN_SRC shell
+sudo fastboot devices -l
+#+END_SRC
+(sudo is only required for detecting the device)
+
+*** Unlocking the bootloader
+Unlock the device's bootloader with fastboot
+Please note, this will void the device's warrenty
+#+BEGIN_SRC shell
+fastboot oem unlock
+#+END_SRC
+
+*** Flashing TWRP as the recovery
+This action will install the recovery onto the recover partition. Make sure you write the correct file name!
+#+BEGIN_SRC shell
+fastboot flash recovery twrp-3.3.1-0-hammerhead.img
+#+END_SRC
+
+*** Launch into the newly flashed recovery
+#+BEGIN_SRC shell
+fastboot reboot recovery
+#+END_SRC
+
+** OS
+*** Prepare firmware file
+Copy the OS image over:
+#+BEGIN_SRC shell
+adb push ~/Downloads/AospExtended-v5.7-hammerhead-20180709-1832-OFFICIAL.zip /sdcard
+#+END_SRC
+
+*** Backup the current images
+In TWRP, go to Backup, make sure that System, Data, and Boot are selected.
+Swip to Backup.
+This ensures that if anything goes wrong reverting back can be an option.
+Finally return to the main menu.
+
+*** Wipe
+Before the device can have the new ROM installed, it must be wiped.
+In TWRP, go to Wipe, select Advanced Wipe.
+From the list, choose System, Data, and Cache, then Swipe to Wipe.
+Finally return to the main menu.
+
+*** Installing the new OS
+Now with the OS image copied over to the device, we can flash it.
+In TWRP, go to Install. From the /sdcard filesystem view, select the AsopExtended*.zip file, and Swipe to confirm Flash.
+Finally return to the main menu, unless you intend to do the following step.
+
+** Extras (opengapps)
+This step is optional, if you do not want to use any form of Google services.
+
+*** Prepare package file
+Copy to opengapps package over:
+#+BEGIN_SRC shell
+adb push ~/Downloads/open_gapps-arm-8.1-pico-20191001.zip /sdcard
+#+END_SRC
+
+*** Install
+In TWRP, go to Install. From the /sdcard filesystem view, select the open_gapps*.zip package file, and Swipe to confirm Flash.
+Finally return to the main menu.
+
+** Reboot
+Now that everything here is done, we can reboot into AsopExtended.
+From the main menu or if available on the current screen, go to Reboot, and reboot the device into normal mode.
+
+
