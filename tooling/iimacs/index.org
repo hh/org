@@ -1,0 +1,13 @@
+#+TITLE: iimacs
+
+* Purpose
+  Welcome to the introduction to our iimacs org directory.  iimacs refers to the unique customization we've done atop [[https://spacemacs.org][spacemacs]] to fit our pairing and literate workflow.  This page directs you to the various resources and knowledge we have for iimacs.
+
+* [[file:getting-started.org][Getting Started]]
+  Learn how to install and get running with iimacs.
+* [[file:faq.org][FAQ]] 
+  Common questions about our setup, along with cool tips for the smart iimacs user.
+
+
+
+

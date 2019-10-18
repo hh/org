@@ -1,0 +1,4 @@
+#+TITLE: iimacs FAQ
+
+* Purpose
+  Common questions about our setup, along with cool tips for the smart iimacs user.

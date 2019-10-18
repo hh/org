@@ -1,0 +1,5 @@
+#+TITLE: Getting Started with iimacs
+
+* Purpose
+  Learn how to install and get running with iimacs.
+
