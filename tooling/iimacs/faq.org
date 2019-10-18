@@ -2,3 +2,14 @@
 
 * Purpose
   Common questions about our setup, along with cool tips for the smart iimacs user.
+* How do I customize my personal iimacs?
+* How do I share my  iimacs customization with the team?
+* what's the difference between personal and team customizatin?
+* How do I customize iimacs for a particular project?
+* How do i get the latest changes to our iimacs config?
+* What do I do if something isn't working as expected?
+* How do I start a pairing session?
+* How do I close a pairing session?
+* What are good maintenance tips for iimacs
+  - cleaning up our tmp folder?
+  - closing all tmate sessions?
