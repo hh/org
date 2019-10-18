@@ -3,3 +3,22 @@
 * Purpose
   Learn how to install and get running with iimacs.
 
+* What makes our setup unique
+  - built for pairing
+  - set for our coding languages and styles
+  - setup for literate programming
+* Prerequisites
+** emacs 26+   
+   To install, check out the guide on [[https://github.com/syl20bnr/spacemacs#emacs][spacemacs github]]
+** git
+   you likely already have it, if not you can install it here: https://git-scm.com/
+* Installing Spacemacs
+  We'll clone our special emacs setup to be your home directory's ~.emacs.d~
+  If you already have an .emacs.d folder, first back it up:
+: mv .emacs.d .emacs.d.bk
+  Then clone our repo to that directory
+: git clone git@gitlab.ii.coop:ii/tooling/iimacs.git ~/.emacs.d
+
+
+* Verifying it works
+  these should be tests you can run that verify each of our unique features listed above.
