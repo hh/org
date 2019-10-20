@@ -25,8 +25,9 @@ http://director.downloads.raspberrypi.org/NOOBS/images/NOOBS-2019-04-09/NOOBS_v3
 
 #+BEGIN_SRC tmate :noweb yes
 cd <<tmpdir>>
-aria2c  https://downloads.raspberrypi.org/raspbian_lite_latest.torrent
+aria2c  https://downloads.raspberrypi.org/raspbian_full_latest.torrent
 #+END_SRC
+
 #+BEGIN_SRC tmate :noweb yes
 unzip *zip
 #+END_SRC

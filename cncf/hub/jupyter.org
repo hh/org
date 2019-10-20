@@ -3,8 +3,6 @@
 #+EMAIL: hh@ii.coop
 #+CREATOR: ii.coop for the CNCF
 #+DATE: 5th of October, 2018
-#+PROPERTY: header-args:tmate :socket /tmp/hh-right.isocket
-#+PROPERTY: header-args:tmate :session hh-right:misc
 
 JypyterHub provides [[https://github.com/jupyterhub/zero-to-jupyterhub-k8s][some zero-to-jupyterhub on k8s]] documentation that we'll loosely follow.
 
@@ -12,8 +10,7 @@ The rendered version is at https://z2jh.jupyter.org/en/stable/
 
 * Step Zero: Kubernetes on Google Cloud (GKE)
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.hh-right.isocket"
-:header-args:tmate: :session hh-right:misc
+:header-args:tmate+: :session hh-right:misc
 :END:
 
  You'll need to customize this with an project of your own.
@@ -29,11 +26,11 @@ The rendered version is at https://z2jh.jupyter.org/en/stable/
     #+END_SRC
 
     #+RESULTS: Verify your gcloud credentials
-    #+BEGIN_SRC shell
+    #+begin_src shell
              Credentialed Accounts
     ACTIVE             ACCOUNT
     ,*                  hh@ii.coop
-    #+END_SRC
+    #+end_src
 
 ** Choose a gcloud project
 
@@ -77,12 +74,12 @@ The rendered version is at https://z2jh.jupyter.org/en/stable/
  #+END_SRC
 
  #+RESULTS: Verify config
- #+BEGIN_SRC shell
+ #+begin_src shell
  [core]
  account = hh@ii.coop
  disable_usage_reporting = True
  project = apisnoop
- #+END_SRC
+ #+end_src
 *** ensure Kubernetes Engine API is Enabled 
  #+NAME: ensure Kubernetes Engine API is enabled
  #+BEGIN_SRC tmate
@@ -95,9 +92,9 @@ The rendered version is at https://z2jh.jupyter.org/en/stable/
  #+END_SRC
 
  #+RESULTS: ensure Kubernetes Engine API is enabled
- #+BEGIN_SRC_text
- container.googleapis.com          Kubernetes Engine API
- #+END_SRC_text
+ #+begin_SRC_text
+ container.googleapis.com                Kubernetes Engine API
+ #+end_SRC_text
 
 *** ensure kubectl is installed
 
@@ -213,7 +210,6 @@ helm repo update
 
 * Setup JupyterHub
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.hh-right.isocket"
 :header-args:tmate: :session hh-right:misc
 :END:
 ** Secrets / ENV Setup
@@ -225,10 +221,10 @@ helm repo update
    md5sum ./jupyterhub/proxy_secretToken
  #+END_SRC
 
- #+RESULTS[f095e1c3b52fe39b318d8481ce516be6d744db95]: generate_proxy_secretToken
- #+BEGIN_SRC shell
- 7f36e23bb29f707219a6227262806b2c  ./jupyterhub/proxy_secretToken
- #+END_SRC
+ #+RESULTS[74d72819665cac8ca630846779f60aa04b72b3c9]: generate_proxy_secretToken
+ #+begin_EXAMPLE
+ 354a1e99c616c51473cbf76530556eae  ./jupyterhub/proxy_secretToken
+ #+end_EXAMPLE
 
  #+NAME: proxy_secretToken
  #+BEGIN_SRC shell :exports code :results silent
@@ -255,6 +251,12 @@ helm repo update
  #+BEGIN_SRC shell :results output silent
  . secrets/env ; echo -n $GITHUB_CLIENT_SECRET
  #+END_SRC
+ 
+#+NAME: github_access_token
+ #+BEGIN_SRC shell :results output silent
+ . secrets/env ; echo -n $GITHUB_ACCESS_TOKEN
+ #+END_SRC
+
 
 ** Configuration file
 
@@ -268,9 +270,10 @@ https://z2jh.jupyter.org/en/stable/advanced.html
         - ii-dev
     type: github
     github:
+      accessToken: "<<github_client_id()>>"
       clientId: "<<github_client_id()>>"
       clientSecret: "<<github_client_secret()>>"
-      callbackUrl: "https://jhub.cncf.ci/hub/oauth_callback"
+      callbackUrl: "https://hub.apisnoop.io/hub/oauth_callback"
       org_whitelist:
         - ii
         - cncf
@@ -283,7 +286,7 @@ https://z2jh.jupyter.org/en/stable/advanced.html
     secretToken: "<<proxy_secretToken()>>"
     https:
       hosts:
-        - jhub.cncf.ci
+        - hub.cncf.ci
       letsencrypt:
         contactEmail: hh@ii.coop
   prePuller:
@@ -374,14 +377,12 @@ proxy-public   LoadBalancer   10.3.245.151   35.201.13.80   80:30337/TCP,443:324
 #+END_SRC 
 * Setup GCR
 :PROPERTIES:
-:header-args:tmate: :socket "/tmp/.hh-right.isocket"
-:header-args:tmate: :session hh-right:misc
 :END:
 ** Create Service Account / JSON Creds
 
 #+NAME: gcloud sa create
 #+BEGIN_SRC tmate :results silent
-gcloud iam service-accounts create  binderhub --display-name="BinderHub"
+gcloud iam service-accounts create binderhub --display-name="BinderHub"
 #+END_SRC
 
 #+NAME: binder_hub_sa
@@ -429,10 +430,10 @@ gcloud iam service-accounts create  binderhub --display-name="BinderHub"
    md5sum ./binderhub/apiToken
  #+END_SRC
 
- #+RESULTS[6a4cb324040b57b59c69da4b592b858ccfaa43c3]: generate_hub_services_binder_apitoken
- #+BEGIN_SRC shell
- d47c3327a12ce184049c7a7739202de2  ./binderhub/apiToken
- #+END_SRC
+ #+RESULTS[f09225045efa37cd11f7c3a7da40aa8f74511d18]: generate_hub_services_binder_apitoken
+ #+begin_EXAMPLE
+ e7c8b02768dbf4117aa5b8ca49a02507  ./binderhub/apiToken
+ #+end_EXAMPLE
 
 
  #+NAME: binderhub_apiToken
@@ -447,10 +448,11 @@ gcloud iam service-accounts create  binderhub --display-name="BinderHub"
    md5sum ./binderhub/secretToken
  #+END_SRC
 
- #+RESULTS[b41c9a75ff07ffd2dc9cd5d63d23d2dedb0d59ce]: generate_binderhub_secrettoken
- #+BEGIN_SRC shell
- 89e4c6aa0dddaaa3da3b184adb8e27cc  ./binderhub/secretToken
- #+END_SRC
+ #+RESULTS[296ffd5656179dfbe35865cc69a8dad60fdf40b2]: generate_binderhub_secrettoken
+ #+begin_EXAMPLE
+ 43bbe202f790bcf0e8323a19890d27cb  ./binderhub/secretToken
+ #+end_EXAMPLE
+
 
 
  #+NAME: binderhub_secretToken
@@ -545,7 +547,7 @@ It should match proxy-
     enabled: true
 
   hub:
-    url: http://hub.cncf.ci/
+    url: http://hub.apisnoop.io
     # url: http://<<NAMESPACE()>>.cncf.ci/
 #+END_SRC
 
@@ -562,7 +564,7 @@ It should match proxy-
         - ii-dev
     type: github
     github:
-      callbackUrl: "https://jhub.cncf.ci/hub/oauth_callback"
+      callbackUrl: "https://hub.apisnoop.io/hub/oauth_callback"
       org_whitelist:
         - ii
         - cncf
@@ -574,7 +576,7 @@ It should match proxy-
   proxy:
     https:
       hosts:
-        - jhub.cncf.ci
+        - hub.apisnoop.io
       letsencrypt:
         contactEmail: hh@ii.coop
   prePuller:
@@ -1146,132 +1148,5 @@ kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.passwor
 *** Configure GitLab to retrieve
 
 * Footnotes
-  
-** isocket
-*** Connecting the left pair / isocket
-
- ssh needs '-t' twice because it needs to be forced to allocate a remote terminal
- _even_ when we don't have have local one (within emacs)
-
-#+NAME: left_session_create
-#+BEGIN_SRC shell :var session="ii-left" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
-  $terminal_exec \
-      "ssh -att \
-           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
-           -l $user \
-           $host \
-      tmate -S /tmp/.$session.isocket \
-            new-session \
-            -A \
-            -s $session \
-            -n emacs \
-      emacs --fg-daemon=$session" \
-  &
-#+END_SRC
-
-#+NAME: left_session_setup
-#+BEGIN_SRC shell :var session="ii-left" user="root" host="apisnoop.cncf.io" :session nil :results silent
-  ssh -att $user@$host \
-  "tmate -S /tmp/.$session.isocket \
-        new-window \
-        -n editor" \
-   "emacsclient -nw \
-              --socket-name $session \
-              ~/org/ii/legalhackers/gitlab.org"
-#+END_SRC
-
-**** Connecting to emacs daemon
-
- #+NAME: alse run emacsclient
- #+BEGIN_SRC tmate :noeval
- export SESSION=lt-emacs
- emacsclient --socket-name $SESSION
- #+END_SRC
-
-*** Connecting the right pair / isocket
-
-#+NAME: right_session_create
-#+BEGIN_SRC shell :var session="ii-right" terminal_exec="xterm -e" user="root" host="apisnoop.cncf.io" :session nil :results silent
-  $terminal_exec \
-      "ssh -att \
-           -L /tmp/.$session.isocket:/tmp/.$session.isocket \
-           -l $user \
-           $host \
-      tmate -S /tmp/.$session.isocket \
-            new-session \
-            -A \
-            -s $session \
-            -n misc" \
-  &
-#+END_SRC
-
-
- #+NAME: right_session_join
- #+BEGIN_SRC shell :results silent
- export SESSION=api-snoop
- export XTERM_EXEC="roxterm -e"
- $XTERM_EXEC ssh -Att root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket \
-   at \; sleep 9999
- #+END_SRC
-
- #+NAME: right_session_setup
- #+BEGIN_SRC shell :results verbatim
- export SESSION=api-snoop
- echo ssh -tt root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket \
-    new-window -n session \
-     bash
- #+END_SRC
-
- #+NAME: right_session
- #+BEGIN_SRC shell :cache yes :wrap "SRC text :noeval" :results verbatim
- export SESSION=api-snoop
- ssh -tt root@apisnoop.cncf.io \
-  tmate -S /tmp/.$SESSION.isocket display -p \'#{tmate_ssh}\'
- #+END_SRC
-
- #+RESULTS[dd96525b42bbbe741e292e99ad5f3592a7163025]: right_session
- #+BEGIN_SRC text :noeval
- ssh mJrsCgvGTOTOFagYpBKvRf7EE@sf2.tmate.io
- #+END_SRC
-
-
-
-
-
- #+NAME: give this to your pair
- #+BEGIN_SRC bash :noweb yes :var left_session=left_session() right_session=right_session()
- echo "ii pair session ready
- left: $left_session
- right: $right_session
- "
- #+END_SRC
-
- #+RESULTS: give this to your pair
- | ii     | pair | session | ready |
- | left:  | nil  |         |       |
- | right: | nil  |         |       |
- |        |      |         |       |
-
-*** TODO Sharing your eyes
-
-#+NAME: give this to your pair
-#+BEGIN_SRC bash :noweb yes :var left_session=left_session() :var right_session=right_session()
-echo "ii pair session ready
-left: $left_session
-right: $right_session
-"
-#+END_SRC
 # Local Variables:
-# eval: (require (quote ob-shell))
-# eval: (require (quote ob-lisp))
-# eval: (require (quote ob-emacs-lisp))
-# eval: (require (quote ob-js))
-# eval: (require (quote ob-go))
-# eval: (setq org-babel-tmate-session-prefix "rt-")
-# eval: (setq org-babel-tmux-session-prefix "rt-")
-# org-confirm-babel-evaluate: nil
-# org-babel-tmate-session-prefix: ""
-# org-babel-tmux-session-prefix: "rt-"
 # End:

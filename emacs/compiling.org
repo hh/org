@@ -101,7 +101,7 @@ Only for GNU/Linux, FreeBSD, NetBSD, MinGW, Cygwin.
   --without-threads       don't compile with elisp threading support
   --without-gnutls        don't use -lgnutls for SSL/TLS support
 ** compile command
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate
     ./configure --prefix=/usr/local/stow/emacs-26.2 \
       --with-x \
       --with-x-toolkit=gtk3 \

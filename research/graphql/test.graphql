@@ -4,8 +4,8 @@
   }
 }
 # Local Variables:
-# no-graphql-extra-headers: (("Authorization" . "bearer FIXME"))
-# no-graphql-url: "https://api.github.com/graphql"
-# no-graphql-variables-file: "graphql-variables"
+# graphql-extra-headers: (("Authorization" . (concat "bearer " "edf1a74752f0ccfd831ea1eeb7be49d83f0101fc"))
+# graphql-url: "https://api.github.com/graphql"
+# graphql-variables-file: "graphql-variables"
 # End:
 
