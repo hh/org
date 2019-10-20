@@ -2,14 +2,88 @@
 
 * Purpose
   Common questions about our setup, along with cool tips for the smart iimacs user.
-* How do I customize my personal iimacs?
-* How do I share my  iimacs customization with the team?
-* what's the difference between personal and team customizatin?
-* How do I customize iimacs for a particular project?
-* How do i get the latest changes to our iimacs config?
-* What do I do if something isn't working as expected?
-* How do I start a pairing session?
-* How do I close a pairing session?
-* What are good maintenance tips for iimacs
+* TODO How do I customize my personal iimacs?
+* TODO How do I share my  iimacs customization with the team?
+* TODO what's the difference between personal and team customizatin?
+* TODO How do I customize iimacs for a particular project?
+* TODO How do i get the latest changes to our iimacs config?
+* TODO What do I do if something isn't working as expected?
+* TODO How do I start a pairing session?
+* TODO How do I close a pairing session?
+* TODO What are good maintenance tips for iimacs
   - cleaning up our tmp folder?
   - closing all tmate sessions?
+* How do you add code snippets (like page templates for orgmode)?
+  You can do this using yasnippets, which comes builtin to iimacs.
+  There's a good blogpost on yasnippets here: https://blog.alex-miller.co/emacs/spacemacs/2017/05/28/yasnippets.html
+  In short, here are the steps you'd want to take
+** Navigate to a file you'd like a snippet for
+   for example, if you are wanting an org template, move to an org file first.
+   This is to make it easier when you save the snippet, so that it's saved within its proper mode directory.
+** Type SPC SPC yas-new-snippet and hit enter
+   this will bring you to the new snippet page.
+** Fill out the details of the snippet
+   The initial snippet will look like so:
+   
+   #+NAME: Example Empty Snippet
+   #+begin_src text
+     # -*- mode: snippet -*-
+     # name: 
+     # key: 
+     # --
+   #+end_src
+   
+ Name is whatever descriptive term for this snippet, that will help you find it in a crowd later.   e.g. ~apisnoop ticket template~
+ Key is what you will type to trigger this snippet, e.g. ~apitix~
+ 
+ You can then put the snippet in whole beneath the ~#--
+ 
+ For example, here is the full snippet for the apisnoop ticket template
+ 
+ #+NAME: APISnoop Ticket Template
+ #+begin_example
+   # -*- mode: snippet -*-
+   # name: apisnoop ticket template 
+   # key: apitix
+   # --
+
+   ,#+TITLE: Ticket $1: $2
+
+   ,* The Ticket
+   [[https://gitlab.ii.coop/cncf/apisnoop/issues/$1][gitlab link]]
+
+   ,#+BEGIN_QUOTE
+   $3
+   ,#+END_QUOTE
+
+   ,* Process
+   ,* Open Questions
+   ,* Conclusions || Next Steps
+   ,* Footnotes
+
+   ,* Footnotes
+
+   If you've already started up your app, you can connect to it by executing the two blocks below, in order.
+   If you haven't started it up yet, do so following the steps in [[file:~/ii/apisnoop/org/meta.org::*Welcome,%20ii%20dev!][meta.org]]  
+   ,#+NAME: Connect org to postgres
+   ,#+BEGIN_SRC emacs-lisp :results silent
+   (sql-connect "apisnoop" (concat "*SQL: postgres:data*"))
+   ,#+END_SRC
+   ,#+NAME: Test Connection
+   ,#+BEGIN_SRC sql-mode :results silent
+   \conninfo
+   ,#+END_SRC
+ #+end_example
+ 
+ (NOTE: the commas before each bullet point is just cos we are quoting an org file within an org file.  Thjey are escape characters, that would not be in the actual snippet)
+ 
+ Some interesting things about the template:
+ - it is just the pure text of an org file.  I filled out the template by simply copy and pasting from an existing org-file
+ - you can put in tab stops , like $1 and $2.  When you expand the snippet, your cursor will be placed in the first tab-stop.  You move to the next one with, you guess it, tab.
+ - you can have one tab stop in multiple places.  This will fit them out simultaneously.  In th is template, $1 is the number of the ticket, which fills out the title and the gitlab link vboth.
+ - you can also put in elisp functions to do even more tricksy stuff, but i did not do it in this example.
+** Save your work with SPC fs
+   When done, type ~SPC fs~ and save the file as whatever will help you find it later.  You can edit a snippet by navigating back to this file.  It will automatically add it to your mode, so will be avilable as soon as you navigate back.
+   
+** Stage, Commit, and Push your changes
+   If this snippet will help the tema, make sure you commit and push your changes.  All this is being saved in you9r ~.emacs.d~ which is set as our iimacs repo, so you'll want to navigate to this folder, and push the changes.
