@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
-orgfile=$1
-BASE=$(basename $orgfile)
+export ALTERNATE_EDITOR=""
+BASE=$(basename $1)
 tmate -S /tmp/${USER}.${BASE}.iisocket new-session \
       -A -s $USER -n emacs \
       "tmate wait tmate-ready \
@@ -11,4 +11,4 @@ tmate -S /tmp/${USER}.${BASE}.iisocket new-session \
 ; (echo \$TMATE_CONNECT | xclip -i -sel p -f | xclip -i -sel c )2>/dev/null \
 ; echo Share the above with your friends and hit enter here when done? \
 ; read ; \
-emacs -nw $1"
+emacsclient -s $BASE --tty $1 2>&1"
