@@ -1,0 +1,41 @@
+#+TITLE: iimacs setup
+* Get your terminal + emacs working
+** clone down .emacs.d
+  #+name: git clone --recursive ~/.emacs.d
+  #+begin_src shell
+  cd ~/
+  mv ~/.emacs.d ~/.emacs.d.before-ii
+  git clone --recursive https://github.com/iimacs/.emacs.d
+  #+end_src
+** xterm font size and OS Code settings
+  #+name: set xterm settings
+  #+begin_src shell
+  cp .emacs.d/.xterm-xdefaults ~/.Xdefaults
+  # edit the above to your preferences ^^^
+  xrdb ~/.Xdefaults
+  #+end_src
+** run xterm
+   #+name: apisnoop.sh 
+   #+begin_src shell :tangle /usr/local/bin/apisnoop.sh
+     #!/bin/bash
+     xterm -T $USER@sharing.io -e \
+         ssh -tA $USER@sharing.io bash -l \
+         '~/ii/org/start_osc52_session.sh'  '~/ii/apisnoop/' &
+   #+end_src
+
+   #+name: conformance-testing.sh
+   #+begin_src shell :tangle /usr/local/bin/conformance-testing.sh
+     #!/bin/bash
+     xterm -T hh@sharing.io/conformance-testing -e \
+           ssh -tA $USER@sharing.io bash -l \
+           '~/ii/org/start_osc52_session.sh'  '~/ii/conformance-testing/' &
+   #+end_src
+* Possibly use ~/.emacs.d/.spacemacs-hh
+You can have your own config, but I do a lot of work to keep mine happy.
+It's not a bad starting spot.
+  #+name: .spacemacs-$USER
+  #+begin_src shell
+    cp ~/.emacs.d/.spacemacs-hh ~/.emacs.d/.spacemacs-$USER
+  #+end_src
+
+* Get your local Terminal Working
