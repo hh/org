@@ -61,8 +61,15 @@ Terminal=false
 Categories=System;
 MimeType=x-scheme-handler/org-protocol;
 EOF
+update-desktop-database ~/.local/share/applications/
 #+END_SRC
 
+#+RESULTS:
+* register-protocol
+  #+begin_src shell
+  gconftool-2 -s /desktop/gnome/url-handlers/org-protocol/command "$HOME/.local/bin/emacsclient %s" --type String
+  gconftool-2 -s /desktop/gnome/url-handlers/org-protocol/enabled --type Boolean true
+  #+end_src
 * Capture Templates
 
 We put this in our .spacemacs 

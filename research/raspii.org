@@ -2,14 +2,15 @@
 #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
 * Creating the working copy
 
-#+NAME: tmpdir
-#+BEGIN_SRC shell :cache yes
+#+NAME: mktemp
+#+BEGIN_SRC shell :cache yes :wrap "SRC text :noweb-ref TMPDIR"
   mktemp -d -p /run/shm/
 #+END_SRC
 
-#+RESULTS[7645326672ee1057bb459bc1601b7e5954202b76]: tmpdir
-: /run/shm/tmp.5A6hDqkeT0
-
+#+RESULTS[5c55804b7828dde843db7b91a931f3ba1a408b5b]: mktemp
+#+begin_SRC text :noweb-ref TMPDIR
+/run/shm/tmp.cr6xhaPsE9
+#+end_SRC
 
 * Putting Raspbian onto a USB Flashy disk
 [[https://www.raspberrypi.org/downloads/][Raspberry Pi Downloads - Software for the Raspberry Pi]]
@@ -24,18 +25,20 @@ http://director.downloads.raspberrypi.org/NOOBS/images/NOOBS-2019-04-09/NOOBS_v3
 
 
 #+BEGIN_SRC tmate :noweb yes
-cd <<tmpdir>>
+cd <<TMPDIR>>
 aria2c  https://downloads.raspberrypi.org/raspbian_full_latest.torrent
+# aria2c  https://downloads.raspberrypi.org/raspbian_lite_latest.torrent
 #+END_SRC
 
 #+BEGIN_SRC tmate :noweb yes
 unzip *zip
 #+END_SRC
+
 Take the USB image file, and create a loopback block device.
 This device will expose the partition table, the filesystemes on them to the host.
 
 #+BEGIN_SRC tmate
-USBLOOP=$(sudo losetup -fP --show 2019-04-08-raspbian-stretch-lite.img )
+USBLOOP=$(sudo losetup -fP --show 2019-07-10-raspbian-buster-full.img )
 #+END_SRC
 Mount the partitions so we can explore the USB disk.
 #+BEGIN_SRC tmate

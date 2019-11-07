@@ -187,3 +187,21 @@ They did ask for my email, in exchange for emailing me a ballot once a month to
  #+END_QUOTE
 **  [[https://github.com/hakimel/reveal.js/wiki/Plugins,-Tools-and-Hardware#tools][Plugins, Tools and Hardware · hakimel/reveal.js Wiki?body]] 
  Captured On: [2019-06-03 Mon 09:38]
+** TODO [[https://orgmode.org/worg/org-contrib/org-protocol.html][org-protocol.el – Intercept calls from emacsclient to trigger custom actions?body]]
+ Captured On: [2019-11-07 Thu 04:42]
+This could help ALOT
+** [[https://orgmode.org/worg/org-contrib/org-protocol.html][org-protocol.el – Intercept calls from emacsclient to trigger custom actions]] :helpful:
+ Time: [2019-11-07 Thu]
+  #+BEGIN_QUOTE
+     iggered through the "capture" sub-protocol and uses the function org-capture.
+ org-protocol-remember
+     Fills a remember buffer with information gathered somewhere else. This handler is triggered through the "remember" sub-protocol and still available for backward compatibility. This handler uses org-remember. Use the current org-protocol-capture.
+ org-protocol-open-source
+     "open-source". Maps URLs to 
+ #+END_QUOTE
+** TODO [[https://github.com/skeeto/skewer-mode][skeeto/skewer-mode: Live web development in Emacs?body]]
+ Captured On: [2019-11-07 Thu 05:51]
+**  [[https://support.mozilla.org/en-US/kb/get-started-firefox-overview-main-features][Get started with Firefox - An overview of the main features | Firefox Help?body]]
+ Captured On: [2019-11-07 Thu 09:01]
+** TODO [[https://github.com/kubernetes/enhancements/pull/1306][Initial draft of Conformance Coverage PR Gate by hh · Pull Request #1306 · kubernetes/enhancements?body]]
+ Captured On: [2019-11-07 Thu 13:24]
