@@ -1,0 +1,35 @@
+* coredns
+node local
+* Windows Profiles                                                    :slack:
+@patricklang
+@craiglpeters
+
+Just a message for later parsing. We talked briefly about api coverage and windows profiles. Let chat again later to see about getting the new windows api stuff covered as part of a conformance profile. I'm hoping we can start moving on a plan sometime in 2020
+* SIG Service Catalog                                                 :slack:
+Chairs: @jberkhan @mszostok
+* SIG Autoscaling                                                     :slack:
+@wojtekt
+* SIG Scheduling                                                      :slack:
+Huang-Wei
+https://apisnoop.cncf.io/?zoomed=category-stable-scheduling
+* SIG API-Marchinery                                                  :slack:
+@fedebongio
+* Email from Quinton Hoole to sig-testing
+Regarding some interesting approaches
+* Kube Pair Programming                                               :email:
+  Jonathan A Berkhahn <jaberkha@us.ibm.com>
+	
+Mon, Nov 18, 4:27 PM (18 hours ago)
+	
+to me
+Hello,
+
+This is Jonathan, we spoke at your pair programming unconference session at the Contributor Summit. Just sending you this email. BTW my github is jberkhan.
+* Roger with Community Infra                                          :email:
+	Roger B.A. Klorese <rogerk@rogerklorese.com> 
+* George Kunz                                                         :email:
+	Georg Kunz <georg.kunz@ericsson.com> 
+CNTT Telecom Group
+*  Help in promoting Kubernetes Forum Sydney
+
+Kim McMahon <kmcmahon@linuxfoundation.org>
