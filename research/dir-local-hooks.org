@@ -1,0 +1,194 @@
+#+TITLE: dir-local-hooks
+* WWW GYR
+  #+begin_src feature
+    As an iimacs user
+    I want to create a right eye workflow
+    Without using .dir-local files
+    Given a folder without .dir-locals.el
+    When I open an org file
+    Then the right eye process is followed
+  #+end_src
+
+* Documentation
+[[info:elisp#File%20Local%20Variables][info:elisp#File Local Variables]]
+** local-variables
+ -- Variable: file-local-variables-alist
+     This buffer-local variable holds the alist of file-local variable
+     settings.  Each element of the alist is of the form
+     ‘(VAR . VALUE)’, where VAR is a symbol of the local variable and
+     VALUE is its value.  When Emacs visits a file, it first collects
+     all the file-local variables into this alist, and then the
+     ‘hack-local-variables’ function applies them one by one.
+ 
+ -- Variable: before-hack-local-variables-hook
+     Emacs calls this hook immediately before applying file-local
+     variables stored in ‘file-local-variables-alist’.
+ 
+ -- Variable: hack-local-variables-hook
+     Emacs calls this hook immediately after it finishes applying
+     file-local variables stored in ‘file-local-variables-alist’.
+
+ -- Function: hack-local-variables &optional handle-mode
+     This function parses, and binds or evaluates as appropriate, any
+     local variables specified by the contents of the current buffer.
+     The variable ‘enable-local-variables’ has its effect here.
+     However, this function does not look for the ‘mode:’ local variable
+     in the ‘-*-’ line.  ‘set-auto-mode’ does that, also taking
+     ‘enable-local-variables’ into account (*note Auto Major Mode::).
+
+     This function works by walking the alist stored in
+     ‘file-local-variables-alist’ and applying each local variable in
+     turn.  It calls ‘before-hack-local-variables-hook’ and
+     ‘hack-local-variables-hook’ before and after applying the
+     variables, respectively.  It only calls the before-hook if the
+     alist is non-‘nil’; it always calls the other hook.  This function
+     ignores a ‘mode’ element if it specifies the same major mode as the
+     buffer already has.
+
+     If the optional argument HANDLE-MODE is ‘t’, then all this function
+     does is return a symbol specifying the major mode, if the ‘-*-’
+     line or the local variables list specifies one, and ‘nil’
+     otherwise.  It does not set the mode or any other file-local
+     variable.  If HANDLE-MODE has any value other than ‘nil’ or ‘t’,
+     any settings of ‘mode’ in the ‘-*-’ line or the local variables
+     list are ignored, and the other settings are applied.  If
+     HANDLE-MODE is ‘nil’, all the file local variables are set.
+[[info:emacs#Directory%20Variables][info:emacs#Directory Variables]]
+** .dir-locals-2.el
+
+   You can also use ‘.dir-locals-2.el’; if found, Emacs loads it in
+addition to ‘.dir-locals.el’.  This is useful when ‘.dir-locals.el’ is
+under version control in a shared repository and can’t be used for
+personal customizations.
+
+** directory class
+   Another method of specifying directory-local variables is to define a
+group of variables/value pairs in a “directory class”,
+
+using the ‘dir-locals-set-class-variables’ function;
+
+then, tell Emacs which directories correspond to the class by using the
+‘dir-locals-set-directory-class’ function.
+
+These function calls normally go in your initialization file (*note Init
+File::).
+
+This method is useful when you can’t put ‘.dir-locals.el’ in a directory for
+some reason. For example, you could apply settings to an unwritable directory
+this way:
+
+   #+begin_src emacs-lisp
+     (dir-locals-set-class-variables
+        'unwritable-directory
+        '((nil . (
+                  (some-useful-setting . value)
+                  ))))
+
+     (dir-locals-set-directory-class
+        "/usr/include/" 'unwritable-directory)
+   #+end_src
+
+** tty-setup-hook
+[[info:emacs#Terminal%20Init][info:emacs#Terminal Init]]   
+
+   Emacs runs the hook ‘tty-setup-hook’ at the end of initialization,
+after both your ‘.emacs’ file and any terminal-specific library have
+been read in.  Add hook functions to this hook if you wish to override
+part of any of the terminal-specific libraries and to define
+initializations for terminals that do not have a library.
+* Loading Order 
+** test ring
+   #+begin_src emacs-lisp :results code
+     (with-current-buffer (find-file-noselect "/tmp/dir/subdir/test.org")
+       (symbol-value 'file-local-variables-alist)
+       )
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src emacs-lisp
+   ((eval message "dir-locals-set-class-variables")
+    (eval message "file local variable prop line")
+    (eval message "file local variable"))
+   #+end_src
+
+** folders
+   #+begin_src shell :results silent
+     mkdir -p /tmp/dir/subdir
+   #+end_src
+** before-hack-local-variables-hook
+   #+begin_src emacs-lisp :results silent
+     (defun bhlvh ()
+       (message "before-hack-local-variables-hook")
+       )
+     (add-hook 'before-hack-local-variables-hook 'bhlvh)
+   #+end_src
+** .dir-locals*
+*** dir-locals-set-class-variables
+ This is documented as being the way to add to your initrc
+ If we set this to work in the ~/ii folder for org-mode, it might
+ have the intended effect.
+    #+begin_src emacs-lisp
+      (dir-locals-set-class-variables
+         'tmp-dir
+         '((org-mode . (
+                   (eval . (message "dir-locals-set-class-variables")
+                   )))))
+
+      (dir-locals-set-directory-class
+         "/tmp/dir/" 'tmp-dir)
+    #+end_src
+
+    #+RESULTS:
+    | /tmp/dir/                 | tmp-dir                   | nil                         |
+    | /tmp/dir/                 | /tmp/dir/                 | (24027 59785 872210 607000) |
+    | /home/hh/ii/org/research/ | /home/hh/ii/org/research/ | (24017 26725 568447 408000) |
+    | /home/hh/ii/org/          | /home/hh/ii/org/          | (24017 26725 536447 478000) |
+*** dir/.dir-locals.el
+    #+begin_src emacs-lisp :tangle /tmp/dir/.dir-locals.el :eval never
+      (
+       (org-mode
+        (eval
+         .
+         (progn
+           (message "dir/.dir-locals.el org-mode variables")
+           )))
+       )
+    #+end_src
+*** dir/subdir/.dir-locals.el
+    #+begin_src emacs-lisp :tangle /tmp/dir/subdir/.dir-locals.el :eval never
+      (
+       (org-mode
+        (eval
+         .
+         (progn
+           (message "dir/subdir/.dir-locals.el org-mode variables")
+           )))
+       )
+    #+end_src
+*** dir/subdir/.dir-locals-2.el
+    #+begin_src emacs-lisp :tangle /tmp/dir/subdir/.dir-locals-2.el :eval never
+      (
+       (org-mode
+        (eval
+         .
+         (progn
+           (message "dir/subdir/.dir-locals-2.el org-mode variables")
+           )))
+       )
+    #+end_src
+** dir/subdir/test.org
+   #+begin_src org :tangle /tmp/dir/subdir/test.org
+     # -*- var: (message "file local variable prop line"); -*-
+     ,#+TITLE: testing to see what order the vars are executed in
+
+     # Local Variables:
+     # eval: (message "file local variable")
+     # End:
+   #+end_src
+** hack-local-variables-hook
+   #+begin_src emacs-lisp :results silent
+     (defun hlvh ()
+       (message "hack-local-variables-hook")
+       )
+     (add-hook 'hack-local-variables-hook 'hlvh)
+   #+end_src
