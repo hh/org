@@ -178,7 +178,7 @@ initializations for terminals that do not have a library.
     #+end_src
 ** dir/subdir/test.org
    #+begin_src org :tangle /tmp/dir/subdir/test.org
-     # -*- var: (message "file local variable prop line"); -*-
+     # -*- eval: (message "file local variable prop line"); -*-
      ,#+TITLE: testing to see what order the vars are executed in
 
      # Local Variables:
