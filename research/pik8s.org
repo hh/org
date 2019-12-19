@@ -1,0 +1,465 @@
+#+PROPERTY: header-args:shell :dir /ssh:ubuntu@192.168.1.101:/
+#+PROPERTY: header-args:shell+ :results code
+#+PROPERTY: header-args:shell+ :prologue "(\n" 
+#+PROPERTY: header-args:shell+ :epilogue ") 2>&1\n:\n"
+#+PROPERTY: header-args:shell+ :wrap EXAMPLE
+* A
+  #+begin_src shell
+    date
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  /
+  #+end_EXAMPLE
+
+** 1
+  :PROPERTIES:
+  :header-args:shell+: :dir /home
+  :END:
+  #+begin_src shell
+    date
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+   date 
+  #+end_EXAMPLE
+
+*** a
+    :PROPERTIES:
+    :header-args:shell+: :dir /
+    :END:
+** 2
+  :PROPERTIES:
+  :header-args:shell+: :dir /home/hh
+  :END:
+* Get keys onto pi
+  #+begin_src shell :dir ~/
+     scp ~/.ssh/id_rsa-4096-20090605-ccc.pub ubuntu@192.168.1.101:.ssh/authorized_keys
+  #+end_src
+
+* Update iptables etc to -legacy
+  #+begin_src shell :dir /ssh:ubuntu@192.168.1.101:/
+    sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+    sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+    sudo update-alternatives --set arptables /usr/sbin/arptables-legacy
+    sudo update-alternatives --set ebtables /usr/sbin/ebtables-legacy
+  #+end_src
+
+* ensure cgroups for raspi
+
+We had an error regarding cgroups when trying to run kubeadm init.
+Stephen noted this was the fix he's used on his pi's.
+
+   #+begin_src shell
+     echo "cgroup_enable=memory cgroup_memory=1" | sudo tee -a /boot/firmware/nobtcmd.txt
+   #+end_src
+
+   #+begin_src shell :results silent
+      sudo reboot
+   #+end_src
+
+* install docker
+** install
+  #+begin_src shell :results silent
+    sudo apt-get install -y docker.io
+  #+end_src
+** add ubuntu to docker group
+  #+begin_src shell :results silent
+    sudo adduser ubuntu docker
+  #+end_src
+** check
+  #+begin_src shell
+    id
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu),4(adm),20(dialout),24(cdrom),25(floppy),27(sudo),29(audio),30(dip),44(video),46(plugdev),114(netdev),117(lxd),118(docker)
+  #+end_EXAMPLE
+
+** docker ps check
+
+   #+begin_src shell
+      docker ps
+   #+end_src
+
+   #+RESULTS:
+   : CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+* Install kube-*
+
+** setup repos
+   #+begin_src shell
+     sudo apt-get update && sudo apt-get install -y apt-transport-https curl
+     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+     cat <<-EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
+     deb https://apt.kubernetes.io/ kubernetes-xenial main
+     EOF
+     sudo apt-get update
+   #+end_src
+** install and don't upgrade packages
+   #+begin_src shell :results silent
+     sudo apt-get install -y kubeadm kubectl kubelet 
+     sudo apt-mark hold kubelet kubeadm kubectl
+   #+end_src
+   
+** Verify
+   #+begin_src shell
+     kubectl version
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   Client Version: version.Info{Major:"1", Minor:"17", GitVersion:"v1.17.0", GitCommit:"70132b0f130acc0bed193d9ba59dd186f0e634cf", GitTreeState:"clean", BuildDate:"2019-12-07T21:20:10Z", GoVersion:"go1.13.4", Compiler:"gc", Platform:"linux/arm64"}
+   Server Version: version.Info{Major:"1", Minor:"17", GitVersion:"v1.17.0", GitCommit:"70132b0f130acc0bed193d9ba59dd186f0e634cf", GitTreeState:"clean", BuildDate:"2019-12-07T21:12:17Z", GoVersion:"go1.13.4", Compiler:"gc", Platform:"linux/arm64"}
+   #+end_EXAMPLE
+
+Ensure that docker info shows no errors relating to cgroups.
+
+   #+begin_src shell :results code
+     (
+       docker info
+     ) 2>&1
+     :
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src shell
+   Client:
+    Debug Mode: false
+
+   Server:
+    Containers: 0
+     Running: 0
+     Paused: 0
+     Stopped: 0
+    Images: 0
+    Server Version: 19.03.2
+    Storage Driver: overlay2
+     Backing Filesystem: extfs
+     Supports d_type: true
+     Native Overlay Diff: true
+    Logging Driver: json-file
+    Cgroup Driver: cgroupfs
+    Plugins:
+     Volume: local
+     Network: bridge host ipvlan macvlan null overlay
+     Log: awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog
+    Swarm: inactive
+    Runtimes: runc
+    Default Runtime: runc
+    Init Binary: docker-init
+    containerd version: 
+    runc version: 
+    init version: 
+    Security Options:
+     apparmor
+     seccomp
+      Profile: default
+    Kernel Version: 5.3.0-1014-raspi2
+    Operating System: Ubuntu 19.10
+    OSType: linux
+    Architecture: aarch64
+    CPUs: 4
+    Total Memory: 3.703GiB
+    Name: ubuntu
+    ID: 2W3G:EMYS:O363:SAS2:PLLY:ZLZL:WCGT:ZDM3:EBOR:NILT:Y2Y3:XPED
+    Docker Root Dir: /var/lib/docker
+    Debug Mode: false
+    Registry: https://index.docker.io/v1/
+    Labels:
+    Experimental: false
+    Insecure Registries:
+     127.0.0.0/8
+    Live Restore Enabled: false
+
+   WARNING: No swap limit support
+   #+end_src
+* Install kuberenetes
+  #+begin_src shell
+    ip a show dev eth0
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+      link/ether dc:a6:32:48:88:5f brd ff:ff:ff:ff:ff:ff
+      inet 192.168.1.101/24 brd 192.168.1.255 scope global dynamic eth0
+         valid_lft 85600sec preferred_lft 85600sec
+      inet6 fe80::dea6:32ff:fe48:885f/64 scope link 
+         valid_lft forever preferred_lft forever
+  #+end_EXAMPLE
+
+  #+begin_src shell :async t
+    sudo kubeadm init --apiserver-advertise-address=192.168.1.101
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  W1219 09:05:05.926247    3241 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1219 09:05:05.926466    3241 validation.go:28] Cannot validate kubelet config - no validator is available
+  [init] Using Kubernetes version: v1.17.0
+  [preflight] Running pre-flight checks
+    [WARNING Service-Docker]: docker service is not enabled, please run 'systemctl enable docker.service'
+    [WARNING IsDockerSystemdCheck]: detected "cgroupfs" as the Docker cgroup driver. The recommended driver is "systemd". Please follow the guide at https://kubernetes.io/docs/setup/cri/
+  [preflight] Pulling images required for setting up a Kubernetes cluster
+  [preflight] This might take a minute or two, depending on the speed of your internet connection
+  [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+  [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+  [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+  [kubelet-start] Starting the kubelet
+  [certs] Using certificateDir folder "/etc/kubernetes/pki"
+  [certs] Generating "ca" certificate and key
+  [certs] Generating "apiserver" certificate and key
+  [certs] apiserver serving cert is signed for DNS names [ubuntu kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 192.168.1.101]
+  [certs] Generating "apiserver-kubelet-client" certificate and key
+  [certs] Generating "front-proxy-ca" certificate and key
+  [certs] Generating "front-proxy-client" certificate and key
+  [certs] Generating "etcd/ca" certificate and key
+  [certs] Generating "etcd/server" certificate and key
+  [certs] etcd/server serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
+  [certs] Generating "etcd/peer" certificate and key
+  [certs] etcd/peer serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
+  [certs] Generating "etcd/healthcheck-client" certificate and key
+  [certs] Generating "apiserver-etcd-client" certificate and key
+  [certs] Generating "sa" key and public key
+  [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+  [kubeconfig] Writing "admin.conf" kubeconfig file
+  [kubeconfig] Writing "kubelet.conf" kubeconfig file
+  [kubeconfig] Writing "controller-manager.conf" kubeconfig file
+  [kubeconfig] Writing "scheduler.conf" kubeconfig file
+  [control-plane] Using manifest folder "/etc/kubernetes/manifests"
+  [control-plane] Creating static Pod manifest for "kube-apiserver"
+  [control-plane] Creating static Pod manifest for "kube-controller-manager"
+  W1219 09:07:19.128714    3241 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  [control-plane] Creating static Pod manifest for "kube-scheduler"
+  W1219 09:07:19.132253    3241 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+  [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+  [kubelet-check] Initial timeout of 40s passed.
+  [apiclient] All control plane components are healthy after 41.008694 seconds
+  [upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+  [kubelet] Creating a ConfigMap "kubelet-config-1.17" in namespace kube-system with the configuration for the kubelets in the cluster
+  [upload-certs] Skipping phase. Please see --upload-certs
+  [mark-control-plane] Marking the node ubuntu as control-plane by adding the label "node-role.kubernetes.io/master=''"
+  [mark-control-plane] Marking the node ubuntu as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+  [bootstrap-token] Using token: b8lzew.ito6lhl8kgv8glnk
+  [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+  [bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+  [bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+  [bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+  [bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
+  [kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
+  [addons] Applied essential addon: CoreDNS
+  [addons] Applied essential addon: kube-proxy
+
+  Your Kubernetes control-plane has initialized successfully!
+
+  To start using your cluster, you need to run the following as a regular user:
+
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+  You should now deploy a pod network to the cluster.
+  Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+    https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+  Then you can join any number of worker nodes by running the following on each as root:
+
+  kubeadm join 192.168.1.101:6443 --token b8lzew.ito6lhl8kgv8glnk \
+      --discovery-token-ca-cert-hash sha256:c86703fa23b5779cdbbda497628960d62362a1085aeeac0814bcd8a05224668a 
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  #+end_src
+** ensure kubectl config is copied into place
+  #+begin_src shell :results silent
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+  #+end_src
+
+  #+begin_src shell :results silent :dir ~/
+    scp ubuntu@192.168.1.101:.kube/config $HOME/.kube/config
+  #+end_src
+[[file:~/.kube/config]]
+** show that the config comes from the pi
+#+begin_src shell :dir ~/
+kubectl config view 
+#+end_src
+
+#+RESULTS:
+#+begin_EXAMPLE
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://192.168.1.101:6443
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: kubernetes-admin
+  name: kubernetes-admin@kubernetes
+current-context: kubernetes-admin@kubernetes
+kind: Config
+preferences: {}
+users:
+- name: kubernetes-admin
+  user:
+    client-certificate-data: REDACTED
+    client-key-data: REDACTED
+#+end_EXAMPLE
+
+** note that coredns WILL NOT START until networking is happy
+  #+begin_src shell
+    kubectl get pods --all-namespaces
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  NAMESPACE     NAME                             READY   STATUS    RESTARTS   AGE
+  kube-system   coredns-6955765f44-v79dp         0/1     Pending   0          4m37s
+  kube-system   coredns-6955765f44-wsxc6         0/1     Pending   0          4m37s
+  kube-system   etcd-ubuntu                      1/1     Running   0          4m19s
+  kube-system   kube-apiserver-ubuntu            1/1     Running   0          4m19s
+  kube-system   kube-controller-manager-ubuntu   1/1     Running   0          4m19s
+  kube-system   kube-proxy-vchj4                 1/1     Running   0          4m37s
+  kube-system   kube-scheduler-ubuntu            1/1     Running   0          4m19s
+  #+end_EXAMPLE
+** weave works!
+
+https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
+  #+begin_src shell
+    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  serviceaccount/weave-net created
+  clusterrole.rbac.authorization.k8s.io/weave-net created
+  clusterrolebinding.rbac.authorization.k8s.io/weave-net created
+  role.rbac.authorization.k8s.io/weave-net created
+  rolebinding.rbac.authorization.k8s.io/weave-net created
+  daemonset.apps/weave-net created
+  #+end_EXAMPLE
+** Core DNS Starts!
+  #+begin_src shell :wrap "src json"
+    kubectl describe pod/coredns-6955765f44-v79dp  --namespace=kube-system 
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src json
+  Name:                 coredns-6955765f44-v79dp
+  Namespace:            kube-system
+  Priority:             2000000000
+  Priority Class Name:  system-cluster-critical
+  Node:                 ubuntu/192.168.1.101
+  Start Time:           Thu, 19 Dec 2019 09:14:54 +0000
+  Labels:               k8s-app=kube-dns
+                        pod-template-hash=6955765f44
+  Annotations:          <none>
+  Status:               Running
+  IP:                   10.32.0.3
+  IPs:
+    IP:           10.32.0.3
+  Controlled By:  ReplicaSet/coredns-6955765f44
+  Containers:
+    coredns:
+      Container ID:  docker://336bf3a06e0667ea39b88d47c6facf02fc3d47d760dcfc9614b91c88174b4117
+      Image:         k8s.gcr.io/coredns:1.6.5
+      Image ID:      docker-pullable://k8s.gcr.io/coredns@sha256:7ec975f167d815311a7136c32e70735f0d00b73781365df1befd46ed35bd4fe7
+      Ports:         53/UDP, 53/TCP, 9153/TCP
+      Host Ports:    0/UDP, 0/TCP, 0/TCP
+      Args:
+        -conf
+        /etc/coredns/Corefile
+      State:          Running
+        Started:      Thu, 19 Dec 2019 09:14:56 +0000
+      Ready:          True
+      Restart Count:  0
+      Limits:
+        memory:  170Mi
+      Requests:
+        cpu:        100m
+        memory:     70Mi
+      Liveness:     http-get http://:8080/health delay=60s timeout=5s period=10s #success=1 #failure=5
+      Readiness:    http-get http://:8181/ready delay=0s timeout=1s period=10s #success=1 #failure=3
+      Environment:  <none>
+      Mounts:
+        /etc/coredns from config-volume (ro)
+        /var/run/secrets/kubernetes.io/serviceaccount from coredns-token-6df8q (ro)
+  Conditions:
+    Type              Status
+    Initialized       True 
+    Ready             True 
+    ContainersReady   True 
+    PodScheduled      True 
+  Volumes:
+    config-volume:
+      Type:      ConfigMap (a volume populated by a ConfigMap)
+      Name:      coredns
+      Optional:  false
+    coredns-token-6df8q:
+      Type:        Secret (a volume populated by a Secret)
+      SecretName:  coredns-token-6df8q
+      Optional:    false
+  QoS Class:       Burstable
+  Node-Selectors:  beta.kubernetes.io/os=linux
+  Tolerations:     CriticalAddonsOnly
+                   node-role.kubernetes.io/master:NoSchedule
+                   node.kubernetes.io/not-ready:NoExecute for 300s
+                   node.kubernetes.io/unreachable:NoExecute for 300s
+  Events:
+    Type     Reason            Age                   From               Message
+    ----     ------            ----                  ----               -------
+    Warning  FailedScheduling  91s (x10 over 8m14s)  default-scheduler  0/1 nodes are available: 1 node(s) had taints that the pod didn't tolerate.
+    Normal   Scheduled         90s                   default-scheduler  Successfully assigned kube-system/coredns-6955765f44-v79dp to ubuntu
+    Normal   Pulled            87s                   kubelet, ubuntu    Container image "k8s.gcr.io/coredns:1.6.5" already present on machine
+    Normal   Created           87s                   kubelet, ubuntu    Created container coredns
+    Normal   Started           87s                   kubelet, ubuntu    Started container coredns
+  #+end_src
+
+  #+begin_src shell :wrap "src json"
+    kubectl get pods --namespace=kube-system coredns-6955765f44-v79dp
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src json
+  NAME                       READY   STATUS    RESTARTS   AGE
+  coredns-6955765f44-v79dp   1/1     Running   0          9m3s
+  #+end_src
+  #+begin_src shell
+    free -m
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+                total        used        free      shared  buff/cache   available
+  Mem:           3791         858        1326           4        1606        2952
+  Swap:             0           0           0
+  #+end_EXAMPLE
+* locally run kubectl 
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/
+  :END:
+** kubectl deploy some stuff
+  #+begin_src shell
+    kubectl version
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  Client Version: version.Info{Major:"1", Minor:"16", GitVersion:"v1.16.3", GitCommit:"b3cbbae08ec52a7fc73d334838e18d17e8512749", GitTreeState:"clean", BuildDate:"2019-11-13T11:23:11Z", GoVersion:"go1.12.12", Compiler:"gc", Platform:"linux/amd64"}
+  Server Version: version.Info{Major:"1", Minor:"17", GitVersion:"v1.17.0", GitCommit:"70132b0f130acc0bed193d9ba59dd186f0e634cf", GitTreeState:"clean", BuildDate:"2019-12-07T21:12:17Z", GoVersion:"go1.13.4", Compiler:"gc", Platform:"linux/arm64"}
+  #+end_EXAMPLE
+
+** sub2
+  #+begin_src shell
+  
+  #+end_src
+#+PROPERTY: header-args:shell :dir /ssh:ubuntu@192.168.1.101:/
+* kubectl apply -f http://iimacs.org
