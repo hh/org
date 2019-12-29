@@ -1,39 +1,806 @@
-#+PROPERTY: header-args:shell :dir /ssh:ubuntu@192.168.1.101:/
+#+PROPERTY: header-args:shell :dir /ssh:ubuntu@192.168.1.101:
 #+PROPERTY: header-args:shell+ :results code
 #+PROPERTY: header-args:shell+ :prologue "(\n" 
 #+PROPERTY: header-args:shell+ :epilogue ") 2>&1\n:\n"
 #+PROPERTY: header-args:shell+ :wrap EXAMPLE
-* A
+* Start Over
+** allover
+  #+name: start over
   #+begin_src shell
-    date
+  <<kubeadm reset>>
+  <<lvm reset>>
+  <<rook reset>>
+  #+end_src
+
+  #+RESULTS: start over
+  #+begin_EXAMPLE
+  [reset] Reading configuration from the cluster...
+  [reset] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -oyaml'
+  [preflight] Running pre-flight checks
+  [reset] Removing info for node "ubuntu" from the ConfigMap "kubeadm-config" in the "kube-system" Namespace
+  W1229 07:11:42.294978    5502 removeetcdmember.go:61] [reset] failed to remove etcd member: error syncing endpoints with etc: etcdclient: no available endpoints
+  .Please manually remove this etcd member using etcdctl
+  [reset] Stopping the kubelet service
+  [reset] Unmounting mounted directories in "/var/lib/kubelet"
+  [reset] Deleting contents of config directories: [/etc/kubernetes/manifests /etc/kubernetes/pki]
+  [reset] Deleting files: [/etc/kubernetes/admin.conf /etc/kubernetes/kubelet.conf /etc/kubernetes/bootstrap-kubelet.conf /etc/kubernetes/controller-manager.conf /etc/kubernetes/scheduler.conf]
+  [reset] Deleting contents of stateful directories: [/var/lib/etcd /var/lib/kubelet /var/lib/dockershim /var/run/kubernetes /var/lib/cni]
+
+  The reset process does not clean CNI configuration. To do so, you must remove /etc/cni/net.d
+
+  The reset process does not reset or clean up iptables rules or IPVS tables.
+  If you wish to reset iptables, you must do so manually by using the "iptables" command.
+
+  If your cluster was setup to utilize IPVS, run ipvsadm --clear (or similar)
+  to reset your system's IPVS tables.
+
+  The reset process does not clean your kubeconfig files and you must remove them manually.
+  Please, check the contents of the $HOME/.kube/config file.
+    No command with matching syntax recognised.  Run 'vgremove --help' for more information.
+    Correct command syntax is:
+    vgremove VG|Tag|Select ...
+
+    Volume group "sda" not found
+    Cannot process volume group sda
+    No PV found on device /dev/sda.
+  #+end_EXAMPLE
+
+** kubeadm reset
+  #+name: kubeadm reset
+  #+begin_src shell :async t
+    sudo kubeadm reset -f 
+  #+end_src
+
+** lvm reset
+  #+NAME: lvm reset
+  #+begin_src shell
+    VG=$(sudo lvs | tail -1 | awk '{print $2}')
+    sudo lvm vgremove $VG --force --force
+    sudo lvm lvremove /dev/sda --force --force
+    sudo pvremove /dev/sda
+  #+end_src
+
+** rook reset
+  #+NAME: rook reset
+  #+begin_src shell
+    sudo rm -rf /var/lib/rook/
+  #+end_src
+** uninstall rook
+   #+begin_src shell
+     helm uninstall rook-ceph --namespace rook-ceph
+   #+end_src
+* Configuration
+** kubeadm-config.yaml
+ #+NAME: kubeadm-config.yaml
+ #+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:kubeadm-config.yaml :noweb yes
+   apiVersion: kubeadm.k8s.io/v1beta1
+   kind: InitConfiguration
+   localAPIEndpoint:
+     advertiseAddress: "192.168.1.101"
+   nodeRegistration:
+     taints: [] # defaults to NoSchedule on role=master
+   ---
+   apiVersion: kubeadm.k8s.io/v1beta1
+   kind: ClusterConfiguration
+   kubernetesVersion: v1.17.0
+   controlPlaneEndpoint: ""
+   networking:
+     podSubnet: "10.244.0.0/16"
+     serviceSubnet: "10.96.0.0/12"
+   apiServer:
+     extraArgs:
+       service-node-port-range: "1-60000" # allow more ports via API
+   ---
+   apiVersion: kubeproxy.config.k8s.io/v1alpha1
+   kind: KubeProxyConfiguration
+   nodePortAddresses:
+     - "192.168.1.0/24" # default is null
+   portRange: "1-60000" # Proxy also needs port range to ensure we can use 22,80,443,and friends
+ #+END_SRC
+** rook-config.yaml
+   #+name: rook-config.yaml
+   #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:rook.yaml :noweb yes
+     image:
+       prefix: rook
+       repository: rook/ceph
+       tag: master
+       pullPolicy: IfNotPresent
+
+     resources:
+       limits:
+         cpu: 200m
+         memory: 512Mi
+       requests:
+         cpu: 200m
+         memory: 512Mi
+
+     rbacEnable: true
+     pspEnable: true
+   #+end_src
+** rook-cluster.yaml
+   #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:rook-cluster.yaml :noweb yes
+     apiVersion: ceph.rook.io/v1
+     kind: CephCluster
+     metadata:
+       name: rook-ceph
+       namespace: rook-ceph
+     spec:
+       cephVersion:
+         image: ceph/ceph:v14.2.5
+         allowUnsupported: false
+       dataDirHostPath: /var/lib/rook
+       mon:
+         count: 1
+         allowMultiplePerNode: false
+       dashboard:
+         enabled: true
+         ssl: false
+       monitoring:
+         enabled: false  # requires Prometheus to be pre-installed
+         rulesNamespace: rook-ceph
+       network:
+         hostNetwork: false
+       storage:
+         useAllNodes: true
+         useAllDevices: false
+         deviceFilter: "^sd"
+   #+end_src
+** ceph-block-pool.yaml
+   #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:ceph-block-pool.yaml :noweb yes
+     apiVersion: ceph.rook.io/v1
+     kind: CephBlockPool
+     metadata:
+       name: ii-block-pool
+       namespace: rook-ceph
+     spec:
+       replicated:
+         size: 1
+   #+end_src
+** storage-class.yaml
+   #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:storage-class.yaml :noweb yes
+     apiVersion: storage.k8s.io/v1
+     kind: StorageClass
+     metadata:
+       name: standard
+     provisioner: rook-ceph.cephfs.csi.ceph.com
+     parameters:
+       # clusterID is the namespace where operator is deployed.
+       clusterID: rook-ceph
+
+       # CephFS filesystem name into which the volume shall be created
+       fsName: iifs
+
+       # Ceph pool into which the volume shall be created
+       # Required for provisionVolume: "true"
+       pool: ii-block-pool
+       imageFormat: "2"
+       imageFeatures: layering
+
+       # Root path of an existing CephFS volume
+       # Required for provisionVolume: "false"
+       # rootPath: /absolute/path
+
+       # The secrets contain Ceph admin credentials. These are generated automatically by the operator
+       # in the same namespace as the cluster.
+       csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+       csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+       csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+       csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+       csi.storage.k8s.io/fstype: ext4
+       # (optional) The driver can use either ceph-fuse (fuse) or ceph kernel client (kernel)
+       # If omitted, default volume mounter will be used - this is determined by probing for ceph-fuse
+       # or by setting the default mounter explicitly via --volumemounter command-line argument.
+       # mounter: kernel
+     reclaimPolicy: Delete
+     mountOptions:
+       # uncomment the following line for debugging
+       #- debug
+   #+end_src
+** rook-tools.yaml
+   #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:rook-tools.yaml :noweb yes
+     apiVersion: apps/v1
+     kind: Deployment
+     metadata:
+       name: rook-ceph-tools
+       namespace: rook-ceph
+       labels:
+         app: rook-ceph-tools
+     spec:
+       replicas: 1
+       selector:
+         matchLabels:
+           app: rook-ceph-tools
+       template:
+         metadata:
+           labels:
+             app: rook-ceph-tools
+         spec:
+           dnsPolicy: ClusterFirstWithHostNet
+           containers:
+           - name: rook-ceph-tools
+             image: rook/ceph:v1.2.0
+             command: ["/tini"]
+             args: ["-g", "--", "/usr/local/bin/toolbox.sh"]
+             imagePullPolicy: IfNotPresent
+             env:
+               - name: ROOK_ADMIN_SECRET
+                 valueFrom:
+                   secretKeyRef:
+                     name: rook-ceph-mon
+                     key: admin-secret
+             securityContext:
+               privileged: true
+             volumeMounts:
+               - mountPath: /dev
+                 name: dev
+               - mountPath: /sys/bus
+                 name: sysbus
+               - mountPath: /lib/modules
+                 name: libmodules
+               - name: mon-endpoint-volume
+                 mountPath: /etc/rook
+           # if hostNetwork: false, the "rbd map" command hangs, see https://github.com/rook/rook/issues/2021
+           hostNetwork: true
+           volumes:
+             - name: dev
+               hostPath:
+                 path: /dev
+             - name: sysbus
+               hostPath:
+                 path: /sys/bus
+             - name: libmodules
+               hostPath:
+                 path: /lib/modules
+             - name: mon-endpoint-volume
+               configMap:
+                 name: rook-ceph-mon-endpoints
+                 items:
+                 - key: data
+                   path: mon-endpoints
+   #+end_src
+** traefik-config.yaml
+
+#+NAME: traefik-admin-password
+#+BEGIN_SRC shell :results silent :dir "."
+. .traefik.env
+echo -n $TRAEFIK_ADMIN_PASS
+#+END_SRC
+
+#+NAME: traefik.yaml helm values
+#+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:traefik-config.yaml :noweb yes
+  deployment:
+    hostPort:
+      httpEnabled: true
+      httpsEnabled: true
+      dashboardEnabled: true
+      httpPort: 80
+      httpsPort: 443
+      dashboardPort: 8080
+    # labels to add to the deployment
+    labels:
+      dep-label: ii
+    annotations:
+      dep-anno: ii
+    # labels to add to the pod container metadata
+    podLabels:
+      pod-label: ii
+    podAnnotations:
+      pod-anno: ii
+  service:
+    ## Further config for service of type NodePort
+    ## Default config with empty string "" will assign a dynamic
+    ## nodePort to http and https ports
+    #  nodePorts:
+    #    http: "80"
+    #    https: "443"
+    # serviceType: NodePort
+    annotations:
+      service-anno: ii
+    labels:
+      service-label: ii
+  #loadBalancerIP: 192.168.1.101
+  # kubernetes.io/ingress.class=traefik
+  # ingressClass = "traefik-internal"
+  # https://docs.traefik.io/configuration/backends/kubernetes/#ingressendpoint
+  dashboard:
+    enabled: true
+    domain: traefik.ii.nz
+    auth:
+      basic:
+        admin: "<<traefik-admin-password()>>"
+  ssl:
+    enabled: true
+    enforced: true
+    permanentRedirect: true
+  # service:
+  #   annotations:
+  #   labels:
+  rbac:
+    enabled: true
+  accessLogs:
+    enabled: true
+    format: json
+    fields:
+      defaultMode: keep
+  # kubernetes:
+  #   ingressEndpoint:
+  #     ip: 192.168.1.101
+  #   namespaces: [] # all namespaces with empty array
+    # namespaces:
+      # - apisnoop
+      # - default
+      # - kube-system
+  acme:
+    enabled: true
+    email: hh@ii.coop
+    staging: false
+    # challengeType: tls-sni-01
+    # challengeType: http-01
+    # Unable to obtain ACME certificate for domains \"hh-hasura.apisnoop.io\"
+    # detected thanks to rule \"Host:hh-hasura.apisnoop.io\" : 
+    # unable to generate a certificate for the domains [hh-hasura.apisnoop.io]:
+    #  acme: Error -> One or more domains had a problem:\n[hh-hasura.apisnoop.io]
+    #  acme: error: 403 :: urn:ietf:params:acme:err or:unauthorized ::
+    #  Invalid response from https://hh-hasura.apisnoop.io/.well-known/acme-challenge/2znqGrOWczcTMbLmN5NVm2OwcpQGT_ViPhEoJOpKQb8
+    #  [35.189.56.228]: 404, ur l: \n
+    challengeType: tls-alpn-01
+    # challengeType: dns-01 # Needed for wildcards
+    resolvers:
+      - 1.1.1.1:53
+      - 8.8.8.8:53
+    persistence:
+      enable: false
+      storageClass: standard
+      accessMode: ReadWriteOnce
+      size: 1Gi
+    # domains:
+    #   enabled: false
+    #   domainsList:
+    #     - main: "*.apisnoop.io"
+    #     - sans:
+    #       - "traefik.apisnoop.io"
+    #       - "hh-apisnoop.apisnoop.io"
+    #       - "zz-apisnoop.apisnoop.io"
+    # dnsProvider:
+    #   # name: dnsimple
+    #   dnsimple:
+    #     DNSIMPLE_OAUTH_TOKEN: "<dnsimple-auth-token()>"
+    #     DNSIMPLE_BASE_URL: "https://api.dnsimple.com/v2/"
+#+END_SRC
+
+* Steps
+** kubeadm init
+  #+begin_src shell :async t
+    sudo kubeadm init --config kubeadm-config.yaml
   #+end_src
 
   #+RESULTS:
   #+begin_EXAMPLE
-  /
+  W1229 07:39:16.294482    8560 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
+  W1229 07:39:16.297488    8560 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
+  W1229 07:39:16.302724    8560 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1229 07:39:16.302791    8560 validation.go:28] Cannot validate kubelet config - no validator is available
+  [init] Using Kubernetes version: v1.17.0
+  [preflight] Running pre-flight checks
+    [WARNING Service-Docker]: docker service is not enabled, please run 'systemctl enable docker.service'
+    [WARNING IsDockerSystemdCheck]: detected "cgroupfs" as the Docker cgroup driver. The recommended driver is "systemd". Please follow the guide at https://kubernetes.io/docs/setup/cri/
+  [preflight] Pulling images required for setting up a Kubernetes cluster
+  [preflight] This might take a minute or two, depending on the speed of your internet connection
+  [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+  [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+  [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+  [kubelet-start] Starting the kubelet
+  [certs] Using certificateDir folder "/etc/kubernetes/pki"
+  [certs] Generating "ca" certificate and key
+  [certs] Generating "apiserver" certificate and key
+  [certs] apiserver serving cert is signed for DNS names [ubuntu kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 192.168.1.101]
+  [certs] Generating "apiserver-kubelet-client" certificate and key
+  [certs] Generating "front-proxy-ca" certificate and key
+  [certs] Generating "front-proxy-client" certificate and key
+  [certs] Generating "etcd/ca" certificate and key
+  [certs] Generating "etcd/server" certificate and key
+  [certs] etcd/server serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
+  [certs] Generating "etcd/peer" certificate and key
+  [certs] etcd/peer serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
+  [certs] Generating "etcd/healthcheck-client" certificate and key
+  [certs] Generating "apiserver-etcd-client" certificate and key
+  [certs] Generating "sa" key and public key
+  [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+  [kubeconfig] Writing "admin.conf" kubeconfig file
+  [kubeconfig] Writing "kubelet.conf" kubeconfig file
+  [kubeconfig] Writing "controller-manager.conf" kubeconfig file
+  [kubeconfig] Writing "scheduler.conf" kubeconfig file
+  [control-plane] Using manifest folder "/etc/kubernetes/manifests"
+  [control-plane] Creating static Pod manifest for "kube-apiserver"
+  [control-plane] Creating static Pod manifest for "kube-controller-manager"
+  W1229 07:39:32.250448    8560 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  [control-plane] Creating static Pod manifest for "kube-scheduler"
+  W1229 07:39:32.255234    8560 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+  [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+  [apiclient] All control plane components are healthy after 39.005455 seconds
+  [upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+  [kubelet] Creating a ConfigMap "kubelet-config-1.17" in namespace kube-system with the configuration for the kubelets in the cluster
+  [kubelet-check] Initial timeout of 40s passed.
+  [upload-certs] Skipping phase. Please see --upload-certs
+  [mark-control-plane] Marking the node ubuntu as control-plane by adding the label "node-role.kubernetes.io/master=''"
+  [bootstrap-token] Using token: rfmdm3.7qgj0l72m3c7ol9d
+  [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+  [bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+  [bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+  [bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+  [bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
+  [kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
+  [addons] Applied essential addon: CoreDNS
+  [addons] Applied essential addon: kube-proxy
+
+  Your Kubernetes control-plane has initialized successfully!
+
+  To start using your cluster, you need to run the following as a regular user:
+
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+  You should now deploy a pod network to the cluster.
+  Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+    https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+  Then you can join any number of worker nodes by running the following on each as root:
+
+  kubeadm join 192.168.1.101:6443 --token rfmdm3.7qgj0l72m3c7ol9d \
+      --discovery-token-ca-cert-hash sha256:aa68bdc1de848cf6efed7b690052f621336bb2743f490abc93efa778c5a05440 
   #+end_EXAMPLE
 
-** 1
-  :PROPERTIES:
-  :header-args:shell+: :dir /home
-  :END:
+** copy new kubeconfig into place
+file:~/.kube/config
+  #+NAME: cp kubeconfig
+  #+begin_src shell :results silent
+    mkdir -p $HOME/.kube
+    sudo cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+  #+end_src
+
+  #+NAME: scp kubeconfig
+  #+begin_src shell :results silent :dir ~/
+    scp ubuntu@192.168.1.101:.kube/config $HOME/.kube/config
+  #+end_src
+** weave works!
+https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
   #+begin_src shell
-    date
+    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
   #+end_src
 
   #+RESULTS:
   #+begin_EXAMPLE
-   date 
+  serviceaccount/weave-net created
+  clusterrole.rbac.authorization.k8s.io/weave-net created
+  clusterrolebinding.rbac.authorization.k8s.io/weave-net created
+  role.rbac.authorization.k8s.io/weave-net created
+  rolebinding.rbac.authorization.k8s.io/weave-net created
+  daemonset.apps/weave-net created
   #+end_EXAMPLE
+** install rook operator
+   #+name: install rook operator
+   #+begin_src shell
+     kubectl create ns rook-ceph
+     helm install rook-ceph --namespace rook-ceph rook-release/rook-ceph -f rook.yaml
+   #+end_src
 
-*** a
-    :PROPERTIES:
-    :header-args:shell+: :dir /
-    :END:
-** 2
-  :PROPERTIES:
-  :header-args:shell+: :dir /home/hh
-  :END:
+   #+RESULTS: install rook operator
+   #+begin_EXAMPLE
+   namespace/rook-ceph created
+   NAME: rook-ceph
+   LAST DEPLOYED: Sun Dec 29 07:40:57 2019
+   NAMESPACE: rook-ceph
+   STATUS: deployed
+   REVISION: 1
+   TEST SUITE: None
+   NOTES:
+   The Rook Operator has been installed. Check its status by running:
+     kubectl --namespace rook-ceph get pods -l "app=rook-ceph-operator"
+
+   Visit https://rook.io/docs/rook/master for instructions on how to create and configure Rook clusters
+
+   Note: You cannot just create a CephCluster resource, you need to also create a namespace and
+   install suitable RBAC roles and role bindings for the cluster. The Rook Operator will not do
+   this for you. Sample CephCluster manifest templates that include RBAC resources are available:
+
+   - https://rook.github.io/docs/rook/master/ceph-quickstart.html
+   - https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/cluster.yaml
+
+   Important Notes:
+   - The links above are for the unreleased master version, if you deploy a different release you must find matching manifests.
+   - You must customise the 'CephCluster' resource at the bottom of the sample manifests to met your situation.
+   - Each CephCluster must be deployed to its own namespace, the samples use `rook-ceph` for the cluster.
+   - The sample manifests assume you also installed the rook-ceph operator in the `rook-ceph` namespace.
+   - The helm chart includes all the RBAC required to create a CephCluster CRD in the same namespace.
+   - Any disk devices you add to the cluster in the 'CephCluster' must be empty (no filesystem and no partitions).
+   - In the 'CephCluster' you must refer to disk devices by their '/dev/something' name, e.g. 'sdb' or 'xvde'.
+   #+end_EXAMPLE
+
+** create a rook cluster
+   This takes a while,  the crashcollector needs a secret that doesn't seem to be created until after 3/4 minutes.
+   #+begin_src shell
+     kubectl apply -f rook-cluster.yaml
+     # kubectl delete -f rook-cluster.yaml
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   cephcluster.ceph.rook.io/rook-ceph configured
+   #+end_EXAMPLE
+
+** ceph-block-pool
+
+   ceph-osd-prepare container starts about now
+
+   #+begin_src shell
+      kubectl apply -f ceph-block-pool.yaml
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   cephblockpool.ceph.rook.io/ii-block-pool created
+   #+end_EXAMPLE
+** storage-class
+   #+begin_src shell
+      kubectl apply -f storage-class.yaml
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   storageclass.storage.k8s.io/standard created
+   #+end_EXAMPLE
+
+** rook-tools
+   #+begin_src shell
+      kubectl apply -f rook-tools.yaml
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   deployment.apps/rook-ceph-tools created
+   #+end_EXAMPLE
+
+   #+begin_src shell
+     TOOLS_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-tools" -o name)
+     kubectl exec -n rook-ceph -ti $TOOLS_POD ceph status
+     #kubectl -n rook-ceph exec -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') bash
+
+     #ceph df 
+     #  rados df
+   #+end_src
+
+** install traefik
+   #+name: install traefik
+   #+begin_src shell 
+     helm install \
+          traefiik \
+          --values traefik.yaml \
+          stable/traefik 
+   #+end_src
+
+   #+RESULTS: install traefik
+   #+begin_EXAMPLE
+   NAME: traefiik
+   LAST DEPLOYED: Sun Dec 29 08:15:01 2019
+   NAMESPACE: default
+   STATUS: deployed
+   REVISION: 1
+   TEST SUITE: None
+   NOTES:
+   1. Get Traefik's load balancer IP/hostname:
+
+        NOTE: It may take a few minutes for this to become available.
+
+        You can watch the status by running:
+
+            $ kubectl get svc traefiik-traefik --namespace default -w
+
+        Once 'EXTERNAL-IP' is no longer '<pending>':
+
+            $ kubectl describe svc traefiik-traefik --namespace default | grep Ingress | awk '{print $3}'
+
+   2. Configure DNS records corresponding to Kubernetes ingress resources to point to the load balancer IP/hostname found in step 1
+   #+end_EXAMPLE
+
+* Explore
+** get a list of crds created by rook-ceph
+   #+begin_src shell
+     kubectl get crd
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME                                 CREATED AT
+   cephblockpools.ceph.rook.io          2019-12-29T07:40:59Z
+   cephclients.ceph.rook.io             2019-12-29T07:40:59Z
+   cephclusters.ceph.rook.io            2019-12-29T07:40:59Z
+   cephfilesystems.ceph.rook.io         2019-12-29T07:40:59Z
+   cephnfses.ceph.rook.io               2019-12-29T07:40:59Z
+   cephobjectstores.ceph.rook.io        2019-12-29T07:40:59Z
+   cephobjectstoreusers.ceph.rook.io    2019-12-29T07:40:59Z
+   objectbucketclaims.objectbucket.io   2019-12-29T07:40:59Z
+   objectbuckets.objectbucket.io        2019-12-29T07:40:59Z
+   volumes.rook.io                      2019-12-29T07:40:59Z
+   #+end_EXAMPLE
+** describe pod/rook-ceph-operator
+   #+begin_src shell
+     ROOT_OP_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-operator" -o name)
+     kubectl describe --namespace rook-ceph $ROOT_OP_POD
+   #+end_src
+** get pod/rook-ceph-operator
+
+   #+begin_src shell
+     ROOT_OP_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-operator" -o name)
+     kubectl get --namespace rook-ceph $ROOT_OP_POD
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME                                  READY   STATUS    RESTARTS   AGE
+   rook-ceph-operator-5cf57b4fd7-p5972   1/1     Running   0          7s
+   #+end_EXAMPLE
+** get cephclusters
+
+   #+begin_src shell
+     kubectl get cephclusters.ceph.rook.io --namespace=rook-ceph
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME        DATADIRHOSTPATH   MONCOUNT   AGE     STATE      HEALTH
+   rook-ceph   /var/lib/rook     1          4m59s   Creating   
+   #+end_EXAMPLE
+** get rook-ceph services
+   #+begin_src shell
+     kubectl get service --namespace=rook-ceph
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME                       TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+   csi-cephfsplugin-metrics   ClusterIP   10.96.56.114    <none>        8080/TCP,8081/TCP   10m
+   csi-rbdplugin-metrics      ClusterIP   10.96.153.118   <none>        8080/TCP,8081/TCP   10m
+   rook-ceph-mgr              ClusterIP   10.96.92.134    <none>        9283/TCP            116s
+   rook-ceph-mgr-dashboard    ClusterIP   10.96.120.66    <none>        7000/TCP            7m30s
+   rook-ceph-mon-a            ClusterIP   10.96.100.100   <none>        6789/TCP,3300/TCP   9m56s
+   #+end_EXAMPLE
+** get rook-ceph pods
+   #+begin_src shell
+      kubectl get pods --namespace=rook-ceph
+   #+end_src
+   
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME                                  READY   STATUS    RESTARTS   AGE
+   rook-ceph-operator-5cf57b4fd7-s6td7   1/1     Running   0          4m9s
+   rook-discover-pj7nf                   1/1     Running   0          4m4s
+   #+end_EXAMPLE
+** free memory
+   #+begin_src shell
+     free -m
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+                 total        used        free      shared  buff/cache   available
+   Mem:           3791        1146        1015           5        1628        2706
+   Swap:             0           0           0
+   #+end_EXAMPLE
+** get ceph dashboard password
+ #+name: dashboard password
+ #+begin_src shell :results silent
+   kubectl -n rook-ceph get secret rook-ceph-dashboard-password -o jsonpath="{['data']['password']}" | base64 --decode && echo
+ #+end_src
+
+ #+name: port forward to access dashboard
+ #+begin_src shell
+ kubectl port-forward -n rook-ceph service/rook-ceph-mgr-dashboard 7000
+ #+end_src
+* Understanding why the PVC isn't create
+** get traefik pvc
+   #+begin_src shell :wrap "src json"
+     kubectl get pvc traefiik-traefik-acme -o json
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src json
+   {
+       "apiVersion": "v1",
+       "kind": "PersistentVolumeClaim",
+       "metadata": {
+           "annotations": {
+               "volume.beta.kubernetes.io/storage-provisioner": "rook-ceph.cephfs.csi.ceph.com"
+           },
+           "creationTimestamp": "2019-12-29T08:15:02Z",
+           "finalizers": [
+               "kubernetes.io/pvc-protection"
+           ],
+           "labels": {
+               "app": "traefik",
+               "chart": "traefik-1.85.0",
+               "heritage": "Helm",
+               "release": "traefiik"
+           },
+           "name": "traefiik-traefik-acme",
+           "namespace": "default",
+           "resourceVersion": "9295",
+           "selfLink": "/api/v1/namespaces/default/persistentvolumeclaims/traefiik-traefik-acme",
+           "uid": "d4651fe0-fc96-4303-b233-6ec3f0f5bf14"
+       },
+       "spec": {
+           "accessModes": [
+               "ReadWriteOnce"
+           ],
+           "resources": {
+               "requests": {
+                   "storage": "1Gi"
+               }
+           },
+           "storageClassName": "standard",
+           "volumeMode": "Filesystem"
+       },
+       "status": {
+           "phase": "Pending"
+       }
+   }
+   #+end_src
+
+** describe traefik pvc
+   #+begin_src shell :wrap "src json"
+     kubectl describe pvc/traefiik-traefik-acme
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src json
+   Name:          traefiik-traefik-acme
+   Namespace:     default
+   StorageClass:  standard
+   Status:        Pending
+   Volume:        
+   Labels:        app=traefik
+                  chart=traefik-1.85.0
+                  heritage=Helm
+                  release=traefiik
+   Annotations:   volume.beta.kubernetes.io/storage-provisioner: rook-ceph.cephfs.csi.ceph.com
+   Finalizers:    [kubernetes.io/pvc-protection]
+   Capacity:      
+   Access Modes:  
+   VolumeMode:    Filesystem
+   Mounted By:    traefiik-traefik-5c85d44b4f-k9jm6
+   Events:
+     Type    Reason                Age                     From                                                                                                              Message
+     ----    ------                ----                    ----                                                                                                              -------
+     Normal  ExternalProvisioning  3m53s (x3102 over 12h)  persistentvolume-controller                                                                                       waiting for a volume to be created, either by external provisioner "rook-ceph.cephfs.csi.ceph.com" or manually created by system administrator
+     Normal  Provisioning          50s (x164 over 12h)     rook-ceph.cephfs.csi.ceph.com_csi-cephfsplugin-provisioner-56c8b7ddf4-ksjx5_240c3de2-3ffc-4a8d-ae51-000e77177908  External provisioner is provisioning volume for claim "default/traefiik-traefik-acme"
+   #+end_src
+
+** get pods
+   #+begin_src shell
+     kubectl get pods --namespace rook-ceph
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME                                               READY   STATUS      RESTARTS   AGE
+   csi-cephfsplugin-667nn                             3/3     Running     0          13h
+   csi-cephfsplugin-provisioner-56c8b7ddf4-6mfbd      4/4     Running     0          13h
+   csi-cephfsplugin-provisioner-56c8b7ddf4-ksjx5      4/4     Running     0          13h
+   csi-rbdplugin-cqkv4                                3/3     Running     0          13h
+   csi-rbdplugin-provisioner-6ff4dd4b94-48jvv         5/5     Running     0          13h
+   csi-rbdplugin-provisioner-6ff4dd4b94-7vxmw         5/5     Running     0          13h
+   rook-ceph-crashcollector-ubuntu-799f67d68d-6w8xt   1/1     Running     0          13h
+   rook-ceph-mgr-a-5789c7f5d-6qqdd                    1/1     Running     1          13h
+   rook-ceph-mon-a-6466d7bf97-9f8hb                   1/1     Running     0          13h
+   rook-ceph-operator-5cf57b4fd7-s6td7                1/1     Running     0          13h
+   rook-ceph-osd-0-f48c88bff-l4djj                    1/1     Running     0          13h
+   rook-ceph-osd-prepare-ubuntu-nl82t                 0/1     Completed   0          12h
+   rook-ceph-tools-75498b5cfc-fk25k                   1/1     Running     0          13h
+   rook-discover-pj7nf                                1/1     Running     0          13h
+   #+end_EXAMPLE
+
 * Get keys onto pi
   #+begin_src shell :dir ~/
      scp ~/.ssh/id_rsa-4096-20090605-ccc.pub ubuntu@192.168.1.101:.ssh/authorized_keys
@@ -125,16 +892,16 @@ Ensure that docker info shows no errors relating to cgroups.
    #+end_src
 
    #+RESULTS:
-   #+begin_src shell
+   #+begin_EXAMPLE
    Client:
     Debug Mode: false
 
    Server:
-    Containers: 0
-     Running: 0
+    Containers: 20
+     Running: 17
      Paused: 0
-     Stopped: 0
-    Images: 0
+     Stopped: 3
+    Images: 9
     Server Version: 19.03.2
     Storage Driver: overlay2
      Backing Filesystem: extfs
@@ -175,8 +942,8 @@ Ensure that docker info shows no errors relating to cgroups.
     Live Restore Enabled: false
 
    WARNING: No swap limit support
-   #+end_src
-* Install kuberenetes
+   #+end_EXAMPLE
+* Install kubernetes
   #+begin_src shell
     ip a show dev eth0
   #+end_src
@@ -186,106 +953,22 @@ Ensure that docker info shows no errors relating to cgroups.
   2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
       link/ether dc:a6:32:48:88:5f brd ff:ff:ff:ff:ff:ff
       inet 192.168.1.101/24 brd 192.168.1.255 scope global dynamic eth0
-         valid_lft 85600sec preferred_lft 85600sec
+         valid_lft 15988sec preferred_lft 15988sec
       inet6 fe80::dea6:32ff:fe48:885f/64 scope link 
          valid_lft forever preferred_lft forever
   #+end_EXAMPLE
-
+** migrate old config
   #+begin_src shell :async t
-    sudo kubeadm init --apiserver-advertise-address=192.168.1.101
+    sudo kubeadm config migrate --old-config kubeadm-config.yaml --new-config kubeadm-config-new.yaml
   #+end_src
 
   #+RESULTS:
-  #+begin_src shell
-  W1219 09:05:05.926247    3241 validation.go:28] Cannot validate kube-proxy config - no validator is available
-  W1219 09:05:05.926466    3241 validation.go:28] Cannot validate kubelet config - no validator is available
-  [init] Using Kubernetes version: v1.17.0
-  [preflight] Running pre-flight checks
-    [WARNING Service-Docker]: docker service is not enabled, please run 'systemctl enable docker.service'
-    [WARNING IsDockerSystemdCheck]: detected "cgroupfs" as the Docker cgroup driver. The recommended driver is "systemd". Please follow the guide at https://kubernetes.io/docs/setup/cri/
-  [preflight] Pulling images required for setting up a Kubernetes cluster
-  [preflight] This might take a minute or two, depending on the speed of your internet connection
-  [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
-  [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
-  [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
-  [kubelet-start] Starting the kubelet
-  [certs] Using certificateDir folder "/etc/kubernetes/pki"
-  [certs] Generating "ca" certificate and key
-  [certs] Generating "apiserver" certificate and key
-  [certs] apiserver serving cert is signed for DNS names [ubuntu kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 192.168.1.101]
-  [certs] Generating "apiserver-kubelet-client" certificate and key
-  [certs] Generating "front-proxy-ca" certificate and key
-  [certs] Generating "front-proxy-client" certificate and key
-  [certs] Generating "etcd/ca" certificate and key
-  [certs] Generating "etcd/server" certificate and key
-  [certs] etcd/server serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
-  [certs] Generating "etcd/peer" certificate and key
-  [certs] etcd/peer serving cert is signed for DNS names [ubuntu localhost] and IPs [192.168.1.101 127.0.0.1 ::1]
-  [certs] Generating "etcd/healthcheck-client" certificate and key
-  [certs] Generating "apiserver-etcd-client" certificate and key
-  [certs] Generating "sa" key and public key
-  [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
-  [kubeconfig] Writing "admin.conf" kubeconfig file
-  [kubeconfig] Writing "kubelet.conf" kubeconfig file
-  [kubeconfig] Writing "controller-manager.conf" kubeconfig file
-  [kubeconfig] Writing "scheduler.conf" kubeconfig file
-  [control-plane] Using manifest folder "/etc/kubernetes/manifests"
-  [control-plane] Creating static Pod manifest for "kube-apiserver"
-  [control-plane] Creating static Pod manifest for "kube-controller-manager"
-  W1219 09:07:19.128714    3241 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
-  [control-plane] Creating static Pod manifest for "kube-scheduler"
-  W1219 09:07:19.132253    3241 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
-  [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
-  [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
-  [kubelet-check] Initial timeout of 40s passed.
-  [apiclient] All control plane components are healthy after 41.008694 seconds
-  [upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
-  [kubelet] Creating a ConfigMap "kubelet-config-1.17" in namespace kube-system with the configuration for the kubelets in the cluster
-  [upload-certs] Skipping phase. Please see --upload-certs
-  [mark-control-plane] Marking the node ubuntu as control-plane by adding the label "node-role.kubernetes.io/master=''"
-  [mark-control-plane] Marking the node ubuntu as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
-  [bootstrap-token] Using token: b8lzew.ito6lhl8kgv8glnk
-  [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
-  [bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
-  [bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
-  [bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
-  [bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
-  [kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
-  [addons] Applied essential addon: CoreDNS
-  [addons] Applied essential addon: kube-proxy
+  #+begin_EXAMPLE
+  W1228 01:52:42.588628   10899 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1228 01:52:42.588818   10899 validation.go:28] Cannot validate kubelet config - no validator is available
+  #+end_EXAMPLE
 
-  Your Kubernetes control-plane has initialized successfully!
 
-  To start using your cluster, you need to run the following as a regular user:
-
-    mkdir -p $HOME/.kube
-    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-  You should now deploy a pod network to the cluster.
-  Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-    https://kubernetes.io/docs/concepts/cluster-administration/addons/
-
-  Then you can join any number of worker nodes by running the following on each as root:
-
-  kubeadm join 192.168.1.101:6443 --token b8lzew.ito6lhl8kgv8glnk \
-      --discovery-token-ca-cert-hash sha256:c86703fa23b5779cdbbda497628960d62362a1085aeeac0814bcd8a05224668a 
-  #+end_src
-
-  #+RESULTS:
-  #+begin_src shell
-  #+end_src
-** ensure kubectl config is copied into place
-  #+begin_src shell :results silent
-    mkdir -p $HOME/.kube
-    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
-  #+end_src
-
-  #+begin_src shell :results silent :dir ~/
-    scp ubuntu@192.168.1.101:.kube/config $HOME/.kube/config
-  #+end_src
-[[file:~/.kube/config]]
 ** show that the config comes from the pi
 #+begin_src shell :dir ~/
 kubectl config view 
@@ -322,115 +1005,36 @@ users:
   #+RESULTS:
   #+begin_EXAMPLE
   NAMESPACE     NAME                             READY   STATUS    RESTARTS   AGE
-  kube-system   coredns-6955765f44-v79dp         0/1     Pending   0          4m37s
-  kube-system   coredns-6955765f44-wsxc6         0/1     Pending   0          4m37s
-  kube-system   etcd-ubuntu                      1/1     Running   0          4m19s
-  kube-system   kube-apiserver-ubuntu            1/1     Running   0          4m19s
-  kube-system   kube-controller-manager-ubuntu   1/1     Running   0          4m19s
-  kube-system   kube-proxy-vchj4                 1/1     Running   0          4m37s
-  kube-system   kube-scheduler-ubuntu            1/1     Running   0          4m19s
-  #+end_EXAMPLE
-** weave works!
-
-https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
-  #+begin_src shell
-    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
-  #+end_src
-
-  #+RESULTS:
-  #+begin_EXAMPLE
-  serviceaccount/weave-net created
-  clusterrole.rbac.authorization.k8s.io/weave-net created
-  clusterrolebinding.rbac.authorization.k8s.io/weave-net created
-  role.rbac.authorization.k8s.io/weave-net created
-  rolebinding.rbac.authorization.k8s.io/weave-net created
-  daemonset.apps/weave-net created
+  kube-system   coredns-6955765f44-29kb9         1/1     Running   0          40s
+  kube-system   coredns-6955765f44-hl925         1/1     Running   0          40s
+  kube-system   etcd-ubuntu                      1/1     Running   0          31s
+  kube-system   kube-apiserver-ubuntu            1/1     Running   0          31s
+  kube-system   kube-controller-manager-ubuntu   1/1     Running   0          31s
+  kube-system   kube-proxy-lf66k                 1/1     Running   0          40s
+  kube-system   kube-scheduler-ubuntu            1/1     Running   0          31s
+  kube-system   weave-net-nlskh                  2/2     Running   0          20s
   #+end_EXAMPLE
 ** Core DNS Starts!
   #+begin_src shell :wrap "src json"
-    kubectl describe pod/coredns-6955765f44-v79dp  --namespace=kube-system 
-  #+end_src
-
-  #+RESULTS:
-  #+begin_src json
-  Name:                 coredns-6955765f44-v79dp
-  Namespace:            kube-system
-  Priority:             2000000000
-  Priority Class Name:  system-cluster-critical
-  Node:                 ubuntu/192.168.1.101
-  Start Time:           Thu, 19 Dec 2019 09:14:54 +0000
-  Labels:               k8s-app=kube-dns
-                        pod-template-hash=6955765f44
-  Annotations:          <none>
-  Status:               Running
-  IP:                   10.32.0.3
-  IPs:
-    IP:           10.32.0.3
-  Controlled By:  ReplicaSet/coredns-6955765f44
-  Containers:
-    coredns:
-      Container ID:  docker://336bf3a06e0667ea39b88d47c6facf02fc3d47d760dcfc9614b91c88174b4117
-      Image:         k8s.gcr.io/coredns:1.6.5
-      Image ID:      docker-pullable://k8s.gcr.io/coredns@sha256:7ec975f167d815311a7136c32e70735f0d00b73781365df1befd46ed35bd4fe7
-      Ports:         53/UDP, 53/TCP, 9153/TCP
-      Host Ports:    0/UDP, 0/TCP, 0/TCP
-      Args:
-        -conf
-        /etc/coredns/Corefile
-      State:          Running
-        Started:      Thu, 19 Dec 2019 09:14:56 +0000
-      Ready:          True
-      Restart Count:  0
-      Limits:
-        memory:  170Mi
-      Requests:
-        cpu:        100m
-        memory:     70Mi
-      Liveness:     http-get http://:8080/health delay=60s timeout=5s period=10s #success=1 #failure=5
-      Readiness:    http-get http://:8181/ready delay=0s timeout=1s period=10s #success=1 #failure=3
-      Environment:  <none>
-      Mounts:
-        /etc/coredns from config-volume (ro)
-        /var/run/secrets/kubernetes.io/serviceaccount from coredns-token-6df8q (ro)
-  Conditions:
-    Type              Status
-    Initialized       True 
-    Ready             True 
-    ContainersReady   True 
-    PodScheduled      True 
-  Volumes:
-    config-volume:
-      Type:      ConfigMap (a volume populated by a ConfigMap)
-      Name:      coredns
-      Optional:  false
-    coredns-token-6df8q:
-      Type:        Secret (a volume populated by a Secret)
-      SecretName:  coredns-token-6df8q
-      Optional:    false
-  QoS Class:       Burstable
-  Node-Selectors:  beta.kubernetes.io/os=linux
-  Tolerations:     CriticalAddonsOnly
-                   node-role.kubernetes.io/master:NoSchedule
-                   node.kubernetes.io/not-ready:NoExecute for 300s
-                   node.kubernetes.io/unreachable:NoExecute for 300s
-  Events:
-    Type     Reason            Age                   From               Message
-    ----     ------            ----                  ----               -------
-    Warning  FailedScheduling  91s (x10 over 8m14s)  default-scheduler  0/1 nodes are available: 1 node(s) had taints that the pod didn't tolerate.
-    Normal   Scheduled         90s                   default-scheduler  Successfully assigned kube-system/coredns-6955765f44-v79dp to ubuntu
-    Normal   Pulled            87s                   kubelet, ubuntu    Container image "k8s.gcr.io/coredns:1.6.5" already present on machine
-    Normal   Created           87s                   kubelet, ubuntu    Created container coredns
-    Normal   Started           87s                   kubelet, ubuntu    Started container coredns
-  #+end_src
-
-  #+begin_src shell :wrap "src json"
-    kubectl get pods --namespace=kube-system coredns-6955765f44-v79dp
+    COREDNS_NODE=$(kubectl get pod --namespace=kube-system -l k8s-app=kube-dns -o name | head -1)
+    kubectl get $COREDNS_NODE  --namespace=kube-system 
   #+end_src
 
   #+RESULTS:
   #+begin_src json
   NAME                       READY   STATUS    RESTARTS   AGE
-  coredns-6955765f44-v79dp   1/1     Running   0          9m3s
+  coredns-6955765f44-lfbm7   1/1     Running   0          98s
+  #+end_src
+
+  #+begin_src shell :wrap "src json"
+    COREDNS_NODE=$(kubectl get pod --namespace=kube-system -l k8s-app=kube-dns -o name | head -1)
+    kubectl get $COREDNS_NODE  --namespace=kube-system 
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src json
+  NAME                       READY   STATUS    RESTARTS   AGE
+  coredns-6955765f44-h7bjj   1/1     Running   0          5m1s
   #+end_src
   #+begin_src shell
     free -m
@@ -439,7 +1043,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
   #+RESULTS:
   #+begin_EXAMPLE
                 total        used        free      shared  buff/cache   available
-  Mem:           3791         858        1326           4        1606        2952
+  Mem:           3791         953         451           4        2386        2863
   Swap:             0           0           0
   #+end_EXAMPLE
 * locally run kubectl 
@@ -457,9 +1061,1052 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
   Server Version: version.Info{Major:"1", Minor:"17", GitVersion:"v1.17.0", GitCommit:"70132b0f130acc0bed193d9ba59dd186f0e634cf", GitTreeState:"clean", BuildDate:"2019-12-07T21:12:17Z", GoVersion:"go1.13.4", Compiler:"gc", Platform:"linux/arm64"}
   #+end_EXAMPLE
 
-** sub2
-  #+begin_src shell
-  
+* TODO kubectl apply -f http://iimacs.org
+* setup pi.ii.nz
+** get ip
+  #+name: pi_ip
+  #+begin_src shell :cache yes
+    curl icanhazip.com
   #+end_src
-#+PROPERTY: header-args:shell :dir /ssh:ubuntu@192.168.1.101:/
-* kubectl apply -f http://iimacs.org
+
+  #+RESULTS[9df271cb6b4030541da56f2edf034902fe5ab69d]: pi_ip
+  #+begin_EXAMPLE
+  103.26.16.167
+  #+end_EXAMPLE
+
+** setup/check dns (dnsimple.com for now)
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/
+  :END:
+   #+begin_src shell
+      host pi.ii.nz
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   pi.ii.nz has address 103.26.16.167
+   #+end_EXAMPLE
+   #+begin_src shell
+      host traefik.ii.nz
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   traefik.ii.nz is an alias for pi.ii.nz.
+   pi.ii.nz has address 103.26.16.167
+   #+end_EXAMPLE
+
+* traefik
+** install helm
+   #+begin_src shell
+     curl -s -L \
+         https://get.helm.sh/helm-v3.0.2-linux-arm64.tar.gz \
+         | sudo tar xvz -f - --strip-components 1 \
+               -C /usr/local/bin linux-arm64/helm
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   linux-arm64/helm
+   #+end_EXAMPLE
+
+** check helm
+   #+begin_src shell
+     helm version 
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   version.BuildInfo{Version:"v3.0.2", GitCommit:"19e47ee3283ae98139d98460de796c1be1e3975f", GitTreeState:"clean", GoVersion:"go1.13.5"}
+   #+end_EXAMPLE
+
+** TODO Setup org-babel block for htpasswd cli later.
+   For now http://www.htaccesstools.com/htpasswd-generator/
+** update helm repo to include default k8s stable
+   #+begin_src shell 
+     helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+     helm repo update
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   "stable" has been added to your repositories
+   Hang tight while we grab the latest from your chart repositories...
+   ...Successfully got an update from the "stable" chart repository
+   Update Complete. ⎈ Happy Helming!⎈ 
+   #+end_EXAMPLE
+
+** configure and install 
+   #+begin_src shell 
+     helm uninstall traefiik
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   release "traefiik" uninstalled
+   #+end_EXAMPLE
+
+
+   #+begin_src shell
+   kubectl get svc traefiik-traefik --namespace default
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   NAME               TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+   traefiik-traefik   LoadBalancer   10.96.193.31   <pending>     80:14861/TCP,443:29085/TCP   7s
+   #+end_EXAMPLE
+   #+begin_src shell
+     sudo ss -ltnp
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   State     Recv-Q    Send-Q       Local Address:Port        Peer Address:Port                                                                                    
+   LISTEN    0         128                0.0.0.0:22               0.0.0.0:*        users:(("sshd",pid=1295,fd=3))                                                 
+   LISTEN    0         128          192.168.1.101:9080             0.0.0.0:*        users:(("cephcsi",pid=1264,fd=5))                                              
+   LISTEN    0         128          192.168.1.101:9081             0.0.0.0:*        users:(("cephcsi",pid=1474,fd=5))                                              
+   LISTEN    0         128          192.168.1.101:1503             0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=13))                                         
+   LISTEN    0         128              127.0.0.1:6784             0.0.0.0:*        users:(("weaver",pid=25974,fd=19))                                             
+   LISTEN    0         128          192.168.1.101:9090             0.0.0.0:*        users:(("cephcsi",pid=940,fd=6))                                               
+   LISTEN    0         128          192.168.1.101:9091             0.0.0.0:*        users:(("cephcsi",pid=1083,fd=6))                                              
+   LISTEN    0         128              127.0.0.1:34631            0.0.0.0:*        users:(("containerd",pid=1279,fd=8))                                           
+   LISTEN    0         128          192.168.1.101:13704            0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=11))                                         
+   LISTEN    0         128              127.0.0.1:10248            0.0.0.0:*        users:(("kubelet",pid=23536,fd=31))                                            
+   LISTEN    0         128              127.0.0.1:10249            0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=10))                                         
+   LISTEN    0         128          192.168.1.101:2379             0.0.0.0:*        users:(("etcd",pid=23015,fd=6))                                                
+   LISTEN    0         128              127.0.0.1:2379             0.0.0.0:*        users:(("etcd",pid=23015,fd=5))                                                
+   LISTEN    0         128          192.168.1.101:2380             0.0.0.0:*        users:(("etcd",pid=23015,fd=3))                                                
+   LISTEN    0         128              127.0.0.1:39469            0.0.0.0:*        users:(("kubelet",pid=23536,fd=11))                                            
+   LISTEN    0         128              127.0.0.1:2381             0.0.0.0:*        users:(("etcd",pid=23015,fd=11))                                               
+   LISTEN    0         128              127.0.0.1:10257            0.0.0.0:*        users:(("kube-controller",pid=22989,fd=6))                                     
+   LISTEN    0         128              127.0.0.1:10259            0.0.0.0:*        users:(("kube-scheduler",pid=23008,fd=6))                                      
+   LISTEN    0         128          127.0.0.53%lo:53               0.0.0.0:*        users:(("systemd-resolve",pid=1179,fd=13))                                     
+   LISTEN    0         128                   [::]:22                  [::]:*        users:(("sshd",pid=1295,fd=4))                                                 
+   LISTEN    0         128                      *:6781                   *:*        users:(("weave-npc",pid=26021,fd=3))                                           
+   LISTEN    0         128                      *:6782                   *:*        users:(("weaver",pid=25974,fd=18))                                             
+   LISTEN    0         128                      *:6783                   *:*        users:(("weaver",pid=25974,fd=17))                                             
+   LISTEN    0         128                      *:10250                  *:*        users:(("kubelet",pid=23536,fd=37))                                            
+   LISTEN    0         128                      *:10251                  *:*        users:(("kube-scheduler",pid=23008,fd=5))                                      
+   LISTEN    0         128                      *:6443                   *:*        users:(("kube-apiserver",pid=22907,fd=5))                                      
+   LISTEN    0         128                      *:10252                  *:*        users:(("kube-controller",pid=22989,fd=5))                                     
+   LISTEN    0         128                      *:10256                  *:*        users:(("kube-proxy",pid=23973,fd=12))                                         
+   #+end_EXAMPLE
+
+** helm upgrade in place
+#+NAME: helm upgrade in place
+#+begin_SRC shell
+  helm upgrade \
+       traefiik \
+       --values traefik.yaml \
+       stable/traefik 
+#+end_SRC
+
+#+RESULTS: helm upgrade in place
+#+begin_EXAMPLE
+Error: UPGRADE FAILED: query: failed to query with labels: Get https://192.168.1.101:6443/api/v1/namespaces/default/secrets?labelSelector=name%3Dtraefiik%2Cowner%3Dhelm%2Cstatus%3Ddeployed: dial tcp 192.168.1.101:6443: connect: connection refused
+#+end_EXAMPLE
+
+** traefik logs
+
+#+BEGIN_SRC tmate :session foo:traefik_logs
+  TRAEFIK_POD=$(
+    kubectl get pod --selector=app=traefik --namespace=${TRAEFIK_NAMESPACE} -o name \
+    | sed s:pod/::)
+  kubectl logs $TRAEFIK_POD --namespace=${TRAEFIK_NAMESPACE} -f | jq .
+#+END_SRC
+
+** wait for ip to set dns for
+*** wait (-w) for traefik service to get an IP via tmate
+  #+NAME: watch traefik get an IP
+  #+BEGIN_SRC tmate :session foo:watch
+    kubectl get svc --namespace=${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT} -w
+  #+END_SRC
+
+*** traefik service
+  #+NAME: get traefik service
+  #+BEGIN_SRC shell
+    kubectl get svc --namespace=${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT}
+  #+END_SRC
+
+  #+RESULTS: get traefik service
+  #+begin_EXAMPLE
+  NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+  kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   103m
+  #+end_EXAMPLE
+
+*** traefik inbound ip
+
+  #+NAME: traefik inbound IP
+  #+BEGIN_SRC shell
+  kubectl describe svc --namespace=${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT} | grep Ingress | awk '{print $3}'
+  #+END_SRC
+
+  #+RESULTS: traefik inbound IP
+  #+begin_EXAMPLE
+  35.189.56.228
+  #+end_EXAMPLE
+
+** look at traefik
+*** deployment
+#+NAME: ii-traefik deployment
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get deployment --namespace ${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT} -o yaml
+#+END_SRC
+
+#+RESULTS: ii-traefik deployment
+#+begin_SRC yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "4"
+  creationTimestamp: "2019-08-30T05:07:16Z"
+  generation: 4
+  labels:
+    app: traefik
+    chart: traefik-1.77.1
+    heritage: Tiller
+    release: ii-traefik
+  name: ii-traefik
+  namespace: kube-system
+  resourceVersion: "647910"
+  selfLink: /apis/extensions/v1beta1/namespaces/kube-system/deployments/ii-traefik
+  uid: 08d82ebc-cae4-11e9-9d36-42010a9800d6
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: traefik
+      release: ii-traefik
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: 1ea5e59bdf9f15878cc4f13a3849d2f25ca9d4d48e8ad2fc9e7fb71e23584be5
+      creationTimestamp: null
+      labels:
+        app: traefik
+        chart: traefik-1.77.1
+        heritage: Tiller
+        release: ii-traefik
+    spec:
+      containers:
+      - args:
+        - --configfile=/config/traefik.toml
+        env:
+        - name: DNSIMPLE_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: DNSIMPLE_BASE_URL
+              name: ii-traefik-dnsprovider-config
+        - name: DNSIMPLE_OAUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: DNSIMPLE_OAUTH_TOKEN
+              name: ii-traefik-dnsprovider-config
+        image: traefik:1.7.14
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /ping
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: ii-traefik
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 8880
+          name: httpn
+          protocol: TCP
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        - containerPort: 8080
+          name: dash
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /ping
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /ssl
+          name: ssl
+        - mountPath: /acme
+          name: acme
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: ii-traefik
+      serviceAccountName: ii-traefik
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: ii-traefik
+        name: config
+      - name: ssl
+        secret:
+          defaultMode: 420
+          secretName: ii-traefik-default-cert
+      - name: acme
+        persistentVolumeClaim:
+          claimName: ii-traefik-acme
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2019-08-30T05:07:48Z"
+    lastUpdateTime: "2019-08-30T05:07:48Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2019-08-30T05:07:16Z"
+    lastUpdateTime: "2019-08-30T05:21:11Z"
+    message: ReplicaSet "ii-traefik-fdcf76955" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 4
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1
+#+end_SRC
+
+*** services
+**** traefik service list
+#+NAME: ii-traefik service list
+#+BEGIN_SRC shell
+kubectl get services --namespace ${TRAEFIK_NAMESPACE} | grep traefik
+#+END_SRC
+
+#+RESULTS: ii-traefik service list
+#+begin_EXAMPLE
+ii-traefik             LoadBalancer   10.0.4.69     35.189.56.228   80:31199/TCP,443:31755/TCP   6d22h
+ii-traefik-dashboard   ClusterIP      10.0.1.227    <none>          80/TCP                       6d22h
+#+end_EXAMPLE
+
+**** traefik service
+#+NAME: ii-traefik service
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get services --namespace ${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT} -o yaml
+#+END_SRC
+
+#+RESULTS: ii-traefik service
+#+begin_SRC yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2019-08-30T05:07:16Z"
+  labels:
+    app: traefik
+    chart: traefik-1.77.1
+    heritage: Tiller
+    release: ii-traefik
+  name: ii-traefik
+  namespace: kube-system
+  resourceVersion: "645195"
+  selfLink: /api/v1/namespaces/kube-system/services/ii-traefik
+  uid: 08d6858a-cae4-11e9-9d36-42010a9800d6
+spec:
+  clusterIP: 10.0.4.69
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    nodePort: 31199
+    port: 80
+    protocol: TCP
+    targetPort: http
+  - name: https
+    nodePort: 31755
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: traefik
+    release: ii-traefik
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - ip: 35.189.56.228
+#+end_SRC
+
+**** traefik-dashboard service
+#+NAME: ii-traefik-dashbord service
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get services --namespace ${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT}-dashboard -o yaml
+#+END_SRC
+
+#+RESULTS: ii-traefik-dashbord service
+#+begin_SRC yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2019-08-30T05:07:16Z"
+  labels:
+    app: traefik
+    chart: traefik-1.77.1
+    heritage: Tiller
+    release: ii-traefik
+  name: ii-traefik-dashboard
+  namespace: kube-system
+  resourceVersion: "644960"
+  selfLink: /api/v1/namespaces/kube-system/services/ii-traefik-dashboard
+  uid: 08d34a95-cae4-11e9-9d36-42010a9800d6
+spec:
+  clusterIP: 10.0.1.227
+  ports:
+  - name: dashboard-http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: traefik
+    release: ii-traefik
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+#+end_SRC
+
+
+
+*** ingress
+**** traefik ingress list
+#+NAME: traefik ingress list
+#+BEGIN_SRC shell
+kubectl get ingress --namespace ${TRAEFIK_NAMESPACE} | grep traefik
+#+END_SRC
+
+#+RESULTS: traefik ingress list
+#+begin_EXAMPLE
+ii-traefik-dashboard   traefik.apisnoop.io             80      6d22h
+#+end_EXAMPLE
+
+**** traefik-dashboard ingress
+#+NAME: traefik-dashboard ingress
+#+BEGIN_SRC shell :wrap "SRC yaml"
+kubectl get ingress --namespace ${TRAEFIK_NAMESPACE} ${TRAEFIK_DEPLOYMENT}-dashboard -o yaml
+#+END_SRC
+
+#+RESULTS: traefik-dashboard ingress
+#+begin_SRC yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  creationTimestamp: "2019-08-30T05:07:16Z"
+  generation: 1
+  labels:
+    app: traefik
+    chart: traefik-1.77.1
+    heritage: Tiller
+    release: ii-traefik
+  name: ii-traefik-dashboard
+  namespace: kube-system
+  resourceVersion: "810181"
+  selfLink: /apis/extensions/v1beta1/namespaces/kube-system/ingresses/ii-traefik-dashboard
+  uid: 08d9af53-cae4-11e9-9d36-42010a9800d6
+spec:
+  rules:
+  - host: traefik.apisnoop.io
+    http:
+      paths:
+      - backend:
+          serviceName: ii-traefik-dashboard
+          servicePort: dashboard-http
+status:
+  loadBalancer: {}
+#+end_SRC
+
+#+BEGIN_SRC shell
+kubectl api-resources -o wide
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+NAME                              SHORTNAMES        APIGROUP                       NAMESPACED   KIND                             VERBS
+bindings                                                                           true         Binding                          [create]
+componentstatuses                 cs                                               false        ComponentStatus                  [get list]
+configmaps                        cm                                               true         ConfigMap                        [create delete deletecollection get list patch update watch]
+endpoints                         ep                                               true         Endpoints                        [create delete deletecollection get list patch update watch]
+events                            ev                                               true         Event                            [create delete deletecollection get list patch update watch]
+limitranges                       limits                                           true         LimitRange                       [create delete deletecollection get list patch update watch]
+namespaces                        ns                                               false        Namespace                        [create delete get list patch update watch]
+nodes                             no                                               false        Node                             [create delete deletecollection get list patch update watch]
+persistentvolumeclaims            pvc                                              true         PersistentVolumeClaim            [create delete deletecollection get list patch update watch]
+persistentvolumes                 pv                                               false        PersistentVolume                 [create delete deletecollection get list patch update watch]
+pods                              po                                               true         Pod                              [create delete deletecollection get list patch update watch]
+podtemplates                                                                       true         PodTemplate                      [create delete deletecollection get list patch update watch]
+replicationcontrollers            rc                                               true         ReplicationController            [create delete deletecollection get list patch update watch]
+resourcequotas                    quota                                            true         ResourceQuota                    [create delete deletecollection get list patch update watch]
+secrets                                                                            true         Secret                           [create delete deletecollection get list patch update watch]
+serviceaccounts                   sa                                               true         ServiceAccount                   [create delete deletecollection get list patch update watch]
+services                          svc                                              true         Service                          [create delete get list patch update watch]
+mutatingwebhookconfigurations                       admissionregistration.k8s.io   false        MutatingWebhookConfiguration     [create delete deletecollection get list patch update watch]
+validatingwebhookconfigurations                     admissionregistration.k8s.io   false        ValidatingWebhookConfiguration   [create delete deletecollection get list patch update watch]
+customresourcedefinitions         crd,crds          apiextensions.k8s.io           false        CustomResourceDefinition         [create delete deletecollection get list patch update watch]
+apiservices                                         apiregistration.k8s.io         false        APIService                       [create delete deletecollection get list patch update watch]
+controllerrevisions                                 apps                           true         ControllerRevision               [create delete deletecollection get list patch update watch]
+daemonsets                        ds                apps                           true         DaemonSet                        [create delete deletecollection get list patch update watch]
+deployments                       deploy            apps                           true         Deployment                       [create delete deletecollection get list patch update watch]
+replicasets                       rs                apps                           true         ReplicaSet                       [create delete deletecollection get list patch update watch]
+statefulsets                      sts               apps                           true         StatefulSet                      [create delete deletecollection get list patch update watch]
+tokenreviews                                        authentication.k8s.io          false        TokenReview                      [create]
+localsubjectaccessreviews                           authorization.k8s.io           true         LocalSubjectAccessReview         [create]
+selfsubjectaccessreviews                            authorization.k8s.io           false        SelfSubjectAccessReview          [create]
+selfsubjectrulesreviews                             authorization.k8s.io           false        SelfSubjectRulesReview           [create]
+subjectaccessreviews                                authorization.k8s.io           false        SubjectAccessReview              [create]
+horizontalpodautoscalers          hpa               autoscaling                    true         HorizontalPodAutoscaler          [create delete deletecollection get list patch update watch]
+cronjobs                          cj                batch                          true         CronJob                          [create delete deletecollection get list patch update watch]
+jobs                                                batch                          true         Job                              [create delete deletecollection get list patch update watch]
+cephblockpools                                      ceph.rook.io                   true         CephBlockPool                    [delete deletecollection get list patch create update watch]
+cephclients                                         ceph.rook.io                   true         CephClient                       [delete deletecollection get list patch create update watch]
+cephclusters                                        ceph.rook.io                   true         CephCluster                      [delete deletecollection get list patch create update watch]
+cephfilesystems                                     ceph.rook.io                   true         CephFilesystem                   [delete deletecollection get list patch create update watch]
+cephnfses                         nfs               ceph.rook.io                   true         CephNFS                          [delete deletecollection get list patch create update watch]
+cephobjectstores                                    ceph.rook.io                   true         CephObjectStore                  [delete deletecollection get list patch create update watch]
+cephobjectstoreusers              rcou,objectuser   ceph.rook.io                   true         CephObjectStoreUser              [delete deletecollection get list patch create update watch]
+certificatesigningrequests        csr               certificates.k8s.io            false        CertificateSigningRequest        [create delete deletecollection get list patch update watch]
+leases                                              coordination.k8s.io            true         Lease                            [create delete deletecollection get list patch update watch]
+endpointslices                                      discovery.k8s.io               true         EndpointSlice                    [create delete deletecollection get list patch update watch]
+events                            ev                events.k8s.io                  true         Event                            [create delete deletecollection get list patch update watch]
+ingresses                         ing               extensions                     true         Ingress                          [create delete deletecollection get list patch update watch]
+ingresses                         ing               networking.k8s.io              true         Ingress                          [create delete deletecollection get list patch update watch]
+networkpolicies                   netpol            networking.k8s.io              true         NetworkPolicy                    [create delete deletecollection get list patch update watch]
+runtimeclasses                                      node.k8s.io                    false        RuntimeClass                     [create delete deletecollection get list patch update watch]
+objectbucketclaims                obc,obcs          objectbucket.io                true         ObjectBucketClaim                [delete deletecollection get list patch create update watch]
+objectbuckets                     ob,obs            objectbucket.io                false        ObjectBucket                     [delete deletecollection get list patch create update watch]
+poddisruptionbudgets              pdb               policy                         true         PodDisruptionBudget              [create delete deletecollection get list patch update watch]
+podsecuritypolicies               psp               policy                         false        PodSecurityPolicy                [create delete deletecollection get list patch update watch]
+clusterrolebindings                                 rbac.authorization.k8s.io      false        ClusterRoleBinding               [create delete deletecollection get list patch update watch]
+clusterroles                                        rbac.authorization.k8s.io      false        ClusterRole                      [create delete deletecollection get list patch update watch]
+rolebindings                                        rbac.authorization.k8s.io      true         RoleBinding                      [create delete deletecollection get list patch update watch]
+roles                                               rbac.authorization.k8s.io      true         Role                             [create delete deletecollection get list patch update watch]
+volumes                           rv                rook.io                        true         Volume                           [delete deletecollection get list patch create update watch]
+priorityclasses                   pc                scheduling.k8s.io              false        PriorityClass                    [create delete deletecollection get list patch update watch]
+volumesnapshotclasses                               snapshot.storage.k8s.io        false        VolumeSnapshotClass              [delete deletecollection get list patch create update watch]
+volumesnapshotcontents                              snapshot.storage.k8s.io        false        VolumeSnapshotContent            [delete deletecollection get list patch create update watch]
+volumesnapshots                                     snapshot.storage.k8s.io        true         VolumeSnapshot                   [delete deletecollection get list patch create update watch]
+csidrivers                                          storage.k8s.io                 false        CSIDriver                        [create delete deletecollection get list patch update watch]
+csinodes                                            storage.k8s.io                 false        CSINode                          [create delete deletecollection get list patch update watch]
+storageclasses                    sc                storage.k8s.io                 false        StorageClass                     [create delete deletecollection get list patch update watch]
+volumeattachments                                   storage.k8s.io                 false        VolumeAttachment                 [create delete deletecollection get list patch update watch]
+#+end_EXAMPLE
+** explores
+#+BEGIN_SRC shell
+kubectl get ingress --all-namespaces
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+No resources found
+#+end_EXAMPLE
+
+* k
+  #+begin_src shell
+    kubeadm config print init-defaults --component-configs KubeletConfiguration,KubeProxyConfiguration
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  W1220 01:00:47.420920   22898 validation.go:28] Cannot validate kubelet config - no validator is available
+  W1220 01:00:47.421090   22898 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1220 01:00:47.424708   22898 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1220 01:00:47.424762   22898 validation.go:28] Cannot validate kubelet config - no validator is available
+  W1220 01:00:47.427539   22898 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1220 01:00:47.427595   22898 validation.go:28] Cannot validate kubelet config - no validator is available
+  apiVersion: kubeadm.k8s.io/v1beta2
+  bootstrapTokens:
+  - groups:
+    - system:bootstrappers:kubeadm:default-node-token
+    token: abcdef.0123456789abcdef
+    ttl: 24h0m0s
+    usages:
+    - signing
+    - authentication
+  kind: InitConfiguration
+  localAPIEndpoint:
+    advertiseAddress: 1.2.3.4
+    bindPort: 6443
+  nodeRegistration:
+    criSocket: /var/run/dockershim.sock
+    name: ubuntu
+    taints:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+  ---
+  apiServer:
+    timeoutForControlPlane: 4m0s
+  apiVersion: kubeadm.k8s.io/v1beta2
+  certificatesDir: /etc/kubernetes/pki
+  clusterName: kubernetes
+  controllerManager: {}
+  dns:
+    type: CoreDNS
+  etcd:
+    local:
+      dataDir: /var/lib/etcd
+  imageRepository: k8s.gcr.io
+  kind: ClusterConfiguration
+  kubernetesVersion: v1.17.0
+  networking:
+    dnsDomain: cluster.local
+    serviceSubnet: 10.96.0.0/12
+  scheduler: {}
+  ---
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  authentication:
+    anonymous:
+      enabled: false
+    webhook:
+      cacheTTL: 0s
+      enabled: true
+    x509:
+      clientCAFile: /etc/kubernetes/pki/ca.crt
+  authorization:
+    mode: Webhook
+    webhook:
+      cacheAuthorizedTTL: 0s
+      cacheUnauthorizedTTL: 0s
+  clusterDNS:
+  - 10.96.0.10
+  clusterDomain: cluster.local
+  cpuManagerReconcilePeriod: 0s
+  evictionPressureTransitionPeriod: 0s
+  fileCheckFrequency: 0s
+  healthzBindAddress: 127.0.0.1
+  healthzPort: 10248
+  httpCheckFrequency: 0s
+  imageMinimumGCAge: 0s
+  kind: KubeletConfiguration
+  nodeStatusReportFrequency: 0s
+  nodeStatusUpdateFrequency: 0s
+  rotateCertificates: true
+  runtimeRequestTimeout: 0s
+  staticPodPath: /etc/kubernetes/manifests
+  streamingConnectionIdleTimeout: 0s
+  syncFrequency: 0s
+  volumeStatsAggPeriod: 0s
+  ---
+  apiVersion: kubeproxy.config.k8s.io/v1alpha1
+  bindAddress: 0.0.0.0
+  clientConnection:
+    acceptContentTypes: ""
+    burst: 0
+    contentType: ""
+    kubeconfig: /var/lib/kube-proxy/kubeconfig.conf
+    qps: 0
+  clusterCIDR: ""
+  configSyncPeriod: 0s
+  conntrack:
+    maxPerCore: null
+    min: null
+    tcpCloseWaitTimeout: null
+    tcpEstablishedTimeout: null
+  enableProfiling: false
+  healthzBindAddress: ""
+  hostnameOverride: ""
+  iptables:
+    masqueradeAll: false
+    masqueradeBit: null
+    minSyncPeriod: 0s
+    syncPeriod: 0s
+  ipvs:
+    excludeCIDRs: null
+    minSyncPeriod: 0s
+    scheduler: ""
+    strictARP: false
+    syncPeriod: 0s
+  kind: KubeProxyConfiguration
+  metricsBindAddress: ""
+  mode: ""
+  nodePortAddresses: null
+  oomScoreAdj: null
+  portRange: ""
+  udpIdleTimeout: 0s
+  winkernel:
+    enableDSR: false
+    networkName: ""
+    sourceVip: ""
+  #+end_EXAMPLE
+  #+begin_src shell
+    #cat /etc/kubernetes/bootstrap-kubelet.conf
+    ls -la /etc/kubernetes/
+    #ls -la /etc/default/kubelet
+    #KUBELET_EXTRA_ARGS
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  total 44
+  drwxr-xr-x  4 root root 4096 Dec 20 01:58 .
+  drwxr-xr-x 98 root root 4096 Dec 19 18:33 ..
+  -rw-------  1 root root 5453 Dec 20 01:58 admin.conf
+  -rw-------  1 root root 5485 Dec 20 01:58 controller-manager.conf
+  -rw-------  1 root root 1861 Dec 20 01:58 kubelet.conf
+  drwxr-xr-x  2 root root 4096 Dec 20 01:58 manifests
+  drwxr-xr-x  3 root root 4096 Dec 20 01:58 pki
+  -rw-------  1 root root 5433 Dec 20 01:58 scheduler.conf
+  #+end_EXAMPLE
+* Allow all ports
+** apiserver cli arguments
+  #+begin_src shell
+     ps -axwu | grep kube-apiserver | sed 's/ /\n/g' \
+      | grep \\-\\- | sort
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  --advertise-address=192.168.1.101
+  --allow-privileged=true
+  --authorization-mode=Node,RBAC
+  --client-ca-file=/etc/kubernetes/pki/ca.crt
+  --enable-admission-plugins=NodeRestriction
+  --enable-bootstrap-token-auth=true
+  --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+  --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+  --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+  --etcd-servers=https://127.0.0.1:2379
+  --insecure-port=0
+  --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+  --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+  --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+  --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+  --requestheader-allowed-names=front-proxy-client
+  --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+  --requestheader-extra-headers-prefix=X-Remote-Extra-
+  --requestheader-group-headers=X-Remote-Group
+  --requestheader-username-headers=X-Remote-User
+  --secure-port=6443
+  --service-account-key-file=/etc/kubernetes/pki/sa.pub
+  --service-cluster-ip-range=10.96.0.0/12
+  --service-node-port-range=22-30000
+  --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+  --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+  #+end_EXAMPLE
+** kubeproxy cli arguments
+  #+begin_src shell
+     ps -axwu | grep kube-proxy | sed 's/ /\n/g' \
+      | grep \\-\\- | sort
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  --config=/var/lib/kube-proxy/config.conf
+  --hostname-override=ubuntu
+  #+end_EXAMPLE
+
+  #+begin_src shell
+     ls -la /var/lib/ | grep ku
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  drwxr-xr-x  8 root      root      4096 Dec 20 01:58 kubelet
+  #+end_EXAMPLE
+[[/ssh:ubuntu@192.168.1.101|sudo:root@192.168.1.101:/etc/kubernetes/]]
+* Requirements
+** ip address
+** port / hostport
+** pvc / default storage class
+*** nfs would work later
+*** sig-storage-static-provisioner
+We might want to have a local disk attached.
+So we put on a 1TB ssd.
+#+begin_src shell
+lsblk | grep sda
+#+end_src
+
+#+RESULTS:
+#+begin_EXAMPLE
+sda           8:0    0 894.3G  0 disk 
+#+end_EXAMPLE
+** rook
+Do we need to upgrade helm's approach?
+Is rbac enabled?
+
+#+begin_src shell
+kubectl cluster-info dump | grep authorization-mode
+#+end_src
+
+#+RESULTS:
+#+begin_EXAMPLE
+                            "--authorization-mode=Node,RBAC",
+#+end_EXAMPLE
+
+#+begin_src shell
+# Create a ServiceAccount for Tiller in the `kube-system` namespace
+kubectl --namespace kube-system create sa tiller
+
+# Create a ClusterRoleBinding for Tiller
+kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+
+# Patch Tiller's Deployment to use the new ServiceAccount
+kubectl --namespace kube-system patch deploy/tiller-deploy -p '{"spec": {"template": {"spec": {"serviceAccountName": "tiller"}}}}'
+#+end_src
+
+#+RESULTS:
+#+begin_EXAMPLE
+serviceaccount/tiller created
+clusterrolebinding.rbac.authorization.k8s.io/tiller created
+Error from server (NotFound): deployments.apps "tiller-deploy" not found
+#+end_EXAMPLE
+** update helm repo to include default k8s stable
+   #+begin_src shell
+     helm repo add rook-release https://charts.rook.io/release
+     helm search repo rook
+     # helm search rook-ceph
+     # helm install --namespace rook-ceph rook-release/rook-ceph
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   "rook-release" has been added to your repositories
+   NAME                  	CHART VERSION	APP VERSION	DESCRIPTION                                       
+   rook-release/rook-ceph	v1.2.0       	           	File, Block, and Object Storage Services for yo...
+   stable/rookout        	0.1.0        	1.0        	A Helm chart for Rookout agent on Kubernetes      
+   #+end_EXAMPLE
+** Ensure lvm works
+   #+begin_src shell
+     sudo pvs -a
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+     PV             VG Fmt Attr PSize PFree
+     /dev/loop0            ---     0     0 
+     /dev/loop1            ---     0     0 
+     /dev/loop2            ---     0     0 
+     /dev/mmcblk0p1        ---     0     0 
+     /dev/mmcblk0p2        ---     0     0 
+     /dev/sda              ---     0     0 
+   #+end_EXAMPLE
+* Install Rook
+   #+begin_src shell
+     ls -la /dev/disk/by-path/platform-*pci*usb*
+     # ls -la /dev/disk/by-path/platform-.*pci.*
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   lrwxrwxrwx 1 root root 9 Dec 28 02:54 /dev/disk/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:2:1.0-scsi-0:0:0:0 -> ../../sda
+   #+end_EXAMPLE
+** for later
+   #+begin_src shell
+     ROOT_OP_POD=$(kubectl --namespace rook-ceph describe d
+     kubectl logs --namespace rook-ceph $ROOT_OP_POD
+     # ROOT_OP_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-operator" -o name)
+     # kubectl logs --namespace rook-ceph $ROOT_OP_POD
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   #+end_EXAMPLE
+   #+begin_src shell
+     docker images | grep ceph\\\|csi
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   csi-node-driver-registrar                  latest              bf8c90f910d9        18 hours ago        16.6MB
+   quay.io/k8scsi/csi-node-driver-registrar   v1.1.0              bf8c90f910d9        18 hours ago        16.6MB
+   csi-attacher                               latest              89499377228b        18 hours ago        44.7MB
+   quay.io/k8scsi/csi-attacher                v1.2.0              89499377228b        18 hours ago        44.7MB
+   csi-snapshotter                            latest              cd74005517c1        18 hours ago        46MB
+   quay.io/k8scsi/csi-snapshotter             v1.2.2              cd74005517c1        18 hours ago        46MB
+   quay.io/k8scsi/csi-provisioner             v1.4.0              2dc30504f03e        19 hours ago        52.6MB
+   csi-provisioner                            latest              2dc30504f03e        19 hours ago        52.6MB
+   quay.io/cephcsi/cephcsi                    v1.2.2              e73792b88385        19 hours ago        940MB
+   rook/ceph                                  master              0de3709a4ba8        2 days ago          929MB
+   rook/ceph                                  v1.2.0              2e69cb44dd57        10 days ago         929MB
+   ceph/ceph                                  v14.2               7fb4cbf85c65        2 weeks ago         855MB
+   ceph/ceph                                  v14.2.5             7fb4cbf85c65        2 weeks ago         855MB
+   quay.io/cephcsi/cephcsi                    <none>              d46311d35105        5 weeks ago         984MB
+   quay.io/k8scsi/csi-snapshotter             <none>              538dbe77c2f9        2 months ago        47.6MB
+   quay.io/k8scsi/csi-provisioner             <none>              2130c4e026a5        2 months ago        54.5MB
+   quay.io/k8scsi/csi-attacher                <none>              eef7a9550ede        6 months ago        46.2MB
+   quay.io/k8scsi/csi-node-driver-registrar   <none>              a93898755322        8 months ago        15.8MB
+   #+end_EXAMPLE
+Need to enable docker experimental CLI options.
+#+begin_src shell
+mkdir -p ~/.docker
+echo '{"experimental":"enabled"}' > ~/.docker/config.json
+rm ~/.docker/config.json
+rm -rf ~/.docker
+#+end_src
+
+#+RESULTS:
+#+begin_EXAMPLE
+#+end_EXAMPLE
+   #+begin_src shell :var DOCKER_CLI_EXPERIMENTAL="enabled"
+     echo $DOCKER_CLI_EXPERIMENTAL
+     docker manifest inspect quay.io/cephcsi/cephcsi:v1.2.2
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   enabled
+   docker manifest inspect is only supported on a Docker cli with experimental cli features enabled
+   #+end_EXAMPLE
+
+   #+begin_src shell
+     docker manifest inspect rook/ceph:master
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   {
+      "schemaVersion": 2,
+      "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+      "manifests": [
+         {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 1787,
+            "digest": "sha256:f8268ed131d0ad151d749bcfa9692b7341c410625568445b8107a67019c2172a",
+            "platform": {
+               "architecture": "amd64",
+               "os": "linux"
+            }
+         },
+         {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 1788,
+            "digest": "sha256:e586993b4db487dd022eb85ea5b1f81afdcf9324bd272e9ce1648b6846bf11e7",
+            "platform": {
+               "architecture": "arm64",
+               "os": "linux"
+            }
+         }
+      ]
+   }
+   #+end_EXAMPLE
+
+   #+begin_src shell
+     docker manifest inspect quay.io/k8scsi/csi-snapshotter
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   no such manifest: quay.io/k8scsi/csi-snapshotter:latest
+   #+end_EXAMPLE
+* rebuilding csi
+  #+begin_src shell
+  mkdir -p ~/go/src/github.com/ceph
+  cd ~/go/src/github.com/ceph
+  git clone --recursive --branch v1.2.2 --depth 1 https://github.com/ceph/ceph-csi
+  #+end_src
+  #+begin_src shell
+    cd ~/go/src/github.com/ceph/ceph-csi
+    make image-cephcsi
+  #+end_src
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  cephcsi image settings: quay.io/cephcsi/cephcsi version v1.2.2
+  if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
+  CGO_ENABLED=0 GOOS=linux go build -a -ldflags ' -X github.com/ceph/ceph-csi/pkg/util.GitCommit=f8c854dc7d6ffff02cb2eed6002534dc0473f111 -X github.com/ceph/ceph-csi/pkg/util.DriverVersion=v1.2.2 -extldflags "-static"' -o  _output/cephcsi ./cmd/
+  cp _output/cephcsi deploy/cephcsi/image/cephcsi
+  docker build -t quay.io/cephcsi/cephcsi:v1.2.2 deploy/cephcsi/image
+  Sending build context to Docker daemon  557.1kBSending build context to Docker daemon  3.342MBSending build context to Docker daemon  6.128MBSending build context to Docker daemon  8.913MBSending build context to Docker daemon  11.14MBSending build context to Docker daemon  13.93MBSending build context to Docker daemon  16.71MBSending build context to Docker daemon   19.5MBSending build context to Docker daemon  22.28MBSending build context to Docker daemon  25.07MBSending build context to Docker daemon  27.85MBSending build context to Docker daemon  30.64MBSending build context to Docker daemon  32.31MBSending build context to Docker daemon  34.54MBSending build context to Docker daemon  37.32MBSending build context to Docker daemon  40.11MBSending build context to Docker daemon  42.73MB
+  Step 1/7 : FROM ceph/ceph:v14.2
+  v14.2: Pulling from ceph/ceph
+  Digest: sha256:8c86fc6acf47edb6c3e38777b72c3fea2bad5be18c7e88553673205b378d0121
+  Status: Downloaded newer image for ceph/ceph:v14.2
+   ---> 7fb4cbf85c65
+  Step 2/7 : LABEL maintainers="Ceph-CSI Authors"
+   ---> Running in 1469b57d9381
+  Removing intermediate container 1469b57d9381
+   ---> de4f1e0ee45e
+  Step 3/7 : LABEL description="Ceph-CSI Plugin"
+   ---> Running in e6a81785954e
+  Removing intermediate container e6a81785954e
+   ---> 38c1b8574903
+  Step 4/7 : ENV CSIBIN=/usr/local/bin/cephcsi
+   ---> Running in d13c37ddc1a4
+  Removing intermediate container d13c37ddc1a4
+   ---> f2991dd06573
+  Step 5/7 : COPY cephcsi $CSIBIN
+   ---> 459e4a563a1d
+  Step 6/7 : RUN chmod +x $CSIBIN
+   ---> Running in 1ccfd3b5884d
+  Removing intermediate container 1ccfd3b5884d
+   ---> 24d99a35aef1
+  Step 7/7 : ENTRYPOINT ["/usr/local/bin/cephcsi"]
+   ---> Running in 1cb36208fc39
+  Removing intermediate container 1cb36208fc39
+   ---> e73792b88385
+  Successfully built e73792b88385
+  Successfully tagged quay.io/cephcsi/cephcsi:v1.2.2
+  #+end_EXAMPLE
+
+  #+begin_src shell
+    sudo apt-get install -y make golang-go
+  #+end_src
+
+
+  #+begin_src shell
+  mkdir -p ~/go/src/github.com/kubernetes-csi
+  cd ~/go/src/github.com/kubernetes-csi
+  git clone --recursive --branch v1.4.0 --depth 1 https://github.com/kubernetes-csi/external-provisioner
+  #+end_src
+  
+  #+begin_src shell
+    cd ~/go/src/github.com/kubernetes-csi/external-provisioner
+    make container
+    docker tag csi-provisioner:latest quay.io/k8scsi/csi-provisioner:v1.4.0
+  #+end_src
+  #+begin_src shell
+  cd ~/go/src/github.com/kubernetes-csi
+  git clone --recursive --branch v1.2.2 --depth 1 https://github.com/kubernetes-csi/external-snapshotter
+  #+end_src
+  #+begin_src shell
+    cd ~/go/src/github.com/kubernetes-csi/external-snapshotter
+    make container
+    docker tag csi-snapshotter:latest quay.io/k8scsi/csi-snapshotter:v1.2.2
+  #+end_src
+  #+begin_src shell
+  cd ~/go/src/github.com/kubernetes-csi
+  git clone --recursive --branch v1.2.0 --depth 1 https://github.com/kubernetes-csi/external-attacher
+  #+end_src
+  #+begin_src shell
+    cd ~/go/src/github.com/kubernetes-csi/external-attacher
+    make container
+    docker tag csi-attacher:latest quay.io/k8scsi/csi-attacher:v1.2.0
+  #+end_src
+
+  #+begin_src shell
+  cd ~/go/src/github.com/kubernetes-csi
+  git clone --recursive --branch v1.1.0 --depth 1 https://github.com/kubernetes-csi/node-driver-registrar
+  #+end_src
+  #+begin_src shell
+    cd ~/go/src/github.com/kubernetes-csi/node-driver-registrar
+    make container
+    docker tag csi-node-driver-registrar:latest quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+  #+end_src
