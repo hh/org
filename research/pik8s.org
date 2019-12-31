@@ -10,6 +10,7 @@
   <<kubeadm reset>>
   <<lvm reset>>
   <<rook reset>>
+  sudo rm -rf /etc/cni/net.d
   #+end_src
 
   #+RESULTS: start over
@@ -18,7 +19,7 @@
   [reset] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -oyaml'
   [preflight] Running pre-flight checks
   [reset] Removing info for node "ubuntu" from the ConfigMap "kubeadm-config" in the "kube-system" Namespace
-  W1229 07:11:42.294978    5502 removeetcdmember.go:61] [reset] failed to remove etcd member: error syncing endpoints with etc: etcdclient: no available endpoints
+  W1231 00:30:39.559638   30902 removeetcdmember.go:61] [reset] failed to remove etcd member: error syncing endpoints with etc: etcdclient: no available endpoints
   .Please manually remove this etcd member using etcdctl
   [reset] Stopping the kubelet service
   [reset] Unmounting mounted directories in "/var/lib/kubelet"
@@ -40,9 +41,9 @@
     Correct command syntax is:
     vgremove VG|Tag|Select ...
 
-    Volume group "sda" not found
-    Cannot process volume group sda
-    No PV found on device /dev/sda.
+    Volume group "sdb" not found
+    Cannot process volume group sdb
+    Device /dev/sdb not found.
   #+end_EXAMPLE
 
 ** kubeadm reset
@@ -56,8 +57,8 @@
   #+begin_src shell
     VG=$(sudo lvs | tail -1 | awk '{print $2}')
     sudo lvm vgremove $VG --force --force
-    sudo lvm lvremove /dev/sda --force --force
-    sudo pvremove /dev/sda
+    sudo lvm lvremove /dev/sdb --force --force
+    sudo pvremove /dev/sdb
   #+end_src
 
 ** rook reset
@@ -69,6 +70,22 @@
    #+begin_src shell
      helm uninstall rook-ceph --namespace rook-ceph
    #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   release "rook-ceph" uninstalled
+   #+end_EXAMPLE
+
+** uninstall traefik
+   #+begin_src shell
+     helm uninstall ii-traefik --namespace traefik
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   release "ii-traefik" uninstalled
+   #+end_EXAMPLE
+
 * Configuration
 ** kubeadm-config.yaml
  #+NAME: kubeadm-config.yaml
@@ -162,18 +179,21 @@
      kind: StorageClass
      metadata:
        name: standard
-     provisioner: rook-ceph.cephfs.csi.ceph.com
+     #provisioner: rook-ceph.cephfs.csi.ceph.com
+     provisioner: rook-ceph.rbd.csi.ceph.com
      parameters:
        # clusterID is the namespace where operator is deployed.
        clusterID: rook-ceph
 
        # CephFS filesystem name into which the volume shall be created
-       fsName: iifs
+       # fsName: iifs
 
        # Ceph pool into which the volume shall be created
        # Required for provisionVolume: "true"
        pool: ii-block-pool
+       # RBD image format. Defaults to "2".
        imageFormat: "2"
+       # RBD image features. Available for imageFormat: "2". CSI RBD currently supports only `layering` feature.
        imageFeatures: layering
 
        # Root path of an existing CephFS volume
@@ -182,19 +202,22 @@
 
        # The secrets contain Ceph admin credentials. These are generated automatically by the operator
        # in the same namespace as the cluster.
-       csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+       csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
        csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
-       csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+       csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
        csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
        csi.storage.k8s.io/fstype: ext4
        # (optional) The driver can use either ceph-fuse (fuse) or ceph kernel client (kernel)
        # If omitted, default volume mounter will be used - this is determined by probing for ceph-fuse
        # or by setting the default mounter explicitly via --volumemounter command-line argument.
        # mounter: kernel
-     reclaimPolicy: Delete
+     reclaimPolicy: Retain
+     # reclaimPolicy: Delete
      mountOptions:
        # uncomment the following line for debugging
        #- debug
+     # uncomment the following to use rbd-nbd as mounter on supported nodes
+     #mounter: rbd-nbd
    #+end_src
 ** rook-tools.yaml
    #+begin_src yaml :tangle /ssh:ubuntu@192.168.1.101:rook-tools.yaml :noweb yes
@@ -258,16 +281,32 @@
                  - key: data
                    path: mon-endpoints
    #+end_src
-** traefik-config.yaml
+** traefik-1.7-config.yaml
+If you use this annotation on the PVC, it will skip deleting the resource on uninstall.
+
+#+name: keepers
+#+begin_src yaml
+helm.sh/resource-policy: "keep"
+#+end_src
+
+Password injection has been a bit of a pain, for some reason it shows up twice.
+I'd like to figure out why it ejects a newline:
+
+"$apr$PASSWORD
+"
+And why that newline results in repeating the yaml lines when used as a noweb executable argument.
 
 #+NAME: traefik-admin-password
-#+BEGIN_SRC shell :results silent :dir "."
-. .traefik.env
-echo -n $TRAEFIK_ADMIN_PASS
+#+BEGIN_SRC shell :results silent :dir "." :results value :epilogue "" :prologue ""
+# . .traefik.env
+# echo -n $TRAEFIK_ADMIN_PASS | htpasswd -i -n '' | sed s/^:// | head -1
+# htpasswd -n -b '' iiadmin | sed s/^:// | head -1
+htpasswd -n -b root iiroot | sed s/^root:// | head -1
 #+END_SRC
-
+#+begin_src emacs-lisp :results value
+#+end_src
 #+NAME: traefik.yaml helm values
-#+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:traefik-config.yaml :noweb yes
+#+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:traefik-1.7-config.yaml :noweb yes
   deployment:
     hostPort:
       httpEnabled: true
@@ -302,12 +341,15 @@ echo -n $TRAEFIK_ADMIN_PASS
   # kubernetes.io/ingress.class=traefik
   # ingressClass = "traefik-internal"
   # https://docs.traefik.io/configuration/backends/kubernetes/#ingressendpoint
+  # testuser: $apr1$JXRA7j2s$LpVns9vsme8FHN0r.aSt11
   dashboard:
     enabled: true
     domain: traefik.ii.nz
     auth:
       basic:
-        admin: "<<traefik-admin-password()>>"
+        admin: $apr1$We5npcg/$Z1rVvxv82ZFQ97aEwyj0k0
+        testuser: $apr1$JXRA7j2s$LpVns9vsme8FHN0r.aSt11
+        root: $apr1$ILfACRlz$L2X6Sfxnrkg90OIblA3t5.
   ssl:
     enabled: true
     enforced: true
@@ -333,7 +375,7 @@ echo -n $TRAEFIK_ADMIN_PASS
   acme:
     enabled: true
     email: hh@ii.coop
-    staging: false
+    staging: true
     # challengeType: tls-sni-01
     # challengeType: http-01
     # Unable to obtain ACME certificate for domains \"hh-hasura.apisnoop.io\"
@@ -349,10 +391,16 @@ echo -n $TRAEFIK_ADMIN_PASS
       - 1.1.1.1:53
       - 8.8.8.8:53
     persistence:
-      enable: false
+      # We don't want helm to delete our pvc
+      # https://github.com/helm/helm/issues/6261#issuecomment-523472128
+      annotations:
+        helm.sh/resource-policy: "keep"
+      enable: true
       storageClass: standard
       accessMode: ReadWriteOnce
       size: 1Gi
+      # only use if claim already exists
+      # existingClaim: ii-traefik-acme
     # domains:
     #   enabled: false
     #   domainsList:
@@ -368,7 +416,28 @@ echo -n $TRAEFIK_ADMIN_PASS
     #     DNSIMPLE_BASE_URL: "https://api.dnsimple.com/v2/"
 #+END_SRC
 
+** rook-ingress.yaml
+#+NAME: traefik.yaml helm values
+#+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:rook-ingress.yaml :noweb yes
+  apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    name: rook-ceph-mrg-dashboard
+  spec:
+    rules:
+    - host: rook.ii.nz
+      http:
+        paths:
+        - backend:
+            serviceName: rook-ceph-mgr-dashboard
+            servicePort: dashboard
+#+END_SRC
+
 * Steps
+If you run them all, at about ~10 minutes you should nsee a ceph-osd-prepare-ubuntu job/pod.
+This creates the ceph lvm out of /dev/sda
+Assuming it doesn't have any other partittions on it.
+
 ** kubeadm init
   #+begin_src shell :async t
     sudo kubeadm init --config kubeadm-config.yaml
@@ -376,10 +445,10 @@ echo -n $TRAEFIK_ADMIN_PASS
 
   #+RESULTS:
   #+begin_EXAMPLE
-  W1229 07:39:16.294482    8560 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
-  W1229 07:39:16.297488    8560 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
-  W1229 07:39:16.302724    8560 validation.go:28] Cannot validate kube-proxy config - no validator is available
-  W1229 07:39:16.302791    8560 validation.go:28] Cannot validate kubelet config - no validator is available
+  W1231 00:31:29.562725    1278 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
+  W1231 00:31:29.564558    1278 common.go:77] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta1". Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
+  W1231 00:31:29.568673    1278 validation.go:28] Cannot validate kube-proxy config - no validator is available
+  W1231 00:31:29.568732    1278 validation.go:28] Cannot validate kubelet config - no validator is available
   [init] Using Kubernetes version: v1.17.0
   [preflight] Running pre-flight checks
     [WARNING Service-Docker]: docker service is not enabled, please run 'systemctl enable docker.service'
@@ -413,18 +482,18 @@ echo -n $TRAEFIK_ADMIN_PASS
   [control-plane] Using manifest folder "/etc/kubernetes/manifests"
   [control-plane] Creating static Pod manifest for "kube-apiserver"
   [control-plane] Creating static Pod manifest for "kube-controller-manager"
-  W1229 07:39:32.250448    8560 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  W1231 00:31:47.574873    1278 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
   [control-plane] Creating static Pod manifest for "kube-scheduler"
-  W1229 07:39:32.255234    8560 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
+  W1231 00:31:47.578520    1278 manifests.go:214] the default kube-apiserver authorization-mode is "Node,RBAC"; using "Node,RBAC"
   [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
   [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
-  [apiclient] All control plane components are healthy after 39.005455 seconds
+  [kubelet-check] Initial timeout of 40s passed.
+  [apiclient] All control plane components are healthy after 47.517419 seconds
   [upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
   [kubelet] Creating a ConfigMap "kubelet-config-1.17" in namespace kube-system with the configuration for the kubelets in the cluster
-  [kubelet-check] Initial timeout of 40s passed.
   [upload-certs] Skipping phase. Please see --upload-certs
   [mark-control-plane] Marking the node ubuntu as control-plane by adding the label "node-role.kubernetes.io/master=''"
-  [bootstrap-token] Using token: rfmdm3.7qgj0l72m3c7ol9d
+  [bootstrap-token] Using token: nkwi5j.bgsqtchyrnx9rd81
   [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
   [bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
   [bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
@@ -491,7 +560,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+begin_EXAMPLE
    namespace/rook-ceph created
    NAME: rook-ceph
-   LAST DEPLOYED: Sun Dec 29 07:40:57 2019
+   LAST DEPLOYED: Tue Dec 31 00:34:27 2019
    NAMESPACE: rook-ceph
    STATUS: deployed
    REVISION: 1
@@ -528,7 +597,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
 
    #+RESULTS:
    #+begin_EXAMPLE
-   cephcluster.ceph.rook.io/rook-ceph configured
+   cephcluster.ceph.rook.io/rook-ceph created
    #+end_EXAMPLE
 
 ** ceph-block-pool
@@ -545,6 +614,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+end_EXAMPLE
 ** storage-class
    #+begin_src shell
+      # kubectl delete -f storage-class.yaml
       kubectl apply -f storage-class.yaml
    #+end_src
 
@@ -562,30 +632,25 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+begin_EXAMPLE
    deployment.apps/rook-ceph-tools created
    #+end_EXAMPLE
-
-   #+begin_src shell
-     TOOLS_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-tools" -o name)
-     kubectl exec -n rook-ceph -ti $TOOLS_POD ceph status
-     #kubectl -n rook-ceph exec -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') bash
-
-     #ceph df 
-     #  rados df
-   #+end_src
-
 ** install traefik
    #+name: install traefik
    #+begin_src shell 
+     kubectl create namespace traefik
      helm install \
-          traefiik \
-          --values traefik.yaml \
+          ii-traefik \
+          --namespace traefik \
+          --values $HOME/traefik-1.7-config.yaml \
           stable/traefik 
+          # --values $HOME/traefik-config.yaml \
+          # $HOME/traefik-helm-chart
    #+end_src
 
    #+RESULTS: install traefik
    #+begin_EXAMPLE
-   NAME: traefiik
-   LAST DEPLOYED: Sun Dec 29 08:15:01 2019
-   NAMESPACE: default
+   namespace/traefik created
+   NAME: ii-traefik
+   LAST DEPLOYED: Tue Dec 31 00:45:20 2019
+   NAMESPACE: traefik
    STATUS: deployed
    REVISION: 1
    TEST SUITE: None
@@ -596,14 +661,29 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
 
         You can watch the status by running:
 
-            $ kubectl get svc traefiik-traefik --namespace default -w
+            $ kubectl get svc ii-traefik --namespace traefik -w
 
         Once 'EXTERNAL-IP' is no longer '<pending>':
 
-            $ kubectl describe svc traefiik-traefik --namespace default | grep Ingress | awk '{print $3}'
+            $ kubectl describe svc ii-traefik --namespace traefik | grep Ingress | awk '{print $3}'
 
    2. Configure DNS records corresponding to Kubernetes ingress resources to point to the load balancer IP/hostname found in step 1
    #+end_EXAMPLE
+
+** rook-ingress
+   #+begin_src shell
+      kubectl apply -f rook-ingress.yaml -n rook-ceph
+   #+end_src
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   ingress.extensions/rook-ceph-mrg-dashboard created
+   #+end_EXAMPLE
+
+* Installing htpasswd
+  #+begin_src shell
+    sudo apt-get install -y apache2-utils
+  #+end_src
 
 * Explore
 ** get a list of crds created by rook-ceph
@@ -613,17 +693,20 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
 
    #+RESULTS:
    #+begin_EXAMPLE
-   NAME                                 CREATED AT
-   cephblockpools.ceph.rook.io          2019-12-29T07:40:59Z
-   cephclients.ceph.rook.io             2019-12-29T07:40:59Z
-   cephclusters.ceph.rook.io            2019-12-29T07:40:59Z
-   cephfilesystems.ceph.rook.io         2019-12-29T07:40:59Z
-   cephnfses.ceph.rook.io               2019-12-29T07:40:59Z
-   cephobjectstores.ceph.rook.io        2019-12-29T07:40:59Z
-   cephobjectstoreusers.ceph.rook.io    2019-12-29T07:40:59Z
-   objectbucketclaims.objectbucket.io   2019-12-29T07:40:59Z
-   objectbuckets.objectbucket.io        2019-12-29T07:40:59Z
-   volumes.rook.io                      2019-12-29T07:40:59Z
+   NAME                                             CREATED AT
+   cephblockpools.ceph.rook.io                      2019-12-30T08:50:23Z
+   cephclients.ceph.rook.io                         2019-12-30T08:50:23Z
+   cephclusters.ceph.rook.io                        2019-12-30T08:50:23Z
+   cephfilesystems.ceph.rook.io                     2019-12-30T08:50:23Z
+   cephnfses.ceph.rook.io                           2019-12-30T08:50:23Z
+   cephobjectstores.ceph.rook.io                    2019-12-30T08:50:23Z
+   cephobjectstoreusers.ceph.rook.io                2019-12-30T08:50:23Z
+   objectbucketclaims.objectbucket.io               2019-12-30T08:50:23Z
+   objectbuckets.objectbucket.io                    2019-12-30T08:50:23Z
+   volumes.rook.io                                  2019-12-30T08:50:23Z
+   volumesnapshotclasses.snapshot.storage.k8s.io    2019-12-30T08:51:15Z
+   volumesnapshotcontents.snapshot.storage.k8s.io   2019-12-30T08:51:16Z
+   volumesnapshots.snapshot.storage.k8s.io          2019-12-30T08:51:16Z
    #+end_EXAMPLE
 ** describe pod/rook-ceph-operator
    #+begin_src shell
@@ -640,7 +723,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+RESULTS:
    #+begin_EXAMPLE
    NAME                                  READY   STATUS    RESTARTS   AGE
-   rook-ceph-operator-5cf57b4fd7-p5972   1/1     Running   0          7s
+   rook-ceph-operator-5cf57b4fd7-v44rf   1/1     Running   0          7m56s
    #+end_EXAMPLE
 ** get cephclusters
 
@@ -650,8 +733,8 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
 
    #+RESULTS:
    #+begin_EXAMPLE
-   NAME        DATADIRHOSTPATH   MONCOUNT   AGE     STATE      HEALTH
-   rook-ceph   /var/lib/rook     1          4m59s   Creating   
+   NAME        DATADIRHOSTPATH   MONCOUNT   AGE     STATE     HEALTH
+   rook-ceph   /var/lib/rook     1          9m47s   Created   HEALTH_WARN
    #+end_EXAMPLE
 ** get rook-ceph services
    #+begin_src shell
@@ -661,11 +744,11 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+RESULTS:
    #+begin_EXAMPLE
    NAME                       TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
-   csi-cephfsplugin-metrics   ClusterIP   10.96.56.114    <none>        8080/TCP,8081/TCP   10m
-   csi-rbdplugin-metrics      ClusterIP   10.96.153.118   <none>        8080/TCP,8081/TCP   10m
-   rook-ceph-mgr              ClusterIP   10.96.92.134    <none>        9283/TCP            116s
-   rook-ceph-mgr-dashboard    ClusterIP   10.96.120.66    <none>        7000/TCP            7m30s
-   rook-ceph-mon-a            ClusterIP   10.96.100.100   <none>        6789/TCP,3300/TCP   9m56s
+   csi-cephfsplugin-metrics   ClusterIP   10.96.128.28    <none>        8080/TCP,8081/TCP   97m
+   csi-rbdplugin-metrics      ClusterIP   10.96.135.214   <none>        8080/TCP,8081/TCP   97m
+   rook-ceph-mgr              ClusterIP   10.96.48.184    <none>        9283/TCP            87m
+   rook-ceph-mgr-dashboard    ClusterIP   10.96.229.60    <none>        7000/TCP            93m
+   rook-ceph-mon-a            ClusterIP   10.96.136.146   <none>        6789/TCP,3300/TCP   96m
    #+end_EXAMPLE
 ** get rook-ceph pods
    #+begin_src shell
@@ -674,9 +757,19 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    
    #+RESULTS:
    #+begin_EXAMPLE
-   NAME                                  READY   STATUS    RESTARTS   AGE
-   rook-ceph-operator-5cf57b4fd7-s6td7   1/1     Running   0          4m9s
-   rook-discover-pj7nf                   1/1     Running   0          4m4s
+   NAME                                               READY   STATUS      RESTARTS   AGE
+   csi-cephfsplugin-58xhs                             3/3     Running     0          98m
+   csi-cephfsplugin-provisioner-56c8b7ddf4-4gvvt      4/4     Running     0          98m
+   csi-cephfsplugin-provisioner-56c8b7ddf4-xrmc2      4/4     Running     0          98m
+   csi-rbdplugin-kj2tq                                3/3     Running     0          98m
+   csi-rbdplugin-provisioner-6ff4dd4b94-b56jd         5/5     Running     1          98m
+   csi-rbdplugin-provisioner-6ff4dd4b94-h7vss         5/5     Running     1          98m
+   rook-ceph-crashcollector-ubuntu-5df5c69d4b-r7b5m   1/1     Running     0          93m
+   rook-ceph-mgr-a-9b8cc4c58-r5wvb                    1/1     Running     1          93m
+   rook-ceph-mon-a-64c6dc5dc9-knc9l                   1/1     Running     0          97m
+   rook-ceph-operator-5cf57b4fd7-dq586                1/1     Running     0          98m
+   rook-ceph-osd-prepare-ubuntu-ljfvl                 0/1     Completed   0          87m
+   rook-discover-n9cvl                                1/1     Running     0          98m
    #+end_EXAMPLE
 ** free memory
    #+begin_src shell
@@ -686,7 +779,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+RESULTS:
    #+begin_EXAMPLE
                  total        used        free      shared  buff/cache   available
-   Mem:           3791        1146        1015           5        1628        2706
+   Mem:           3791        1645         720           7        1425        2181
    Swap:             0           0           0
    #+end_EXAMPLE
 ** get ceph dashboard password
@@ -699,10 +792,15 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
  #+begin_src shell
  kubectl port-forward -n rook-ceph service/rook-ceph-mgr-dashboard 7000
  #+end_src
+** describe pod/traefik
+   #+begin_src shell
+     ROOT_OP_POD=$(kubectl --namespace rook-ceph get pods -l "app=rook-ceph-operator" -o name)
+     kubectl describe --namespace rook-ceph $ROOT_OP_POD
+   #+end_src
 * Understanding why the PVC isn't create
 ** get traefik pvc
    #+begin_src shell :wrap "src json"
-     kubectl get pvc traefiik-traefik-acme -o json
+     kubectl get pvc -n traefik ii-traefik-acme -o json
    #+end_src
 
    #+RESULTS:
@@ -714,7 +812,7 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
            "annotations": {
                "volume.beta.kubernetes.io/storage-provisioner": "rook-ceph.cephfs.csi.ceph.com"
            },
-           "creationTimestamp": "2019-12-29T08:15:02Z",
+           "creationTimestamp": "2019-12-30T04:02:57Z",
            "finalizers": [
                "kubernetes.io/pvc-protection"
            ],
@@ -722,13 +820,13 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
                "app": "traefik",
                "chart": "traefik-1.85.0",
                "heritage": "Helm",
-               "release": "traefiik"
+               "release": "ii-traefik"
            },
-           "name": "traefiik-traefik-acme",
-           "namespace": "default",
-           "resourceVersion": "9295",
-           "selfLink": "/api/v1/namespaces/default/persistentvolumeclaims/traefiik-traefik-acme",
-           "uid": "d4651fe0-fc96-4303-b233-6ec3f0f5bf14"
+           "name": "ii-traefik-acme",
+           "namespace": "traefik",
+           "resourceVersion": "305297",
+           "selfLink": "/api/v1/namespaces/traefik/persistentvolumeclaims/ii-traefik-acme",
+           "uid": "0abdf5d3-2444-4684-a95d-e1049f038ffd"
        },
        "spec": {
            "accessModes": [
@@ -750,31 +848,34 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
 
 ** describe traefik pvc
    #+begin_src shell :wrap "src json"
-     kubectl describe pvc/traefiik-traefik-acme
+     kubectl describe -n traefik pvc/ii-traefik-acme
    #+end_src
 
    #+RESULTS:
    #+begin_src json
-   Name:          traefiik-traefik-acme
-   Namespace:     default
+   Name:          ii-traefik-acme
+   Namespace:     traefik
    StorageClass:  standard
-   Status:        Pending
-   Volume:        
+   Status:        Bound
+   Volume:        pvc-c0003a35-feaa-4ddc-ab7c-a793f62416e1
    Labels:        app=traefik
                   chart=traefik-1.85.0
                   heritage=Helm
-                  release=traefiik
-   Annotations:   volume.beta.kubernetes.io/storage-provisioner: rook-ceph.cephfs.csi.ceph.com
+                  release=ii-traefik
+   Annotations:   pv.kubernetes.io/bind-completed: yes
+                  pv.kubernetes.io/bound-by-controller: yes
+                  volume.beta.kubernetes.io/storage-provisioner: rook-ceph.rbd.csi.ceph.com
    Finalizers:    [kubernetes.io/pvc-protection]
-   Capacity:      
-   Access Modes:  
+   Capacity:      1Gi
+   Access Modes:  RWO
    VolumeMode:    Filesystem
-   Mounted By:    traefiik-traefik-5c85d44b4f-k9jm6
+   Mounted By:    ii-traefik-644c76765d-dvgcx
    Events:
-     Type    Reason                Age                     From                                                                                                              Message
-     ----    ------                ----                    ----                                                                                                              -------
-     Normal  ExternalProvisioning  3m53s (x3102 over 12h)  persistentvolume-controller                                                                                       waiting for a volume to be created, either by external provisioner "rook-ceph.cephfs.csi.ceph.com" or manually created by system administrator
-     Normal  Provisioning          50s (x164 over 12h)     rook-ceph.cephfs.csi.ceph.com_csi-cephfsplugin-provisioner-56c8b7ddf4-ksjx5_240c3de2-3ffc-4a8d-ae51-000e77177908  External provisioner is provisioning volume for claim "default/traefiik-traefik-acme"
+     Type    Reason                 Age                    From                                                                                                        Message
+     ----    ------                 ----                   ----                                                                                                        -------
+     Normal  Provisioning           7m19s                  rook-ceph.rbd.csi.ceph.com_csi-rbdplugin-provisioner-6ff4dd4b94-7vxmw_e2a051a2-ce56-42e6-959f-7efc0bd986ba  External provisioner is provisioning volume for claim "traefik/ii-traefik-acme"
+     Normal  ExternalProvisioning   7m14s (x2 over 7m19s)  persistentvolume-controller                                                                                 waiting for a volume to be created, either by external provisioner "rook-ceph.rbd.csi.ceph.com" or manually created by system administrator
+     Normal  ProvisioningSucceeded  7m13s                  rook-ceph.rbd.csi.ceph.com_csi-rbdplugin-provisioner-6ff4dd4b94-7vxmw_e2a051a2-ce56-42e6-959f-7efc0bd986ba  Successfully provisioned volume pvc-c0003a35-feaa-4ddc-ab7c-a793f62416e1
    #+end_src
 
 ** get pods
@@ -785,21 +886,136 @@ https://www.weave.works/docs/net/latest/kubernetes/kube-addon/
    #+RESULTS:
    #+begin_EXAMPLE
    NAME                                               READY   STATUS      RESTARTS   AGE
-   csi-cephfsplugin-667nn                             3/3     Running     0          13h
-   csi-cephfsplugin-provisioner-56c8b7ddf4-6mfbd      4/4     Running     0          13h
-   csi-cephfsplugin-provisioner-56c8b7ddf4-ksjx5      4/4     Running     0          13h
-   csi-rbdplugin-cqkv4                                3/3     Running     0          13h
-   csi-rbdplugin-provisioner-6ff4dd4b94-48jvv         5/5     Running     0          13h
-   csi-rbdplugin-provisioner-6ff4dd4b94-7vxmw         5/5     Running     0          13h
-   rook-ceph-crashcollector-ubuntu-799f67d68d-6w8xt   1/1     Running     0          13h
-   rook-ceph-mgr-a-5789c7f5d-6qqdd                    1/1     Running     1          13h
-   rook-ceph-mon-a-6466d7bf97-9f8hb                   1/1     Running     0          13h
-   rook-ceph-operator-5cf57b4fd7-s6td7                1/1     Running     0          13h
-   rook-ceph-osd-0-f48c88bff-l4djj                    1/1     Running     0          13h
-   rook-ceph-osd-prepare-ubuntu-nl82t                 0/1     Completed   0          12h
-   rook-ceph-tools-75498b5cfc-fk25k                   1/1     Running     0          13h
-   rook-discover-pj7nf                                1/1     Running     0          13h
+   csi-cephfsplugin-667nn                             3/3     Running     0          21h
+   csi-cephfsplugin-provisioner-56c8b7ddf4-6mfbd      4/4     Running     0          21h
+   csi-cephfsplugin-provisioner-56c8b7ddf4-ksjx5      4/4     Running     0          21h
+   csi-rbdplugin-cqkv4                                3/3     Running     0          21h
+   csi-rbdplugin-provisioner-6ff4dd4b94-48jvv         5/5     Running     0          21h
+   csi-rbdplugin-provisioner-6ff4dd4b94-7vxmw         5/5     Running     0          21h
+   rook-ceph-crashcollector-ubuntu-799f67d68d-6w8xt   1/1     Running     0          21h
+   rook-ceph-mgr-a-5789c7f5d-6qqdd                    1/1     Running     1          21h
+   rook-ceph-mon-a-6466d7bf97-9f8hb                   1/1     Running     0          21h
+   rook-ceph-operator-5cf57b4fd7-s6td7                1/1     Running     0          22h
+   rook-ceph-osd-0-f48c88bff-l4djj                    1/1     Running     0          21h
+   rook-ceph-osd-prepare-ubuntu-nl82t                 0/1     Completed   0          20h
+   rook-ceph-tools-75498b5cfc-fk25k                   1/1     Running     0          21h
+   rook-discover-pj7nf                                1/1     Running     0          22h
    #+end_EXAMPLE
+
+* rook-tools
+  :PROPERTIES:
+  :header-args:shell+: :dir ~/
+  :header-args:shell+: :prologue "(\n" 
+  :header-args:shell+: :epilogue ") 2>&1\n:\n"
+  :END:
+
+** rook-tool code block
+   #+name: rook-tool
+   #+begin_src shell :var COMMAND="ceph status"
+     kubectl -n rook-ceph exec -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') \
+       $COMMAND 2>&1
+     #ceph df 
+     #  rados df
+   #+end_src
+
+** ceph status
+   #+name: ceph status
+   #+call: rook-tool("ceph status")
+   #+RESULTS: ceph status
+   #+begin_EXAMPLE
+   Unable to use a TTY - input is not a terminal or the right kind of file
+     cluster:
+       id:     62c8ab6a-f612-4b38-a79e-a0eb2617dba1
+       health: HEALTH_WARN
+               Reduced data availability: 8 pgs inactive
+               OSD count 0 < osd_pool_default_size 3
+
+     services:
+       mon: 1 daemons, quorum a (age 106m)
+       mgr: a(active, since 96m)
+       osd: 0 osds: 0 up, 0 in
+
+     data:
+       pools:   1 pools, 8 pgs
+       objects: 0 objects, 0 B
+       usage:   0 B used, 0 B / 0 B avail
+       pgs:     100.000% pgs unknown
+                8 unknown
+
+   #+end_EXAMPLE
+** ceph df
+   #+call: rook-tool[:wrap "src TEXT" :dir "/tmp"]("ceph df")
+** ceph pg dump
+   #+call: rook-tool("ceph pg dump")
+   #+RESULTS:
+   #+begin_EXAMPLE
+   Unable to use a TTY - input is not a terminal or the right kind of file
+   dumped all
+   version 35893
+   stamp 2019-12-30 03:52:01.102189
+   last_osdmap_epoch 0
+   last_pg_scan 0
+   PG_STAT OBJECTS MISSING_ON_PRIMARY DEGRADED MISPLACED UNFOUND BYTES OMAP_BYTES* OMAP_KEYS* LOG DISK_LOG STATE        STATE_STAMP                VERSION REPORTED UP  UP_PRIMARY ACTING ACTING_PRIMARY LAST_SCRUB SCRUB_STAMP                LAST_DEEP_SCRUB DEEP_SCRUB_STAMP           SNAPTRIMQ_LEN 
+   1.7           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.039628     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.6           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.035377     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.5           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.040298     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.4           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.035829     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.0           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.040512     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.1           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.035688     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.2           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.039864     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+   1.3           0                  0        0         0       0     0           0          0   0        0 active+clean 2019-12-29 08:01:34.039064     0'0    11:17 [0]          0    [0]              0        0'0 2019-12-29 08:01:21.070991             0'0 2019-12-29 08:01:21.070991             0 
+
+   1 0 0 0 0 0 0 0 0 0 0 
+
+   sum 0 0 0 0 0 0 0 0 0 0 
+   OSD_STAT USED    AVAIL   USED_RAW TOTAL   HB_PEERS PG_SUM PRIMARY_PG_SUM 
+   0        1.7 MiB 893 GiB  1.0 GiB 894 GiB       []      8              8 
+   sum      1.7 MiB 893 GiB  1.0 GiB 894 GiB                                
+
+   ,* NOTE: Omap statistics are gathered during deep scrub and may be inaccurate soon afterwards depending on utilisation. See http://docs.ceph.com/docs/master/dev/placement-group/#omap-statistics for further details.
+   #+end_EXAMPLE
+** ceph osd tree
+   #+call: rook-tool("ceph osd tree")
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   Unable to use a TTY - input is not a terminal or the right kind of file
+   ID CLASS WEIGHT TYPE NAME    STATUS REWEIGHT PRI-AFF 
+   -1            0 root default                         
+   #+end_EXAMPLE
+** ceph osd stat
+  #+call: rook-tool("ceph osd stat")
+** ceph mds stat
+  #+call: rook-tool("ceph mds stat")
+** ceph mon stat
+  #+call: rook-tool("ceph mon stat")
+** ceph osd lspools
+  #+call: rook-tool("ceph osd lspools")
+** ceph rados df
+  #+call: rook-tool("rados df")
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  Unable to use a TTY - input is not a terminal or the right kind of file
+  POOL_NAME     USED OBJECTS CLONES COPIES MISSING_ON_PRIMARY UNFOUND DEGRADED RD_OPS  RD WR_OPS  WR USED COMPR UNDER COMPR 
+  ii-block-pool  0 B       0      0      0                  0       0        0      0 0 B      0 0 B        0 B         0 B 
+
+  total_objects    0
+  total_used       1.0 GiB
+  total_avail      893 GiB
+  total_space      894 GiB
+  #+end_EXAMPLE
+  #+call: rook-tool("ceph osd get ii-block-pool")
+** ceph auth list
+Might want to ensure you don't save the results of this one
+  #+call: rook-tool[:results silent]("ceph auth list")
+
+
+  #+call: rook-tool("rdb ls")
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  #+end_EXAMPLE
 
 * Get keys onto pi
   #+begin_src shell :dir ~/
@@ -1148,13 +1364,14 @@ users:
 
 
    #+begin_src shell
-   kubectl get svc traefiik-traefik --namespace default
+   kubectl get svc --namespace traefik
    #+end_src
 
    #+RESULTS:
    #+begin_EXAMPLE
-   NAME               TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
-   traefiik-traefik   LoadBalancer   10.96.193.31   <pending>     80:14861/TCP,443:29085/TCP   7s
+   NAME                   TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+   ii-traefik             LoadBalancer   10.96.86.160   <pending>     80:57952/TCP,443:11583/TCP   82m
+   ii-traefik-dashboard   ClusterIP      10.96.170.0    <none>        80/TCP                       82m
    #+end_EXAMPLE
    #+begin_src shell
      sudo ss -ltnp
@@ -1164,47 +1381,68 @@ users:
    #+begin_EXAMPLE
    State     Recv-Q    Send-Q       Local Address:Port        Peer Address:Port                                                                                    
    LISTEN    0         128                0.0.0.0:22               0.0.0.0:*        users:(("sshd",pid=1295,fd=3))                                                 
-   LISTEN    0         128          192.168.1.101:9080             0.0.0.0:*        users:(("cephcsi",pid=1264,fd=5))                                              
-   LISTEN    0         128          192.168.1.101:9081             0.0.0.0:*        users:(("cephcsi",pid=1474,fd=5))                                              
-   LISTEN    0         128          192.168.1.101:1503             0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=13))                                         
-   LISTEN    0         128              127.0.0.1:6784             0.0.0.0:*        users:(("weaver",pid=25974,fd=19))                                             
-   LISTEN    0         128          192.168.1.101:9090             0.0.0.0:*        users:(("cephcsi",pid=940,fd=6))                                               
-   LISTEN    0         128          192.168.1.101:9091             0.0.0.0:*        users:(("cephcsi",pid=1083,fd=6))                                              
+   LISTEN    0         128          192.168.1.101:9080             0.0.0.0:*        users:(("cephcsi",pid=16941,fd=3))                                             
+   LISTEN    0         128          192.168.1.101:9081             0.0.0.0:*        users:(("cephcsi",pid=16917,fd=5))                                             
+   LISTEN    0         128          192.168.1.101:11583            0.0.0.0:*        users:(("kube-proxy",pid=10743,fd=11))                                         
+   LISTEN    0         128          192.168.1.101:57952            0.0.0.0:*        users:(("kube-proxy",pid=10743,fd=8))                                          
+   LISTEN    0         128              127.0.0.1:6784             0.0.0.0:*        users:(("weaver",pid=11546,fd=19))                                             
+   LISTEN    0         128          192.168.1.101:9090             0.0.0.0:*        users:(("cephcsi",pid=16459,fd=6))                                             
+   LISTEN    0         128          192.168.1.101:9091             0.0.0.0:*        users:(("cephcsi",pid=16442,fd=6))                                             
    LISTEN    0         128              127.0.0.1:34631            0.0.0.0:*        users:(("containerd",pid=1279,fd=8))                                           
-   LISTEN    0         128          192.168.1.101:13704            0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=11))                                         
-   LISTEN    0         128              127.0.0.1:10248            0.0.0.0:*        users:(("kubelet",pid=23536,fd=31))                                            
-   LISTEN    0         128              127.0.0.1:10249            0.0.0.0:*        users:(("kube-proxy",pid=23973,fd=10))                                         
-   LISTEN    0         128          192.168.1.101:2379             0.0.0.0:*        users:(("etcd",pid=23015,fd=6))                                                
-   LISTEN    0         128              127.0.0.1:2379             0.0.0.0:*        users:(("etcd",pid=23015,fd=5))                                                
-   LISTEN    0         128          192.168.1.101:2380             0.0.0.0:*        users:(("etcd",pid=23015,fd=3))                                                
-   LISTEN    0         128              127.0.0.1:39469            0.0.0.0:*        users:(("kubelet",pid=23536,fd=11))                                            
-   LISTEN    0         128              127.0.0.1:2381             0.0.0.0:*        users:(("etcd",pid=23015,fd=11))                                               
-   LISTEN    0         128              127.0.0.1:10257            0.0.0.0:*        users:(("kube-controller",pid=22989,fd=6))                                     
-   LISTEN    0         128              127.0.0.1:10259            0.0.0.0:*        users:(("kube-scheduler",pid=23008,fd=6))                                      
+   LISTEN    0         128              127.0.0.1:10248            0.0.0.0:*        users:(("kubelet",pid=10227,fd=28))                                            
+   LISTEN    0         128              127.0.0.1:10249            0.0.0.0:*        users:(("kube-proxy",pid=10743,fd=15))                                         
+   LISTEN    0         128          192.168.1.101:2379             0.0.0.0:*        users:(("etcd",pid=9682,fd=6))                                                 
+   LISTEN    0         128              127.0.0.1:2379             0.0.0.0:*        users:(("etcd",pid=9682,fd=5))                                                 
+   LISTEN    0         128          192.168.1.101:2380             0.0.0.0:*        users:(("etcd",pid=9682,fd=3))                                                 
+   LISTEN    0         128              127.0.0.1:2381             0.0.0.0:*        users:(("etcd",pid=9682,fd=11))                                                
+   LISTEN    0         128              127.0.0.1:35663            0.0.0.0:*        users:(("kubelet",pid=10227,fd=14))                                            
+   LISTEN    0         128              127.0.0.1:10257            0.0.0.0:*        users:(("kube-controller",pid=9700,fd=6))                                      
+   LISTEN    0         128              127.0.0.1:10259            0.0.0.0:*        users:(("kube-scheduler",pid=9691,fd=6))                                       
    LISTEN    0         128          127.0.0.53%lo:53               0.0.0.0:*        users:(("systemd-resolve",pid=1179,fd=13))                                     
    LISTEN    0         128                   [::]:22                  [::]:*        users:(("sshd",pid=1295,fd=4))                                                 
-   LISTEN    0         128                      *:6781                   *:*        users:(("weave-npc",pid=26021,fd=3))                                           
-   LISTEN    0         128                      *:6782                   *:*        users:(("weaver",pid=25974,fd=18))                                             
-   LISTEN    0         128                      *:6783                   *:*        users:(("weaver",pid=25974,fd=17))                                             
-   LISTEN    0         128                      *:10250                  *:*        users:(("kubelet",pid=23536,fd=37))                                            
-   LISTEN    0         128                      *:10251                  *:*        users:(("kube-scheduler",pid=23008,fd=5))                                      
-   LISTEN    0         128                      *:6443                   *:*        users:(("kube-apiserver",pid=22907,fd=5))                                      
-   LISTEN    0         128                      *:10252                  *:*        users:(("kube-controller",pid=22989,fd=5))                                     
-   LISTEN    0         128                      *:10256                  *:*        users:(("kube-proxy",pid=23973,fd=12))                                         
+   LISTEN    0         128                      *:6781                   *:*        users:(("weave-npc",pid=11536,fd=10))                                          
+   LISTEN    0         128                      *:6782                   *:*        users:(("weaver",pid=11546,fd=18))                                             
+   LISTEN    0         128                      *:6783                   *:*        users:(("weaver",pid=11546,fd=17))                                             
+   LISTEN    0         128                      *:10250                  *:*        users:(("kubelet",pid=10227,fd=37))                                            
+   LISTEN    0         128                      *:10251                  *:*        users:(("kube-scheduler",pid=9691,fd=5))                                       
+   LISTEN    0         128                      *:6443                   *:*        users:(("kube-apiserver",pid=9696,fd=5))                                       
+   LISTEN    0         128                      *:10252                  *:*        users:(("kube-controller",pid=9700,fd=5))                                      
+   LISTEN    0         128                      *:10256                  *:*        users:(("kube-proxy",pid=10743,fd=14))                                         
    #+end_EXAMPLE
 
 ** helm upgrade in place
 #+NAME: helm upgrade in place
 #+begin_SRC shell
   helm upgrade \
-       traefiik \
-       --values traefik.yaml \
+       ii-traefik \
+       --namespace traefik \
+       --values traefik-1.7-config.yaml \
        stable/traefik 
 #+end_SRC
 
 #+RESULTS: helm upgrade in place
 #+begin_EXAMPLE
-Error: UPGRADE FAILED: query: failed to query with labels: Get https://192.168.1.101:6443/api/v1/namespaces/default/secrets?labelSelector=name%3Dtraefiik%2Cowner%3Dhelm%2Cstatus%3Ddeployed: dial tcp 192.168.1.101:6443: connect: connection refused
+Release "ii-traefik" has been upgraded. Happy Helming!
+NAME: ii-traefik
+LAST DEPLOYED: Tue Dec 31 00:57:38 2019
+NAMESPACE: traefik
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+NOTES:
+1. Get Traefik's load balancer IP/hostname:
+
+     NOTE: It may take a few minutes for this to become available.
+
+     You can watch the status by running:
+
+         $ kubectl get svc ii-traefik --namespace traefik -w
+
+     Once 'EXTERNAL-IP' is no longer '<pending>':
+
+         $ kubectl describe svc ii-traefik --namespace traefik | grep Ingress | awk '{print $3}'
+
+2. Configure DNS records corresponding to Kubernetes ingress resources to point to the load balancer IP/hostname found in step 1
 #+end_EXAMPLE
 
 ** traefik logs
@@ -1627,6 +1865,93 @@ kubectl get ingress --all-namespaces
 #+begin_EXAMPLE
 No resources found
 #+end_EXAMPLE
+
+** traefik-2.1-config.yaml
+#+NAME: traefik.yaml helm values
+#+BEGIN_SRC yaml :tangle /ssh:ubuntu@192.168.1.101:traefik-config.yaml :noweb yes
+  # Default values for Traefik
+  image:
+    name: traefik
+    tag: 2.1.1
+
+  #
+  # Configure the deployment
+  #
+  deployment:
+    # Number of pods of the deployment
+    replicas: 1
+
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 1
+
+  #
+  # Configure Traefik entry points
+  # Additional arguments to be passed at Traefik's binary
+  ## Use curly braces to pass values: `helm install --set="{--providers.kubernetesingress,--global.checknewversion=true}" ."
+  additionalArguments:
+    - "--providers.kubernetesingress"
+    - "--global.checknewversion=true"
+
+  ports:
+    # The name of this one can't be changed as it is used for the readiness and
+    # liveness probes, but you can adjust its config to your liking
+    traefik:
+      port: 9000
+      # Defines whether the port is exposed if service.type is LoadBalancer or
+      # NodePort.
+      #
+      # You SHOULD NOT expose the traefik port on production deployments.
+      # If you want to access it from outside of your cluster,
+      # use `kubectl proxy` or create a secure ingress
+      expose: false
+      # The exposed port for this service
+      exposedPort: 9000
+    web:
+      port: 8000
+      expose: true
+      exposedPort: 80
+    websecure:
+      port: 8443
+      expose: true
+      exposedPort: 443
+
+  # Options for the main traefik service, where the entrypoints traffic comes
+  # from.
+  service:
+    # type: LoadBalancer
+    # type: NodePort
+    # Additional annotations (e.g. for cloud provider specific config)
+    annotations: {}
+    # Additional entries here will be added to the service spec. Cannot contains
+    # type, selector or ports entries.
+    spec: {}
+      # externalTrafficPolicy: Cluster
+      # loadBalancerIp: "1.2.3.4"
+      # clusterIP: "2.3.4.5"
+
+  dashboard:
+    # Enable the dashboard on Traefik
+    enable: true
+
+    # Expose the dashboard and api through an ingress route at /dashboard
+    # and /api This is not secure and SHOULD NOT be enabled on production
+    # deployments
+    ingressRoute: true
+
+  logs:
+    loglevel: WARN
+  #
+  resources: {}
+    # requests:
+    #   cpu: "100m"
+    #   memory: "50Mi"
+    # limits:
+    #   cpu: "300m"
+    #   memory: "150Mi"
+  nodeSelector: {}
+  tolerations: []
+#+END_SRC
 
 * k
   #+begin_src shell
