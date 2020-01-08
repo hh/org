@@ -1,0 +1,56 @@
+#+TITLE: Data Center Planning
+#+AUTHOR: Stephen Heywood
+#+DATE: 8 January, 2020
+#+TODO: TODO(t) NEXT(n) IN_PROGRESS(i) BLOCKED(b) | TADA(d)
+#+STARTUP: showeverything
+
+
+* Goals
+
+To setup a local data center here in the iimaginarium using the current set of blade servers. The current timeline is to have the data center functional within 3 months.
+
+* Schedule: Hardware
+** Environment
+
+- [ ] Review the physical space for the data center and how it can provide all easy access to maintain all the equipment
+- [ ] How well can the current space cope with extra equipment?
+- [ ] Review the temperature inside of the data center space and see how it can be managed. Will it require an A/C unit?
+- [ ] Source a pair of temperature senors that could be used by a Pi to monitor the ambient temperature of the space
+- [ ] Document the physical layout
+
+** Power
+
+- [ ] Get the Eaton UPS serviced
+- [ ] Source link cable to the Eaton 5PX extended battery module
+- [ ] Document the UPS connections. Include the connections on the main switchboard
+
+** Network
+
+- [ ] Reset the Juniper switch to factory defaults
+- [ ] Confirm the connection between the internet, data-center and current iimaginarium network
+- [ ] Confirm the connection plans for each of the IPMI NICs on the blades
+- [ ] Document each both logical and physical networks
+
+** Blades
+*** Audit
+
+- [ ] Check the health of each blade
+- [ ] Repair the left power supply module case. The bottom of the case is bent which is stopping the fan
+- [ ] Document each blade
+
+*** Storage
+
+- [ ] Check what the current storage each blade has
+- [ ] Check what initial storage resources are required to meet the data center goals
+
+*** Network
+
+- [ ] For each blade, test IPMI access
+- [ ] For each blade, test each network port
+
+* Schedule: Software
+** Operating Systems
+** Kubernetes
+** Applications
+** Services
+** Client Requirements
