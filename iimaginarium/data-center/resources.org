@@ -1,0 +1,49 @@
+#+TITLE: Data Center Resources
+#+AUTHOR: Stephen Heywood
+#+DATE: 8 January, 2020
+#+STARTUP: showeverything
+
+
+* Hardware
+** Blade Enclosure
+
+- Chassis: CSE-938
+
+** Blade Servers
+
+- Model: [[ https://www.supermicro.com/products/motherboard/Xeon/C600/X9SRD-F.cfm][SuperMico X9SRD-F]]
+- Quantity: 8
+
+** UPS
+
+- Model: [[https://www.eaton.com/nz/en-gb/catalog/backup-power-ups-surge-it-power-distribution/eaton-5px-ups.html][Eaton 5PX 3000]]
+
+** Network
+*** Juniper Switch
+
+- Model: Juniper EX2200
+
+*** DL-Link
+
+- Model:
+
+* Software
+** Operating System
+
+- [[https://ubuntu.com/server/docs][Ubuntu Server Documentation]]
+
+** Kubernetes
+
+- [[https://kubernetes.io/][kubernetes.io]]
+- [[https://rook.io/][rook.io]]
+
+** Ceph (storage)
+
+- [[https://ceph.io/][ceph.io]]
+- [[https://docs.ceph.com/docs/master/architecture/][Architecture]]
+- [[https://ceph.io/install/][Install]]
+
+** DevOps
+
+- [[https://www.ansible.com/][ansible.com]]
+- [[https://docs.ansible.com/][Ansible Documentation]]
