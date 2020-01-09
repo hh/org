@@ -1,0 +1,168 @@
+* Prerequisites
+#+BEGIN_SRC tmate
+apt-get install -y dosfstools
+#+END_SRC
+
+* Format USB Partitions
+** Create blank file 
+#+BEGIN_SRC tmate
+truncate -s 7G usb-disk.img
+#+END_SRC
+** Setup file as loopback device
+#+BEGIN_SRC tmate
+LOOP_DEVICE=$(sudo losetup -fP --show usb-disk.img)
+#+END_SRC
+
+#+BEGIN_SRC shell
+sudo losetup -a
+#+END_SRC
+sudo curl https://download.docker.com/linux/raspbian/gpg | apt-key add -
+#+RESULTS:
+#+begin_EXAMPLE
+/dev/loop0: [0045]:42668 (/zfs/home/hh/usb-disk.img)
+#+end_EXAMPLE
+
+** Partition for ESP and ZFS
+#+BEGIN_SRC tmate
+sudo parted -s -a optimal $LOOP_DEVICE -- mklabel gpt \
+  mkpart USBOOTME fat32 1 50MiB \
+  mkpart USBZFS zfs 50MiB -1 \
+  set 1 bios_grub on
+#+END_SRC
+
+** Create zpool
+   https://wiki.archlinux.org/index.php/ZFS
+#+BEGIN_SRC tmate
+  UUID=$(sudo lsblk --noheadings --output PARTUUID ${LOOP_DEVICE}p2)
+  POOLNAME=loopyloo
+  sudo zpool create \
+    -o ashift=12 \
+    -d \
+    -o feature@async_destroy=enabled      \
+    -o feature@bookmarks=enabled          \
+    -o feature@embedded_data=enabled      \
+    -o feature@empty_bpobj=enabled        \
+    -o feature@enabled_txg=enabled        \
+    -o feature@extensible_dataset=enabled \
+    -o feature@filesystem_limits=enabled  \
+    -o feature@hole_birth=enabled         \
+    -o feature@large_blocks=enabled       \
+    -o feature@lz4_compress=enabled       \
+    -o feature@spacemap_histogram=enabled \
+    -o feature@userobj_accounting=enabled \
+    $POOLNAME \
+    /dev/disk/by-partuuid/$UUID
+  sudo zpool upgrade $POOLNAME
+  sudo zpool set autoexpand=on $POOLNAME
+  # parted DISK resizepart 2 -1
+  # zpool online -e tank sdb
+#+END_SRC
+
+** ZFS Tuning
+#+BEGIN_SRC tmate
+sudo zfs set atime=off $POOLNAME
+sudo zfs set compression=on $POOLNAME
+#+END_SRC
+
+#+BEGIN_SRC shell
+# Possibly if you want tmp to sustain across reboots in ZFS
+systemctl mask tmp.mount
+sudo zfs create \
+  -o setuid=off \
+  -o devices=off \
+  -o sync=disabled \
+  -o mountpoint=legacy \
+  $POOLNAME/tmp
+#+END_SRC
+** ZFS Ram limiting
+#+NAME: reduce name usage to 512MB kernel param
+#+BEGIN_EXAMPLE
+zfs.zfs_arc_max=536870912
+#+END_EXAMPLE
+
+* Bootstrap OS onto ZFS volume 
+** Create ZFS volumes for home and OS
+#+BEGIN_SRC tmate
+export POOLNAME=loopyloo
+sudo zfs create $POOLNAME/usbhome
+sudo zfs create $POOLNAME/usbdisco
+#+END_SRC
+
+** debootsrap
+#+BEGIN_SRC tmate
+  # nvidia-kernel-source,\
+  # nvidia-driver-binary,\
+  # nvidia-dkms-kernel,\
+  # linux-modules-nvidia-390-lowlatency,\
+  sudo debootstrap \
+    --verbose \
+    --components main,multiverse,restricted,universe \
+    --arch amd64 \
+    --merged-usr \
+    --keep-debootstrap-dir \
+    --include aptitude,\
+  apt-file,\
+  apt-transport-https,\
+  aptitude,\
+  build-essential,\
+  curl,\
+  emacs,\
+  dbus-user-session,\
+  jq,\
+  silversearcher-ag,\
+  grub-efi,\
+  grub-efi-amd64-bin,\
+  grub-pc-bin,\
+  grub-ipxe,\
+  grub-common,\
+  nvidia-dkms-418,\
+  xserver-xorg-video-nvidia-418,\
+  nvidia-kernel-source-418,\
+  nvidia-dkms-418,\
+  nvidia-driver-418,\
+  nvidia-utils-418,\
+  linux-image-generic,\
+  linux-headers-generic,\
+  nvidia-modprobe,\
+  nvidia-settings,\
+  linux-firmware,\
+  software-properties-common,\
+  gnupg2,\
+  strace,\
+  tmux,\
+  tmate,\
+  unzip,\
+  whois,\
+  whowatch,\
+  mailutils,\
+  zfsutils-linux,\
+  zfs-dkms,\
+  zfs-initramfs \
+    disco \
+    bootstrap \
+    http://ucmirror.canterbury.ac.nz/linux/ubuntu-updates \
+    /usr/share/debootstrap/scripts/gutsy
+    #/$POOLNAME/usbdisco \
+#+END_SRC
+** instal grub
+#+BEGIN_SRC tmate
+mount SOMETHING /esp
+# setup /etc/fstab
+#+END_SRC
+#+BEGIN_SRC tmate
+grub-install --boot-directory=/boot --no-nvram --efi-directory=/esp --removable
+#+END_SRC
+#+BEGIN_SRC shell
+mkdir -p etc/init
+#+END_SRC
+
+* Test with QEMU
+** EFI
+** BIOS
+* Test with VirtualBox
+** EFI
+** BIOS
+* Test with Real Hardware
+** EFI
+** BIOS
+  
