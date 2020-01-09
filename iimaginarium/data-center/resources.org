@@ -11,7 +11,7 @@
 
 ** Blade Servers
 
-- Model: [[ https://www.supermicro.com/products/motherboard/Xeon/C600/X9SRD-F.cfm][SuperMico X9SRD-F]]
+- Model: [[https://www.supermicro.com/products/motherboard/Xeon/C600/X9SRD-F.cfm][SuperMicro X9SRD-F]]
 - Quantity: 8
 
 ** UPS
