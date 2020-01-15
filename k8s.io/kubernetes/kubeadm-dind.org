@@ -792,7 +792,6 @@ echo foo
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # org-babel-tmux-session-prefix: "hh-"
 # End:
 

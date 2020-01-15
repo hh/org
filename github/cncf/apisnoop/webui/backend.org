@@ -201,5 +201,4 @@ We only have a single method here, which is setup.  We don't want this to be an 
   :END:
 
 # Local Variables:
-# org-confirm-babel-evaluate: nil
 # End:

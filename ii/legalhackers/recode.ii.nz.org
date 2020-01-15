@@ -1470,6 +1470,5 @@ A script to generate them exists here:
 # eval: (xclip-mode 1) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

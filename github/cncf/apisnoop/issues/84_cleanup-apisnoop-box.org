@@ -204,6 +204,5 @@ We realized that, instead of cleaning up the existing box, it would be more prod
 # eval: (gui-select-text start-tmate-command)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

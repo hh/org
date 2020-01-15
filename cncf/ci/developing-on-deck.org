@@ -101,6 +101,5 @@ Now we have a local Deck instance which can be develop on in quick iteration loo
 # eval: (xclip-mode 0) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

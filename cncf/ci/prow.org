@@ -1842,7 +1842,6 @@ Visit http://localhost:8080
 # eval: (xclip-mode 1)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # org-src-preserve-indentation: t
 # End:

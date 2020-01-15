@@ -87,6 +87,5 @@ sub   elg1024 2019-01-28 [E]
 # eval: (gui-select-text start-tmate-command)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

@@ -647,6 +647,5 @@ There were quite a few definitions dropped, but again this shouldn't affect test
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:
 

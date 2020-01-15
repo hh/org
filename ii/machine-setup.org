@@ -247,5 +247,4 @@ tmate -S /tmp/ii-tmate.sock new-session -A -s k8s -c ~/go/src/kubernetes
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:

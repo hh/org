@@ -969,7 +969,6 @@ https://hh-backend.crt.cncf.ci
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
 # eval: (setenv "DNSIMPLE_TOKEN" (shell-command-to-string ". secrets.env ; echo -n $DNSIMPLE_TOKEN")
-# org-confirm-babel-evaluate: nil
 # End:
 
 

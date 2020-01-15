@@ -422,7 +422,6 @@ invalid argument "MountPropagation=true,Auditing=true" for "--feature-gates" fla
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:
 
 
