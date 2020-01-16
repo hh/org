@@ -4621,7 +4621,11 @@ Tilt is required for building tmate
   git clone --recursive --branch v0.0.6 --depth 1 https://github.com/k14s/kwt
   #+end_src
 * web
-
+  #+begin_src emacs-lisp
+(symbol-value 'file-local-variables-alist)
+(alist-get 'ii file-local-variables-alist)
+  
+  #+end_src
 # Local Variables:
 # ii: set
 # End:
