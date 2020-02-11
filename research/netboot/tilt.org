@@ -1,0 +1,15 @@
+# -*- ii: y; -*-
+#+TITLE: tilt.localho.st config
+
+* Bring up tilt
+#+begin_src tmate :dir "." :session ii:tilt
+  tilt up --host 0.0.0.0
+#+end_src
+* These files/folders map to these *.localho.st sites on 127.0.0.1
+** http://tilt.localho.st
+Our [[file:Tiltfile::k8s_yaml(kustomize('.'))][./Tiltfile]] uses the [[file:kustomization.yaml::kind:%20Kustomization][./kustomization.yaml]] to figure out what resources to
+deploy. Changes to any file referenced will result in immediate changes to the
+deployed resources. If [[file:Tiltfile::docker_build(][docker_build()]] entries are uncommented, those images will
+be rebuilt, pushed, and pods restarted automatically.
+* Visit these sites
+- http://tilt.localho.st

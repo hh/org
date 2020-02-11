@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsmasq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      coop.ii: dnsmasq
+  template:
+    metadata:
+      labels:
+        coop.ii: dnsmasq
+    spec:
+      hostNetwork: true
+    spec:
+      containers:
+      - name: dnsmasq
+        image: "ii/dnsmasq"
+        ports:
+        - containerPort: 67

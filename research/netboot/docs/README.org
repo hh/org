@@ -1,0 +1,57 @@
+#+TITLE: Raspberry Pis @ ii
+
+* Goals
+
+With a number of [[https://www.raspberrypi.org/products/raspberry-pi-4-model-b/][Raspberry Pi 4]] we can provide the following;
+
+- centerally managed workstations for various group activities
+- cost effective infrastructure
+
+* Setup
+
+The current solution is using a number of Raspberry Pi4 (4GB) as workstations and well as the server.
+
+** Server
+
+- Operating System: Ubuntu 19.10
+
+#+begin_example
+Linux rpi0 5.3.0-1014-raspi2 #16-Ubuntu SMP Tue Nov 26 11:18:23 UTC 2019 aarch64 aarch64 aarch64 GNU/Linux
+#+end_example
+
+*** Key Software
+
+- [[http://www.thekelleys.org.uk/dnsmasq/doc.html][dnsmasq]]: TFTP server
+- [[https://github.com/nfs-ganesha/nfs-ganesha][nfs-ganesha]]: NFS server
+  
+** Workstations
+
+- Operating System: Raspbian GNU/Linux 10 (buster)
+
+#+begin_example
+Linux rpi-d1 4.19.80-v7l+ #1275 SMP Mon Oct 28 18:37:34 GMT 2019 armv7l GNU/Linux
+#+end_example
+
+*** Key Software
+
+- [[https://packages.debian.org/buster/nfs-common][nfs-common]]: NFS client
+- [[https://packages.debian.org/buster/openssh-server][openssh-server]]: debug clients remotely
+
+* Network Booting Sequence
+
+[[./images/pi-diagram1-network-boot-sequence.png]]
+
+* Support
+
+Each part of the process will be documented further as outlined below.
+
+- [[pi-server.org][setup Raspberry Pi Server]]
+- [[./pi-server.org#tftp-server][install & config TFTP]]
+- [[./pi-server.org#nfs-server][install & config NFS]]
+- [[pi-client.org][setup Raspberry Pi client]]
+
+* References
+
+- [[https://github.com/raspberrypi/rpi-eeprom/blob/master/firmware/raspberry_pi4_network_boot_beta.md][github.com/raspberrypi/rpi-eeprom/blob/master/firmware/raspberry_pi4_network_boot_beta.md]]
+- [[https://www.blockdev.io/network-booting-a-raspberry-pi-3/][www.blockdev.io/network-booting-a-raspberry-pi-3]]
+- [[https://github.com/Hexxeh/rpi-firmware][github.com/Hexxeh/rpi-firmware]]

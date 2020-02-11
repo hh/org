@@ -1,0 +1,117 @@
+#+TITLE: Pi Sequence Diagrams
+#+AUTHOR: Stephen Heywood
+
+* Overview
+
+Diagrams can convey in a simple way a number of key ideas around a focused topic or process. To create or update a diagram one would normally use some type of drawing application. An alternative method is using software that describes the diagram, namely [[https://plantuml.com/sequence-diagram][PlantUML]]. The initial diagrams will use [[https://plantuml.com/sequence-diagram][sequence]] format.
+
+* Setup
+
+A server can be run inside a docker container that provides a web page to edit the "diagram" as well as viewing and saving the resulting image.
+
+#+begin_src shell
+docker run --rm -p8080:8080 plantuml/plantuml-server
+#+end_src
+
+For now the content for the diagram will need to be manually synced/tested inside a browser with the PlantUML server.
+
+* Diagram 1: Network Booting a Pi
+
+#+begin_src plantuml :eval never :tangle pi-diagram1-network-boot-sequence.plantuml
+@startuml
+title Network Booting a Pi\n
+footer \nDiagram 1
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+participant "Pi Client" as PiC #red
+participant Network #grey
+participant Router #DodgerBlue
+participant "Pi Server" as PiS #LimeGreen
+
+hnote over PiC : Power On
+
+note left of PiC #aqua
+ BOOT_ORDER
+ Checks
+end note
+
+PiC --> Network: Broadcast request for an IP Address
+note left of PiC #aqua
+   DHCP
+end note
+
+Router -> PiC: Provides an IP address
+PiS -> PiC: Provides PXE & TFTP service
+||30||
+
+PiC -> PiS: Request TFTP files
+
+note right of PiS #aqua
+  TFTP files via
+  DNSMASQ
+end note
+
+PiS -> PiC: Receive TFTP files
+
+note left of PiC: Process\n**cmdline.txt**
+
+PiC -> PiS: Request NFS files
+
+note right of PiS #aqua
+  NFS files via
+  NFS-Ganesha
+end note
+
+PiS -> PiC: Receive NFS files
+||20||
+...~3 minutes later...
+
+hnote over PiC : Desktop Ready
+@enduml
+  #+end_src
+
+* Diagram 2: Boot Sequence
+
+#+begin_src plantuml :eval never :tangle pi-diagram2-boot-sequence.plantuml
+  @startuml
+title Pi Boot Sequence\n
+footer \nDiagram 2
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+participant "Pi Client" as PiC #red
+participant Network #grey
+participant Router #DodgerBlue
+participant "Pi Server" as PiS #LimeGreen
+
+hnote over PiC : Power On
+
+note left of PiC #aqua
+ BOOT_ORDER
+ Checks
+end note
+
+PiC --> Network: Broadcast request for an IP Address
+note left of PiC #aqua
+   DHCP
+end note
+
+Router -> PiC: Provides an IP address
+PiS -> PiC: Provides PXE & TFTP service
+||30||
+
+PiC -> PiS: Request TFTP files
+
+note right of PiS #aqua
+  TFTP files via
+  DNSMASQ
+end note
+
+PiS -> PiC: Receive TFTP files
+||20||
+...    ...
+@enduml
+#+end_src
