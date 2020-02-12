@@ -456,5 +456,4 @@ cd $GOPATH/src/k8s.io/kubernetes
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
 # org-use-property-inheritance: t
-# org-src-preserve-indentation: t
 # End:

@@ -1843,6 +1843,5 @@ Visit http://localhost:8080
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
 # org-use-property-inheritance: t
-# org-src-preserve-indentation: t
 # End:
 

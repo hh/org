@@ -289,6 +289,5 @@ At this point I was unsure how to get at the keys you see here:
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# socket: "/tmp/mysocket"
 # End:
 

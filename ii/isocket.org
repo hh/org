@@ -420,13 +420,10 @@ We set tmate-session-prefix to ~rt-~ because the target session is usually on th
 This means your target session names above should start with rt-
 
 # Local Variables:
-# org-babel-tmux-session-prefix: ""
 # org-babel-tmate-session-prefix: ""
 # eval: (require (quote ob-shell))
 # eval: (require (quote ob-lisp))
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# #eval: (require (quote ob-tmux))
-# #eval: (require (quote ob-tmate))
 # End:
