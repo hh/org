@@ -12,10 +12,24 @@ spec:
       labels:
         coop.ii: dnsmasq
     spec:
+      allowPrivilegeEscalation: true
+      allowedCapabilities:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
       hostNetwork: true
+      hostPorts:
+      - max: 7472
+        min: 7472
+      privileged: true
     spec:
       containers:
       - name: dnsmasq
         image: "ii/dnsmasq"
         ports:
         - containerPort: 67
+          hostPort: 67
+          protocol: UDP
+        - containerPort: 69
+          hostPort: 69
+          protocol: UDP

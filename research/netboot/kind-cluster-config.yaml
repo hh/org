@@ -34,9 +34,6 @@ kubeadmConfigPatchesJSON6902:
 nodes:
  - role: control-plane
    extraMounts:
-   # - containerPath: /var/local-path-provisioner
-   #   hostPath: /tmp/workspace/pvcs
-   #   readOnly: False
    - containerPath: /var/run/docker.sock
      hostPath: /var/run/docker.sock
      readOnly: False
@@ -44,27 +41,16 @@ nodes:
      hostPath: /tmp
      readOnly: False
    extraPortMappings:
-   - containerPort: 80
-     hostPort: 80
-   - containerPort: 443
-     hostPort: 443
-   # dev tmate target port
-   - containerPort: 2200
-     hostPort: 2200
-   # - containerPort: 4000
-   #   hostPort: 4000
-   # - containerPort: 4001
-   #   hostPort: 4001
-   - containerPort: 5432
-     hostPort: 5432
    - containerPort: 6443
      hostPort: 6443
-   - containerPort: 10350
-     hostPort: 10350
-   # - containerPort: 80
-   #   hostPort: 2080
-   # - containerPort: 443
-   #   hostPort: 20443
+   - containerPort: 67
+     hostPort: 67
+     listenAddress: "192.168.1.99"
+     protocol: UDP
+   - containerPort: 69
+     hostPort: 69
+     listenAddress: "192.168.1.99"
+     protocol: UDP
    kubeadmConfigPatches:
    - |
      apiVersion: kubeadm.k8s.io/v1beta2
@@ -73,14 +59,3 @@ nodes:
        kubeletExtraArgs:
          node-labels: "ingress-ready=true"
          authorization-mode: "AlwaysAllow"
- - role: worker
-   extraMounts:
-   # - containerPath: /var/local-path-provisioner
-   #   hostPath: /tmp/workspace/pvcs
-   #   readOnly: False
-   - containerPath: /var/run/docker.sock
-     hostPath: /var/run/docker.sock
-     readOnly: False
-   - containerPath: /var/host/tmp
-     hostPath: /tmp
-     readOnly: False
