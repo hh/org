@@ -1,0 +1,33 @@
+#+TITLE: Spacemacs Workflow
+#+AUTHOR: Stephen Heywood
+
+
+* Objective
+
+By following two users, Alex and Sam we will see how they use Spacemacs and GitLab on a number of tasks.
+
+This document will walk through a number of workflow scenarios using a number of diagrams to show key steps in sequence while working with Spacemacs and GitLab.
+Each diagram shows a series of events that happen in sequence by placing them at a lower position on the diagram, i.e. time flows down the diagram.
+
+To keep the following introduction easy for new users to Spacemacs and GitLab the version numbers shown are not technically correct but still cover the general idea of having a history for any work saved to the history log.
+
+* Initial file edit/save
+
+Alex has a document that they want to update and then save.
+
+[[./images/spacemacs-workflow-01.png]]
+
+* Sync work to GitLab
+
+With the changes saved, Alex now needs to sync the changes to GitLab.
+
+[[file:images/spacemacs-workflow-02.png]]
+
+* Issue when trying to sync work to GitLab
+
+At a later stage, Alex is again trying to sync another set of local changes to GitLab.
+The issue now is that GitLab has a been updated with a different history and files which Alex doesn't have on his computer, therefore when trying to sync to GitLab it will now fail.
+We will solve this issue in the next section.
+
+[[file:images/spacemacs-workflow-03.png]]
+
