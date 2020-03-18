@@ -1,0 +1,410 @@
+#+TITLE: Explore Rook.io with Kubemacs on Packet
+#+AUTHOR: Stephen Heywood
+#+DATE: 17 March 2020
+
+
+* Overview
+
+Exploring [[https://rook.io/][rook.io]], a storage operator with [[https://github.com/kubemacs/kubemacs][kubemacs]] on [[https://www.packet.com/][Packet]].
+As Packet provides servers with extra disks it makes it easier to test out various storage configurations.
+
+* References
+
+- [[https://rook.io/][https://rook.io/]]
+- https://rook.io/docs/rook/v1.2/ceph-quickstart.html
+- [[https://www.youtube.com/watch?v=pwVsFHy2EdE][Kubecon 2018 - Intro: Rook - Jared Watts, Upbound]]
+
+* Clone rook repo
+
+  #+begin_src shell
+    git clone --single-branch --branch release-1.2 https://github.com/rook/rook.git
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  #+end_src
+
+* Create common settings for the rook-ceph
+
+    #+begin_src shell :dir ./rook/cluster/examples/kubernetes/ceph
+    kubectl create -f common.yaml
+    #+end_src
+
+    #+RESULTS:
+    #+begin_src shell
+    namespace/rook-ceph created
+    customresourcedefinition.apiextensions.k8s.io/cephclusters.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephclients.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephfilesystems.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephnfses.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephobjectstores.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephobjectstoreusers.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/cephblockpools.ceph.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/volumes.rook.io created
+    customresourcedefinition.apiextensions.k8s.io/objectbuckets.objectbucket.io created
+    customresourcedefinition.apiextensions.k8s.io/objectbucketclaims.objectbucket.io created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-ceph-object-bucket created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-cluster-mgmt created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-cluster-mgmt-rules created
+    role.rbac.authorization.k8s.io/rook-ceph-system created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-global created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-global-rules created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-mgr-cluster created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-mgr-cluster-rules created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-object-bucket created
+    serviceaccount/rook-ceph-system created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-system created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-ceph-global created
+    serviceaccount/rook-ceph-osd created
+    serviceaccount/rook-ceph-mgr created
+    serviceaccount/rook-ceph-cmd-reporter created
+    role.rbac.authorization.k8s.io/rook-ceph-osd created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-osd created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-mgr-system created
+    clusterrole.rbac.authorization.k8s.io/rook-ceph-mgr-system-rules created
+    role.rbac.authorization.k8s.io/rook-ceph-mgr created
+    role.rbac.authorization.k8s.io/rook-ceph-cmd-reporter created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-cluster-mgmt created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-osd created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-mgr created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-mgr-system created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-ceph-mgr-cluster created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-ceph-osd created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-cmd-reporter created
+    podsecuritypolicy.policy/rook-privileged created
+    clusterrole.rbac.authorization.k8s.io/psp:rook created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-ceph-system-psp created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-default-psp created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-osd-psp created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-mgr-psp created
+    rolebinding.rbac.authorization.k8s.io/rook-ceph-cmd-reporter-psp created
+    serviceaccount/rook-csi-cephfs-plugin-sa created
+    serviceaccount/rook-csi-cephfs-provisioner-sa created
+    role.rbac.authorization.k8s.io/cephfs-external-provisioner-cfg created
+    rolebinding.rbac.authorization.k8s.io/cephfs-csi-provisioner-role-cfg created
+    clusterrole.rbac.authorization.k8s.io/cephfs-csi-nodeplugin created
+    clusterrole.rbac.authorization.k8s.io/cephfs-csi-nodeplugin-rules created
+    clusterrole.rbac.authorization.k8s.io/cephfs-external-provisioner-runner created
+    clusterrole.rbac.authorization.k8s.io/cephfs-external-provisioner-runner-rules created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-csi-cephfs-plugin-sa-psp created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-csi-cephfs-provisioner-sa-psp created
+    clusterrolebinding.rbac.authorization.k8s.io/cephfs-csi-nodeplugin created
+    clusterrolebinding.rbac.authorization.k8s.io/cephfs-csi-provisioner-role created
+    serviceaccount/rook-csi-rbd-plugin-sa created
+    serviceaccount/rook-csi-rbd-provisioner-sa created
+    role.rbac.authorization.k8s.io/rbd-external-provisioner-cfg created
+    rolebinding.rbac.authorization.k8s.io/rbd-csi-provisioner-role-cfg created
+    clusterrole.rbac.authorization.k8s.io/rbd-csi-nodeplugin created
+    clusterrole.rbac.authorization.k8s.io/rbd-csi-nodeplugin-rules created
+    clusterrole.rbac.authorization.k8s.io/rbd-external-provisioner-runner created
+    clusterrole.rbac.authorization.k8s.io/rbd-external-provisioner-runner-rules created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-csi-rbd-plugin-sa-psp created
+    clusterrolebinding.rbac.authorization.k8s.io/rook-csi-rbd-provisioner-sa-psp created
+    clusterrolebinding.rbac.authorization.k8s.io/rbd-csi-nodeplugin created
+    clusterrolebinding.rbac.authorization.k8s.io/rbd-csi-provisioner-role created
+    #+end_src
+
+* Create rook-ceph operator
+
+  #+begin_src shell :dir ./rook/cluster/examples/kubernetes/ceph
+    kubectl create -f operator.yaml
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  configmap/rook-ceph-operator-config created
+  deployment.apps/rook-ceph-operator created
+  #+end_src
+
+* List rook-ceph get pods
+
+  #+begin_src shell
+    kubectl -n rook-ceph get pods
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  NAME                                  READY   STATUS    RESTARTS   AGE
+  rook-ceph-operator-69f856fc5f-g4zzn   1/1     Running   0          63s
+  rook-discover-fb4vw                   1/1     Running   0          40s
+  #+end_src
+
+* List current rook-ceph resources
+
+  #+begin_src shell
+  kubectl -n rook-ceph get all
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  NAME                                      READY   STATUS    RESTARTS   AGE
+  pod/rook-ceph-operator-69f856fc5f-g4zzn   1/1     Running   0          4m45s
+  pod/rook-discover-fb4vw                   1/1     Running   0          4m22s
+
+  NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+  daemonset.apps/rook-discover   1         1         1       1            1           <none>          4m22s
+
+  NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
+  deployment.apps/rook-ceph-operator   1/1     1            1           4m45s
+
+  NAME                                            DESIRED   CURRENT   READY   AGE
+  replicaset.apps/rook-ceph-operator-69f856fc5f   1         1         1       4m45s
+  #+end_src
+
+* Create rook-cluster.yaml
+
+  #+begin_src yaml :tangle rook-cluster.yaml :noweb yes
+    apiVersion: ceph.rook.io/v1
+    kind: CephCluster
+    metadata:
+      name: rook-ceph
+      namespace: rook-ceph
+    spec:
+      cephVersion:
+        image: ceph/ceph:v14.2.8
+        allowUnsupported: false
+      dataDirHostPath: /var/lib/rook
+      mon:
+        count: 1
+        allowMultiplePerNode: false
+      dashboard:
+        enabled: true
+        ssl: false
+      monitoring:
+        enabled: false  # requires Prometheus to be pre-installed
+        rulesNamespace: rook-ceph
+      network:
+        hostNetwork: false
+      storage:
+        useAllNodes: true
+        useAllDevices: false
+        deviceFilter: "^sd[cd]"
+  #+end_src
+
+* Use rook-cluster.yaml
+
+  #+begin_src shell
+    kubectl create -f ./rook-cluster.yaml
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  cephcluster.ceph.rook.io/rook-ceph created
+  #+end_src
+
+* List current rook-ceph resources
+
+  #+begin_src shell
+  kubectl -n rook-ceph get all
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  NAME                                                            READY   STATUS      RESTARTS   AGE
+  pod/csi-cephfsplugin-provisioner-7b8fbf88b4-7zll7               4/4     Running     0          94s
+  pod/csi-cephfsplugin-provisioner-7b8fbf88b4-hmv4z               4/4     Running     0          94s
+  pod/csi-cephfsplugin-z96rn                                      3/3     Running     0          94s
+  pod/csi-rbdplugin-ddbmn                                         3/3     Running     0          94s
+  pod/csi-rbdplugin-provisioner-6b8b4d558c-b42nf                  5/5     Running     0          94s
+  pod/csi-rbdplugin-provisioner-6b8b4d558c-b6tlv                  5/5     Running     0          94s
+  pod/rook-ceph-crashcollector-kubemacs-worker-7b7679c58b-f6kc7   1/1     Running     0          31s
+  pod/rook-ceph-mgr-a-56d9855b98-7qhj2                            1/1     Running     0          31s
+  pod/rook-ceph-mon-a-5bfd5d7979-q4vqj                            1/1     Running     0          41s
+  pod/rook-ceph-operator-69f856fc5f-g4zzn                         1/1     Running     0          106m
+  pod/rook-ceph-osd-prepare-kubemacs-worker-vndgd                 0/1     Completed   0          19s
+  pod/rook-discover-fb4vw                                         1/1     Running     0          106m
+
+  NAME                               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+  service/csi-cephfsplugin-metrics   ClusterIP   10.96.69.103    <none>        8080/TCP,8081/TCP   94s
+  service/csi-rbdplugin-metrics      ClusterIP   10.96.179.159   <none>        8080/TCP,8081/TCP   94s
+  service/rook-ceph-mgr              ClusterIP   10.96.84.236    <none>        9283/TCP            19s
+  service/rook-ceph-mgr-dashboard    ClusterIP   10.96.152.194   <none>        7000/TCP            31s
+  service/rook-ceph-mon-a            ClusterIP   10.96.121.192   <none>        6789/TCP,3300/TCP   42s
+
+  NAME                              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+  daemonset.apps/csi-cephfsplugin   1         1         1       1            1           <none>          94s
+  daemonset.apps/csi-rbdplugin      1         1         1       1            1           <none>          94s
+  daemonset.apps/rook-discover      1         1         1       1            1           <none>          106m
+
+  NAME                                                       READY   UP-TO-DATE   AVAILABLE   AGE
+  deployment.apps/csi-cephfsplugin-provisioner               2/2     2            2           94s
+  deployment.apps/csi-rbdplugin-provisioner                  2/2     2            2           94s
+  deployment.apps/rook-ceph-crashcollector-kubemacs-worker   1/1     1            1           41s
+  deployment.apps/rook-ceph-mgr-a                            1/1     1            1           31s
+  deployment.apps/rook-ceph-mon-a                            1/1     1            1           41s
+  deployment.apps/rook-ceph-operator                         1/1     1            1           106m
+
+  NAME                                                                  DESIRED   CURRENT   READY   AGE
+  replicaset.apps/csi-cephfsplugin-provisioner-7b8fbf88b4               2         2         2       94s
+  replicaset.apps/csi-rbdplugin-provisioner-6b8b4d558c                  2         2         2       94s
+  replicaset.apps/rook-ceph-crashcollector-kubemacs-worker-6845485f44   0         0         0       41s
+  replicaset.apps/rook-ceph-crashcollector-kubemacs-worker-7b7679c58b   1         1         1       31s
+  replicaset.apps/rook-ceph-mgr-a-56d9855b98                            1         1         1       31s
+  replicaset.apps/rook-ceph-mon-a-5bfd5d7979                            1         1         1       41s
+  replicaset.apps/rook-ceph-operator-69f856fc5f                         1         1         1       106m
+
+  NAME                                              COMPLETIONS   DURATION   AGE
+  job.batch/rook-ceph-osd-prepare-kubemacs-worker   1/1           10s        19s
+  #+end_src
+
+* Rook Toolbox
+
+- [[https://rook.io/docs/rook/v1.2/ceph-toolbox.html][https://rook.io/docs/rook/v1.2/ceph-toolbox.html]]
+
+** setup toolbox
+
+  #+begin_src shell :dir ./rook/cluster/examples/kubernetes/ceph
+    kubectl create -f toolbox.yaml
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  deployment.apps/rook-ceph-tools created
+  #+end_src
+
+** Report toolbox pod name
+
+  #+begin_src shell
+    kubectl -n rook-ceph get pod -l "app=rook-ceph-tools"
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  NAME                               READY   STATUS    RESTARTS   AGE
+  rook-ceph-tools-565698c784-dx94x   1/1     Running   0          7s
+  #+end_src
+
+** Once the rook-ceph-tools pod is running, you can connect to it with:
+
+   #+begin_src tmate
+     kubectl -n rook-ceph exec \
+             -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" \
+             -o jsonpath='{.items[0].metadata.name}') bash
+   #+end_src
+
+** Check on Ceph Status
+
+   #+begin_src shell
+     kubectl -n rook-ceph exec \
+             -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" \
+             -o jsonpath='{.items[0].metadata.name}') -- ceph status
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src shell
+     cluster:
+       id:     2bb0b570-1b5e-4c4e-b8ad-578154bc06ed
+       health: HEALTH_WARN
+               OSD count 0 < osd_pool_default_size 3
+
+     services:
+       mon: 1 daemons, quorum a (age 61m)
+       mgr: a(active, since 61m)
+       osd: 0 osds: 0 up, 0 in
+
+     data:
+       pools:   0 pools, 0 pgs
+       objects: 0 objects, 0 B
+       usage:   0 B used, 0 B / 0 B avail
+       pgs:     
+
+   #+end_src
+
+** More examples
+
+- ceph status
+- ceph osd status
+- ceph df
+- rados df
+
+   #+begin_src shell
+     kubectl -n rook-ceph exec -it \
+             $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') \
+             -- ceph -h | grep -i list
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src shell
+   daemonperf {type.id | path} list|ls [stat-pats] [priority]
+                           List shows a table of all available stats
+   auth ls                                 list authentication state
+   balancer ls                             List all plans
+   balancer pool ls                        List automatic balancing pools. Note 
+                                            that empty list means all existing 
+   config ls                               List available configuration options
+   config-key ls                           list keys
+   dashboard iscsi-gateway-list            List iSCSI gateways
+   fs ls                                   list filesystems
+   fs subvolume ls <vol_name> {<group_     List subvolumes
+   fs subvolume snapshot ls <vol_name>     List subvolume snapshots
+   fs subvolumegroup ls <vol_name>         List subvolumegroups
+   fs subvolumegroup snapshot ls <vol_     List subvolumegroup snapshots
+   fs volume ls                            List volumes
+   k8sevents ceph                          List Ceph events tracked & sent to the 
+   k8sevents ls                            List all current Kuberenetes events 
+   mgr module ls                           list active mgr modules
+   mgr services                            list service endpoints provided by mgr 
+   mon feature ls {--with-value}           list available mon map features to be 
+   node ls {all|osd|mon|mds|mgr}           list all nodes in cluster [type]
+   orchestrator device ls {<host> [<host>. List devices on a node
+   orchestrator host ls                    List hosts
+   orchestrator service ls {<host>} {mon|  List services known to orchestrator
+   osd blacklist add|rm <EntityAddr>       add (optionally until <expire> seconds 
+                                            blacklist
+   osd blacklist clear                     clear all blacklisted clients
+   osd blacklist ls                        show blacklisted clients
+   osd crush class ls                      list all crush device classes
+   osd crush class ls-osd <class>          list all osds belonging to the specific 
+   osd crush ls <node>                     list items beneath a node in the CRUSH 
+   osd crush rule ls                       list crush rules
+   osd crush rule ls-by-class <class>      list all crush rules that reference the 
+   osd crush weight-set ls                 list crush weight sets
+   osd erasure-code-profile ls             list all erasure code profiles
+   osd pool ls {detail}                    list pools
+   pg ls {<int>} {<states> [<states>...]}  list pg with specific pool, osd, state
+   pg ls-by-osd <osdname (id|osd.id)>      list pg on osd [osd]
+   pg ls-by-pool <poolstr> {<states>       list pg with pool = [poolname]
+   pg ls-by-primary <osdname (id|osd.id)>  list pg with primary = [osd]
+   rbd task list {<task_id>}               List pending or running asynchronous 
+   restful list-keys                       List all API keys
+   #+end_src
+
+** Remove Toolbox
+
+  #+begin_src shell
+    kubectl -n rook-ceph delete deployment rook-ceph-tools
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  deployment.apps "rook-ceph-tools" deleted
+  #+end_src
+
+* Ceph Dashboard
+
+- [[https://github.com/rook/rook/blob/master/Documentation/ceph-dashboard.md][https://github.com/rook/rook/blob/master/Documentation/ceph-dashboard.md]]
+
+
+  #+begin_src shell
+    kubectl -n rook-ceph get service
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src shell
+  NAME                       TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+  csi-cephfsplugin-metrics   ClusterIP   10.96.69.103    <none>        8080/TCP,8081/TCP   94m
+  csi-rbdplugin-metrics      ClusterIP   10.96.179.159   <none>        8080/TCP,8081/TCP   94m
+  rook-ceph-mgr              ClusterIP   10.96.84.236    <none>        9283/TCP            93m
+  rook-ceph-mgr-dashboard    ClusterIP   10.96.152.194   <none>        7000/TCP            93m
+  rook-ceph-mon-a            ClusterIP   10.96.121.192   <none>        6789/TCP,3300/TCP   93m
+  #+end_src
+
+** Auth
+
+  #+begin_src shell
+    kubectl -n rook-ceph get secret rook-ceph-dashboard-password -o jsonpath="{['data']['password']}" | base64 --decode && echo
+  #+end_src
+
+* Storage Setup
+
+- [[https://rook.io/docs/rook/v1.2/ceph-examples.html][https://rook.io/docs/rook/v1.2/ceph-examples.html]]
