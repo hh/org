@@ -45,7 +45,7 @@ Spacemacs sometimes may need some help to know what needs to be /staged/. So, yo
 
 After confirming the file to stage, the listed /staged/ files should update.
 
-[[/images/git-staged-changes-welcome-txt.png]]
+[[./images/git-staged-changes-welcome-txt.png]]
 
 If for some reason you /Stage/ the wrong file, you can press =u= to /Unstage/ it.
 Also, if you want to check out what each letter is for, then just press =?= to get the list for the current context.
