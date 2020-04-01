@@ -1,4 +1,5 @@
-#+TITLE: Spacemacs Workflow Images 
+# -*- ii:t; -*-
+#+TITLE: Spacemacs Workflow Images
 #+AUTHOR: Stephen Heywood
 
 
@@ -43,11 +44,13 @@ rnote left of alex #f8ebff : Repeat this\nfor all files\nas required
 
 * Sync work to GitLab
 
-The diagram shows the sequence of keys for the user Alex to sync his work to GitLab.
+The following two diagrams show the sequence of keys for the user Alex to sync his work to GitLab.
 
-  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-02.png
+** Part 1
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-02a.png
 title **Sync work to GitLab**
-footer \nDiagram 2
+footer \nDiagram 2A
 
 skinparam sequenceArrowThickness 2
 skinparam roundcorner 10
@@ -70,9 +73,28 @@ rnote left of alex : **""F""**
 rnote left of alex : **""u""**
 alex <- gitlab : Pull any changes from GitLab
 
-rnote left of alex #f8ebff : Needs to make the\nlocal changes part of\nthe local history 
-rnote left of alex : **""s""**
-rnote left of alex #f8ebff : Needs to update\nthe local history 
+||20||
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src plantuml
+  [[file:images/spacemacs-workflow-02a.png]]
+  #+end_src
+
+** Part 2
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-02b.png
+title **Sync work to GitLab**
+footer \nDiagram 2B
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+actor Alex as alex
+participant GitLab as gitlab #lightgrey
+
+||20||
+
+rnote left of alex #orange : **"" ""**
 rnote left of alex : **""c""**
 rnote left of alex : **""c""**
 rnote left of alex : **""i""**
@@ -93,7 +115,9 @@ hnote over gitlab #limegreen : version 2
   #+end_src
 
   #+RESULTS:
-  [[file:images/spacemacs-workflow-02.png]]
+  #+begin_src plantuml
+  [[file:images/spacemacs-workflow-02b.png]]
+  #+end_src
 
 * Issue when trying to sync work to GitLab
 
@@ -120,11 +144,11 @@ hnote over alex #e8ffe8 : updated files saved
 
 rnote left of alex #f8ebff : Wants to sync\nwork to GitLab
 alex <- gitlab : Pull any changes from GitLab
-rnote left of alex #f8ebff : Needs to make the\nlocal changes part of\nthe local history 
+rnote left of alex #f8ebff : Needs to make the\nlocal changes part of\nthe local history
 rnote left of alex #f8ebff : Provide a short\nsummary for the\nhistory log
 hnote over alex : version 3
 hnote over sam #e8ffe8 : updated files saved
-rnote right of sam #f8ebff : Needs to make the\nlocal changes part of\nthe local history 
+rnote right of sam #f8ebff : Needs to make the\nlocal changes part of\nthe local history
 rnote right of sam #f8ebff : Provide a short\nsummary for the\nhistory log
 hnote over sam : version 3
 sam -> gitlab : Push current history and files to GitLab
