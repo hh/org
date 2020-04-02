@@ -28,9 +28,13 @@ We will use diagrams with the help of Alex and Sam to show how Spacemacs can be 
 
 The [[diagram-guide.org][Diagram Guide]] provides a list of common symbols that we will be using through this guide and how they relate to Spacemacs.
 
+* Getting Started
+
+- [[spacemacs-concepts.org][Spacemacs concepts]]
+- Version control
+
 * Scenarios
 
-- Spacemacs concepts.
-- Edit and save a document.
-- Save a document to GitLab.
-- When saving a document to GitLab doesn't work.
+- Edit and save a document
+- Save a document to GitLab
+- When saving a document to GitLab doesn't work
