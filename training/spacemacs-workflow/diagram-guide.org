@@ -1,0 +1,31 @@
+# -*- ii:t; -*-
+#+TITLE: Diagram Guide
+#+AUTHOR: Stephen Heywood
+#+DATE: 2 April, 2020
+#+STARTUP: showall
+
+
+* Objective
+
+This guide provides a list of common symbols that we will be using through this guide and how they relate to Spacemacs.
+
+* Spacemacs modes
+
+| *Spacemacs View*                            | *Diagram Symbol*                   | *Description* |
+|---------------------------------------------+------------------------------------+---------------|
+| [[./images/spacemacs-flow-org-normal-mode.png]] | [[./images/diagram-symbol-orange.png]] | [[spacemacs-concepts.org][Normal mode]]   |
+| [[./images/spacemacs-flow-org-insert-mode.png]] | [[./images/diagram-symbol-green.png]]  | [[spacemacs-concepts.org][Insert mode]]   |
+
+When following a diagram with these two symbols, they are a reminder of the /mode/ that you should be in before you continue with the next part of the diagram.
+
+
+* The Keyboard
+
+| *Key Name* | *Documentation Format* | *Diagram Symbol*                    |
+|------------+------------------------+-------------------------------------|
+| Space      | [[spacemacs-concepts.org][SPC]]                    | [[./images/diagram-symbol-spc.png]]     |
+| Escape     | [[spacemacs-concepts.org][ESC]]                    | [[./images/diagram-symbol-esc.png]]     |
+| i          | i                      | [[./images/diagram-symbol-lower-i.png]] |
+
+These small yellow symbols show what *key* you need to press next as you follow the task in a diagram.
+Also, watch out for the keys that maybe upper or lower case.
