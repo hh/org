@@ -1,0 +1,16 @@
+
+
+# #+NAME: Humacs-PVC
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: humacs-home-ii
+  namespace: humacs
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+  storageClassName: rook-ceph-block

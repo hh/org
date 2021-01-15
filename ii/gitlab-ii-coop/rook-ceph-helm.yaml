@@ -1,0 +1,10 @@
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: rook-ceph
+spec:
+  releaseName: rook-ceph
+  chart:
+    repository: https://charts.rook.io/release
+    name: rook-ceph
+    version: 1.5.4

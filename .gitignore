@@ -8,3 +8,4 @@ cncf/ci/*service*json
 cncf/ci/cookie
 cncf/ci/*auth-config
 cncf/ci/*-token
+.env

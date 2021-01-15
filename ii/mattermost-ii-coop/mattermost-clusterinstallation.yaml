@@ -1,0 +1,29 @@
+# Operator configuration
+# #+name: mattermost-cluster-definition
+
+apiVersion: mattermost.com/v1alpha1
+kind: ClusterInstallation
+metadata:
+  name: mattermost # Name of your cluster as shown in Kubernetes.
+spec:
+  image: mattermost/mattermost-enterprise-edition # Docker image for the app servers.
+  size: 100users # Size of the Mattermost installation, typically based on the number of users. This a is write-only field - its value is erased after setting appropriate values of resources. Automatically sets the replica and resource limits for Minio, databases and app servers based on the number provided here. Accepts 100users, 1000users, 5000users, 10000users, or 25000users. Manually setting replicas or resources will override the values set by 'size'.
+  useServiceLoadBalancer: false # Set to true to use AWS or Azure load balancers instead of an NGINX controller.
+  serviceAnnotations: {} # Service annotations to use with AWS or Azure load balancers.
+  ingressAnnotations:
+    cert-manager.io/clusterissuer: letsencrypt-prod
+  ingressName: mm.gitlab2.ii.coop # Set to your hostname, e.g. example.mattermost-example.com. Required when using an Ingress controller. Ignored if useServiceLoadBalancer is true.
+  useIngressTLS: true
+  database:
+    type: postgres # Supports "mysql". Ignored if externalSecret is set.
+    secret: "mattermost-database" # Set to the name of a Kubernetes secret that contains the password to your external MySQL database. MySQL username must be "root".
+  minio:
+    storageSize: 10Gi # Set the file storage size to be used by Minio.
+    replicas: 4
+  elasticSearch:
+    host: "" # Hostname Elasticsearch can be accessed at.
+    username: "" # Username to log into Elasticsearch.
+    password: "" # Password to log into Elasticsearch.
+  replicas: 2
+  nodeSelector: {} # See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector.
+  affinity: {} # See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity.

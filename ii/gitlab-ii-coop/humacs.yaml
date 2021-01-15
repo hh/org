@@ -1,0 +1,38 @@
+
+
+# #+NAME: Humacs
+
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: humacs
+  namespace: humacs
+spec:
+  releaseName: humacs
+  chart:
+    git: https://github.com/humacs/humacs
+    ref: main
+    path: chart/humacs
+  values:
+    options:
+      hostDockerSocket: false
+      hostTmp: true
+      timezone: Pacific/Auckland
+      gitName: gitlab
+      gitEmail: humacs@ii.coop
+      profile: ii
+    image:
+      repository: registry.gitlab.com/humacs/humacs/ii
+      tag: 2020.12.03
+    extraEnvVars:
+      - name: HUMACS_DEBUG
+        value: "true"
+      - name: REINIT_HOME_FOLDER
+        value: "true"
+    extraVolumes:
+      - name: home-ii
+        persistentVolumeClaim:
+          claimName: humacs-home-ii
+    extraVolumeMounts:
+      - name: home-ii
+        mountPath: "/home/ii"

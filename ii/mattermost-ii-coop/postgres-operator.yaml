@@ -1,0 +1,13 @@
+# Install Postgres-Operator
+# #+NAME: Postgres operator
+
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: postgres-operator
+spec:
+  releaseName: postgres-operator
+  chart:
+    git: https://github.com/zalando/postgres-operator.git
+    ref: master
+    path: charts/postgres-operator

@@ -1,0 +1,40 @@
+# Certs
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: mattermosttest.a.sharing.io
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - dns01:
+        rfc2136:
+          tsigKeyName: pair
+          tsigAlgorithm: HMACMD5
+          tsigSecretSecretRef:
+            name: tsig-powerdns
+            key: powerdns
+          nameserver: ${LOAD_BALANCER_IP}
+      selector:
+        dnsNames:
+          - "*.gitlab2.ii.coop"
+          - "gitlab2.ii.coop"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: "*.gitlab2.ii.coop"
+  dnsNames:
+    - "*.gitlab2.ii.coop"
+    - gitlab2.ii.coop

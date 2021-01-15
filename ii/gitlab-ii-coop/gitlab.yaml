@@ -1,0 +1,130 @@
+
+
+# #+NAME: GitLab
+
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: gitlab
+spec:
+  releaseName: gitlab
+  chart:
+    repository: https://charts.gitlab.io/
+    name: gitlab
+    version: 4.7.3
+  values:
+    postgresql:
+      install: false
+    global:
+      psql:
+        host: gitlab-db-pooler.gitlab
+        password:
+          secret: gitlab.gitlab-db.credentials.postgresql.acid.zalan.do
+          key: password
+        port: 5432
+        database: gitlab
+        username: gitlab
+      email:
+        from: gitlab@ii.coop
+        reply_to: gitlab@ii.coop
+        display_name: gitlab.ii.coop
+      appConfig:
+        incomingEmail:
+          enabled: true
+          address: '%{key}@gitlab.ii.coop'
+          user: mailbot@ii.coop
+          host: imap.gmail.com
+          port: 993
+          ssl: true
+          startTls: false
+          idleTimeout: 60
+          password:
+            secret: gitlab-ii-coop-imap-password
+            key: password
+        omniauth:
+          enabled: true
+          blockAutoCreatedUsers: true
+          allowSingleSignOn:
+            - twitter
+            - github
+            - google_oauth2
+            - gitlab
+            - facebook
+          providers:
+            - secret: gitlab-ii-coop-omniauth-github
+            - secret: gitlab-ii-coop-omniauth-gitlab
+            - secret: gitlab-ii-coop-omniauth-google-oauth2
+            - secret: gitlab-ii-coop-omniauth-facebook
+            - secret: gitlab-ii-coop-omniauth-twitter
+      smtp:
+        enabled: true
+        address: smtp.gmail.com
+        authentication: login
+        openssl_verify_mode: peer
+        tls: false
+        starttls_auto: true
+        domain: gitlab2.ii.coop
+        port: 587
+        user_name: mailbot@ii.coop
+        password:
+          secret: gitlab-ii-coop-smtp-password
+          key: password
+      hosts:
+        domain: ii.coop
+        gitlab:
+          name: gitlab2.ii.coop
+      ingress:
+        configureCertmanager: false
+      pages:
+        enabled: true
+        global:
+          hosts:
+            domain: gitlab2.ii.coop
+        host: gitlab2.ii.coop
+        port: 443
+        https: true
+        apiSecret:
+          secret: gitlab-pages-api-secret
+          key: shared_secret
+      shell:
+        port: 22
+    certmanager:
+      install: false
+    gitlab:
+      ingress:
+        enabled: true
+      ingressclass: nginx
+      gitlab-shell:
+        enabled: true
+        service:
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          type: LoadBalancer
+      webservice:
+        ingress:
+          annotations:
+            kubernetes.io/ingress.class: nginx
+          tls:
+            secretName: letsencrypt-prod
+    gitlab-pages:
+      enabled: true
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    registry:
+      ingress:
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    minio:
+      ingress:
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    nginx-ingress:
+      enabled: false

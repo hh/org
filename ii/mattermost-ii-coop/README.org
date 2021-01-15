@@ -1,0 +1,293 @@
+#+TITLE: Mattermost
+
+* Mattermost
+
+#+begin_quote
+A ChatOps service
+#+end_quote
+
+#+begin_src tmate :dir . :window mattermost
+kubectl create ns mattermost-ii-coop
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+  export KUBECONFIG=~/.kube/config-gitlab-ii-coop
+#+end_src
+
+#+NAME: Get LoadBalancer IP
+#+begin_src tmate :dir . :window mattermost
+  export LOAD_BALANCER_IP=$(kubectl -n kube-system get cm kubeadm-config -o=jsonpath='{.data.ClusterConfiguration}' | yq '.controlPlaneEndpoint' -cr | cut -d ':' -f1)
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+  until [ "$(dig A ns1.mattermosttest.a.sharing.io +short)" = "${LOAD_BALANCER_IP}" ]; do
+    echo "BaseDNSName does not resolve to Instance IP yet"
+    sleep 1
+  done
+  export POWERDNS_TSIG_SECRET="$(kubectl -n powerdns exec deployment/powerdns -- pdnsutil list-tsig-keys | grep pair | awk '{print $3}')"
+  nsupdate <<EOF
+  server ${LOAD_BALANCER_IP} 53
+  zone sharing.io
+  update add mattermosttest.a.sharing.io 60 NS ns1.mattermosttest.a.sharing.io
+  key pair ${POWERDNS_TSIG_SECRET}
+  send
+  EOF
+#+end_src
+
+#+NAME: Assign DNS address
+#+begin_src yaml :tangle ./dnsendpoint-mattermost-ii-coop.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: mattermosttest.a.sharing.io
+spec:
+  endpoints:
+  - dnsName: ns1.mattermosttest.a.sharing.io
+    recordTTL: 60
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: mattermosttest.a.sharing.io
+    recordTTL: 60
+    recordType: NS
+    targets:
+    - ns1.mattermosttest.a.sharing.io
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+  envsubst < dnsendpoint-mattermost-ii-coop.yaml | KUBECONFIG= kubectl -n mattermost-ii-coop apply -f -
+#+end_src
+
+#+NAME: DNSEndpoint
+#+begin_src yaml :tangle ./dnsendpoint.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: mattermost-ii-coop
+spec:
+  endpoints:
+  - dnsName: 'mattermosttest.a.sharing.io'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: '*.mattermosttest.a.sharing.io'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: mattermosttest.a.sharing.io
+    recordTTL: 3600
+    recordType: SOA
+    targets:
+    - 'ns1.mattermosttest.a.sharing.io. hostmaster.mattermosttest.a.sharing.io. 5 3600 3600 3600 3600'
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+  envsubst < dnsendpoint.yaml | kubectl -n powerdns apply -f -
+#+end_src
+
+#+name: create-namespace
+#+begin_src tmate :dir . :window mattermost
+kubectl get ns mattermost || kubectl create ns mattermost
+#+end_src
+
+** Install Postgres-Operator
+#+NAME: Postgres operator
+#+begin_src yaml :tangle ./postgres-operator.yaml
+  apiVersion: helm.fluxcd.io/v1
+  kind: HelmRelease
+  metadata:
+    name: postgres-operator
+  spec:
+    releaseName: postgres-operator
+    chart:
+      git: https://github.com/zalando/postgres-operator.git
+      ref: master
+      path: charts/postgres-operator
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+kubectl create ns postgres-operator
+kubectl -n postgres-operator apply -f ./postgres-operator.yaml
+#+end_src
+
+** Install Postgresql-HA
+#+name: postgres-database
+#+begin_src yaml :tangle ./postgresql.yaml
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: mattermost-db
+spec:
+  enableConnectionPooler: true
+  connectionPooler:
+    mode: session
+    resources:
+      requests:
+        cpu: 250m
+        memory: 100Mi
+      limits:
+        cpu: "1"
+        memory: 100Mi
+  teamId: "mattermost"
+  volume:
+    size: 3Gi
+  numberOfInstances: 3
+  users:
+    mattermost:  # database owner
+    - superuser
+    - createdb
+  databases:
+    mattermost: mattermost  # dbname: owner
+  postgresql:
+    version: "13"
+#+end_src
+
+#+name: install-postgres-database
+#+begin_src tmate :dir . :window mattermost
+kubectl -n mattermost apply -f ./postgresql.yaml
+#+end_src
+
+** Install MinIO Operator
+Create the namespace:
+#+name: create-minio-namespace
+#+begin_src tmate :dir . :window mattermost
+kubectl create ns minio-operator
+#+end_src
+
+Download the latest manifests:
+#+name: download-minio-operator-manifests
+#+begin_src tmate :dir . :window mattermost
+curl -O -L https://raw.githubusercontent.com/mattermost/mattermost-operator/v1.11.1/docs/minio-operator/minio-operator.yaml
+#+end_src
+
+Install the operator:
+#+name: install-minio-operator
+#+begin_src tmate :dir . :window mattermost
+kubectl -n minio-operator apply -f ./minio-operator.yaml
+#+end_src
+
+** Install Mattermost Operator
+Create the namespace:
+#+name: create-mattermost-operator-namespace
+#+begin_src tmate :dir . :window mattermost
+kubectl create ns mattermost-operator
+#+end_src
+
+Download the latest manifests:
+#+name: download-mattermost-operator-manifests
+#+begin_src tmate :dir . :window mattermost
+curl -O -L https://raw.githubusercontent.com/mattermost/mattermost-operator/v1.11.1/docs/mattermost-operator/mattermost-operator.yaml
+#+end_src
+
+Install the operator:
+#+name: install-mattermost-operator
+#+begin_src tmate :dir . :window mattermost
+kubectl apply -n mattermost-operator -f ./mattermost-operator.yaml
+#+end_src
+
+** Install Mattermost
+*** Operator configuration
+#+name: mattermost-cluster-definition
+#+begin_src yaml :tangle ./mattermost-clusterinstallation.yaml
+  apiVersion: mattermost.com/v1alpha1
+  kind: ClusterInstallation
+  metadata:
+    name: mattermost # Name of your cluster as shown in Kubernetes.
+  spec:
+    image: mattermost/mattermost-enterprise-edition # Docker image for the app servers.
+    size: 100users # Size of the Mattermost installation, typically based on the number of users. This a is write-only field - its value is erased after setting appropriate values of resources. Automatically sets the replica and resource limits for Minio, databases and app servers based on the number provided here. Accepts 100users, 1000users, 5000users, 10000users, or 25000users. Manually setting replicas or resources will override the values set by 'size'.
+    useServiceLoadBalancer: false # Set to true to use AWS or Azure load balancers instead of an NGINX controller.
+    serviceAnnotations: {} # Service annotations to use with AWS or Azure load balancers.
+    ingressAnnotations:
+      cert-manager.io/clusterissuer: letsencrypt-prod
+    ingressName: mm.gitlab2.ii.coop # Set to your hostname, e.g. example.mattermost-example.com. Required when using an Ingress controller. Ignored if useServiceLoadBalancer is true.
+    useIngressTLS: true
+    database:
+      type: postgres # Supports "mysql". Ignored if externalSecret is set.
+      secret: "mattermost-database" # Set to the name of a Kubernetes secret that contains the password to your external MySQL database. MySQL username must be "root".
+    minio:
+      storageSize: 10Gi # Set the file storage size to be used by Minio.
+      replicas: 4
+    elasticSearch:
+      host: "" # Hostname Elasticsearch can be accessed at.
+      username: "" # Username to log into Elasticsearch.
+      password: "" # Password to log into Elasticsearch.
+    replicas: 2
+    nodeSelector: {} # See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector.
+    affinity: {} # See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity.
+#+end_src
+
+#+name: wait-for-mattermost-db-creds
+#+begin_src tmate :dir . :window mattermost
+until kubectl -n mattermost get secret/mattermost.mattermost-db.credentials.postgresql.acid.zalan.do; do
+  sleep 5s
+done
+#+end_src
+
+#+name: create-mattermost-database-connection-string
+#+begin_src tmate :dir . :window mattermost
+POSTGRES_PASSWORD="$(kubectl -n mattermost get secret mattermost.mattermost-db.credentials.postgresql.acid.zalan.do -o=jsonpath='{.data.password}' | base64 -d)"
+kubectl -n mattermost create secret generic mattermost-database --from-literal=DB_CONNECTION_STRING="postgres://mattermost:$POSTGRES_PASSWORD@mattermost-db-pooler:5432/mattermost?sslmode=require"
+#+end_src
+
+#+name: install-mattermost-cluster
+#+begin_src tmate :dir . :window mattermost
+kubectl -n mattermost apply -f mattermost-clusterinstallation.yaml
+#+end_src
+
+** Certs
+#+begin_src yaml :tangle ./cert-mattermost-sharing-io.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: mattermosttest.a.sharing.io
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - dns01:
+        rfc2136:
+          tsigKeyName: pair
+          tsigAlgorithm: HMACMD5
+          tsigSecretSecretRef:
+            name: tsig-powerdns
+            key: powerdns
+          nameserver: ${LOAD_BALANCER_IP}
+      selector:
+        dnsNames:
+          - "*.gitlab2.ii.coop"
+          - "gitlab2.ii.coop"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: "*.gitlab2.ii.coop"
+  dnsNames:
+    - "*.gitlab2.ii.coop"
+    - gitlab2.ii.coop
+#+end_src
+
+#+begin_src tmate :dir . :window mattermost
+kubectl -n mattermost apply -f ./cert-mattermost-sharing-io.yaml
+#+end_src
+
+** Final configurations
+
+*** File Storage
+
+Navigate to System Console > Environment > File Storage.
+
+Set File System Storage to Amazon S3.
+Set Enable Secure Amazon S3 Connections to _false_.

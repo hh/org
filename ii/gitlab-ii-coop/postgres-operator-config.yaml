@@ -1,0 +1,10 @@
+
+
+# #+NAME: Postgres Operator Config
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-operator
+data:
+  enable_pod_antiaffinity: "true"
