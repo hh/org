@@ -11,7 +11,7 @@ spec:
   useServiceLoadBalancer: false # Set to true to use AWS or Azure load balancers instead of an NGINX controller.
   serviceAnnotations: {} # Service annotations to use with AWS or Azure load balancers.
   ingressAnnotations:
-    cert-manager.io/clusterissuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-prod-mattermost
   ingressName: mm.gitlab2.ii.coop # Set to your hostname, e.g. example.mattermost-example.com. Required when using an Ingress controller. Ignored if useServiceLoadBalancer is true.
   useIngressTLS: true
   database:

@@ -201,7 +201,7 @@ kubectl apply -n mattermost-operator -f ./mattermost-operator.yaml
     useServiceLoadBalancer: false # Set to true to use AWS or Azure load balancers instead of an NGINX controller.
     serviceAnnotations: {} # Service annotations to use with AWS or Azure load balancers.
     ingressAnnotations:
-      cert-manager.io/clusterissuer: letsencrypt-prod
+      cert-manager.io/cluster-issuer: letsencrypt-prod-mattermost
     ingressName: mm.gitlab2.ii.coop # Set to your hostname, e.g. example.mattermost-example.com. Required when using an Ingress controller. Ignored if useServiceLoadBalancer is true.
     useIngressTLS: true
     database:
@@ -238,17 +238,17 @@ kubectl -n mattermost apply -f mattermost-clusterinstallation.yaml
 #+end_src
 
 ** Certs
-#+begin_src yaml :tangle ./cert-mattermost-sharing-io.yaml
+#+begin_src yaml :tangle ./certs.yaml
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-prod
+  name: letsencrypt-prod-mattermost
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: mattermosttest.a.sharing.io
+    email: letsencrypt@ii.coop
     privateKeySecretRef:
-      name: letsencrypt-prod
+      name: mm-gitlab2-ii-coop-tls-cert
     solvers:
     - dns01:
         rfc2136:
@@ -266,11 +266,11 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: letsencrypt-prod
+  name: letsencrypt-prod-mattermost
 spec:
-  secretName: letsencrypt-prod
+  secretName: mm-gitlab2-ii-coop-tls-cert
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-prod-mattermost
     kind: ClusterIssuer
     group: cert-manager.io
   commonName: "*.gitlab2.ii.coop"
@@ -280,7 +280,7 @@ spec:
 #+end_src
 
 #+begin_src tmate :dir . :window mattermost
-kubectl -n mattermost apply -f ./cert-mattermost-sharing-io.yaml
+  envsubst < certs.yaml | kubectl -n mattermost apply -f -
 #+end_src
 
 ** Final configurations
