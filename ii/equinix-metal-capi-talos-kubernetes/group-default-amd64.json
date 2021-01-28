@@ -1,0 +1,8 @@
+{
+  "id": "default-amd64",
+  "name": "default-amd64",
+  "profile": "default-amd64",
+  "selector": {
+    "arch": "amd64"
+  }
+}
