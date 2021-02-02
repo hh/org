@@ -28,8 +28,13 @@
         ]
 
     ;; Here is the hiccup/html that is renderering a list of links to the fecent files
-    [:ul.list-style-none.p0
-     (for [f    (take num-to-show by-date)
-           :let [{:keys [title date-updated-ts date-created-ts]}(f :meta)]]
-       (when (and title date-updated-ts date-created-ts)
-         [:li.px2 [:a {:href (f :path-web)} title]]))]))
+    [:section#recent
+     [:h2 "Recent Posts"]
+    [:ul
+     (for [f (take num-to-show by-date)
+           :let [{:keys [title date-updated-ts date-created-ts date-created] :as meta}(f :meta)
+                 summary (-> f :as-edn :children first :children (->> (filter #(= "FIRN_SUMMARY" (:key %)))) first :value)]]
+       (when (and title date-updated-ts date-created-ts (not= "Index" title))
+         [:li [:a.title {:href (f :path-web)} title]
+          [:p (if summary summary "no summary provided")]
+          [:p [:em date-created]]]))]]))

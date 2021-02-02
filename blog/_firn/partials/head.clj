@@ -6,4 +6,5 @@
    [:meta {:name "author" :content site-author}]
    [:meta {:name "description" :content site-desc}]
    [:title site-title]
-   [:link {:rel "stylesheet" :href (build-url "/static/css/firn_base.css")}]])
+   [:link {:rel "stylesheet" :href (build-url "/static/css/firn_base.css")}]
+   [:link {:rel "stylesheet" :href (build-url "/static/css/ii.css")}]])
