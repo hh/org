@@ -1,5 +1,5 @@
 title = "blog"
-baseurl = "https://nifty-hamilton-285593.netlify.app"
+baseurl = "https://nifty-hamilton-285593.netlify.app/"
 theme = "harbor"
 paginate = 3
 languageCode = "en"
