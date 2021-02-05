@@ -1,0 +1,196 @@
+#+TITLE: Session 01
+
+* Introduction
+* Agenda
+In this session we will tackle
+- your hardware and OS requirements
+- installing all prerequisites
+- github and git configuration
+- forking and cloning kubernetes
+- the kubernetes git workflow
+* Hardware and OS Requirements
+Can run on linux, mac, and windows.
+** Hardware Requirements
+kubernetes is a large project, will require a lot of computing power
+- 8GB of RAM
+- at least 50gb of free disk space
+- multiple core
+*** If running kubernetes in docker
+If using Docker for Mac (or Windows), dedicate the Docker system multiple CPU cores and 6GB RAM
+** Linux
+No additional considerations needed
+** Mac
+https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos
+- will need to insstall [[https://brew.sh]]
+- Will need to install some command line tools
+#+begin_src shell
+brew install coreutils ed findutils gawk gnu-sed gnu-tar grep make
+#+end_src
+- set up some bashrc
+#+begin_src
+GNUBINS="$(find /usr/local/opt -type d -follow -name gnubin -print)"
+
+for bindir in ${GNUBINS[@]}
+do
+  export PATH=$bindir:$PATH
+done
+
+export PATH
+#+end_src
+** Windows
+additional steps, listed here
+https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-windows
+- if using windows 10, then setup the linux subsystem
+- if on < windows 10, switch to a virtual machine running linux
+* Software Prerequisites
+** Docker
+*** What is docker
+Docker is a set of platform as a service (PaaS) products that use OS-level virtualization to deliver software in packages called containers.
+Containers are isolated from one another and bundle their own software, libraries and configuration files; they can communicate with each other through well-defined channels.
+All containers are run by a single operating system kernel and therefore use fewer resources than virtual machines.
+*** Check if you have docker installed
+The operating-system independent way to check whether Docker is running is to ask Docker, using the docker info command.
+You can also use operating system utilities, such as
+#+begin_src
+shell sudo systemctl is-active docker
+#+end_src
+or
+#+begin_src
+sudo status docker
+#+end_src
+or
+#+begin_src
+sudo service docker status
+#+end_src
+ or checking the service status using Windows utilities.
+ Finally, you can check in the process list for the `dockerd` process, using commands like
+ #+begin_src
+ ps
+ #+end_src
+ or
+ #+begin_src
+ top
+ #+end_src
+
+*** Installing docker
+*Docker Engine is available on a variety of Linux platforms, macOS and Windows 10 through Docker Desktop, and as a static binary installation.
+Find your preferred operating system below.
+
+**** MacOS
+Instruction for MacOS [[https://docs.docker.com/docker-for-mac/install/][install]]
+
+**** Linux
+Instuctions for
+Debain [[https://docs.docker.com/engine/install/debian/][install]]
+Fedora [[https://docs.docker.com/engine/install/fedora/][install]]
+Ubuntu [[https://docs.docker.com/engine/install/ubuntu/][install]]
+
+**** Windows
+Docker Desktop for Windows is the Community version of Docker for Microsoft Windows.
+You can download Docker Desktop for Windows from Docker Hub to [[https://docs.docker.com/docker-for-windows/install/][install]]
+
+
+** Git
+*** What is git
+GitHub provides hosting for software development and version control using Git.
+It offers the distributed version control and source code management (SCM) functionality of Git, plus its own features.
+It provides access control and several collaboration features such as bug tracking, feature requests, task management and continuous integration.
+
+*** Check if you have git installed
+*** Installing git
+In a terminal window run
+`git --version`
+If it is installed you will get a message like `git version 2.25.1`
+
+**** Mac
+[[https://github.com/git-guides/install-git#install-git-on-mac][Installing on macOS]]
+
+**** Linux
+[[https://github.com/git-guides/install-git#install-git-on-linux][Installing on Linux]]
+
+**** Windows
+[[https://github.com/git-guides/install-git#install-git-on-windows][Installing on Windows]]
+
+*** Configure git
+To use get you need a Github account.
+If you do not have an account yet go to the [[https://github.com/][Github]] website to sign up.
+You'll need:
+- name
+- email
+- password
+
+preparing for working with the k8s repo.
+** Go
+*** What is go
+Go or [[https://golang.org/][Golang]] as it is also known is an open source programming language that makes it easy to build simple, reliable, and efficient software.
+*** Installing go
+We want to make check is Go is installed and what version.
+Open Command Prompt / CMD ot Terminal window, execute the command to check the Go version. Make sure you have the latest version of Go.
+$ go version
+
+If you need to install Go the [[https://golang.org/doc/install][official installation page]] have struction for Linux, Mac and Windows
+
+*** Adding go to your path
+and knowing how to find your $GOPATH -- We can look here: https://golang.org/doc/gopath_code.html
+** SSH Keys
+*** what is ssh
+SSH is a secure protocol used as the primary means of connecting to Linux servers remotely.
+It provides a text-based interface by spawning a remote shell.
+After connecting, all commands you type in your local terminal are sent to the remote server and executed there.
+SSH keys are a matching set of cryptographic keys which can be used for authentication. Each set contains a public and a private key.
+The public key can be shared freely without concern, while the private key must be vigilantly guarded and never exposed to anyone.
+*** creating a new ssh key
+To generate an RSA key pair on your local computer, type:
+- ssh-keygen
+This will create to files in the .ssh directory. Your private key id_rsa. and public key id_rsa.pub
+
+* Github configuration
+** Signing up for github account
+** Uploading your SSH Key
+** Signing the CNCF CLA
+* Forking and Cloning K8s
+** brief tour of k8s repo
+** forking to your own repo
+** cloning k8s down to your own computer
+* The Kubernetes git workflow
+** k8s/k8s is 'upstream'
+** you create a branch on your fork, and push and make changes.
+** then open a pr in upstream, comparing across forks.
+* Getting Additional Help
+We won't be doing this live, but are there other resources we can offer for help?  perhaps a slack channel that we'd be moderating during NCW times?  A repo in which they can open issues for their questions?
+* What's Next?
+Outline of session 2.  You have all the requirements, now we will build and hack on kubernetes!
+
+
+* Footnotes
+
+#+REVEAL_ROOT: https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2
+# #+REVEAL_TITLE_SLIDE:
+#+NOREVEAL_DEFAULT_FRAG_STYLE: YY
+#+NOREVEAL_EXTRA_CSS: YY
+#+NOREVEAL_EXTRA_JS: YY
+#+REVEAL_HLEVEL: 2
+#+REVEAL_MARGIN: 0.1
+#+REVEAL_WIDTH: 1000
+#+REVEAL_HEIGHT: 600
+#+REVEAL_MAX_SCALE: 3.5
+#+REVEAL_MIN_SCALE: 0.2
+#+REVEAL_PLUGINS: (markdown notes highlight multiplex)
+#+REVEAL_SLIDE_NUMBER: ""
+#+REVEAL_SPEED: 1
+#+REVEAL_THEME: sky
+#+REVEAL_THEME_OPTIONS: beige|black|blood|league|moon|night|serif|simple|sky|solarized|white
+#+REVEAL_TRANS: cube
+#+REVEAL_TRANS_OPTIONS: none|cube|fade|concave|convex|page|slide|zoom
+
+#+OPTIONS: num:nil
+#+OPTIONS: toc:nil
+#+OPTIONS: mathjax:Y
+#+OPTIONS: reveal_single_file:nil
+#+OPTIONS: reveal_control:t
+#+OPTIONS: reveal-progress:t
+#+OPTIONS: reveal_history:nil
+#+OPTIONS: reveal_center:t
+#+OPTIONS: reveal_rolling_links:nil
+#+OPTIONS: reveal_keyboard:t
+#+OPTIONS: reveal_overview:t
