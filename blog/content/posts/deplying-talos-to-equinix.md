@@ -2,7 +2,7 @@
 title = "Deploying Talos to Equinix"
 author = ["Caleb Woodbine <caleb@ii.coop>", "Andrew Rynhard <andrew@rynhard.io>"]
 date = 2021-02-03
-lastmod = 2021-02-04T15:02:27+13:00
+lastmod = 2021-02-05T12:50:34+13:00
 tags = ["kubernetes", "equinix", "talos"]
 categories = ["guides"]
 draft = false
@@ -619,6 +619,34 @@ Since we're able to talk to the APIServer, we can check how all Pods are doing:
 
 Listing Pods shows that everything is live and in a good state:
 
+```bash
+NAMESPACE     NAME                                                     READY   STATUS    RESTARTS   AGE
+kube-system   coredns-5b55f9f688-fb2cb                                 1/1     Running   0          25m
+kube-system   coredns-5b55f9f688-qsvg5                                 1/1     Running   0          25m
+kube-system   kube-apiserver-665px                                     1/1     Running   0          19m
+kube-system   kube-apiserver-mz68q                                     1/1     Running   0          19m
+kube-system   kube-apiserver-qfklt                                     1/1     Running   2          19m
+kube-system   kube-controller-manager-6grxd                            1/1     Running   0          19m
+kube-system   kube-controller-manager-cf76h                            1/1     Running   0          19m
+kube-system   kube-controller-manager-dsmgf                            1/1     Running   0          19m
+kube-system   kube-flannel-brdxw                                       1/1     Running   0          24m
+kube-system   kube-flannel-dm85d                                       1/1     Running   0          24m
+kube-system   kube-flannel-sg6k9                                       1/1     Running   0          24m
+kube-system   kube-proxy-flx59                                         1/1     Running   0          24m
+kube-system   kube-proxy-gbn4l                                         1/1     Running   0          24m
+kube-system   kube-proxy-ns84v                                         1/1     Running   0          24m
+kube-system   kube-scheduler-4qhjw                                     1/1     Running   0          19m
+kube-system   kube-scheduler-kbm5z                                     1/1     Running   0          19m
+kube-system   kube-scheduler-klsmp                                     1/1     Running   0          19m
+kube-system   packet-cloud-controller-manager-77cd8c9c7c-cdzfv         1/1     Running   0          20m
+kube-system   pod-checkpointer-4szh6                                   1/1     Running   0          19m
+kube-system   pod-checkpointer-4szh6-talos-metal-control-plane-j29lb   1/1     Running   0          19m
+kube-system   pod-checkpointer-k7w8h                                   1/1     Running   0          19m
+kube-system   pod-checkpointer-k7w8h-talos-metal-control-plane-lk9f2   1/1     Running   0          19m
+kube-system   pod-checkpointer-m5wrh                                   1/1     Running   0          19m
+kube-system   pod-checkpointer-m5wrh-talos-metal-control-plane-h9v4j   1/1     Running   0          19m
+```
+
 With the cluster live, it's now ready for workloads to be deployed!
 
 
@@ -673,6 +701,16 @@ Now that the `talosconfig` has been written, try listing all containers:
 ```
 
 Here's the containers running on this particular node, in containerd (not k8s related):
+
+```bash
+NODE            NAMESPACE   ID         IMAGE                                  PID    STATUS
+x.x.x.x         system      apid       talos/apid                             3046   RUNNING
+x.x.x.x         system      etcd       gcr.io/etcd-development/etcd:v3.4.14   3130   RUNNING
+x.x.x.x         system      networkd   talos/networkd                         2879   RUNNING
+x.x.x.x         system      routerd    talos/routerd                          2888   RUNNING
+x.x.x.x         system      timed      talos/timed                            2976   RUNNING
+x.x.x.x         system      trustd     talos/trustd                           3047   RUNNING
+```
 
 
 ## Clean up {#clean-up}
