@@ -3,6 +3,7 @@ title = "Provisioning Ghosts in the Machine"
 date = 2015-10-30
 weight = 2011
 lastmod = "Fri Oct 30 14:35:14 NZDT 2015"
+draft = true
 +++
 
 

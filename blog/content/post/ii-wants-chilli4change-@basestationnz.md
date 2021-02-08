@@ -3,6 +3,7 @@ title = "ii wants #chilli4change @basestationnz"
 date = 2016-09-09
 weight = 2021
 lastmod = "Fri Sep 09 05:24:02 NZST 2016"
+summary = "We hope this initial #chili4change provides a forum for a heated discussion of innovation around an (optionally) spicy meal brought to you by ii"
 +++
 
 

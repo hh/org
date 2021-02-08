@@ -3,6 +3,7 @@ title = "SSL Certificate Bindings on Windows with Chef"
 date = 2016-09-06
 weight = 2014
 lastmod = "Tue Sep 06 11:42:02 NZST 2016"
+summary = "Enusring ssl certificates on windows are installed correctly."
 +++
 
 
