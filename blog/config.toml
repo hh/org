@@ -28,6 +28,13 @@ footnoteReturnLinkContents = "^"
   weight = 3
 
 [[params.nav]]
+  identifier = "archives"
+  name = "Archives"
+  icon = "fas fa-archive fa-lg"
+  url = "archives"
+  weight = 3
+
+[[params.nav]]
   identifier = "about"
   name = "About"
   icon = "fas fa-info fa-lg"
