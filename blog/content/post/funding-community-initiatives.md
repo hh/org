@@ -17,19 +17,19 @@ We all put money into envelopes with our emails on them, so we could [@cobudget]
 
 You will now have received an email from iiCobudget:
 
-![image](http://blog.ii.delivery/content/images/2016/09/2016-09-13-115634_646x278_escrotum.png)
+![image](/images/2016/09/2016-09-13-115634_646x278_escrotum.png)
 
 You can [see how it works](https://docs.google.com/presentation/d/1ZQYKxhHwKuQGmOMPpoE8Eo0XMuw1yn55Bjgsh6-D0eQ/pub?start=true&loop=true&delayms=5000&slide=id.ge08287da5_10_0), but we are going to go ahead and walk through clicking on getting started.
 
-![image](http://blog.ii.delivery/content/images/2016/09/2016-09-13-120248_415x462_escrotum.png)
+![image](/images/2016/09/2016-09-13-120248_415x462_escrotum.png)
 
 You just need to fill in your name, and choose a password.
 
-![image](http://blog.ii.delivery/content/images/2016/09/2016-09-13-120912_650x537_escrotum.png)
+![image](/images/2016/09/2016-09-13-120912_650x537_escrotum.png)
 
 Now you have the opportunity to allocate the money from your envelope into existing idea buckets or create your own!
 
-![image](http://blog.ii.delivery/content/images/2016/09/2016-09-13-121209_824x565_escrotum.png)
+![image](/images/2016/09/2016-09-13-121209_824x565_escrotum.png)
 
 Looking forward to seeing us host [Arturo](http://www.arturopelayo.com/) at the next [#chilli4change](https://twitter.com/hashtag/chilli4change)!
 

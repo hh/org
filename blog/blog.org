@@ -1,5 +1,5 @@
 #+HUGO_BASE_DIR: ./
-#+HUGO_SECTION: ./posts
+#+HUGO_SECTION: ./post
 #+HUGO_WEIGHT: auto
 #+HUGO_AUTO_SET_LASTMOD: t
 * Welcome to the blog scroll!  Wanna contribute? Read this first!
@@ -26,11 +26,10 @@ You can either export all the blogs in this file or an individual piece.
 Navigate to the blog post, and iwth your point somewhere in that post hit ~,eHH~.  This is an org dispatch to Hugo with option `export subtree or file to .md file`.  This will create, or overwrite if it exists, a markdown file in [[file:content/posts/][content/posts]] named whatever is set in the blogs property drawer.  Tags, category, draft status, author, summary, etc. all come over.
 *** Exporting all the blogs
 Anywhere in the file hit ~,eHA~.  This will create, or overwrite if it exists, markdown files in content/posts for every blog post with a proper property drawer, each named what's set in that drawer.
-
 ** That's it! enjoy!!
 Though if i missed something, or it's confusing, lemme know!
 * Guides :@guides:
-** Deploying Talos to Equinix :kubernetes:equinix:talos:
+** Deploying Talos to Equinix                                                                                           :kubernetes:equinix:talos:org:
 :PROPERTIES:
 :EXPORT_FILE_NAME: deplying-talos-to-equinix
 :EXPORT_DATE: 2021-02-03
@@ -38,7 +37,7 @@ Though if i missed something, or it's confusing, lemme know!
 :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "From nodes to workloads on baremetal"
 :END:
 #+include: "../ii/equinix-metal-capi-talos-kubernetes/README.org"
-** TODO New Contributor Summit Session 01 :kubernetes:ncw:testing:
+** TODO New Contributor Summit Session 01                                                                                     :kubernetes:ncw:testing:
 :PROPERTIES:
 :EXPORT_FILE_NAME: new-contributor-summit-session-01
 :EXPORT_DATE: 2021-02-05
@@ -46,7 +45,7 @@ Though if i missed something, or it's confusing, lemme know!
 :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Intro to Testing for new K8s contributors"
 :END:
 #+include: ../ncw/session-01.org
-** TODO New Contributor Summit Session 02 :kubernetes:ncw:testing:
+** TODO New Contributor Summit Session 02                                                                                 :kubernetes:ncw:testing:org:
 :PROPERTIES:
 :EXPORT_FILE_NAME: new-contributor-summit-session-02
 :EXPORT_DATE: 2021-02-05
@@ -54,7 +53,7 @@ Though if i missed something, or it's confusing, lemme know!
 :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Part Two to our intro to testing for new K8s contributors"
 :END:
 #+include: ../ncw/session-02.org
-** TODO New Contributor Summit Session 03 :kubernetes:ncw:testing:
+** TODO New Contributor Summit Session 03                                                                                 :kubernetes:ncw:testing:org:
 :PROPERTIES:
 :EXPORT_FILE_NAME: new-contributor-summit-session-03
 :EXPORT_DATE: 2021-02-05
@@ -62,5 +61,4 @@ Though if i missed something, or it's confusing, lemme know!
 :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Part Three to our intro to testing for new K8s contributors"
 :END:
 #+include: ../ncw/session-03.org
-* News :@news:
-* Scratch* Footnotes
+* News :@news:org
