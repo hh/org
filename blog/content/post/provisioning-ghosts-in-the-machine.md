@@ -4,8 +4,8 @@ date = 2015-10-30
 weight = 2011
 lastmod = "Fri Oct 30 14:35:14 NZDT 2015"
 draft = true
+summary = I set this blog up in a few minutes using a chef-provisoining recipe, ghost-cookbook, and the new do-api-v2 support.
 +++
-
 
 I set this blog up in just a few minutes using https://github.com/cnunciato/ghost-cookbook
 and a simple chef-provisioning recipe and the new [do-api-v2](http://blog.ii.delivery/do-api-v2/) support.

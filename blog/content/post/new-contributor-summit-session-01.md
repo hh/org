@@ -6,7 +6,7 @@ lastmod = 2021-02-05T15:56:17+13:00
 section = "post"
 tags = ["kubernetes", "ncw", "testing"]
 categories = ["guides"]
-draft = false
+draft = true
 weight = 2002
 summary = "Intro to Testing for new K8s contributors"
 [menu.main]

@@ -2,8 +2,8 @@
 title = "Deploying Talos to Equinix"
 author = ["Caleb Woodbine <caleb@ii.coop>", "Andrew Rynhard <andrew@rynhard.io>"]
 date = 2021-02-03
-lastmod = 2021-02-05T12:50:34+13:00
-tags = ["kubernetes", "equinix", "talos"]
+lastmod = 2021-02-19T08:40:28+13:00
+tags = ["kubernetes", "equinix", "talos", "org"]
 categories = ["guides"]
 draft = false
 weight = 2001

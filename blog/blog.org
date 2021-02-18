@@ -13,7 +13,7 @@ NOTE: While hugo can also parse org, we felt it best to use the syntax it is des
 We generate our markdown with [[file:~/humacs/doom-emacs/modules/lang/org/README.org::*Module Flags][org-export]].  This is done intentionally from within this file.  After exporting a blog article, you can commit and push your changes to see it go live after a minute or two at blog.ii.coop.
 
 ** Adding a new blog post
-This file is organized by categories, like [[Guides]] and [[News]].  To add a new blog post, create a newline beneath a category heading, then type ~<blog~ and hit ~TAB~.  This will trigger our blog snippet, running through all the fields necessary.
+This file is organized by categories, like [[Guides]].  To add a new blog post, create a newline beneath a category heading, then type ~<blog~ and hit ~TAB~.  This will trigger our blog snippet, running through all the fields necessary.
 
 Fill out the field, press tab to move to the next one, until you reach the line below properties.  Then, you can either just start typing your blog /or/ you can include an org file in our org repo with this code block
 : #+include: ../relative/path/to/file.org
@@ -61,4 +61,3 @@ Though if i missed something, or it's confusing, lemme know!
 :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Part Three to our intro to testing for new K8s contributors"
 :END:
 #+include: ../ncw/session-03.org
-* News :@news:org
