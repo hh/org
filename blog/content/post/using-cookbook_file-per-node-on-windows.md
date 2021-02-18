@@ -1,7 +1,7 @@
 +++
 title = "Using cookbook_file per Node on Windows"
 date = 2016-09-06
-weight = 2012
+weight = 2006
 lastmod = "Tue Sep 06 11:43:03 NZST 2016"
 summary = "I needed to deploy a different node specific license file to our windows hosts so I wrote a cookbook_file resource..."
 +++
