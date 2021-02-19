@@ -28,9 +28,9 @@ mode](http://linux-sunxi.org/FEL) to support flashing. On the
 [C.H.I.P.](https://getchip.com/pages/chip), a physical paperclip can be used to
 short the uboot/FEL pin.
 
-## A paperclip is used to turn on write-mode
+## A paperclip or jumper wire is used to turn on write-mode
 
-![image](http://flash.getchip.com/images/step1.gif)
+![jumper wire in correct place in chip](/images/2017/01/uboot_fel_jumper.jpg)
 
 This allows the website + plugin to detect the C.H.I.P. and present valid images for flashing.
 
