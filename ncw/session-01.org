@@ -1,32 +1,44 @@
 #+TITLE: Session 01
+#+HTML_HEAD_EXTRA: <link rel="preconnect" href="https://fonts.gstatic.com">
+#+HTML_HEAD_EXTRA: <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+#+HTML_HEAD_EXTRA: <link rel='stylesheet' href='aesthetic/main.css' />
 
 * Introduction
+Welcome to part one of our "New Contributor Summit" guide, where we learn how to
+run, customize, test, and contribute to [[dfn:Kubernetes][Kubernetes]].
+
+We start the guides with the assumption you are just getting started, and have little to zero knowledge of how to work with kubernetes.  Each guie will then get more advanced.
 * Agenda
-In this session we will tackle
-- your hardware and OS requirements
-- installing all prerequisites
-- github and git configuration
-- forking and cloning kubernetes
-- the kubernetes git workflow
+In this session, we tackle:
+- hardware and OS requirements to run Kubernetes
+- installing the tools to get started
+- github and your git configuration
+- copying down your own version of the Kubernetes codebase
+- the workflow for contributing changes back.
 * Hardware and OS Requirements
-Can run on linux, mac, and windows.
+Kubernetes can run on linux, mac, windows, or within [[dfn:Docker][Docker]]
 ** Hardware Requirements
+# [[mn:1][If using Docker for Mac (or Windows), dedicate the Docker system multiple CPU cores and 6GB RAM]]
 kubernetes is a large project, will require a lot of computing power
 - 8GB of RAM
 - at least 50gb of free disk space
-- multiple core
-*** If running kubernetes in docker
-If using Docker for Mac (or Windows), dedicate the Docker system multiple CPU cores and 6GB RAM
-** Linux
-No additional considerations needed
+- multiple cores
+*  Installing prerequisites
+What you need to install, and how to install it, will change depending on the type of system you are using.
+** If you are running Linux
+No additional considerations are needed!
 ** Mac
-https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos
-- will need to insstall [[https://brew.sh]]
-- Will need to install some command line tools
+With macs, you will want to have a mac package manager and then use that to install some necessary prerequisites.
+*** Install Brew
+This is a package manager for mac that you run in the command line. You can
+download and install it from the [[https://brew.sh][brew homepage]]
+*** Install Dependencies
+We'll use brew to install these.
 #+begin_src shell
 brew install coreutils ed findutils gawk gnu-sed gnu-tar grep make
 #+end_src
-- set up some bashrc
+*** Setup your .bashrc
+Add this snippet to the bottom of your ~.bashrc~
 #+begin_src
 GNUBINS="$(find /usr/local/opt -type d -follow -name gnubin -print)"
 
@@ -37,14 +49,22 @@ done
 
 export PATH
 #+end_src
+*** Check out official docs
+You can find them here: [[https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos][k8s/community/development.md]]
 ** Windows
-additional steps, listed here
-https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-windows
-- if using windows 10, then setup the linux subsystem
-- if on < windows 10, switch to a virtual machine running linux
+*** If on windows 10
+setup the linux subsystem
+[[https://docs.microsoft.com/en-us/windows/wsl/install-win10][read the installaction instructions]]
+*** If on < windows 10
+Switch to a virtual machine running linux
+[[https://www.vagrantup.com/docs/installation][install vagrant]]
+*** Additional Details
+[[https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-windows][read official docs]]
 * Software Prerequisites
 ** Docker
 *** What is docker
+- a container engine
+- allows you to bundle and package
 Docker is a set of platform as a service (PaaS) products that use OS-level virtualization to deliver software in packages called containers.
 Containers are isolated from one another and bundle their own software, libraries and configuration files; they can communicate with each other through well-defined channels.
 All containers are run by a single operating system kernel and therefore use fewer resources than virtual machines.
@@ -161,7 +181,6 @@ We won't be doing this live, but are there other resources we can offer for help
 * What's Next?
 Outline of session 2.  You have all the requirements, now we will build and hack on kubernetes!
 
-
 * Footnotes
 
 #+REVEAL_ROOT: https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2
@@ -173,12 +192,12 @@ Outline of session 2.  You have all the requirements, now we will build and hack
 #+REVEAL_MARGIN: 0.1
 #+REVEAL_WIDTH: 1000
 #+REVEAL_HEIGHT: 600
-#+REVEAL_MAX_SCALE: 3.5
+#+REVEAL_MAX_SCALE: 5.5
 #+REVEAL_MIN_SCALE: 0.2
 #+REVEAL_PLUGINS: (markdown notes highlight multiplex)
 #+REVEAL_SLIDE_NUMBER: ""
 #+REVEAL_SPEED: 1
-#+REVEAL_THEME: sky
+#+REVEAL_THEME: blood
 #+REVEAL_THEME_OPTIONS: beige|black|blood|league|moon|night|serif|simple|sky|solarized|white
 #+REVEAL_TRANS: cube
 #+REVEAL_TRANS_OPTIONS: none|cube|fade|concave|convex|page|slide|zoom

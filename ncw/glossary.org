@@ -1,0 +1,11 @@
+#+TITLE: Glossary
+#+PURPOSE: each heading is a term, the body is its definition
+
+* Docker
+:PROPERTIES:
+:DEFINITION: Containerization software that lets you package programs, and the hardware required to run them, into self-contained virtual machines. This makes them easier to share, copy, and run on different computers.
+:END:
+* Kubernetes
+:PROPERTIES:
+:DEFINITION: A container orchestration platform intended to simplify the management of complex infrastructure. see its <a href='https://kubernetes.io'>homepage</a>
+:END:
