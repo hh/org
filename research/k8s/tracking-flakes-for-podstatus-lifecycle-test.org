@@ -1,0 +1,81 @@
+#+TITLE: Tracking flakes for PodStatus Lifecycle Test
+
+
+* Summary
+
+Locating the root cause of an e2e test flake is hard.
+The following process looks to provide a clear process by using the [[https://github.com/brianpursley/k8s-e2e-log-combiner][k8s-e2e-log-combiner]] container, which pulls the e2e test logs together into a single sequential file.
+
+* Pod Status Test
+
+- e2e test: https://github.com/kubernetes/kubernetes/blob/3c514ae588fdd2867eb9cced1c43c9ee2276a7ce/test/e2e/common/pods.go#L895
+- [It] should run through the lifecycle of Pods and PodStatus [Conformance]
+
+* PodStatus Succes
+
+- Kubernetes e2e suite: [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance] (5sec)
+
+** Combine Prow Logs
+
+#+BEGIN_SRC shell :results silent :async t
+docker run brianpursley/k8s-e2e-log-combiner https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366844842662957056 > ci-kubernetes-kind-e2e-parallel-1366844842662957056-pass.log
+#+END_SRC
+
+** Filter logs to test namespace (pods-1311)
+
+#+BEGIN_SRC shell :results silent :async t
+nl ci-kubernetes-kind-e2e-parallel-1366844842662957056-pass.log | grep -a 'pods-5320' | nl > ci-kubernetes-kind-e2e-parallel-1366844842662957056-pass-pods-5320.log
+#+END_SRC
+
+** Passing Test Sequence (filtered summary)
+
+#+BEGIN_SRC text
+eventhandlers.go:164] "Add event for unscheduled pod" pod="pods-5320/pod-test"
+eventhandlers.go:164] "Add event for unscheduled pod" pod="pods-5320/pod-test"
+
+scheduling_queue.go:812] "About to try and schedule pod" pod="pods-5320/pod-test"
+scheduling_queue.go:812] "About to try and schedule pod" pod="pods-5320/pod-test"
+
+scheduler.go:457] "Attempting to schedule pod" pod="pods-5320/pod-test"
+scheduler.go:457] "Attempting to schedule pod" pod="pods-5320/pod-test"
+
+default_binder.go:51] "Attempting to bind pod to node" pod="pods-5320/pod-test" node="kind-worker2"
+default_binder.go:51] "Attempting to bind pod to node" pod="pods-5320/pod-test" node="kind-worker2"
+
+INFO: observed Pod pod-test in namespace pods-5320 in phase Pending with labels: map[test-pod-static:true] & conditions []
+INFO: observed Pod pod-test in namespace pods-5320 in phase Pending with labels: map[test-pod-static:true] & conditions [{PodScheduled True 0001-01-01 00:00:00 +0000 UTC 2021-03-02 20:38:46 +0000 UTC  }]
+
+eventhandlers.go:201] "Delete event for unscheduled pod" pod="pods-5320/pod-test"
+eventhandlers.go:201] "Delete event for unscheduled pod" pod="pods-5320/pod-test"
+eventhandlers.go:221] "Add event for scheduled pod" pod="pods-5320/pod-test"
+eventhandlers.go:221] "Add event for scheduled pod" pod="pods-5320/pod-test"
+
+scheduler.go:602] "Successfully bound pod to node" pod="pods-5320/pod-test" node="kind-worker2" evaluatedNodes=3 feasibleNodes=2
+scheduler.go:602] "Successfully bound pod to node" pod="pods-5320/pod-test" node="kind-worker2" evaluatedNodes=3 feasibleNodes=2
+
+containerd[172]: time="2021-03-02T20:38:48.493614510Z" level=info msg="RunPodsandbox for &PodSandboxMetadata{Name:pod-test,Uid:0b8094cc-283c-4863-94ea-dc4bfe7ed11a,Namespace:pods-5320,Attempt:0,}"
+containerd[172]: time="2021-03-02T20:38:48.493614510Z" level=info msg="RunPodsandbox for &PodSandboxMetadata{Name:pod-test,Uid:0b8094cc-283c-4863-94ea-dc4bfe7ed11a,Namespace:pods-5320,Attempt:0,}"
+containerd[172]: time="2021-03-02T20:38:48.739386844Z" level=info msg="RunPodSandbox for &PodSandboxMetadata{Name:pod-test,Uid:0b8094cc-283c-4863-94ea-dc4bfe7ed11a,Namespace:pods-5320,Attempt:0,} returns sandbox id \"45e0978f1e8c9fa2179bf1fd9f1a5cfb02a0c2e6a668185b75f0fd8e1c311801\""
+containerd[172]: time="2021-03-02T20:38:48.739386844Z" level=info msg="RunPodSandbox for &PodSandboxMetadata{Name:pod-test,Uid:0b8094cc-283c-4863-94ea-dc4bfe7ed11a,Namespace:pods-5320,Attempt:0,} returns sandbox id \"45e0978f1e8c9fa2179bf1fd9f1a5cfb02a0c2e6a668185b75f0fd8e1c311801\""
+
+INFO: Found Pod pod-test in namespace pods-5320 in phase Running with labels: map[test-pod-static:true] & conditions [{Initialized True 0001->305c8.log]
+
+eventhandlers.go:279] "Delete event for scheduled pod" pod="pods-5320/pod-test"
+eventhandlers.go:279] "Delete event for scheduled pod" pod="pods-5320/pod-test"
+#+END_SRC
+* Test Grid: gce-cos-master-blocking
+
+- https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&include-filter-by-regex=should.*lifecycle.*PodStatus
+
+** Combine Prow Logs
+
+#+BEGIN_SRC shell :results silent :async t
+docker run brianpursley/k8s-e2e-log-combiner https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1364703488960892928 > ci-kubernetes-e2e-gci-gce-1364703488960892928-fail.log
+#+END_SRC
+
+** Filter logs to test namespace (pods-1311)
+
+#+BEGIN_SRC shell :results silent :async t
+nl ci-kubernetes-e2e-gci-gce-1364703488960892928-fail.log | grep -a 'pods-1311' | nl > ci-kubernetes-e2e-gci-gce-1364703488960892928-fail-pods-1311.log
+#+END_SRC
+
