@@ -1,0 +1,69 @@
+#+TITLE: Tracking flakes for Deployment Lifecycle Test
+
+
+* Summary
+
+Locating the root cause of an e2e test flake is hard.
+The following process looks to provide a clear process by using the [[https://github.com/brianpursley/k8s-e2e-log-combiner][k8s-e2e-log-combiner]] container, which pulls the e2e test logs together into a single sequential file.
+Various code blocks will help filter the combined log file into a various files for closer inspection.
+
+* Deployment Lifecycle Test: Overview
+
+- Test Grid: https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&include-filter-by-regex=should.run.*lifecycle.*Deployment&width=5
+- e2e test: https://github.com/kubernetes/kubernetes/blob/2f263b24a7aab78c794fb90339c176678de6bf8e/test/e2e/apps/deployment.go#L176
+- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+
+* Deployment Lifecycle Test: Succes
+
+Before exploring test flakes it's nice to have a clear list and order of the what componments the cluster exercised during the test run.
+=release-master-blocking/kind-master-parallel= has some test flakes that will be investigated later.
+First, select a recent passing prow job.
+
+** Combine Prow Logs together
+
+#+BEGIN_SRC shell :results silent :async t
+docker run brianpursley/k8s-e2e-log-combiner https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1367182553303224320 > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass.log
+#+END_SRC
+
+** Filter logs for 'Conformance'
+
+To help track/note events later we will included a set of line numbers in the resulting log file.
+
+#+BEGIN_SRC shell :results silent :async t
+nl ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass.log | \
+   grep -a 'Conformance' > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-conformance.log
+#+END_SRC
+
+** Locate the start/end of the test run
+
+#+BEGIN_SRC shell :results verbatim :exports both
+cat ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-conformance.log | grep -a Deployment | grep -a lifecycle | tail -3
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+200721	19:02:01.402000000 [/build-log.txt]                                               [It] should run the lifecycle of a Deployment [Conformance]
+207667	19:02:19.423000000 [/build-log.txt]                                                 should run the lifecycle of a Deployment [Conformance]
+207670	19:02:19.423000000 [/build-log.txt]                                               {"msg":"PASSED [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]","total":-1,"completed":8,"skipped":70,"failed":0}
+#+end_example
+
+The above results provide 200721 (start) and 207670 (end) of the test run.
+Rounding those numbers to the nearest 5k provides a small buffer around the test to help understand the state of the cluster before/after the test run.
+
+** Trim log file to Deployment Lifecycle Test run
+
+#+BEGIN_SRC shell :results silent :async t
+nl ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass.log | \
+    head -210000 | tail -n +200000 > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-lifecycle.log
+#+END_SRC
+
+A short review of the logs will locate the namespace used for the deployment lifecycle test, =deployment-197=
+
+** Short summary of deployment lifecycle test
+
+This filter provides a short log of the steps taken in testing the Deployment lifecycle.
+
+#+BEGIN_SRC shell :results silent :async t
+cat ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-lifecycle.log | \
+    grep -a "deployment-197" > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-197.log
+#+END_SRC
