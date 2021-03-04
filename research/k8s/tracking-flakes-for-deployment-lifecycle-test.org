@@ -13,7 +13,7 @@ Various code blocks will help filter the combined log file into a various files 
 - e2e test: https://github.com/kubernetes/kubernetes/blob/2f263b24a7aab78c794fb90339c176678de6bf8e/test/e2e/apps/deployment.go#L176
 - [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
 
-* Deployment Lifecycle Test: Succes
+* Deployment Lifecycle Test: Success
 
 Before exploring test flakes it's nice to have a clear list and order of the what componments the cluster exercised during the test run.
 =release-master-blocking/kind-master-parallel= has some test flakes that will be investigated later.
@@ -57,7 +57,7 @@ nl ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass.log | \
     head -210000 | tail -n +200000 > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-lifecycle.log
 #+END_SRC
 
-A short review of the logs will locate the namespace used for the deployment lifecycle test, =deployment-197=
+A short review of the logs will locate the namespace used by the deployment lifecycle test, =deployment-197=
 
 ** Short summary of deployment lifecycle test
 
@@ -66,4 +66,92 @@ This filter provides a short log of the steps taken in testing the Deployment li
 #+BEGIN_SRC shell :results silent :async t
 cat ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-lifecycle.log | \
     grep -a "deployment-197" > ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-197.log
+#+END_SRC
+
+* Deployment Lifecycle Test: Fail #1
+
+Before exploring test flakes it's nice to have a clear list and order of the what componments the cluster exercised during the test run.
+=release-master-blocking/kind-master-parallel= has some test flakes that will be investigated later.
+First, select a recent passing prow job.
+
+** Combine Prow Logs together
+
+#+BEGIN_SRC shell :results silent :async t
+PROW_URL="https://prow.k8s.io/view/gs/kubernetes-jenkins/logs"
+PROW_JOB="ci-kubernetes-kind-e2e-parallel/1366153928210649088"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+LOG_DIR="/tmp/logs"
+
+docker run brianpursley/k8s-e2e-log-combiner ${PROW_URL}/${PROW_JOB} > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1.log
+#+END_SRC
+
+** Filter log for 'Conformance'
+
+To help track/note events later we will included a set of line numbers in the resulting log file.
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+nl ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1.log | \
+   grep -a 'Conformance' > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-conformance.log
+#+END_SRC
+
+** Locate the start/end of the test run
+
+*** Test Start
+
+#+BEGIN_SRC shell :results verbatim :exports both
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-conformance.log | grep -a "\[It\] should run the lifecycle of a Deployment" | tail -4
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+112105	22:51:10.708000000 [/build-log.txt]                                               [It] should run the lifecycle of a Deployment [Conformance]
+482857	23:07:37.019000000 [/build-log.txt]                                               [91m[1m[Fail] [0m[90m[sig-apps] Deployment [0m[91m[1m[It] should run the lifecycle of a Deployment [Conformance] [0m
+#+end_example
+
+
+The above result provides the start of the test run at 112105, rounding to 110,000
+
+*** Test End
+
+#+BEGIN_SRC shell :results verbatim :exports both
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-conformance.log | grep -a "Deployment should" | grep -a lifecycle | grep -v "PASSED" | tail -10
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+126652	22:52:10.748000000 [/build-log.txt]                                               {"msg":"FAILED [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]","total":-1,"completed":5,"skipped":50,"failed":1,"failures":["[sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]"]}
+#+end_example
+
+The above result provides the end point in the test run at 126652, rounding to 130,000
+
+** Trim log file to Deployment Lifecycle Test run
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+nl ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1.log | \
+    head -130000 | tail -n +110000 > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle.log
+#+END_SRC
+
+A short review of the logs will locate the namespace used by the deployment lifecycle test, =deployment-2394=
+
+** Short summary of deployment lifecycle test
+
+This filter provides a short log of the steps taken in testing the Deployment lifecycle.
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle.log | \
+    grep -a "deployment-2394" > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-2394.log
 #+END_SRC
