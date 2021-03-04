@@ -70,9 +70,7 @@ cat ci-kubernetes-kind-e2e-parallel-1367182553303224320-pass-deployment-lifecycl
 
 * Deployment Lifecycle Test: Fail #1
 
-Before exploring test flakes it's nice to have a clear list and order of the what componments the cluster exercised during the test run.
-=release-master-blocking/kind-master-parallel= has some test flakes that will be investigated later.
-First, select a recent passing prow job.
+Select a recent failing prow job from =release-master-blocking/kind-master-parallel=
 
 ** Combine Prow Logs together
 
@@ -154,4 +152,87 @@ PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
 
 cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle.log | \
     grep -a "deployment-2394" > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-2394.log
+#+END_SRC
+
+** Filtering logs futher
+*** Focus on the node running the test
+
+The test is using node =kind-worker= so lets's remove logs for =kind-worker2=
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle.log | \
+    grep -v "kind-worker2" > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-no-kind-worker2.log
+#+END_SRC
+
+*** Locate pod details
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-no-kind-worker2.log | \
+    grep -a "deployment-2394/test-deployment-" > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-pod-details.log
+#+END_SRC
+
+*** Locate pod events
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+cat ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-no-kind-worker2.log | \
+    grep -a "test-deployment-7778d6bf57-" > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-pod-events.log
+#+END_SRC
+
+** Locate test failures
+*** Error: cannot find volume
+
+#+BEGIN_SRC shell :results verbatim :exports both
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+grep -a "cannot find volume" ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-pod-events.log  | tail -1
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+128903	22:52:20.825451000 [/artifacts/logs/kind-worker/kubelet.log]                      Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.825451     243 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-fqqvk.16680b29cf00e812", GenerateName:"", Namespace:"deployment-2394", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-2394", Name:"test-deployment-7778d6bf57-fqqvk", UID:"dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8", APIVersion:"v1", ResourceVersion:"12891", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-2t44s\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-2394" not found' (will not retry!)
+#+end_example
+
+*** Locate volume
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+grep -a "kube-api-access-2t44s" ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle.log > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-issue-volume.log
+#+END_SRC
+
+*** Locate when the volume was around
+
+#+BEGIN_SRC shell :results verbatim :exports both
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+head -c 15 ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-issue-volume.log && echo
+tail -1 ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-issue-volume.log | head -c 15 && echo
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+112951	22:51:11
+128903	22:52:20
+#+end_example
+
+*** Full filter for volume
+
+#+BEGIN_SRC shell :results silent :async t
+LOG_DIR="/tmp/logs"
+PROW_JOB_BASE_NAME="ci-kubernetes-kind-e2e-parallel-1366153928210649088"
+
+head -128903 ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1.log | \
+    tail -n +112951 > ${LOG_DIR}/${PROW_JOB_BASE_NAME}-fail1-deployment-lifecycle-full-volume-logs.log
 #+END_SRC
