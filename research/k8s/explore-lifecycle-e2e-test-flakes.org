@@ -1,0 +1,774 @@
+#+TITLE:Explore Lifecycle E2e Test Flakes
+
+
+* Summary of Lifecycle Test flakes
+
+After reviewing a number of e2e lifecycle tests for sig-apps, there looks to be a common issue trying to mount the service account secrets.
+Each volume is created and destroyed before the pod even gets to attach the volume.
+Based on the volume prefix =kube-api-access= which is located in [[https://github.com/kubernetes/kubernetes/blob/master/plugin/pkg/admission/serviceaccount/admission.go#L56-L57][serviceaccount/admission.go]], the =ServiceAccount= prefix is used for =ServiceAccountTokenSecret= [[https://github.com/kubernetes/kubernetes/blob/master/plugin/pkg/admission/serviceaccount/admission.go#L451-L477][Ref:L451-477]].
+
+Due to the complexity and knowledge required to deal with these flakes it would be helpful to know which SIG is best placed to create a suitable fix.
+
+Flake details where gathered from the following testgrids.
+
+- https://testgrid.k8s.io/sig-release-master-blocking#kind-master-parallel&include-filter-by-regex=should.run.*lifecycle.*&width=5
+- https://testgrid.k8s.io/sig-release-master-blocking#kind-ipv6-master-parallel&include-filter-by-regex=should.run.*lifecycle.*&width=5
+
+* Flake 1: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366153928210649088
+- namespace: deployment-2394
+- node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366153928210649088/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Feb 28 22:51:10.748: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.748: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.754: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.754: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.769: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.769: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.782: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:51:10.782: INFO: observed Deployment test-deployment in namespace deployment-2394 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 28 22:52:10.748: FAIL: failed to see replicas of test-deployment in namespace deployment-2394 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00023e240>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366153928210649088/artifacts/logs/kind-worker/kubelet.log | \
+     grep "deployment-2394" | grep "will not retry!" | tail -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.825451     243 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-fqqvk.16680b29cf00e812", GenerateName:"", Namespace:"deployment-2394", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-2394", Name:"test-deployment-7778d6bf57-fqqvk", UID:"dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8", APIVersion:"v1", ResourceVersion:"12891", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-2t44s\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-2394" not found' (will not retry!)
+#+end_example
+
+** Volume: kube-api-access-2t44s
+- volume logs:
+
+  #+BEGIN_SRC shell :results verbatim :exports both
+  curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366153928210649088/artifacts/logs/kind-worker/kubelet.log | \
+       grep "kube-api-access-2t44s"
+  #+end_src
+
+  #+RESULTS:
+  #+begin_example
+  Feb 28 22:51:11 kind-worker kubelet[243]: I0228 22:51:11.755606     243 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-2t44s" (UniqueName: "kubernetes.io/projected/dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8-kube-api-access-2t44s") pod "test-deployment-7778d6bf57-fqqvk" (UID: "dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8")
+  Feb 28 22:52:19 kind-worker kubelet[243]: I0228 22:52:19.542102     243 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-2t44s" (UniqueName: "kubernetes.io/projected/dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8-kube-api-access-2t44s") pod "dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8" (UID: "dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8")
+  Feb 28 22:52:19 kind-worker kubelet[243]: I0228 22:52:19.560997     243 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8-kube-api-access-2t44s" (OuterVolumeSpecName: "kube-api-access-2t44s") pod "dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8" (UID: "dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8"). InnerVolumeSpecName "kube-api-access-2t44s". PluginName "kubernetes.io/projected", VolumeGidValue ""
+  Feb 28 22:52:19 kind-worker kubelet[243]: I0228 22:52:19.642678     243 reconciler.go:319] Volume detached for volume "kube-api-access-2t44s" (UniqueName: "kubernetes.io/projected/dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8-kube-api-access-2t44s") on node "kind-worker" DevicePath ""
+  Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.606772     243 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-2t44s ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+  Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.606897     243 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-2t44s,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-fqqvk_deployment-2394(dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8): CreateContainerConfigError: cannot find volume "kube-api-access-2t44s" to mount into container "test-deployment"
+  Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.606931     243 pod_workers.go:191] Error syncing pod dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8 ("test-deployment-7778d6bf57-fqqvk_deployment-2394(dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-2t44s\" to mount into container \"test-deployment\""
+  Feb 28 22:52:20 kind-worker kubelet[243]: E0228 22:52:20.825451     243 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-fqqvk.16680b29cf00e812", GenerateName:"", Namespace:"deployment-2394", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-2394", Name:"test-deployment-7778d6bf57-fqqvk", UID:"dc0a9362-fa20-419e-8ab4-7f2a4f27c9b8", APIVersion:"v1", ResourceVersion:"12891", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-2t44s\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0072589242b8012, ext:380893991846, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-2394" not found' (will not retry!)
+  #+end_example
+
+* Flake 2: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365724105587822592
+- namespace: deployment-8926
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365724105587822592/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Feb 27 18:30:19.521: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.521: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.526: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.527: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.545: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.545: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.572: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:30:19.572: INFO: observed Deployment test-deployment in namespace deployment-8926 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 18:31:19.520: FAIL: failed to see replicas of test-deployment in namespace deployment-8926 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00023e240>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365724105587822592/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "deployment-8926" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 27 18:31:25 kind-worker2 kubelet[243]: E0227 18:31:25.672155     243 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-zgtz4,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-5kn2d_deployment-8926(6a27c0b2-b89e-41bc-a323-efcfd7dcca33): CreateContainerConfigError: cannot find volume "kube-api-access-zgtz4" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-zgtz4
+
+  #+BEGIN_SRC shell :results verbatim :exports both
+  curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365724105587822592/artifacts/logs/kind-worker2/kubelet.log | \
+       grep "kube-api-access-zgtz4"
+  #+end_src
+
+  #+RESULTS:
+  #+begin_example
+  Feb 27 18:30:19 kind-worker2 kubelet[243]: I0227 18:30:19.690640     243 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-zgtz4" (UniqueName: "kubernetes.io/projected/6a27c0b2-b89e-41bc-a323-efcfd7dcca33-kube-api-access-zgtz4") pod "test-deployment-7778d6bf57-5kn2d" (UID: "6a27c0b2-b89e-41bc-a323-efcfd7dcca33")
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: I0227 18:31:25.509650     243 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-zgtz4" (UniqueName: "kubernetes.io/projected/6a27c0b2-b89e-41bc-a323-efcfd7dcca33-kube-api-access-zgtz4") pod "6a27c0b2-b89e-41bc-a323-efcfd7dcca33" (UID: "6a27c0b2-b89e-41bc-a323-efcfd7dcca33")
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: I0227 18:31:25.537865     243 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/6a27c0b2-b89e-41bc-a323-efcfd7dcca33-kube-api-access-zgtz4" (OuterVolumeSpecName: "kube-api-access-zgtz4") pod "6a27c0b2-b89e-41bc-a323-efcfd7dcca33" (UID: "6a27c0b2-b89e-41bc-a323-efcfd7dcca33"). InnerVolumeSpecName "kube-api-access-zgtz4". PluginName "kubernetes.io/projected", VolumeGidValue ""
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: I0227 18:31:25.610224     243 reconciler.go:319] Volume detached for volume "kube-api-access-zgtz4" (UniqueName: "kubernetes.io/projected/6a27c0b2-b89e-41bc-a323-efcfd7dcca33-kube-api-access-zgtz4") on node "kind-worker2" DevicePath ""
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: E0227 18:31:25.672018     243 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-zgtz4 ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: E0227 18:31:25.672155     243 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-zgtz4,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-5kn2d_deployment-8926(6a27c0b2-b89e-41bc-a323-efcfd7dcca33): CreateContainerConfigError: cannot find volume "kube-api-access-zgtz4" to mount into container "test-deployment"
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: E0227 18:31:25.672194     243 pod_workers.go:191] Error syncing pod 6a27c0b2-b89e-41bc-a323-efcfd7dcca33 ("test-deployment-7778d6bf57-5kn2d_deployment-8926(6a27c0b2-b89e-41bc-a323-efcfd7dcca33)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-zgtz4\" to mount into container \"test-deployment\""
+  Feb 27 18:31:25 kind-worker2 kubelet[243]: E0227 18:31:25.783868     243 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-5kn2d.1667ae584adee0a0", GenerateName:"", Namespace:"deployment-8926", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-8926", Name:"test-deployment-7778d6bf57-5kn2d", UID:"6a27c0b2-b89e-41bc-a323-efcfd7dcca33", APIVersion:"v1", ResourceVersion:"32658", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-zgtz4\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc006c1df680f3ea0, ext:798959332703, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc006c1df680f3ea0, ext:798959332703, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-8926" not found' (will not retry!)
+  #+end_example
+
+* Flake 3: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365555248759836672
+- namespace: deployment-5921
+- node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365555248759836672/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Feb 27 07:08:24.219: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.219: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.244: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.245: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.304: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.305: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.386: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:08:24.386: INFO: observed Deployment test-deployment in namespace deployment-5921 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 07:09:24.218: FAIL: failed to see replicas of test-deployment in namespace deployment-5921 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc000238230>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365555248759836672/artifacts/logs/kind-worker/kubelet.log | \
+     grep "deployment-5921" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 27 07:09:33 kind-worker kubelet[246]: E0227 07:09:33.073743     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-s6mbj,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-fk8kl_deployment-5921(63e3745e-84f3-4d7a-911e-1e5a864e9d52): CreateContainerConfigError: cannot find volume "kube-api-access-s6mbj" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-s6mbj
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1365555248759836672/artifacts/logs/kind-worker/kubelet.log | \
+     grep "kube-api-access-s6mbj"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 27 07:08:24 kind-worker kubelet[246]: I0227 07:08:24.303817     246 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-s6mbj" (UniqueName: "kubernetes.io/projected/63e3745e-84f3-4d7a-911e-1e5a864e9d52-kube-api-access-s6mbj") pod "test-deployment-7778d6bf57-fk8kl" (UID: "63e3745e-84f3-4d7a-911e-1e5a864e9d52")
+Feb 27 07:09:32 kind-worker kubelet[246]: I0227 07:09:32.976978     246 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-s6mbj" (UniqueName: "kubernetes.io/projected/63e3745e-84f3-4d7a-911e-1e5a864e9d52-kube-api-access-s6mbj") pod "63e3745e-84f3-4d7a-911e-1e5a864e9d52" (UID: "63e3745e-84f3-4d7a-911e-1e5a864e9d52")
+Feb 27 07:09:32 kind-worker kubelet[246]: I0227 07:09:32.980908     246 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/63e3745e-84f3-4d7a-911e-1e5a864e9d52-kube-api-access-s6mbj" (OuterVolumeSpecName: "kube-api-access-s6mbj") pod "63e3745e-84f3-4d7a-911e-1e5a864e9d52" (UID: "63e3745e-84f3-4d7a-911e-1e5a864e9d52"). InnerVolumeSpecName "kube-api-access-s6mbj". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Feb 27 07:09:33 kind-worker kubelet[246]: E0227 07:09:33.073634     246 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-s6mbj ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Feb 27 07:09:33 kind-worker kubelet[246]: E0227 07:09:33.073743     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-s6mbj,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-fk8kl_deployment-5921(63e3745e-84f3-4d7a-911e-1e5a864e9d52): CreateContainerConfigError: cannot find volume "kube-api-access-s6mbj" to mount into container "test-deployment"
+Feb 27 07:09:33 kind-worker kubelet[246]: E0227 07:09:33.073784     246 pod_workers.go:191] Error syncing pod 63e3745e-84f3-4d7a-911e-1e5a864e9d52 ("test-deployment-7778d6bf57-fk8kl_deployment-5921(63e3745e-84f3-4d7a-911e-1e5a864e9d52)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-s6mbj\" to mount into container \"test-deployment\""
+Feb 27 07:09:33 kind-worker kubelet[246]: I0227 07:09:33.078209     246 reconciler.go:319] Volume detached for volume "kube-api-access-s6mbj" (UniqueName: "kubernetes.io/projected/63e3745e-84f3-4d7a-911e-1e5a864e9d52-kube-api-access-s6mbj") on node "kind-worker" DevicePath ""
+Feb 27 07:09:33 kind-worker kubelet[246]: E0227 07:09:33.193566     246 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-fk8kl.1667892295f9f5a2", GenerateName:"", Namespace:"deployment-5921", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-5921", Name:"test-deployment-7778d6bf57-fk8kl", UID:"63e3745e-84f3-4d7a-911e-1e5a864e9d52", APIVersion:"v1", ResourceVersion:"4618", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-s6mbj\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc00699eb446473a2, ext:207273860949, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc00699eb446473a2, ext:207273860949, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-5921" not found' (will not retry!)
+#+end_example
+
+* Flake 4: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1367581462819246080
+- namespace: deployment-4634
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1367581462819246080/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Mar  4 21:45:17.150: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.151: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.160: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.160: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.204: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.204: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.218: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:45:17.218: INFO: observed Deployment test-deployment in namespace deployment-4634 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  4 21:46:17.148: FAIL: failed to see replicas of test-deployment in namespace deployment-4634 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00024a250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1367581462819246080/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "deployment-4634" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 04 21:46:26 kind-worker2 kubelet[246]: E0304 21:46:26.634183     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-djhbp,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-ld5nd_deployment-4634(d794b1be-18fb-4a19-9bef-3422b2adcde9): CreateContainerConfigError: cannot find volume "kube-api-access-djhbp" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-djhbp
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1367581462819246080/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "kube-api-access-djhbp"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 04 21:45:17 kind-worker2 kubelet[246]: I0304 21:45:17.242195     246 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-djhbp" (UniqueName: "kubernetes.io/projected/d794b1be-18fb-4a19-9bef-3422b2adcde9-kube-api-access-djhbp") pod "test-deployment-7778d6bf57-ld5nd" (UID: "d794b1be-18fb-4a19-9bef-3422b2adcde9")
+Mar 04 21:46:26 kind-worker2 kubelet[246]: I0304 21:46:26.486182     246 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-djhbp" (UniqueName: "kubernetes.io/projected/d794b1be-18fb-4a19-9bef-3422b2adcde9-kube-api-access-djhbp") pod "d794b1be-18fb-4a19-9bef-3422b2adcde9" (UID: "d794b1be-18fb-4a19-9bef-3422b2adcde9")
+Mar 04 21:46:26 kind-worker2 kubelet[246]: I0304 21:46:26.489025     246 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/d794b1be-18fb-4a19-9bef-3422b2adcde9-kube-api-access-djhbp" (OuterVolumeSpecName: "kube-api-access-djhbp") pod "d794b1be-18fb-4a19-9bef-3422b2adcde9" (UID: "d794b1be-18fb-4a19-9bef-3422b2adcde9"). InnerVolumeSpecName "kube-api-access-djhbp". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 04 21:46:26 kind-worker2 kubelet[246]: I0304 21:46:26.587377     246 reconciler.go:319] Volume detached for volume "kube-api-access-djhbp" (UniqueName: "kubernetes.io/projected/d794b1be-18fb-4a19-9bef-3422b2adcde9-kube-api-access-djhbp") on node "kind-worker2" DevicePath ""
+Mar 04 21:46:26 kind-worker2 kubelet[246]: E0304 21:46:26.634067     246 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-djhbp ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 04 21:46:26 kind-worker2 kubelet[246]: E0304 21:46:26.634183     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-djhbp,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-ld5nd_deployment-4634(d794b1be-18fb-4a19-9bef-3422b2adcde9): CreateContainerConfigError: cannot find volume "kube-api-access-djhbp" to mount into container "test-deployment"
+Mar 04 21:46:26 kind-worker2 kubelet[246]: E0304 21:46:26.634228     246 pod_workers.go:191] Error syncing pod d794b1be-18fb-4a19-9bef-3422b2adcde9 ("test-deployment-7778d6bf57-ld5nd_deployment-4634(d794b1be-18fb-4a19-9bef-3422b2adcde9)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-djhbp\" to mount into container \"test-deployment\""
+Mar 04 21:46:26 kind-worker2 kubelet[246]: E0304 21:46:26.801055     246 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-ld5nd.166941e379195743", GenerateName:"", Namespace:"deployment-4634", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-4634", Name:"test-deployment-7778d6bf57-ld5nd", UID:"d794b1be-18fb-4a19-9bef-3422b2adcde9", APIVersion:"v1", ResourceVersion:"46695", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-djhbp\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc008732ca5cbe343, ext:1520541188005, loc:(*time.Location)(0x70f9ea0)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc008732ca5cbe343, ext:1520541188005, loc:(*time.Location)(0x70f9ea0)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-4634" not found' (will not retry!)
+#+end_example
+
+* Flake 5: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366430000500183040
+- namespace: deployment-674
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366430000500183040/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Mar  1 17:21:21.044: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.044: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.047: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.048: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.058: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.058: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.085: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:21:21.085: INFO: observed Deployment test-deployment in namespace deployment-674 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 17:22:21.043: FAIL: failed to see replicas of test-deployment in namespace deployment-674 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00023a230>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366430000500183040/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "deployment-674" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 01 17:22:30 kind-worker2 kubelet[242]: E0301 17:22:30.358633     242 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-qwrgt,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-c4bqp_deployment-674(c4b074bc-69ec-4e07-a068-3789636d74f7): CreateContainerConfigError: cannot find volume "kube-api-access-qwrgt" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-qwrgt
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366430000500183040/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "kube-api-access-qwrgt"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 01 17:21:21 kind-worker2 kubelet[242]: I0301 17:21:21.133467     242 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-qwrgt" (UniqueName: "kubernetes.io/projected/c4b074bc-69ec-4e07-a068-3789636d74f7-kube-api-access-qwrgt") pod "test-deployment-7778d6bf57-c4bqp" (UID: "c4b074bc-69ec-4e07-a068-3789636d74f7")
+Mar 01 17:22:30 kind-worker2 kubelet[242]: I0301 17:22:30.193522     242 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-qwrgt" (UniqueName: "kubernetes.io/projected/c4b074bc-69ec-4e07-a068-3789636d74f7-kube-api-access-qwrgt") pod "c4b074bc-69ec-4e07-a068-3789636d74f7" (UID: "c4b074bc-69ec-4e07-a068-3789636d74f7")
+Mar 01 17:22:30 kind-worker2 kubelet[242]: I0301 17:22:30.196603     242 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/c4b074bc-69ec-4e07-a068-3789636d74f7-kube-api-access-qwrgt" (OuterVolumeSpecName: "kube-api-access-qwrgt") pod "c4b074bc-69ec-4e07-a068-3789636d74f7" (UID: "c4b074bc-69ec-4e07-a068-3789636d74f7"). InnerVolumeSpecName "kube-api-access-qwrgt". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 01 17:22:30 kind-worker2 kubelet[242]: I0301 17:22:30.294136     242 reconciler.go:319] Volume detached for volume "kube-api-access-qwrgt" (UniqueName: "kubernetes.io/projected/c4b074bc-69ec-4e07-a068-3789636d74f7-kube-api-access-qwrgt") on node "kind-worker2" DevicePath ""
+Mar 01 17:22:30 kind-worker2 kubelet[242]: E0301 17:22:30.358508     242 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-qwrgt ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 01 17:22:30 kind-worker2 kubelet[242]: E0301 17:22:30.358633     242 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-qwrgt,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-c4bqp_deployment-674(c4b074bc-69ec-4e07-a068-3789636d74f7): CreateContainerConfigError: cannot find volume "kube-api-access-qwrgt" to mount into container "test-deployment"
+Mar 01 17:22:30 kind-worker2 kubelet[242]: E0301 17:22:30.358670     242 pod_workers.go:191] Error syncing pod c4b074bc-69ec-4e07-a068-3789636d74f7 ("test-deployment-7778d6bf57-c4bqp_deployment-674(c4b074bc-69ec-4e07-a068-3789636d74f7)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-qwrgt\" to mount into container \"test-deployment\""
+Mar 01 17:22:30 kind-worker2 kubelet[242]: E0301 17:22:30.467979     242 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-c4bqp.166847be99981afa", GenerateName:"", Namespace:"deployment-674", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-674", Name:"test-deployment-7778d6bf57-c4bqp", UID:"c4b074bc-69ec-4e07-a068-3789636d74f7", APIVersion:"v1", ResourceVersion:"44876", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-qwrgt\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0076695955f3efa, ext:1017486367673, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0076695955f3efa, ext:1017486367673, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-674" not found' (will not retry!)
+#+end_example
+
+* Flake 6: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366414647938256896
+- namespace: deployment-9744
+- node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366414647938256896/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message (A)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Mar  1 16:17:31.831: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.831: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.846: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.846: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.865: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.865: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.903: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:17:31.903: INFO: observed Deployment test-deployment in namespace deployment-9744 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Mar  1 16:18:31.829: FAIL: failed to see replicas of test-deployment in namespace deployment-9744 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00023e240>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366414647938256896/artifacts/logs/kind-worker/kubelet.log | \
+     grep "deployment-9744" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 01 16:18:39 kind-worker kubelet[245]: E0301 16:18:39.571316     245 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-fptj9,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-dnc7w_deployment-9744(9004dce7-dab8-4c38-b58d-3cfb2244143c): CreateContainerConfigError: cannot find volume "kube-api-access-fptj9" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-fptj9
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1366414647938256896/artifacts/logs/kind-worker/kubelet.log | \
+     grep "kube-api-access-fptj9"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 01 16:17:32 kind-worker kubelet[245]: I0301 16:17:32.001596     245 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-fptj9" (UniqueName: "kubernetes.io/projected/9004dce7-dab8-4c38-b58d-3cfb2244143c-kube-api-access-fptj9") pod "test-deployment-7778d6bf57-dnc7w" (UID: "9004dce7-dab8-4c38-b58d-3cfb2244143c")
+Mar 01 16:18:38 kind-worker kubelet[245]: I0301 16:18:38.855548     245 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-fptj9" (UniqueName: "kubernetes.io/projected/9004dce7-dab8-4c38-b58d-3cfb2244143c-kube-api-access-fptj9") pod "9004dce7-dab8-4c38-b58d-3cfb2244143c" (UID: "9004dce7-dab8-4c38-b58d-3cfb2244143c")
+Mar 01 16:18:38 kind-worker kubelet[245]: I0301 16:18:38.858977     245 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/9004dce7-dab8-4c38-b58d-3cfb2244143c-kube-api-access-fptj9" (OuterVolumeSpecName: "kube-api-access-fptj9") pod "9004dce7-dab8-4c38-b58d-3cfb2244143c" (UID: "9004dce7-dab8-4c38-b58d-3cfb2244143c"). InnerVolumeSpecName "kube-api-access-fptj9". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 01 16:18:38 kind-worker kubelet[245]: I0301 16:18:38.956244     245 reconciler.go:319] Volume detached for volume "kube-api-access-fptj9" (UniqueName: "kubernetes.io/projected/9004dce7-dab8-4c38-b58d-3cfb2244143c-kube-api-access-fptj9") on node "kind-worker" DevicePath ""
+Mar 01 16:18:39 kind-worker kubelet[245]: E0301 16:18:39.571177     245 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-fptj9 ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 01 16:18:39 kind-worker kubelet[245]: E0301 16:18:39.571316     245 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-fptj9,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-dnc7w_deployment-9744(9004dce7-dab8-4c38-b58d-3cfb2244143c): CreateContainerConfigError: cannot find volume "kube-api-access-fptj9" to mount into container "test-deployment"
+Mar 01 16:18:39 kind-worker kubelet[245]: E0301 16:18:39.571377     245 pod_workers.go:191] Error syncing pod 9004dce7-dab8-4c38-b58d-3cfb2244143c ("test-deployment-7778d6bf57-dnc7w_deployment-9744(9004dce7-dab8-4c38-b58d-3cfb2244143c)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-fptj9\" to mount into container \"test-deployment\""
+Mar 01 16:18:39 kind-worker kubelet[245]: E0301 16:18:39.684822     245 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-7778d6bf57-dnc7w.16684442ace0883b", GenerateName:"", Namespace:"deployment-9744", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-9744", Name:"test-deployment-7778d6bf57-dnc7w", UID:"9004dce7-dab8-4c38-b58d-3cfb2244143c", APIVersion:"v1", ResourceVersion:"46169", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-fptj9\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc00762d7e20c923b, ext:1047003570284, loc:(*time.Location)(0x3e95d80)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc00762d7e20c923b, ext:1047003570284, loc:(*time.Location)(0x3e95d80)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-9744" not found' (will not retry!)
+#+end_example
+
+* Flake 7: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1365800608363188224
+- namespace: deployment-820
+- node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1365800608363188224/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message (B)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Deployment
+ï¿½[1mSTEPï¿½[0m: waiting for Deployment to be created
+ï¿½[1mSTEPï¿½[0m: waiting for all Replicas to be Ready
+Feb 27 23:25:45.899: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:45.899: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:45.907: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:45.907: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:45.989: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:45.989: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:46.022: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:25:46.023: INFO: observed Deployment test-deployment in namespace deployment-820 with ReadyReplicas 0 and labels map[test-deployment-static:true]
+Feb 27 23:26:45.897: FAIL: failed to see replicas of test-deployment in namespace deployment-820 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc00023e250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1365800608363188224/artifacts/logs/kind-worker/kubelet.log | \
+     grep "deployment-820" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 27 23:26:58 kind-worker kubelet[247]: E0227 23:26:58.833342     247 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-59b64,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-7778d6bf57-4cftv_deployment-820(8041ee3d-a251-4902-b45f-29f640ec168e): CreateContainerConfigError: cannot find volume "kube-api-access-59b64" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-59b64
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1365800608363188224/artifacts/logs/kind-worker/kubelet.log | \
+     grep "kube-api-access-59b64"
+#+end_src
+
+* Flake 8: Deployment
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1364802893898584064
+- namespace: deployment-3233
+- node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1364802893898584064/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message (B)
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: fetching the DeploymentStatus
+Feb 25 05:34:10.780: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.814: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.853: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.908: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.921: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.935: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:34:10.947: INFO: observed Deployment test-deployment in namespace deployment-3233 with ReadyReplicas 1 and labels map[test-deployment:updated test-deployment-static:true]
+Feb 25 05:35:10.775: FAIL: failed to see replicas of test-deployment in namespace deployment-3233 scale to requested amount of 2
+Unexpected error:
+    <*errors.errorString | 0xc0002ae230>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1364802893898584064/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "deployment-3233" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 25 05:35:19 kind-worker2 kubelet[246]: E0225 05:35:19.439596     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/httpd:2.4.38-alpine,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-xns8t,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-b68477ffb-92cmj_deployment-3233(f43e23ad-537a-49d3-9f5b-8295caa27218): CreateContainerConfigError: cannot find volume "kube-api-access-xns8t" to mount into container "test-deployment"
+#+end_example
+
+** Volume: kube-api-access-xns8t
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1364802893898584064/artifacts/logs/kind-worker2/kubelet.log | \
+       grep "kube-api-access-xns8t"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Feb 25 05:34:11 kind-worker2 kubelet[246]: I0225 05:34:11.064059     246 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-xns8t" (UniqueName: "kubernetes.io/projected/f43e23ad-537a-49d3-9f5b-8295caa27218-kube-api-access-xns8t") pod "test-deployment-b68477ffb-92cmj" (UID: "f43e23ad-537a-49d3-9f5b-8295caa27218")
+Feb 25 05:35:18 kind-worker2 kubelet[246]: I0225 05:35:18.368328     246 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-xns8t" (UniqueName: "kubernetes.io/projected/f43e23ad-537a-49d3-9f5b-8295caa27218-kube-api-access-xns8t") pod "f43e23ad-537a-49d3-9f5b-8295caa27218" (UID: "f43e23ad-537a-49d3-9f5b-8295caa27218")
+Feb 25 05:35:18 kind-worker2 kubelet[246]: I0225 05:35:18.409504     246 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/f43e23ad-537a-49d3-9f5b-8295caa27218-kube-api-access-xns8t" (OuterVolumeSpecName: "kube-api-access-xns8t") pod "f43e23ad-537a-49d3-9f5b-8295caa27218" (UID: "f43e23ad-537a-49d3-9f5b-8295caa27218"). InnerVolumeSpecName "kube-api-access-xns8t". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Feb 25 05:35:18 kind-worker2 kubelet[246]: I0225 05:35:18.469018     246 reconciler.go:319] Volume detached for volume "kube-api-access-xns8t" (UniqueName: "kubernetes.io/projected/f43e23ad-537a-49d3-9f5b-8295caa27218-kube-api-access-xns8t") on node "kind-worker2" DevicePath ""
+Feb 25 05:35:19 kind-worker2 kubelet[246]: E0225 05:35:19.439308     246 kubelet_pods.go:159] Mount cannot be satisfied for container "test-deployment", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-xns8t ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Feb 25 05:35:19 kind-worker2 kubelet[246]: E0225 05:35:19.439596     246 kuberuntime_manager.go:841] container &Container{Name:test-deployment,Image:k8s.gcr.io/e2e-test-images/httpd:2.4.38-alpine,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-xns8t,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod test-deployment-b68477ffb-92cmj_deployment-3233(f43e23ad-537a-49d3-9f5b-8295caa27218): CreateContainerConfigError: cannot find volume "kube-api-access-xns8t" to mount into container "test-deployment"
+Feb 25 05:35:19 kind-worker2 kubelet[246]: E0225 05:35:19.439673     246 pod_workers.go:191] Error syncing pod f43e23ad-537a-49d3-9f5b-8295caa27218 ("test-deployment-b68477ffb-92cmj_deployment-3233(f43e23ad-537a-49d3-9f5b-8295caa27218)"), skipping: failed to "StartContainer" for "test-deployment" with CreateContainerConfigError: "cannot find volume \"kube-api-access-xns8t\" to mount into container \"test-deployment\""
+Feb 25 05:35:19 kind-worker2 kubelet[246]: E0225 05:35:19.553114     246 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-deployment-b68477ffb-92cmj.1666e6d51c7f23e7", GenerateName:"", Namespace:"deployment-3233", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"deployment-3233", Name:"test-deployment-b68477ffb-92cmj", UID:"f43e23ad-537a-49d3-9f5b-8295caa27218", APIVersion:"v1", ResourceVersion:"44238", FieldPath:"spec.containers{test-deployment}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-xns8t\" to mount into container \"test-deployment\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc005eba5da30fde7, ext:1027229452076, loc:(*time.Location)(0x3e93d40)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc005eba5da30fde7, ext:1027229452076, loc:(*time.Location)(0x3e93d40)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "deployment-3233" not found' (will not retry!)
+#+end_example
+
+
+
+* Flake 9: ReplicationController
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368825065877016576
+- namespace: replication-controller-9476
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368825065877016576/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a ReplicationController
+ï¿½[1mSTEPï¿½[0m: waiting for RC to be added
+ï¿½[1mSTEPï¿½[0m: waiting for available Replicas
+Mar  8 08:00:01.557: FAIL: Wait for condition with watch events should not return an error
+Unexpected error:
+    <*errors.errorString | 0xc00024a250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368825065877016576/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "replication-controller-9476" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 08 08:00:10 kind-worker2 kubelet[244]: E0308 08:00:10.038816     244 kuberuntime_manager.go:844] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-1,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-xs4mx,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-x7tb4_replication-controller-9476(27aebf12-640a-4101-b089-ddfbc0f0312a): CreateContainerConfigError: cannot find volume "kube-api-access-xs4mx" to mount into container "rc-test"
+#+end_example
+
+** Volume: kube-api-access-xs4mx
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368825065877016576/artifacts/logs/kind-worker2/kubelet.log | \
+       grep "kube-api-access-xs4mx"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 08 07:58:01 kind-worker2 kubelet[244]: I0308 07:58:01.735781     244 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-xs4mx" (UniqueName: "kubernetes.io/projected/27aebf12-640a-4101-b089-ddfbc0f0312a-kube-api-access-xs4mx") pod "rc-test-x7tb4" (UID: "27aebf12-640a-4101-b089-ddfbc0f0312a")
+Mar 08 08:00:08 kind-worker2 kubelet[244]: I0308 08:00:08.868869     244 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-xs4mx" (UniqueName: "kubernetes.io/projected/27aebf12-640a-4101-b089-ddfbc0f0312a-kube-api-access-xs4mx") pod "27aebf12-640a-4101-b089-ddfbc0f0312a" (UID: "27aebf12-640a-4101-b089-ddfbc0f0312a")
+Mar 08 08:00:08 kind-worker2 kubelet[244]: I0308 08:00:08.871870     244 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/27aebf12-640a-4101-b089-ddfbc0f0312a-kube-api-access-xs4mx" (OuterVolumeSpecName: "kube-api-access-xs4mx") pod "27aebf12-640a-4101-b089-ddfbc0f0312a" (UID: "27aebf12-640a-4101-b089-ddfbc0f0312a"). InnerVolumeSpecName "kube-api-access-xs4mx". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 08 08:00:08 kind-worker2 kubelet[244]: I0308 08:00:08.970253     244 reconciler.go:319] Volume detached for volume "kube-api-access-xs4mx" (UniqueName: "kubernetes.io/projected/27aebf12-640a-4101-b089-ddfbc0f0312a-kube-api-access-xs4mx") on node "kind-worker2" DevicePath ""
+Mar 08 08:00:10 kind-worker2 kubelet[244]: E0308 08:00:10.038729     244 kubelet_pods.go:161] Mount cannot be satisfied for container "rc-test", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-xs4mx ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 08 08:00:10 kind-worker2 kubelet[244]: E0308 08:00:10.038816     244 kuberuntime_manager.go:844] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-1,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-xs4mx,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-x7tb4_replication-controller-9476(27aebf12-640a-4101-b089-ddfbc0f0312a): CreateContainerConfigError: cannot find volume "kube-api-access-xs4mx" to mount into container "rc-test"
+Mar 08 08:00:10 kind-worker2 kubelet[244]: E0308 08:00:10.038844     244 pod_workers.go:191] Error syncing pod 27aebf12-640a-4101-b089-ddfbc0f0312a ("rc-test-x7tb4_replication-controller-9476(27aebf12-640a-4101-b089-ddfbc0f0312a)"), skipping: failed to "StartContainer" for "rc-test" with CreateContainerConfigError: "cannot find volume \"kube-api-access-xs4mx\" to mount into container \"rc-test\""
+Mar 08 08:00:10 kind-worker2 kubelet[244]: E0308 08:00:10.043148     244 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"rc-test-x7tb4.166a4f1ecafa82e1", GenerateName:"", Namespace:"replication-controller-9476", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"replication-controller-9476", Name:"rc-test-x7tb4", UID:"27aebf12-640a-4101-b089-ddfbc0f0312a", APIVersion:"v1", ResourceVersion:"45062", FieldPath:"spec.containers{rc-test}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-xs4mx\" to mount into container \"rc-test\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0099442824f9ee1, ext:1037169575088, loc:(*time.Location)(0x7418700)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0099442824f9ee1, ext:1037169575088, loc:(*time.Location)(0x7418700)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'events "rc-test-x7tb4.166a4f1ecafa82e1" is forbidden: unable to create new content in namespace replication-controller-9476 because it is being terminated' (will not retry!)
+#+end_example
+
+* Flake 10: ReplicationController
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1367934725221519360
+- namespace: replication-controller-5147
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1367934725221519360/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a ReplicationController
+ï¿½[1mSTEPï¿½[0m: waiting for RC to be added
+ï¿½[1mSTEPï¿½[0m: waiting for available Replicas
+Mar  5 20:56:36.365: FAIL: Wait for condition with watch events should not return an error
+Unexpected error:
+    <*errors.errorString | 0xc00024a250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1367934725221519360/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "replication-controller-5147" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 05 20:56:44 kind-worker2 kubelet[247]: E0305 20:56:44.417959     247 kuberuntime_manager.go:841] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-1,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-z4fpx,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-46wcn_replication-controller-5147(cb10f7a9-c966-418a-82ff-44fab5aa124b): CreateContainerConfigError: cannot find volume "kube-api-access-z4fpx" to mount into container "rc-test"
+#+end_example
+
+** Volume: kube-api-access-z4fpx
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1367934725221519360/artifacts/logs/kind-worker2/kubelet.log | \
+       grep "kube-api-access-z4fpx"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 05 20:54:36 kind-worker2 kubelet[247]: I0305 20:54:36.489866     247 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-z4fpx" (UniqueName: "kubernetes.io/projected/cb10f7a9-c966-418a-82ff-44fab5aa124b-kube-api-access-z4fpx") pod "rc-test-46wcn" (UID: "cb10f7a9-c966-418a-82ff-44fab5aa124b")
+Mar 05 20:56:43 kind-worker2 kubelet[247]: I0305 20:56:43.828236     247 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-z4fpx" (UniqueName: "kubernetes.io/projected/cb10f7a9-c966-418a-82ff-44fab5aa124b-kube-api-access-z4fpx") pod "cb10f7a9-c966-418a-82ff-44fab5aa124b" (UID: "cb10f7a9-c966-418a-82ff-44fab5aa124b")
+Mar 05 20:56:43 kind-worker2 kubelet[247]: I0305 20:56:43.831099     247 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/cb10f7a9-c966-418a-82ff-44fab5aa124b-kube-api-access-z4fpx" (OuterVolumeSpecName: "kube-api-access-z4fpx") pod "cb10f7a9-c966-418a-82ff-44fab5aa124b" (UID: "cb10f7a9-c966-418a-82ff-44fab5aa124b"). InnerVolumeSpecName "kube-api-access-z4fpx". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 05 20:56:43 kind-worker2 kubelet[247]: I0305 20:56:43.929543     247 reconciler.go:319] Volume detached for volume "kube-api-access-z4fpx" (UniqueName: "kubernetes.io/projected/cb10f7a9-c966-418a-82ff-44fab5aa124b-kube-api-access-z4fpx") on node "kind-worker2" DevicePath ""
+Mar 05 20:56:44 kind-worker2 kubelet[247]: E0305 20:56:44.417842     247 kubelet_pods.go:161] Mount cannot be satisfied for container "rc-test", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-z4fpx ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 05 20:56:44 kind-worker2 kubelet[247]: E0305 20:56:44.417959     247 kuberuntime_manager.go:841] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-1,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-z4fpx,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-46wcn_replication-controller-5147(cb10f7a9-c966-418a-82ff-44fab5aa124b): CreateContainerConfigError: cannot find volume "kube-api-access-z4fpx" to mount into container "rc-test"
+Mar 05 20:56:44 kind-worker2 kubelet[247]: E0305 20:56:44.418001     247 pod_workers.go:191] Error syncing pod cb10f7a9-c966-418a-82ff-44fab5aa124b ("rc-test-46wcn_replication-controller-5147(cb10f7a9-c966-418a-82ff-44fab5aa124b)"), skipping: failed to "StartContainer" for "rc-test" with CreateContainerConfigError: "cannot find volume \"kube-api-access-z4fpx\" to mount into container \"rc-test\""
+Mar 05 20:56:44 kind-worker2 kubelet[247]: E0305 20:56:44.423748     247 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"rc-test-46wcn.16698dc1b0782cd5", GenerateName:"", Namespace:"replication-controller-5147", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"replication-controller-5147", Name:"rc-test-46wcn", UID:"cb10f7a9-c966-418a-82ff-44fab5aa124b", APIVersion:"v1", ResourceVersion:"33027", FieldPath:"spec.containers{rc-test}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-z4fpx\" to mount into container \"rc-test\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc008c4a318e8b4d5, ext:820421232581, loc:(*time.Location)(0x711c200)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc008c4a318e8b4d5, ext:820421232581, loc:(*time.Location)(0x711c200)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'events "rc-test-46wcn.16698dc1b0782cd5" is forbidden: unable to create new content in namespace replication-controller-5147 because it is being terminated' (will not retry!)
+#+end_example
+
+* Flake 11: ReplicationController
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366829476511485952
+- namespace: replication-controller-4026
+- node: kind-worker2
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366829476511485952/artifacts/logs/kind-worker2/kubelet.log
+
+** Failure message
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a ReplicationController
+ï¿½[1mSTEPï¿½[0m: waiting for RC to be added
+ï¿½[1mSTEPï¿½[0m: waiting for available Replicas
+Mar  2 19:38:49.544: FAIL: Wait for condition with watch events should not return an error
+Unexpected error:
+    <*errors.errorString | 0xc0002b0230>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366829476511485952/artifacts/logs/kind-worker2/kubelet.log | \
+     grep "replication-controller-4026" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 02 19:38:57 kind-worker2 kubelet[245]: E0302 19:38:57.671836     245 kuberuntime_manager.go:841] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-alpine,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-9b7vw,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-t24fw_replication-controller-4026(6279ef28-59af-4082-a39a-3fc8e5bbb8e4): CreateContainerConfigError: cannot find volume "kube-api-access-9b7vw" to mount into container "rc-test"
+#+end_example
+
+** Volume: kube-api-access-9b7vw
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1366829476511485952/artifacts/logs/kind-worker2/kubelet.log | \
+       grep "kube-api-access-9b7vw"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 02 19:36:49 kind-worker2 kubelet[245]: I0302 19:36:49.684363     245 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-9b7vw" (UniqueName: "kubernetes.io/projected/6279ef28-59af-4082-a39a-3fc8e5bbb8e4-kube-api-access-9b7vw") pod "rc-test-t24fw" (UID: "6279ef28-59af-4082-a39a-3fc8e5bbb8e4")
+Mar 02 19:38:57 kind-worker2 kubelet[245]: I0302 19:38:57.164498     245 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-9b7vw" (UniqueName: "kubernetes.io/projected/6279ef28-59af-4082-a39a-3fc8e5bbb8e4-kube-api-access-9b7vw") pod "6279ef28-59af-4082-a39a-3fc8e5bbb8e4" (UID: "6279ef28-59af-4082-a39a-3fc8e5bbb8e4")
+Mar 02 19:38:57 kind-worker2 kubelet[245]: I0302 19:38:57.168455     245 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/6279ef28-59af-4082-a39a-3fc8e5bbb8e4-kube-api-access-9b7vw" (OuterVolumeSpecName: "kube-api-access-9b7vw") pod "6279ef28-59af-4082-a39a-3fc8e5bbb8e4" (UID: "6279ef28-59af-4082-a39a-3fc8e5bbb8e4"). InnerVolumeSpecName "kube-api-access-9b7vw". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 02 19:38:57 kind-worker2 kubelet[245]: I0302 19:38:57.266102     245 reconciler.go:319] Volume detached for volume "kube-api-access-9b7vw" (UniqueName: "kubernetes.io/projected/6279ef28-59af-4082-a39a-3fc8e5bbb8e4-kube-api-access-9b7vw") on node "kind-worker2" DevicePath ""
+Mar 02 19:38:57 kind-worker2 kubelet[245]: E0302 19:38:57.671707     245 kubelet_pods.go:159] Mount cannot be satisfied for container "rc-test", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-9b7vw ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 02 19:38:57 kind-worker2 kubelet[245]: E0302 19:38:57.671836     245 kuberuntime_manager.go:841] container &Container{Name:rc-test,Image:k8s.gcr.io/e2e-test-images/nginx:1.14-alpine,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-9b7vw,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod rc-test-t24fw_replication-controller-4026(6279ef28-59af-4082-a39a-3fc8e5bbb8e4): CreateContainerConfigError: cannot find volume "kube-api-access-9b7vw" to mount into container "rc-test"
+Mar 02 19:38:57 kind-worker2 kubelet[245]: E0302 19:38:57.671877     245 pod_workers.go:191] Error syncing pod 6279ef28-59af-4082-a39a-3fc8e5bbb8e4 ("rc-test-t24fw_replication-controller-4026(6279ef28-59af-4082-a39a-3fc8e5bbb8e4)"), skipping: failed to "StartContainer" for "rc-test" with CreateContainerConfigError: "cannot find volume \"kube-api-access-9b7vw\" to mount into container \"rc-test\""
+Mar 02 19:38:57 kind-worker2 kubelet[245]: E0302 19:38:57.676549     245 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"rc-test-t24fw.16689dc56ccc747e", GenerateName:"", Namespace:"replication-controller-4026", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"replication-controller-4026", Name:"rc-test-t24fw", UID:"6279ef28-59af-4082-a39a-3fc8e5bbb8e4", APIVersion:"v1", ResourceVersion:"3528", FieldPath:"spec.containers{rc-test}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-9b7vw\" to mount into container \"rc-test\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker2"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc007c2f4680a8a7e, ext:246952707866, loc:(*time.Location)(0x3e310c0)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc007c2f4680a8a7e, ext:246952707866, loc:(*time.Location)(0x3e310c0)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'events "rc-test-t24fw.16689dc56ccc747e" is forbidden: unable to create new content in namespace replication-controller-4026 because it is being terminated' (will not retry!)
+#+end_example
+
+
+* Flake 12: Pod & PodStatus
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368241744696578048
+- Namespace: pods-9355
+- Node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368241744696578048/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message
+
+#+begin_example
+#ï¿½[1mSTEPï¿½[0m: creating a Pod with a static label
+ï¿½[1mSTEPï¿½[0m: watching for Pod to be ready
+Mar  6 17:12:06.810: INFO: observed Pod pod-test in namespace pods-9355 in phase Pending with labels: map[test-pod-static:true] & conditions []
+Mar  6 17:12:06.812: INFO: observed Pod pod-test in namespace pods-9355 in phase Pending with labels: map[test-pod-static:true] & conditions [{PodScheduled True 0001-01-01 00:00:00 +0000 UTC 2021-03-06 17:12:06 +0000 UTC  }]
+Mar  6 17:12:06.836: INFO: observed Pod pod-test in namespace pods-9355 in phase Pending with labels: map[test-pod-static:true] & conditions [{Initialized True 0001-01-01 00:00:00 +0000 UTC 2021-03-06 17:12:06 +0000 UTC  } {Ready False 0001-01-01 00:00:00 +0000 UTC 2021-03-06 17:12:06 +0000 UTC ContainersNotReady containers with unready status: [pod-test]} {ContainersReady False 0001-01-01 00:00:00 +0000 UTC 2021-03-06 17:12:06 +0000 UTC ContainersNotReady containers with unready status: [pod-test]} {PodScheduled True 0001-01-01 00:00:00 +0000 UTC 2021-03-06 17:12:06 +0000 UTC  }]
+Mar  6 17:14:06.809: FAIL: failed to see Pod pod-test in namespace pods-9355 running
+Unexpected error:
+    <*errors.errorString | 0xc0001ca250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368241744696578048/artifacts/logs/kind-worker/kubelet.log | \
+     grep "pods-9355" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 06 17:14:14 kind-worker kubelet[241]: E0306 17:14:14.668348     241 kuberuntime_manager.go:841] container &Container{Name:pod-test,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-bbm4f,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod pod-test_pods-9355(6c8d915b-d32d-4426-a427-7122bd79c947): CreateContainerConfigError: cannot find volume "kube-api-access-bbm4f" to mount into container "pod-test"
+#+end_example
+
+** Volume: kube-api-access-bbm4f
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-e2e-parallel/1368241744696578048/artifacts/logs/kind-worker/kubelet.log | \
+     grep "kube-api-access-bbm4f"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 06 17:12:06 kind-worker kubelet[241]: I0306 17:12:06.867236     241 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-bbm4f" (UniqueName: "kubernetes.io/projected/6c8d915b-d32d-4426-a427-7122bd79c947-kube-api-access-bbm4f") pod "pod-test" (UID: "6c8d915b-d32d-4426-a427-7122bd79c947")
+Mar 06 17:14:13 kind-worker kubelet[241]: I0306 17:14:13.925728     241 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-bbm4f" (UniqueName: "kubernetes.io/projected/6c8d915b-d32d-4426-a427-7122bd79c947-kube-api-access-bbm4f") pod "6c8d915b-d32d-4426-a427-7122bd79c947" (UID: "6c8d915b-d32d-4426-a427-7122bd79c947")
+Mar 06 17:14:13 kind-worker kubelet[241]: I0306 17:14:13.928640     241 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/6c8d915b-d32d-4426-a427-7122bd79c947-kube-api-access-bbm4f" (OuterVolumeSpecName: "kube-api-access-bbm4f") pod "6c8d915b-d32d-4426-a427-7122bd79c947" (UID: "6c8d915b-d32d-4426-a427-7122bd79c947"). InnerVolumeSpecName "kube-api-access-bbm4f". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 06 17:14:14 kind-worker kubelet[241]: I0306 17:14:14.026790     241 reconciler.go:319] Volume detached for volume "kube-api-access-bbm4f" (UniqueName: "kubernetes.io/projected/6c8d915b-d32d-4426-a427-7122bd79c947-kube-api-access-bbm4f") on node "kind-worker" DevicePath ""
+Mar 06 17:14:14 kind-worker kubelet[241]: E0306 17:14:14.668241     241 kubelet_pods.go:161] Mount cannot be satisfied for container "pod-test", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-bbm4f ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 06 17:14:14 kind-worker kubelet[241]: E0306 17:14:14.668348     241 kuberuntime_manager.go:841] container &Container{Name:pod-test,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-bbm4f,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod pod-test_pods-9355(6c8d915b-d32d-4426-a427-7122bd79c947): CreateContainerConfigError: cannot find volume "kube-api-access-bbm4f" to mount into container "pod-test"
+Mar 06 17:14:14 kind-worker kubelet[241]: E0306 17:14:14.668374     241 pod_workers.go:191] Error syncing pod 6c8d915b-d32d-4426-a427-7122bd79c947 ("pod-test_pods-9355(6c8d915b-d32d-4426-a427-7122bd79c947)"), skipping: failed to "StartContainer" for "pod-test" with CreateContainerConfigError: "cannot find volume \"kube-api-access-bbm4f\" to mount into container \"pod-test\""
+Mar 06 17:14:14 kind-worker kubelet[241]: E0306 17:14:14.778746     241 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"pod-test.1669d03206b1c99f", GenerateName:"", Namespace:"pods-9355", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"pods-9355", Name:"pod-test", UID:"6c8d915b-d32d-4426-a427-7122bd79c947", APIVersion:"v1", ResourceVersion:"24965", FieldPath:"spec.containers{pod-test}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-bbm4f\" to mount into container \"pod-test\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0090bf9a7d54d9f, ext:652185488130, loc:(*time.Location)(0x711e200)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0090bf9a7d54d9f, ext:652185488130, loc:(*time.Location)(0x711e200)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "pods-9355" not found' (will not retry!)
+#+end_example
+
+* Flake 13: Pod & PodStatus
+** Summary
+
+- https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1368655958795882496
+- namespace: pods-1784
+- Node: kind-worker
+- https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1368655958795882496/artifacts/logs/kind-worker/kubelet.log
+
+** Failure message
+
+#+begin_example
+ï¿½[1mSTEPï¿½[0m: creating a Pod with a static label
+ï¿½[1mSTEPï¿½[0m: watching for Pod to be ready
+Mar  7 20:44:07.131: INFO: observed Pod pod-test in namespace pods-1784 in phase Pending with labels: map[test-pod-static:true] & conditions []
+Mar  7 20:44:07.135: INFO: observed Pod pod-test in namespace pods-1784 in phase Pending with labels: map[test-pod-static:true] & conditions [{PodScheduled True 0001-01-01 00:00:00 +0000 UTC 2021-03-07 20:44:07 +0000 UTC  }]
+Mar  7 20:44:14.388: INFO: observed Pod pod-test in namespace pods-1784 in phase Pending with labels: map[test-pod-static:true] & conditions [{Initialized True 0001-01-01 00:00:00 +0000 UTC 2021-03-07 20:44:07 +0000 UTC  } {Ready False 0001-01-01 00:00:00 +0000 UTC 2021-03-07 20:44:07 +0000 UTC ContainersNotReady containers with unready status: [pod-test]} {ContainersReady False 0001-01-01 00:00:00 +0000 UTC 2021-03-07 20:44:07 +0000 UTC ContainersNotReady containers with unready status: [pod-test]} {PodScheduled True 0001-01-01 00:00:00 +0000 UTC 2021-03-07 20:44:07 +0000 UTC  }]
+Mar  7 20:46:07.132: FAIL: failed to see Pod pod-test in namespace pods-1784 running
+Unexpected error:
+    <*errors.errorString | 0xc00024a250>: {
+        s: "timed out waiting for the condition",
+    }
+    timed out waiting for the condition
+occurred
+#+end_example
+
+** Possible cause for the failure
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1368655958795882496/artifacts/logs/kind-worker/kubelet.log | \
+     grep "pods-1784" | grep "cannot find volume" | head -1
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 07 20:46:14 kind-worker kubelet[244]: E0307 20:46:14.897379     244 kuberuntime_manager.go:844] container &Container{Name:pod-test,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-zd68k,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod pod-test_pods-1784(d55ad55b-a9c5-4b5e-af60-4c44531286f3): CreateContainerConfigError: cannot find volume "kube-api-access-zd68k" to mount into container "pod-test"
+#+end_example
+
+** Volume: kube-api-access-zd68k
+
+#+BEGIN_SRC shell :results verbatim :exports both
+curl https://storage.googleapis.com/kubernetes-jenkins/logs/ci-kubernetes-kind-ipv6-e2e-parallel/1368655958795882496/artifacts/logs/kind-worker/kubelet.log | \
+     grep "kube-api-access-zd68k"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Mar 07 20:44:07 kind-worker kubelet[244]: I0307 20:44:07.263072     244 reconciler.go:224] operationExecutor.VerifyControllerAttachedVolume started for volume "kube-api-access-zd68k" (UniqueName: "kubernetes.io/projected/d55ad55b-a9c5-4b5e-af60-4c44531286f3-kube-api-access-zd68k") pod "pod-test" (UID: "d55ad55b-a9c5-4b5e-af60-4c44531286f3")
+Mar 07 20:46:13 kind-worker kubelet[244]: I0307 20:46:13.347020     244 reconciler.go:196] operationExecutor.UnmountVolume started for volume "kube-api-access-zd68k" (UniqueName: "kubernetes.io/projected/d55ad55b-a9c5-4b5e-af60-4c44531286f3-kube-api-access-zd68k") pod "d55ad55b-a9c5-4b5e-af60-4c44531286f3" (UID: "d55ad55b-a9c5-4b5e-af60-4c44531286f3")
+Mar 07 20:46:13 kind-worker kubelet[244]: I0307 20:46:13.349875     244 operation_generator.go:829] UnmountVolume.TearDown succeeded for volume "kubernetes.io/projected/d55ad55b-a9c5-4b5e-af60-4c44531286f3-kube-api-access-zd68k" (OuterVolumeSpecName: "kube-api-access-zd68k") pod "d55ad55b-a9c5-4b5e-af60-4c44531286f3" (UID: "d55ad55b-a9c5-4b5e-af60-4c44531286f3"). InnerVolumeSpecName "kube-api-access-zd68k". PluginName "kubernetes.io/projected", VolumeGidValue ""
+Mar 07 20:46:13 kind-worker kubelet[244]: I0307 20:46:13.448323     244 reconciler.go:319] Volume detached for volume "kube-api-access-zd68k" (UniqueName: "kubernetes.io/projected/d55ad55b-a9c5-4b5e-af60-4c44531286f3-kube-api-access-zd68k") on node "kind-worker" DevicePath ""
+Mar 07 20:46:14 kind-worker kubelet[244]: E0307 20:46:14.897228     244 kubelet_pods.go:161] Mount cannot be satisfied for container "pod-test", because the volume is missing (ok=false) or the volume mounter (vol.Mounter) is nil (vol={Mounter:<nil> BlockVolumeMapper:<nil> SELinuxLabeled:false ReadOnly:false InnerVolumeSpecName:}): {Name:kube-api-access-zd68k ReadOnly:true MountPath:/var/run/secrets/kubernetes.io/serviceaccount SubPath: MountPropagation:<nil> SubPathExpr:}
+Mar 07 20:46:14 kind-worker kubelet[244]: E0307 20:46:14.897379     244 kuberuntime_manager.go:844] container &Container{Name:pod-test,Image:k8s.gcr.io/e2e-test-images/agnhost:2.28,Command:[],Args:[],WorkingDir:,Ports:[]ContainerPort{},Env:[]EnvVar{},Resources:ResourceRequirements{Limits:ResourceList{},Requests:ResourceList{},},VolumeMounts:[]VolumeMount{VolumeMount{Name:kube-api-access-zd68k,ReadOnly:true,MountPath:/var/run/secrets/kubernetes.io/serviceaccount,SubPath:,MountPropagation:nil,SubPathExpr:,},},LivenessProbe:nil,ReadinessProbe:nil,Lifecycle:nil,TerminationMessagePath:/dev/termination-log,ImagePullPolicy:IfNotPresent,SecurityContext:nil,Stdin:false,StdinOnce:false,TTY:false,EnvFrom:[]EnvFromSource{},TerminationMessagePolicy:File,VolumeDevices:[]VolumeDevice{},StartupProbe:nil,} start failed in pod pod-test_pods-1784(d55ad55b-a9c5-4b5e-af60-4c44531286f3): CreateContainerConfigError: cannot find volume "kube-api-access-zd68k" to mount into container "pod-test"
+Mar 07 20:46:14 kind-worker kubelet[244]: E0307 20:46:14.897417     244 pod_workers.go:191] Error syncing pod d55ad55b-a9c5-4b5e-af60-4c44531286f3 ("pod-test_pods-1784(d55ad55b-a9c5-4b5e-af60-4c44531286f3)"), skipping: failed to "StartContainer" for "pod-test" with CreateContainerConfigError: "cannot find volume \"kube-api-access-zd68k\" to mount into container \"pod-test\""
+Mar 07 20:46:15 kind-worker kubelet[244]: E0307 20:46:15.011549     244 event.go:264] Server rejected event '&v1.Event{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"pod-test.166a2a5840bc1490", GenerateName:"", Namespace:"pods-1784", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string(nil), Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, InvolvedObject:v1.ObjectReference{Kind:"Pod", Namespace:"pods-1784", Name:"pod-test", UID:"d55ad55b-a9c5-4b5e-af60-4c44531286f3", APIVersion:"v1", ResourceVersion:"42275", FieldPath:"spec.containers{pod-test}"}, Reason:"Failed", Message:"Error: cannot find volume \"kube-api-access-zd68k\" to mount into container \"pod-test\"", Source:v1.EventSource{Component:"kubelet", Host:"kind-worker"}, FirstTimestamp:v1.Time{Time:time.Time{wall:0xc0096cc5b57bb890, ext:992081372452, loc:(*time.Location)(0x7418700)}}, LastTimestamp:v1.Time{Time:time.Time{wall:0xc0096cc5b57bb890, ext:992081372452, loc:(*time.Location)(0x7418700)}}, Count:1, Type:"Warning", EventTime:v1.MicroTime{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Series:(*v1.EventSeries)(nil), Action:"", Related:(*v1.ObjectReference)(nil), ReportingController:"", ReportingInstance:""}': 'namespaces "pods-1784" not found' (will not retry!)
+#+end_example
