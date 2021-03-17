@@ -8,9 +8,6 @@ categories = ["guides"]
 draft = false
 weight = 2001
 summary = "From nodes to workloads on baremetal"
-[menu.main]
-  weight = 2001
-  identifier = "deploying-talos-to-equinix"
 +++
 
 ## Introduction {#introduction}

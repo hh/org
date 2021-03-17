@@ -8,9 +8,6 @@ categories = ["guides"]
 draft = false
 weight = 2001
 summary = "It's possible to flash hardware from the web"
-[menu.main]
-  weight = 2001
-  identifier = "It's possible to flash hardware from the web"
 +++
 
 
