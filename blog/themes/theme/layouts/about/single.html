@@ -12,6 +12,26 @@
       <article class="post__content">
         {{ partial "anchored-headings.html" .Content }}
       </article>
+      <div>
+        <section>
+          <ul>
+            {{ range $taxonomyname, $taxonomy := .Site.Taxonomies }}
+            <li><a href="{{ "/" | relLangURL}}{{ $taxonomyname | urlize }}">{{ $taxonomyname }}</a>
+              <ul>
+                {{ range $key, $value := $taxonomy }}
+                <li> {{ $key }} </li>
+                <ul>
+                  {{ range $value.Pages }}
+                  <li><a href="{{ .Permalink}}"> {{ .LinkTitle }} </a> </li>
+                  {{ end }}
+                </ul>
+                {{ end }}
+              </ul>
+            </li>
+            {{ end }}
+          </ul>
+        </section>
+      </div>
       <footer class="post__footer">
         {{ partial "social-icons.html" .}}
         <p>{{ replace .Site.Copyright "{year}" now.Year }}</p>
