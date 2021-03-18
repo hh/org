@@ -74,7 +74,7 @@
 #   height = 50
 #   alt = "Logo"
 
-theme = "hugo-theme-codex"
+theme = "theme"
 
 # Override these settings with your own
 title = "ii.coop"
