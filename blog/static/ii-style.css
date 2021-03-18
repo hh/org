@@ -53,10 +53,6 @@ section#humans div.profile-photo{
     background-repeat: no-repeat;
 }
 
-section#humans div.profile-photo.missing {
-    background-image: url(https://d.newsweek.com/en/full/280140/scary-clown.jpg);
-}
-
 section#humans article div.content.long {
     height: 200px;
     overflow: hidden;

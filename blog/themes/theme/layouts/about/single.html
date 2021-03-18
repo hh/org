@@ -23,7 +23,8 @@
                  style='background-image: url("{{ .Params.photo }}");' >
             </div>
             {{ else }}
-            <div class='profile-photo missing'>
+            <div class='profile-photo missing'
+              style='background-image: url("/images/unknown-profile.svg")'>
             </div>
             {{ end }}
             <div class='content {{if $longContent}}long{{end}}' id='{{.Params.name}}'>
