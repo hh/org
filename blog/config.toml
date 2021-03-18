@@ -128,13 +128,6 @@ copyright = "© {year}"
   [markup.goldmark.renderer]
       unsafe = true
 
-[[menu.main]]
-  identifier = "blog"
-  name = "📜 blog"
-  title = "Blog"
-  url = "/blog"
-  weight = 2
-
 # Controls the navigation
 [[menu.main]]
   identifier = "home"
@@ -148,11 +141,11 @@ copyright = "© {year}"
   name = "🧄 about"
   title = "About"
   url = "/about"
-  weight = 3
+  weight = 2
 
 [[menu.main]]
-  identifier = "pizza"
-  name = "🍕 pizza"
-  title = "Pizza"
-  url = "/pizza"
-  weight = 4
+  identifier = "blog"
+  name = "📜 blog"
+  title = "Blog"
+  url = "/blog"
+  weight = 3
