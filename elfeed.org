@@ -1,0 +1,10 @@
+#+TITLE: Our RSS Feeds
+This is intended to be used with the doom emacs rss module, with +org enabled
+* root :elfeed:
+** Envoy :envoy:
+*** [[https://blog.envoyproxy.io/feed][Envoy Proxy Blog]]
+*** [[https://medium.com/@htuch][Harvey Tuch Blog]]
+** Programming :programming:
+*** [[https://this-week-in-rust.org/rss.xml][This Week in Rust]] :rust:
+** CNCF :cncf:
+*** [[https://www.aniszczyk.org/rss][Chris Aniczyck's Blog]] :envoy:

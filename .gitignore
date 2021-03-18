@@ -12,3 +12,4 @@ cncf/ci/*-token
 .DS_Store
 .orgids
 blog/public
+blog/resources

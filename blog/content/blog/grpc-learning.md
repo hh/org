@@ -7,9 +7,6 @@ categories = ["learning"]
 draft = false
 weight = 2001
 summary = "An update on an ii member's journey on learning gRPC"
-[menu.main]
-  weight = 2001
-  identifier = "learning-update-introduction-to-grpc"
 +++
 
 ## Prelude {#prelude}

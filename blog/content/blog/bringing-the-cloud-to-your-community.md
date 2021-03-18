@@ -8,9 +8,6 @@ categories = ["guides"]
 draft = false
 weight = 2001
 summary = "Creating local clouds should not be hard"
-[menu.main]
-  weight = 2001
-  identifier = "Bringing the cloud to your community"
 +++
 
 ## creating local clouds should not be hard

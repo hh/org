@@ -1,0 +1,51 @@
+{{ define "styles" }}
+    {{ $.Scratch.Set "style_opts" (dict "src" "scss/pages/post.scss" "dest" "css/post.css") }}
+{{ end }}
+
+{{ define "main" }}
+<div class="flex-wrapper" id='about'>
+  <div class="post__container">
+    <div class="post">
+      <header class="post__header">
+        <h1 id="post__title">{{.Title}}</h1>
+      </header>
+      <article class="post__content">
+        {{ partial "anchored-headings.html" .Content }}
+      </article>
+        <h2>Humans</h2>
+        <section id='humans'>
+          {{range where (where (where site.Pages "Section" "author") ".Params.guest" "!=" true) ".Params.name" "!=" nil}}
+          {{$longContent := gt (len .Content) 250}}
+          <article>
+            <h3>{{ .Params.name }}</h3>
+            {{if .Params.photo }}
+            <div class='profile-photo'
+                 style='background-image: url("{{ .Params.photo }}");' >
+            </div>
+            {{ else }}
+            <div class='profile-photo missing'>
+            </div>
+            {{ end }}
+            <div class='content {{if $longContent}}long{{end}}' id='{{.Params.name}}'>
+              {{ .Content }}
+            </div>
+            {{if $longContent}}
+            <button
+              id='read-more-{{.Params.name}}'
+              class='read-more' type="button"
+                    onclick ="document.getElementById('{{.Params.name}}').style.height='auto'; document.getElementById('read-more-{{.Params.name}}').style.display='none'">
+              ...Read more
+            </button>
+            {{end}}
+          </article>
+          {{ end }}
+        </section>
+      <footer class="post__footer">
+        {{ partial "social-icons.html" .}}
+        <p>{{ replace .Site.Copyright "{year}" now.Year }}</p>
+      </footer>
+    </div>
+  </div>
+</div>
+
+{{ end }}
