@@ -1,79 +1,3 @@
-# title = "blog"
-# baseurl = "https://blog.ii.coop/"
-# theme = "hugo-theme-codex"
-# paginate = 3
-# languageCode = "en"
-# DefaultContentLanguage = "en"
-# enableInlineShortcodes = true
-# footnoteReturnLinkContents = "^"
-
-# [Author]
-#   name = "ii"
-
-# [outputs]
-#   section = ["JSON", "HTML"]
-
-# [taxonomies]
-#  author = "author"
-#  tag = "tags"
-#  category = "categories"
-
-# [[params.nav]]
-#   identifier = "tags"
-#   name = "Tags"
-#   icon = "fas fa-tag fa-lg"
-#   url = "tags"
-#   weight = 3
-
-# [[params.nav]]
-#   identifier = "categories"
-#   name = "Category"
-#   icon = "fas fa-folder-open fa-lg"
-#   url = "categories"
-#   weight = 3
-
-# [[params.nav]]
-#   identifier = "archives"
-#   name = "Archives"
-#   icon = "fas fa-archive fa-lg"
-#   url = "archives"
-#   weight = 3
-
-# [[params.nav]]
-#   identifier = "about"
-#   name = "About"
-#   icon = "fas fa-info fa-lg"
-#   url = "/about/"
-#   weight = 3
-
-
-# # [[params.nav]]
-# #   identifier = "search"
-# #   name = "Search"
-# #   icon = "fas fa-search fa-lg"
-# #   url = "search"
-# #   weight = 3
-
-# # [[params.nav]]
-# #   identifier = "archives"
-# #   name = "Archives"
-# #   icon = "fas fa-archive fa-lg"
-# #   url = "archives"
-# #   weight = 3
-
-# # copy paste this block and change for each social media to add how many ever social media
-# # acounts/links you want
-# # [[params.social]]
-# #   name="name of social media"
-# #   url="link to social media"
-# #   icon="A icon from https://fontawesome.com/"
-
-# [params.logo]
-#   url = "logo.png" # static/images/icon.png
-#   width = 50
-#   height = 50
-#   alt = "Logo"
-
 theme = "theme"
 
 # Override these settings with your own
@@ -149,3 +73,8 @@ copyright = "© {year}"
   title = "Blog"
   url = "/blog"
   weight = 3
+
+[taxonomies]
+ author = "author"
+ tag = "tags"
+ category = "categories"
