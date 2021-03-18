@@ -1,0 +1,23 @@
+div.summary {
+    font-size: 1rem;
+    color: gray;
+}
+div.summary p {
+    padding: 0;
+    margin-top: 0.5rem;
+}
+
+.author {
+    padding: 3px;
+}
+
+div.authors {
+    margin-top: 1rem;
+}
+
+a.author {
+    margin-right: 0.25rem;
+}
+p.purpose {
+    max-width: 30rem;
+}

@@ -45,29 +45,7 @@
   {{- if not .Site.IsServer -}}
       {{ template "_internal/google_analytics_async.html" . }}
   {{- end -}}
-
-  <style>
-   div.summary {
-     font-size: 1rem;
-     color: gray;
-   }
-   div.summary p {
-     padding: 0;
-     margin-top: 0.5rem;
-   }
-
-   .author {
-     padding: 3px;
-   }
-
-   div.authors {
-     margin-top: 1rem;
-   }
-
-   a.author {
-     margin-right: 0.25rem;
-   }
-  </style>
+    <link rel='stylesheet' type='text/css' href='/ii-style.css'>
 </head>
 
 <body>
