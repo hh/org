@@ -1,7 +1,6 @@
 +++
 title = "Thank You Dan Kohn"
 date = 2021-03-19
-weight = 2010
 author = ["Hippie Hacker"]
 lastmod = "Fri Mar 06 17:06:13 NZDT 2021"
 summary =  "He believed in ii, and in all of us."
