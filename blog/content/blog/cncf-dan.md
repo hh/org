@@ -12,7 +12,7 @@ In the year 2015 Hippie Hacker was working at [Chef.io](https://www.chef.io/) as
 
 Together they did some amazing things, deploying hands-off over the internet network booting of servers that was then managed by Chef software. They spent several weeks together to make this magic happen. And in this way, relationships and kinship were forged. \
  \
-During this time Hippie was preparing a presentation about the work he was doing with the [Marine Reach](https://marinereach.com/) vessels. He asked Bob and his team if he could show them his presentation for some feedback from a live audience. The team really resonated with Hippie’s passion for the things he was involved in with Marine Reach.  \
+During this time Hippie was preparing a presentation about the work he was doing with the [Marine Reach](https://marinereach.com/) vessels. He asked Bob and his team if he could show them his presentation for some feedback from a live audience. The team really resonated with Hippie’s passion for the things he was involved in with Marine Reach.
 
 
 Later Hippie, while he was living in Portland, did some more work with the MTN team. Bob shipped servers to him to allow him to do some more work on the network booting for the cruise ship industry. \
@@ -36,13 +36,13 @@ At this point, Kubernetes Conformance was a burning issue. There were two issues
 
 This time Hippie paired with [Rohan Fletcher](https://github.com/rohfle). During a discussion with Hippie and Rohan, Dan showed them a disk usage graph for OSX and proposed following that model as the right way to visually show the Conformance cover of the Kubernetes API.
 
-![IMAGE1](images/image1.png "IMAGE1")
-
+![disk_graph](/images/blog_image/disk_graph.png "The actual screenshot Dan shared to show his vision")
 The actual screenshot Dan shared to show his vision
+
 
 Rohan started on the project to create what is today known as [APISnoop](https://apisnoop.cncf.io/). A visual display, giving clear insight into the lay of the land of Kubernetes Conformance that was eagerly expected by the community when it was introduced at KubeCon Europe in May 2018.
 
-In 20?? [Zach Mandeville](https://github.com/zachmandeville) joined the team and took over the magic behind the tool. At that point there was no instrumentation and cover was determined by looking at the test logs, audit logs showing the hits from the e2e binary, but still, it was difficult to determine which test hit specific endpoints. Zach did a lot of writing, rewriting, and changes not only to APISnoop but also driving updates of underlying Kubernetes logging until a clear signal could be distinguished from the noise. 
+In 2018 [Zach Mandeville](https://github.com/zachmandeville) joined the team and took over the magic behind the tool. At that point there was no instrumentation and cover was determined by looking at the test logs, audit logs showing the hits from the e2e binary, but still, it was difficult to determine which test hit specific endpoints. Zach did a lot of writing, rewriting, and changes not only to APISnoop but also driving updates of underlying Kubernetes logging until a clear signal could be distinguished from the noise. 
 
 At about the same time Hippie’s team started creating a tool to measure and show the cover of conformance, a separate effort was started for filling in the backlog of conformance tests.
 
@@ -60,32 +60,22 @@ Dan was always pushing the bar higher, continually expecting better and clearer 
 
 
 
-<p id="gdcalert2" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image2.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert3">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
+![1_15Cover](/images/blog_image/1_15Cover.png "1.15 Cover")
+Test Cover 1.15 
 
 
-![alt_text](images/image2.png "image_tooltip")
- 
 
-<p id="gdcalert3" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image3.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert4">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image3.png "image_tooltip")
-
-
-Test cover 1.15					Test cover 1.21
+![1_21Cover](/images/blog_image/1_21Cover.png "1.21 Cover")
+Test cover 1.21
 
 A page was also added to visually track conformance progress across releases and visually show the progress in eliminating technical debt.
 
 
-
-<p id="gdcalert4" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image4.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert5">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image4.png "image_tooltip")
-
+![alt_text](/images/blog_image/conformance-progress.png "image_tooltip")
+Conformance Progress graph
 
 All the added conformance test cover was great news and added the expected prestige and value of the Certified Kubernetes brand. At the same time, it was making life increasingly difficult for [Taylor Waggoner](https://github.com/taylorwaggoner) at the CNCF managing the Conformance Certification process. 
 
-All pull requests for certification had to be manually verified to ensure it contained the correct data, but the list of conformance tests kept growing with each release. Dan approached Hippie and requested that the process should be automated, and in 2020 the CNCF CI Bot was created by [Berno Kleinhans ](https://github.com/bernokl)and [Rob Kielty](https://github.com/Robert Kielty). This allowed for the automatic checking and labeling of conformance pull requests, speeding up the process and making the human effort required less. 
+All pull requests for certification had to be manually verified to ensure it contained the correct data, but the list of conformance tests kept growing with each release. Dan approached Hippie and requested that the process should be automated, and in 2020 the CNCF CI Bot was created by [Berno Kleinhans ](https://github.com/bernokl)and [Rob Kielty](https://github.com/RobertKielty). This allowed for the automatic checking and labeling of conformance pull requests, speeding up the process and making the human effort required less. 
 
 The Kubernetes conformance journey up to this day was an eventful one, built around relationships and community cooperation, with many different contributors playing their part to help move this forward. All of this was made possible by the extraordinary vision and leadership of a friend dear to everyone in the Kubernetes community, Dan Kohn.
