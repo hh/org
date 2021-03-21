@@ -18,7 +18,7 @@ During this time Hippie was preparing a presentation about the work he was doing
 Later Hippie, while he was living in Portland, did some more work with the MTN team. Bob shipped servers to him to allow him to do some more work on the network booting for the cruise ship industry. \
  \
 Shortly after that Bob and Aaron left MTN, and Hippie returned from the USA to New Zealand, with the servers still stranded in the USA. After working up some courage Hippie asked Bob if he had some money available to relocate the servers to New Zealand. Bob said that he could not help with money, but would introduce him to someone that could help.  \
-Bob told [Dan Kohn](https://en.wikipedia.org/wiki/Dan_Kohn) all about who Hippie was, the work he was doing, and the things that are important to him. Bob introduced them and that was the start of another important relationship on this journey. The servers were relocated and installed in the Marine Reach vessel Pacific Hope providing OpenMRS services.
+Bob told [Dan Kohn](https://en.wikipedia.org/wiki/Dan_Kohn) all about who Hippie was, the work he was doing, and the things that are important to him. Bob introduced them and that was the start of another important relationship on this journey. The servers were relocated and they are used as part of the infrastructure for Hippie's vision.
 
  \
 In 2017 Hippie attended his first CloudNativeCon + KubeCon Europe in Berlin, Germany. Dan was starting on the road to reshaping the world of open source and how it would be consumed. He was instrumental in creating a conformance standard for [Kubernetes](https://en.wikipedia.org/wiki/Kubernetes) and the Kubernetes Certified Service Provider program which was introduced to the opensource world at this conference. 
@@ -27,10 +27,10 @@ Almost a year later in February 2018 [Kenichi Omichi](https://github.com/oomichi
 
 At this time Hippie was doing some work for [Balena](https://www.balena.io/) with [Denver Williams](https://github.com/denverwilliams) which allowed the “image pull and networking boot” he was working on before in new ways. This inspired Hippie to use this technology with Kubernetes, pulling down the images and installing [Gitlab](https://about.gitlab.com/) on top of it. He showed this to Dan, who thought it was a great way to use Kubernetes. 
 
-Impressed by Hippie’s innovative approach Dan asked him if he would like to join the CNCF to help demonstrate what the organization is capable of. Hippie jumped in to help create a [Demo of CNCF technologies](https://github.com/cncf/demo/) This however did not get much traction.  \
+Impressed by Hippie’s innovative approach Dan asked him if he would like to join the CNCF to help demonstrate what the organization is capable of. Hippie jumped in to help create a [Demo of CNCF technologies](https://github.com/cncf/demo/) This however did not get much traction.
 
 
-The next project Hippie supported the CNCF with was to get all cloud providers actively engaged in the cloud-native experience and started work on [Cross-Cloud](https://github.com/crosscloudci/cross-cloud) to find ways to more concretely show the work of the CNCF with a frontend at [CNCF.CI](https://cncf.ci/)  showing all projects that were available on all the participating cloud providers. Denver continued with the project and Hippie was ready to take on new challenges with Dan. 
+The demo was however foundational in exploring some ideas which evolved into the next project Hippie supported the CNCF with. Dan's vision was to get all cloud providers actively engaged in the cloud-native experience and they started work on [Cross-Cloud](https://github.com/crosscloudci/cross-cloud) to find ways to more concretely show the work of the CNCF with a frontend at [CNCF.CI](https://cncf.ci/)  showing all projects that were available on all the participating cloud providers. Denver continued with the project and Hippie was ready to take on new challenges with Dan. 
 
 At this point, Kubernetes Conformance was a burning issue. There were two issues, firstly there was very little test cover and secondly, it was not possible to see the coverage without a lot of data mining.
 
@@ -79,3 +79,5 @@ All the added conformance test cover was great news and added the expected prest
 All pull requests for certification had to be manually verified to ensure it contained the correct data, but the list of conformance tests kept growing with each release. Dan approached Hippie and requested that the process should be automated, and in 2020 the CNCF CI Bot was created by [Berno Kleinhans ](https://github.com/bernokl)and [Rob Kielty](https://github.com/RobertKielty). This allowed for the automatic checking and labeling of conformance pull requests, speeding up the process and making the human effort required less. 
 
 The Kubernetes conformance journey up to this day was an eventful one, built around relationships and community cooperation, with many different contributors playing their part to help move this forward. All of this was made possible by the extraordinary vision and leadership of a friend dear to everyone in the Kubernetes community, Dan Kohn.
+
+![Dan_Kohn](/images/blog_image/dan_kohn.jpg "1.15 Cover")
