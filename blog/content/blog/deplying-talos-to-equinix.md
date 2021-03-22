@@ -6,7 +6,6 @@ lastmod = 2021-03-10T15:48:17+13:00
 tags = ["kubernetes", "equinix", "talos", "org"]
 categories = ["guides"]
 draft = false
-weight = 2001
 summary = "From nodes to workloads on baremetal"
 +++
 

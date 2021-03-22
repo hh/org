@@ -2,7 +2,6 @@
 title = "funding community initiatives"
 author = ["Hippie Hacker"]
 date = 2016-09-14
-weight = 2002
 lastmod = "Wed Sep 14 04:29:06 NZST 2016"
 summary = "If you want to cobudget with us, write your email and #chilli4change on a physical envolope with your contribution and drop it by in person..."
 +++

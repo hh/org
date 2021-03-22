@@ -6,10 +6,8 @@ lastmod = 2021-02-05T16:00:03+13:00
 tags = ["kubernetes", "ncw", "testing"]
 categories = ["guides"]
 draft = true
-weight = 2004
 summary = "Part Three to our intro to testing for new K8s contributors"
 [menu.main]
-  weight = 2004
   identifier = "new-contributor-summit-session-03"
 +++
 

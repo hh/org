@@ -6,7 +6,6 @@ lastmod = 2017-01-04T16:00:03+13:00
 tags = ["kubernetes", "cloud"]
 categories = ["guides"]
 draft = false
-weight = 2001
 summary = "Creating local clouds should not be hard"
 +++
 

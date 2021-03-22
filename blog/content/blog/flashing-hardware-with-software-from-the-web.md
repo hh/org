@@ -6,7 +6,6 @@ lastmod = 2017-01-04T15:00:02+13:00
 tags = ["kubernetes", "cloud"]
 categories = ["guides"]
 draft = false
-weight = 2001
 summary = "It's possible to flash hardware from the web"
 +++
 

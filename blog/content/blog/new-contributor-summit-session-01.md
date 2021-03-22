@@ -7,10 +7,8 @@ section = "post"
 tags = ["kubernetes", "ncw", "testing"]
 categories = ["guides"]
 draft = true
-weight = 2002
 summary = "Intro to Testing for new K8s contributors"
 [menu.main]
-  weight = 2002
   identifier = "new-contributor-summit-session-01"
 +++
 
