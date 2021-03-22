@@ -71,7 +71,7 @@ Test cover 1.21
 A page was also added to visually track conformance progress across releases and visually show the progress in eliminating technical debt.
 
 
-![alt_text](/images/blog_image/conformance-progress.png "image_tooltip")
+![alt_text](/images/blog_image/conformance-progress.png "conformance-progress")
 Conformance Progress graph
 
 All the added conformance test cover was great news and added the expected prestige and value of the Certified Kubernetes brand. At the same time, it was making life increasingly difficult for [Taylor Waggoner](https://github.com/taylorwaggoner) at the CNCF managing the Conformance Certification process. 
@@ -80,4 +80,4 @@ All pull requests for certification had to be manually verified to ensure it con
 
 The Kubernetes conformance journey up to this day was an eventful one, built around relationships and community cooperation, with many different contributors playing their part to help move this forward. All of this was made possible by the extraordinary vision and leadership of a friend dear to everyone in the Kubernetes community, Dan Kohn.
 
-![Dan_Kohn](/images/blog_image/dan_kohn.jpg "1.15 Cover")
+![Dan_Kohn](/images/blog_image/dan_kohn.jpg "Dan Kohn")
