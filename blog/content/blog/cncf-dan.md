@@ -6,31 +6,28 @@ lastmod = "Fri Mar 06 17:06:13 NZDT 2021"
 summary =  "He believed in ii, and in all of us."
 +++
 
-This story is all about relationships and how that is the currency behind all things that make this world move forward. It is also about the visionary leadership of a friend dear to us all. \
- \
+This story is all about relationships and how that is the currency behind all things that make this world move forward. It is also about the visionary leadership of a friend dear to us all.
+
 In the year 2015 Hippie Hacker was working at [Chef.io](https://www.chef.io/) as a consultant. One of the assignments Hippie was working on was with [Maritime Telecommunications Network](https://en.wikipedia.org/wiki/Maritime_Telecommunications_Network) (MTN). This was a turning point towards Kubernetes where we are today, through relationships and also friendships built at that time. Through this assignment, Hippie Hacker met Aaron Crickenberger, who was working for MTN chief innovation officer Bob Wise.
 
-Together they did some amazing things, deploying hands-off over the internet network booting of servers that was then managed by Chef software. They spent several weeks together to make this magic happen. And in this way, relationships and kinship were forged. \
- \
+Together they did some amazing things, deploying hands-off over the internet network booting of servers that was then managed by Chef software. They spent several weeks together to make this magic happen. And in this way, relationships and kinship were forged.
+
 During this time Hippie was preparing a presentation about the work he was doing with the [Marine Reach](https://marinereach.com/) vessels. He asked Bob and his team if he could show them his presentation for some feedback from a live audience. The team really resonated with Hippie’s passion for the things he was involved in with Marine Reach.
 
+Later Hippie, while he was living in Portland, did some more work with the MTN team. Bob shipped servers to him to allow him to do some more work on the network booting for the cruise ship industry.
 
-Later Hippie, while he was living in Portland, did some more work with the MTN team. Bob shipped servers to him to allow him to do some more work on the network booting for the cruise ship industry. \
- \
-Shortly after that Bob and Aaron left MTN, and Hippie returned from the USA to New Zealand, with the servers still stranded in the USA. After working up some courage Hippie asked Bob if he had some money available to relocate the servers to New Zealand. Bob said that he could not help with money, but would introduce him to someone that could help.  \
+Shortly after that Bob and Aaron left MTN, and Hippie returned from the USA to New Zealand, with the servers still stranded in the USA. After working up some courage Hippie asked Bob if he had some money available to relocate the servers to New Zealand. Bob said that he could not help with money, but would introduce him to someone that could help.
 Bob told [Dan Kohn](https://en.wikipedia.org/wiki/Dan_Kohn) all about who Hippie was, the work he was doing, and the things that are important to him. Bob introduced them and that was the start of another important relationship on this journey. The servers were relocated and they are used as part of the infrastructure for Hippie's vision.
-
- \
-In 2017 Hippie attended his first CloudNativeCon + KubeCon Europe in Berlin, Germany. Dan was starting on the road to reshaping the world of open source and how it would be consumed. He was instrumental in creating a conformance standard for [Kubernetes](https://en.wikipedia.org/wiki/Kubernetes) and the Kubernetes Certified Service Provider program which was introduced to the opensource world at this conference. 
-
-Almost a year later in February 2018 [Kenichi Omichi](https://github.com/oomichi) dug into the Kubernetes log and found that Kubernetes had 481 API’s and tests covered only 53 endpoints, which is 11%. Dan knew that if the CNCF wanted to ensure that the [Certified Kubernetes brand](https://github.com/cncf/k8s-conformance/pulls#certified-kubernetes) would be meaningful they had to invest in test development to get that numbers much higher. 
 
 At this time Hippie was doing some work for [Balena](https://www.balena.io/) with [Denver Williams](https://github.com/denverwilliams) which allowed the “image pull and networking boot” he was working on before in new ways. This inspired Hippie to use this technology with Kubernetes, pulling down the images and installing [Gitlab](https://about.gitlab.com/) on top of it. He showed this to Dan, who thought it was a great way to use Kubernetes. 
 
 Impressed by Hippie’s innovative approach Dan asked him if he would like to join the CNCF to help demonstrate what the organization is capable of. Hippie jumped in to help create a [Demo of CNCF technologies](https://github.com/cncf/demo/) This however did not get much traction.
 
-
 The demo was however foundational in exploring some ideas which evolved into the next project Hippie supported the CNCF with. Dan's vision was to get all cloud providers actively engaged in the cloud-native experience and they started work on [Cross-Cloud](https://github.com/crosscloudci/cross-cloud) to find ways to more concretely show the work of the CNCF with a frontend at [CNCF.CI](https://cncf.ci/)  showing all projects that were available on all the participating cloud providers. Denver continued with the project and Hippie was ready to take on new challenges with Dan. 
+
+In 2017 Hippie attended his first CloudNativeCon + KubeCon Europe in Berlin, Germany. Dan was starting on the road to reshaping the world of open source and how it would be consumed. He was instrumental in creating a conformance standard for [Kubernetes](https://en.wikipedia.org/wiki/Kubernetes) and the Kubernetes Certified Service Provider program which was introduced to the opensource world at this conference. 
+
+Almost a year later in February 2018 [Kenichi Omichi](https://github.com/oomichi) dug into the Kubernetes log and found that Kubernetes had 481 API’s and tests covered only 53 endpoints, which is 11%. Dan knew that if the CNCF wanted to ensure that the [Certified Kubernetes brand](https://github.com/cncf/k8s-conformance/pulls#certified-kubernetes) would be meaningful they had to invest in test development to get that numbers much higher. 
 
 At this point, Kubernetes Conformance was a burning issue. There were two issues, firstly there was very little test cover and secondly, it was not possible to see the coverage without a lot of data mining.
 
@@ -38,7 +35,6 @@ This time Hippie paired with [Rohan Fletcher](https://github.com/rohfle). During
 
 ![disk_graph](/images/blog_image/disk_graph.png "The actual screenshot Dan shared to show his vision")
 The actual screenshot Dan shared to show his vision
-
 
 Rohan started on the project to create what is today known as [APISnoop](https://apisnoop.cncf.io/). A visual display, giving clear insight into the lay of the land of Kubernetes Conformance that was eagerly expected by the community when it was introduced at KubeCon Europe in May 2018.
 
@@ -58,18 +54,13 @@ The method that Hippie’s team developed helped to increase the velocity of tes
 
 Dan was always pushing the bar higher, continually expecting better and clearer results out of APISnoop to make it a well-used tool throughout the Kubernetes community. This allowed Zach to continually improve the functionality of APISnoop, changing it from a static page with the current status of conformance, to a multi-faceted tool with several ways to view the current data as well as historical data per release. This allows the user to appreciate the progress being made towards reaching 100% conformance test cover.
 
-
-
 ![1_15Cover](/images/blog_image/1_15Cover.png "1.15 Cover")
 Test Cover 1.15 
-
-
 
 ![1_21Cover](/images/blog_image/1_21Cover.png "1.21 Cover")
 Test cover 1.21
 
 A page was also added to visually track conformance progress across releases and visually show the progress in eliminating technical debt.
-
 
 ![alt_text](/images/blog_image/conformance-progress.png "conformance-progress")
 Conformance Progress graph
