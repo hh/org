@@ -1,7 +1,7 @@
 +++
 title = "Thank You Dan Kohn"
 date = 2021-03-19
-author = ["Hippie Hacker"]
+author = ["Riaan Kleinhans"]
 lastmod = "Fri Mar 06 17:06:13 NZDT 2021"
 summary =  "He believed in ii, and in all of us."
 +++
@@ -57,12 +57,12 @@ Dan was always pushing the bar higher, continually expecting better and clearer 
 ![1_15Cover](/images/blog_image/1_15Cover.png "1.15 Cover")
 Test Cover 1.15 
 
-![1_21Cover](/images/blog_image/1_21Cover.png "1.21 Cover")
+![1_21Cover](/images/blog_image/1_21cover.png "1.21 Cover")
 Test cover 1.21
 
 A page was also added to visually track conformance progress across releases and visually show the progress in eliminating technical debt.
 
-![alt_text](/images/blog_image/conformance-progress.png "conformance-progress")
+![alt_text](/images/blog_image/Conformance-progress.png "conformance-progress")
 Conformance Progress graph
 
 All the added conformance test cover was great news and added the expected prestige and value of the Certified Kubernetes brand. At the same time, it was making life increasingly difficult for [Taylor Waggoner](https://github.com/taylorwaggoner) at the CNCF managing the Conformance Certification process. 
