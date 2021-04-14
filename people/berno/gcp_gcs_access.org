@@ -1,0 +1,130 @@
+#+TITLE: Gcp Gcs Access
+* check gsutil auth
+#+BEGIN_SRC shell
+gcloud auth list 2>&1
+:
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+         Credentialed Accounts
+ACTIVE             ACCOUNT
+,*                  bb@ii.coop
+
+To set the active account, run:
+    $ gcloud config set account `ACCOUNT`
+
+#+end_example
+* set default project
+#+BEGIN_SRC shell
+gcloud config set project apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+* create bucket for logs
+#+BEGIN_SRC shell
+gsutil mb gs://bb-apisnoop-logs 2>&1
+:
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Creating gs://bb-apisnoop-logs/...
+#+end_example
+
+* set pormissions to allow gcs permissions to the bucket
+https://download.huihoo.com/google/gdgdevkit/DVD1/developers.google.com/storage/docs/accesslogs.html
+
+#+BEGIN_SRC shell
+gsutil acl ch -g cloud-storage-analytics@google.com:W gs://bb-apisnoop-logs/ 2>&1
+:
+#+END_SRC
+
+#+RESULTS: Initial sans OWNER-role
+#+begin_example
+CommandException: Failed to set acl for gs://apisnoop-logs/. Please ensure you have OWNER-role access to this resource.
+#+end_example
+
+** get logging
+#+BEGIN_SRC shell
+gsutil logging get gs://apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{"logBucket": "bb-apisnoop-logs", "logObjectPrefix": "accessLog"}
+#+end_example
+
+#+RESULTS: Initial
+#+begin_example
+gs://apisnoop/ has no logging configuration.
+#+end_example
+* Enableg logging on the bucket to the bucket
+This was the first pass
+#+BEGIN_SRC tmate
+gsutil logging set on -b gs://bb-apisnoop-logs gs://apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Pointing it to artifact.apisnoop.appspot.com
+#+BEGIN_SRC tmate
+gsutil logging set on -b gs://bb-apisnoop-logs -o accessLog gs://artifacts.apisnoop.appspot.com
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+* Do a docker pull
+#+BEGIN_SRC tmate
+docker pull gcr.io/apisnoop/iimacs:0.9.15
+#+END_SRC
+* Look for logs
+#+BEGIN_SRC tmate
+gsutil ls -la gs://bb-apisnoop-logs/
+#+END_SRC
+
+#+BEGIN_SRC tmate
+gsutil cp -r gs://bb-apisnoop-logs/ .
+#+END_SRC
+Manually load one of the logs so we can look at it in bigQuery
+#+BEGIN_SRC tmate
+bq load --skip_leading_rows=1 storageanalysis.usage gs://bb-apisnoop-logs/*
+#+END_SRC
+
+#+BEGIN_SRC tmate
+bq shell
+#+END_SRC
+
+#+BEGIN_SRC tmate
+SELECT cs_user_agent, count(*) as count FROM [storageanalysis.usage] GROUP BY cs_user_agent
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+apisnoop> SELECT cs_user_agent, count(*) as count FROM [storageanalysis.usage] GROUP BY cs_user_agent
+Waiting on bqjob_r56b6fb5ec7f3e7bf_00000178ce711e86_1 ... (0s) Current status: DONE
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+|                                                          cs_user_agent                                                           | count |
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+| Google-API-Java-Client Google-HTTP-Java-Client/1.26.0-SNAPSHOT (gzip)                                                            |     3 |
+| apitools gsutil/4.35 Python/2.7.13 (linux2) google-cloud-sdk/230.0.0 analytics/disabled,gzip(gfe)                                |     9 |
+| Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36,gzip(gfe)               |     6 |
+| apitools Python/3.8.5 gsutil/4.61 (linux) analytics/disabled interactive/True command/logging google-cloud-sdk/336.0.0,gzip(gfe) |     2 |
+| curl/7.52.1,gzip(gfe)                                                                                                            |     4 |
+| Helm/2.11.0,gzip(gfe)                                                                                                            |  4280 |
+| apitools gsutil/4.35 Python/2.7.13 (linux2) google-cloud-sdk/230.0.0 analytics/disabled                                          |     2 |
+| cloud_storage_cookieauth Google-API-Java-Client Google-HTTP-Java-Client/1.26.0-SNAPSHOT (gzip)                                   |     2 |
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs_object="containers/images/sha256:f91914f4e2b0beff949c98a78c5103a496ae185cbc2996ad7e1f307f7d13e771"
+#+END_SRC
+#+BEGIN_SRC tmate
+SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs_object like "containers/images/sha256"
+#+END_SRC
