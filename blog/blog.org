@@ -29,7 +29,7 @@ Anywhere in the file hit ~,eHA~.  This will create, or overwrite if it exists, m
 ** Tips
 - you can use the following command to serve right out of a Pair instance:
 #+BEGIN_SRC bash
-hugo serve -b https://humacs-hugo-1313.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0
+hugo serve -b https://humacs-hugo-1313.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0 -p 443
 #+END_SRC
 ** That's it! enjoy!!
 Though if i missed something, or it's confusing, lemme know!
