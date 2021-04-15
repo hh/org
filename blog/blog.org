@@ -1,5 +1,5 @@
 #+HUGO_BASE_DIR: ./
-#+HUGO_SECTION: ./post
+#+HUGO_SECTION: ./blog
 #+HUGO_WEIGHT: auto
 #+HUGO_AUTO_SET_LASTMOD: t
 * Welcome to the blog scroll!  Wanna contribute? Read this first!
