@@ -128,3 +128,108 @@ SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs
 #+BEGIN_SRC tmate
 SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs_object like "containers/images/sha256"
 #+END_SRC
+
+* Auth as service account
+https://cloud.google.com/sdk/gcloud/reference/auth/activate-service-account
+#+BEGIN_SRC tmate
+gcloud auth activate-service-account reporting@apisnoop.iam.gserviceaccount.com --key-file=/home/ii/bb-reporting-key20210415.json --project=apisnoop
+#+END_SRC
+
+* Now I test if I can get the logs
+Lets try a quick copy with gsutil cp
+#+BEGIN_SRC tmate
+gsutil cp -r gs://bb-apisnoop-logs/ .
+#+END_SRC
+This gives me:
+#+BEGIN_EXAMPLE
+Satus': '403'}>, content <reporting@apisnoop.iam.gserviceaccount.com does not have storage.objects.get access to the Google Clo....
+#+END_EXAMPLE
+Lets see if we can query the user permissions
+#+BEGIN_SRC tmate
+gcloud iam service-accounts add-iam-policy-binding reporting@apisnoop.iam.gserviceaccount.com --role=projects/apisnoop/roles/LogAccess  --member=allAuthenticatedUsers
+#+END_SRC
+I Still get the same result
+Lets query the account to see what permissions it has
+#+BEGIN_SRC tmate
+gcloud iam service-accounts get-iam-policy reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+#+BEGIN_EXAMPLE
+bindings:
+- members:
+  - allAuthenticatedUsers
+  role: projects/apisnoop/roles/LogAccess
+- members:
+  - user:bb@ii.coop
+  - user:caleb@ii.coop
+  - user:hh@ii.coop
+  - user:riaan@ii.coop
+  - user:stephen@ii.coop
+  - user:zz@ii.coop
+  role: roles/iam.serviceAccountAdmin
+- members:
+  - user:bb@ii.coop
+  - user:caleb@ii.coop
+  - user:hh@ii.coop
+  - user:riaan@ii.coop
+  - user:stephen@ii.coop
+  - user:zz@ii.coop
+  role: roles/iam.serviceAccountUser
+etag: BwW_85ezwWE=
+version: 1
+#+END_EXAMPLE
+O Caleb pointed out I now need to give my permission now changed to needing. storage.object.get
+Lets go look what permissions the role has
+#+BEGIN_SRC tmate
+gcloud iam roles describe LogAccess  --project=apisnoop
+#+END_SRC
+#+BEGIN_EXAMPLE
+description: 'Created on: 2021-04-15'
+etag: BwW_84ZEjfc=
+includedPermissions:
+- storage.buckets.get
+- storage.objects.list
+name: projects/apisnoop/roles/LogAccess
+stage: ALPHA
+title: log-access
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+gcloud iam service-accounts roles update LogAccess --project=apisnoop --add-permissions=storage.objects.get
+#+END_SRC
+That gave it the permission, but the cp still gives me:
+#+BEGIN_EXAMPLE
+Exporting@apisnoop.iam.gserviceaccount.com does not have storage.objects.get access
+#+END_EXAMPLE
+#+BEGIN_EXAMPLE
+gcloud iam roles describe LogAccess  --project=apisnoop
+description: 'Created on: 2021-04-15'
+etag: BwW_-sLGKeo=
+includedPermissions:
+- storage.buckets.get
+- storage.objects.get
+- storage.objects.list
+name: projects/apisnoop/roles/LogAccess
+stage: ALPHA
+title: log-access
+#+END_EXAMPLE
+
+mmmm, does my service account still have logAccess
+#+BEGIN_SRC tmate
+gcloud iam service-accounts get-iam-policy reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+It does, lets go describe it:
+#+BEGIN_SRC tmate
+gcloud iam service-accounts describe reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+<#+begin_example
+description: Reports for APISnoop
+displayName: reporting
+email: reporting@apisnoop.iam.gserviceaccount.com
+etag: MDEwMjE5MjA=
+name: projects/apisnoop/serviceAccounts/reporting@apisnoop.iam.gserviceaccount.com
+oauth2ClientId: '107647515244251504832'
+projectId: apisnoop
+uniqueId: '107647515244251504832'
+#+end_example
+Nothing new.
+Is it because it is a not an authenticated user? I think when it was added it potentially should not have had allAuthenticatedUsers added.
