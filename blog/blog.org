@@ -26,6 +26,11 @@ You can either export all the blogs in this file or an individual piece.
 Navigate to the blog post, and iwth your point somewhere in that post hit ~,eHH~.  This is an org dispatch to Hugo with option `export subtree or file to .md file`.  This will create, or overwrite if it exists, a markdown file in [[file:content/posts/][content/posts]] named whatever is set in the blogs property drawer.  Tags, category, draft status, author, summary, etc. all come over.
 *** Exporting all the blogs
 Anywhere in the file hit ~,eHA~.  This will create, or overwrite if it exists, markdown files in content/posts for every blog post with a proper property drawer, each named what's set in that drawer.
+** Tips
+- you can use the following command to serve right out of a Pair instance:
+#+BEGIN_SRC bash
+hugo serve -b https://humacs-hugo-1313.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0
+#+END_SRC
 ** That's it! enjoy!!
 Though if i missed something, or it's confusing, lemme know!
 * Tasks
