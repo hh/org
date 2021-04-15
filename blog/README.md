@@ -35,6 +35,21 @@ hugo server
 
 this will start the site up, viewable at http://localhost:1313
 
+## Running the site out of a Pair instance
+
+Install dependencies:
+
+```
+sudo apt update
+sudo apt install -y hugo
+```
+
+Serve site:
+
+```
+hugo serve -b https://humacs-hugo-1313.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0
+```
+
 ## Key Directory Structure for Contributors
 In this directory, the main folders you are concerned about are `content` and `static`
 - content :: holds all the text copy for the site, written in markdown
