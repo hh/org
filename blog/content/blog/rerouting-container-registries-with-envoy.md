@@ -2,7 +2,7 @@
 title = "Rerouting Container Registries With Envoy"
 author = ["Caleb Woodbine"]
 date = 2021-04-15
-lastmod = 2021-04-20T11:18:00+12:00
+lastmod = 2021-04-20T11:19:39+12:00
 tags = ["envoy", "oci", "containers", "discoveries"]
 categories = ["discoveries"]
 draft = false
@@ -85,7 +85,7 @@ However, the host in the rewrite is static and not dynamic. It seems at this poi
 
 Envoy has the lovely feature to set many kinds of middleware in the middle of a request.
 This middleware can be used to add/change/remove things from the request.
-Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
+Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, and rate limiting.
 
 The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, and even Lua.
 

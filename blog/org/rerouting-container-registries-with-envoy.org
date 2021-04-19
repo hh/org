@@ -65,7 +65,7 @@ However, the host in the rewrite is static and not dynamic. It seems at this poi
 ** Learning about filter-chains
 Envoy has the lovely feature to set many kinds of middleware in the middle of a request.
 This middleware can be used to add/change/remove things from the request.
-Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
+Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, and rate limiting.
 
 The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, and even Lua.
 
