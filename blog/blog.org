@@ -259,3 +259,14 @@ how's of gRPC and protobuf:
 - [[https://www.youtube.com/watch?v=RVZX4CwKhGE&t=2915s][Lyft's Envoy: from Monolith to Service Mesh]] is a talk by Matt Klein about the
   Envoy proxy, which is a gRPC api. It's a good talk, that shows the exciting
   and complex things you can design with this framework.
+
+* Discoveries :@discoveries:
+** Rerouting Container Registries With Envoy :envoy:oci:containers:discoveries:
+:PROPERTIES:
+:EXPORT_FILE_NAME: rerouting-container-registries-with-envoy
+:EXPORT_DATE: 2021-04-15
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Share the traffic across many container registries with Envoy"
+:EXPORT_AUTHOR: Caleb Woodbine
+:END:
+
+#+include: "./org/rerouting-container-registries-with-envoy.org"
