@@ -76,6 +76,10 @@ div.profile-info {
     margin: 0 auto;
 }
 
+#humans a {
+    color: #000;
+}
+
 @media(min-width: 800px) {
     div#about section#humans {
         display: grid;

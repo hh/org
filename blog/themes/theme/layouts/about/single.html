@@ -17,7 +17,7 @@
           {{range where (where (where site.Pages "Section" "author") ".Params.guest" "!=" true) ".Params.name" "!=" nil}}
           {{$longContent := gt (len .Content) 250}}
           <article>
-            <h3>{{ .Params.name }}</h3>
+            <a class="humans-name" href={{(path.Join "/author" (replace (lower .Params.name) " " "-"))}}><h3>{{ .Params.name }}</h3></a>
             {{if .Params.photo }}
             <div class='profile-photo'
                  style='background-image: url("{{ .Params.photo }}");' >
