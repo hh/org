@@ -1,4 +1,5 @@
 theme = "theme"
+enableEmoji = true
 
 # Override these settings with your own
 title = "ii.coop"

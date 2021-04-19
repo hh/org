@@ -41,7 +41,7 @@ section#humans article h3 {
     font-weight: 600;
 }
 
-section#humans div.profile-photo{
+section#humans div.profile-photo, div.profile-info > div.profile-photo {
     margin: 1rem auto 1rem auto;
     position: relative;
     border-radius: 50%;
@@ -70,7 +70,11 @@ button.read-more:hover {
     color: dodgerblue;
 }
 
-
+div.profile-info {
+    max-width: 34rem;
+    width: 100%;
+    margin: 0 auto;
+}
 
 @media(min-width: 800px) {
     div#about section#humans {

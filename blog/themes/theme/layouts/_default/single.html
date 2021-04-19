@@ -21,7 +21,7 @@
             </div>
           </header>
           <article class="post__content">
-              {{ partial "anchored-headings.html" .Content }}
+              {{ partial "anchored-headings.html" .Content | emojify }}
               {{ if or .Params.math .Site.Params.math }}
                   {{ partial "math.html" . }}
               {{ end }}
