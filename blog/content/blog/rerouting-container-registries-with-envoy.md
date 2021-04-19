@@ -2,7 +2,7 @@
 title = "Rerouting Container Registries With Envoy"
 author = ["Caleb Woodbine"]
 date = 2021-04-15
-lastmod = 2021-04-20T10:21:13+12:00
+lastmod = 2021-04-20T10:36:21+12:00
 tags = ["envoy", "oci", "containers", "discoveries"]
 categories = ["discoveries"]
 draft = false
@@ -85,7 +85,7 @@ static_resources:
 ```
 
 This is a great start! This serves the site and it's content under the host where Envoy is served.
-However, the host in the rewrite is static and not dynamic. It seemed at this point like doing the implementation this way is not viable.
+However, the host in the rewrite is static and not dynamic. It seems at this point like doing the implementation this way is not viable.
 
 
 ### Learning about filter-chains {#learning-about-filter-chains}
@@ -99,7 +99,7 @@ Envoy is particularly good at HTTP related filtering. It also supports such feat
 
 ### The implementation {#the-implementation}
 
-Once I found the Lua capabilities I found that it provides enough capability to perform the dynamic host rewrite that I need.
+Once I found the ability to write Lua as a filter, I found that it provided enough capability to perform the dynamic host rewrite.
 
 ```yaml
 static_resources:
@@ -172,7 +172,7 @@ static_resources:
                 port_value: 443
 ```
 
-With envoy running this config, the behaviour of the requests will be:
+With envoy running this config, the behaviour of the requests is:
 
 rewrite all traffic hitting the web service to _k8s.gcr.io_, except if the IP is _192.168.0.1_ then set the location to _registry-1.docker.io_.
 

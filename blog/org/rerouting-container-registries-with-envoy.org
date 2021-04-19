@@ -64,7 +64,7 @@ static_resources:
 #+END_SRC
 
 This is a great start! This serves the site and it's content under the host where Envoy is served.
-However, the host in the rewrite is static and not dynamic. It seemed at this point like doing the implementation this way is not viable.
+However, the host in the rewrite is static and not dynamic. It seems at this point like doing the implementation this way is not viable.
 
 ** Learning about filter-chains
 Envoy has the lovely feature to set many kinds of middleware in the middle of a request.
@@ -74,7 +74,7 @@ The functionality is infinitely useful as filters can be such things as gRPC, Po
 Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
 
 ** The implementation
-Once I found the Lua capabilities I found that it provides enough capability to perform the dynamic host rewrite that I need.
+Once I found the ability to write Lua as a filter, I found that it provided enough capability to perform the dynamic host rewrite.
 
 #+BEGIN_SRC yaml
 static_resources:
@@ -148,7 +148,7 @@ static_resources:
 #+END_SRC
 
 
-With envoy running this config, the behaviour of the requests will be:
+With envoy running this config, the behaviour of the requests is:
 
 rewrite all traffic hitting the web service to /k8s.gcr.io/, except if the IP is /192.168.0.1/ then set the location to /registry-1.docker.io/.
 
