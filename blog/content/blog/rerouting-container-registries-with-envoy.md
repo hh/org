@@ -2,7 +2,7 @@
 title = "Rerouting Container Registries With Envoy"
 author = ["Caleb Woodbine"]
 date = 2021-04-15
-lastmod = 2021-04-20T10:36:21+12:00
+lastmod = 2021-04-20T11:18:00+12:00
 tags = ["envoy", "oci", "containers", "discoveries"]
 categories = ["discoveries"]
 draft = false
@@ -20,17 +20,10 @@ In this post, I will detail the discovery of Envoy's dynamic rewriting location 
 
 ****What is an [OCI container registry](https://opencontainers.org/)?****
 
-> a standard and specification for implementation container registries
+> a standard, and specification, for the implementation of container registries
 
 I've been playing around with and learning Envoy for a number of months now. One of the concepts I'm investigating is rewriting the request's host.
 Envoy is a super powerful piece of software. It is flexible and highly dynamic.
-
-
-## Dependencies {#dependencies}
-
-You'll need:
-
--   [envoy](https://www.envoyproxy.io/docs/envoy/latest/start/install)
 
 
 ## Journey {#journey}
@@ -44,7 +37,7 @@ The goal is to set up Envoy on a host to rewrite all requests dynamically back t
 ### Initial discoveries {#initial-discoveries}
 
 One of the first things I investigated was the ability to get traffic from one site and serve it on another (proxying).
-I searched forth in the docs and found in the [most basic example](https://www.envoyproxy.io/docs/envoy/v1.17.1/start/quick-start/configuration-static) that it's possible to use Envoy's http filter in the _filter\_chains_ a static host is able to be rewritten.
+I searched in the docs and in their [most basic example](https://www.envoyproxy.io/docs/envoy/v1.17.1/start/quick-start/configuration-static) could see that, by using envoy's http filter in the filter\_chains, a static host could be rewritten.
 
 Example:
 
@@ -84,7 +77,7 @@ static_resources:
 ...
 ```
 
-This is a great start! This serves the site and it's content under the host where Envoy is served.
+This is a great start! This serves the site and its content under the host where Envoy is served.
 However, the host in the rewrite is static and not dynamic. It seems at this point like doing the implementation this way is not viable.
 
 
@@ -92,9 +85,9 @@ However, the host in the rewrite is static and not dynamic. It seems at this poi
 
 Envoy has the lovely feature to set many kinds of middleware in the middle of a request.
 This middleware can be used to add/change/remove things from the request.
-The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, so on.
-
 Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
+
+The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, and even Lua.
 
 
 ### The implementation {#the-implementation}
@@ -172,16 +165,17 @@ static_resources:
                 port_value: 443
 ```
 
-With envoy running this config, the behaviour of the requests is:
+With envoy running this config, the behaviour of the requests is
 
-rewrite all traffic hitting the web service to _k8s.gcr.io_, except if the IP is _192.168.0.1_ then set the location to _registry-1.docker.io_.
+-   rewrite all traffic hitting the web service to _k8s.gcr.io_
+-   except if the IP is _192.168.0.1_ then set the location to _registry-1.docker.io_
 
-Since I'm using a [Pair](https://github.com/sharingio/pair) instance, it set's the local subnet to _192.168.0.0/24_ so when I try to `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/library/postgres:12-alpine` it will go to _docker.io_.
+Since I'm using a [Pair](https://github.com/sharingio/pair) instance, it sets the local subnet to _192.168.0.0/24_ so when I try to `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/library/postgres:12-alpine` it will go to _docker.io_.
 
 On my local machine, pulling container images using `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/e2e-test-images/agnhost:2.26` will instead use _k8s.gcr.io_.
 
 To achieve this, I research how other http libraries handle redirects - namely [Golang's net/http.Redirect](https://golang.org/src/net/http/server.go?s=66471:66536#L2179).
-The main things that Golang's _http.Redirect_ does it:
+The main things that Golang's _http.Redirect_ does is:
 
 -   set the _content-type_ header to _text/html_
 -   set the location to the destination
@@ -192,6 +186,7 @@ The main things that Golang's _http.Redirect_ does it:
 ## Final thoughts {#final-thoughts}
 
 I'm learning that Envoy is highly flexible and seemly limitless in it's capabilities.
-It's exciting to see Envoy being adopted in many places, it's usecases, and implementations.
+
+It's exciting to see Envoy being adopted in so many places - moreover to see the diverse usecases and implementations.
 
 Big shout out to Zach for pairing on this with a few different aspects and attempts! (Zach is cool)
