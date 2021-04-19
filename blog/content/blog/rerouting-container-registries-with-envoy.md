@@ -2,7 +2,7 @@
 title = "Rerouting Container Registries With Envoy"
 author = ["Caleb Woodbine"]
 date = 2021-04-15
-lastmod = 2021-04-15T16:41:13+12:00
+lastmod = 2021-04-20T10:21:13+12:00
 tags = ["envoy", "oci", "containers", "discoveries"]
 categories = ["discoveries"]
 draft = false
@@ -38,12 +38,12 @@ You'll need:
 
 ### My expectations {#my-expectations}
 
-The goal is to perform a 302 redirect onto the host of a container registry with the container registry host being dynamic.
+The goal is to set up Envoy on a host to rewrite all requests dynamically back to a container registry hosted by a cloud-provider, such as GCP.
 
 
 ### Initial discoveries {#initial-discoveries}
 
-One of the first things I investigated was the ability to get traffic from one site and serve it on another.
+One of the first things I investigated was the ability to get traffic from one site and serve it on another (proxying).
 I searched forth in the docs and found in the [most basic example](https://www.envoyproxy.io/docs/envoy/v1.17.1/start/quick-start/configuration-static) that it's possible to use Envoy's http filter in the _filter\_chains_ a static host is able to be rewritten.
 
 Example:
@@ -90,11 +90,11 @@ However, the host in the rewrite is static and not dynamic. It seemed at this po
 
 ### Learning about filter-chains {#learning-about-filter-chains}
 
-Envoy has the lovely feature to set many kinda of middleware in the middle of a request.
+Envoy has the lovely feature to set many kinds of middleware in the middle of a request.
 This middleware can be used to add/change/remove things from the request.
-The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, Lua, so on.
+The functionality is infinitely useful as filters can be such things as gRPC, PostgreSQL, Wasm, so on.
 
-Envoy is particularly good at HTTP related filtering. It supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
+Envoy is particularly good at HTTP related filtering. It also supports such features as dynamic forward proxy, JWT auth, health checks, rate limiting, and Lua.
 
 
 ### The implementation {#the-implementation}
@@ -135,9 +135,6 @@ static_resources:
                 local reg1 = "k8s.gcr.io"
                 local reg2 = "registry-1.docker.io"
                 local reg2WithIP = "192.168.0.1"
-                function envoy_on_response(response_handle)
-                  response_handle:headers():replace("Content-Type", "text/html; charset=utf-8")
-                end
                 function envoy_on_request(request_handle)
                   local reg = reg1
                   remoteAddr = request_handle:headers():get("x-real-ip")
@@ -150,6 +147,7 @@ static_resources:
                       {
                         [":status"] = "302",
                         ["location"] = "https://"..reg..request_handle:headers():get(":path"),
+                        ["Content-Type"] = "text/html; charset=utf-8",
                         [":authority"] = "web_service"
                       },
                       '<a href="'.."https://"..reg..request_handle:headers():get(":path")..'">'.."302".."</a>.\n")
@@ -175,11 +173,14 @@ static_resources:
 ```
 
 With envoy running this config, the behaviour of the requests will be:
-rewrite all traffic hitting the web service to _k8s.gcr.io_, except if the IP is _192.168.0.1_ then set the location to _registry-1.docker.io_.
-Since I'm using a [Pair](https://github.com/sharingio/pair) instance, it set's the local subnet to _192.168.0.0/24_ so when I try to `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/library/postgres:12-alpine` it will go to _docker.io_.
-If I try to `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/e2e-test-images/agnhost:2.26` locally, it pulls from _k8s.gcr.io_.
 
-To archieve this, I research how other http libraries handle redirects - namely [Golang's](https://golang.org/src/net/http/server.go?s=66471:66536#L2179).
+rewrite all traffic hitting the web service to _k8s.gcr.io_, except if the IP is _192.168.0.1_ then set the location to _registry-1.docker.io_.
+
+Since I'm using a [Pair](https://github.com/sharingio/pair) instance, it set's the local subnet to _192.168.0.0/24_ so when I try to `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/library/postgres:12-alpine` it will go to _docker.io_.
+
+On my local machine, pulling container images using `docker pull humacs-envoy-10000.$SHARINGIO_PAIR_BASE_DNS_NAME/e2e-test-images/agnhost:2.26` will instead use _k8s.gcr.io_.
+
+To achieve this, I research how other http libraries handle redirects - namely [Golang's net/http.Redirect](https://golang.org/src/net/http/server.go?s=66471:66536#L2179).
 The main things that Golang's _http.Redirect_ does it:
 
 -   set the _content-type_ header to _text/html_
@@ -193,4 +194,4 @@ The main things that Golang's _http.Redirect_ does it:
 I'm learning that Envoy is highly flexible and seemly limitless in it's capabilities.
 It's exciting to see Envoy being adopted in many places, it's usecases, and implementations.
 
-Big shout out to Zach for pairing on this with a few different aspects and attempts!
+Big shout out to Zach for pairing on this with a few different aspects and attempts! (Zach is cool)
