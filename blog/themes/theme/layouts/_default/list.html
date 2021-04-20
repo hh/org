@@ -56,7 +56,9 @@
     </li>
     {{ end }}
   </ul>
+  {{- if not $hasAuthor }}
   {{ partial "browse-by-tag.html" .}}
+  {{- end }}
 </div>
 
 {{ end }}
