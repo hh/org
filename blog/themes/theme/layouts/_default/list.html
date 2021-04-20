@@ -7,25 +7,23 @@
 {{ $dateFormat := .Site.Params.dateFormat | default "Jan 2 2006" }}
 {{ $hasAuthor := false }}
 {{- if .Data.Term }}
-  {{range where (where (where site.Pages "Section" "author") ".Params.guest" "!=" true) ".Params.name" "!=" nil}}
+  {{range where (where (where (where site.Pages "Section" "author") ".Params.guest" "!=" true) ".Params.name" "!=" nil) ".Data.Term" "==" $.Data.Term}}
   {{$longContent := gt (len .Content) 250}}
-  {{ if eq .Data.Term $.Data.Term}}
-    {{ $hasAuthor = true }}
-    <div class="profile-info">
-    <h1 style="text-align: center;">{{.Params.name}}</h1>
-    {{if .Params.photo }}
-    <div class='profile-photo'
-      style='background-image: url("{{ .Params.photo }}");' >
-    </div>
-    {{ else }}
-    <div class='profile-photo missing'
-      style='background-image: url("/images/unknown-profile.svg")'>
-    </div>
-    {{ end }}
-    <div class='content long' id='{{.Params.name}}'>
-      {{ .Content }}
-    </div>
-    {{ end }}
+  {{ $hasAuthor = true }}
+  <div class="profile-info">
+  <h1 style="text-align: center;">{{.Params.name}}</h1>
+  {{if .Params.photo }}
+  <div class='profile-photo'
+    style='background-image: url("{{ .Params.photo }}");' >
+  </div>
+  {{ else }}
+  <div class='profile-photo missing'
+    style='background-image: url("/images/unknown-profile.svg")'>
+  </div>
+  {{ end }}
+  <div class='content long' id='{{.Params.name}}'>
+    {{ .Content }}
+  </div>
   {{ end }}
 {{ end }}
 {{- if (not $hasAuthor) }}
