@@ -18,6 +18,17 @@
           <h2 class="post__title">
             <a href="{{.RelPermalink}}">{{ .Title }}</a>
           </h2>
+          <div class='summary'>
+            <p>
+              {{ .Summary }} <br/>
+              by
+              {{ range .Param "author" }}
+              <a class="author" href={{(path.Join "/author" (replace (lower .) " " "-"))}}>
+              {{ . }}
+              </a>
+              {{ end }}
+              </p>
+          </div>
         </div>
       </li>
       {{ end }}
