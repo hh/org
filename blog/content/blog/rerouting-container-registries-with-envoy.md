@@ -2,7 +2,7 @@
 title = "Rerouting Container Registries With Envoy"
 author = ["Caleb Woodbine"]
 date = 2021-04-15
-lastmod = 2021-04-20T11:19:39+12:00
+lastmod = 2021-04-21T15:44:52+12:00
 tags = ["envoy", "oci", "containers", "discoveries"]
 categories = ["discoveries"]
 draft = false
@@ -189,4 +189,4 @@ I'm learning that Envoy is highly flexible and seemly limitless in it's capabili
 
 It's exciting to see Envoy being adopted in so many places - moreover to see the diverse usecases and implementations.
 
-Big shout out to Zach for pairing on this with a few different aspects and attempts! (Zach is cool)
+Big shout out to [Zach](https://ii.coop/author/zach-mandeville) for pairing on this with a few different aspects and attempts! (Zach is cool:tm:)
