@@ -1,0 +1,85 @@
+# Deploying Envoy
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # annotations:
+  #   lastcfg: |
+  #     ${ENVOY_LAST_CFG}
+  labels:
+    app: registry-k8s-io-envoy
+  name: registry-k8s-io-envoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry-k8s-io-envoy
+  template:
+    metadata:
+      # annotations:
+      #   lastcfg: |
+      #     ${ENVOY_LAST_CFG}
+      labels:
+        app: registry-k8s-io-envoy
+    spec:
+      containers:
+      - name: envoy
+        command:
+        - /usr/local/bin/envoy
+        - -c
+        - /etc/envoy/envoy.yaml
+        - -l
+        - debug
+        image: envoyproxy/envoy-dev:latest
+        volumeMounts:
+          - name: envoy-config
+            mountPath: /etc/envoy/
+          - name: envoy-config-lds
+            mountPath: /var/lib/envoy/
+        ports:
+          - name: http
+            containerPort: 10000
+      volumes:
+      - name: envoy-config
+        configMap:
+          name: envoy-config
+      - name: envoy-config-lds
+        configMap:
+          name: envoy-config-lds
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: registry-k8s-io-envoy
+  name: registry-k8s-io-envoy
+spec:
+  ports:
+  - name: registry-k8s-io
+    port: 10000
+    protocol: TCP
+    targetPort: 10000
+  selector:
+    app: registry-k8s-io-envoy
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-k8s-io-envoy
+spec:
+  rules:
+  - host: registry-k8s-io.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    http:
+      paths:
+      - backend:
+          service:
+            name: registry-k8s-io-envoy
+            port:
+              number: 10000
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - registry-k8s-io.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    secretName: letsencrypt-prod
