@@ -31,7 +31,7 @@ resources:
               inline_code: |
                 local reg1 = "k8s.gcr.io"
                 local reg2 = "registry-1.docker.io"
-                local reg2WithIP = "192.168.0.1"
+                local reg2WithIP = "192.168.0.18"
                 function envoy_on_request(request_handle)
                   local reg = reg1
                   remoteAddr = request_handle:headers():get("x-real-ip")
@@ -41,7 +41,8 @@ resources:
                   end
                   request_handle:logInfo("REG: "..reg)
                   request_handle:logInfo("REMOTEADDR: "..remoteAddr)
-                  -- request_handle:logInfo("Hello")
+                  request_handle:logInfo("Hello")
+                  request_handle:logInfo("My friend")
                   if request_handle:headers():get(":method") == "GET" then
                     request_handle:respond(
                       {

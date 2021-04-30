@@ -27,13 +27,14 @@ spec:
         command:
         - /usr/local/bin/envoy
         - -c
-        - /etc/envoy/envoy.yaml
+        - /etc/envoy.yaml
         - -l
         - debug
-        image: envoyproxy/envoy-dev:latest
+        image: envoyproxy/envoy:v1.18.2
         volumeMounts:
           - name: envoy-config
-            mountPath: /etc/envoy/
+            mountPath: /etc/envoy.yaml
+            subPath: envoy.yaml
           - name: envoy-config-lds
             mountPath: /var/lib/envoy/
         ports:
@@ -59,6 +60,10 @@ spec:
     port: 10000
     protocol: TCP
     targetPort: 10000
+  - name: registry-k8s-io-admin
+    port: 9003
+    protocol: TCP
+    targetPort: 9003
   selector:
     app: registry-k8s-io-envoy
   type: ClusterIP
@@ -82,4 +87,25 @@ spec:
   tls:
   - hosts:
     - registry-k8s-io.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    secretName: letsencrypt-prod
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-k8s-io-envoy-admin
+spec:
+  rules:
+  - host: registry-k8s-io-admin.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    http:
+      paths:
+      - backend:
+          service:
+            name: registry-k8s-io-envoy
+            port:
+              number: 9003
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - registry-k8s-io-admin.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod

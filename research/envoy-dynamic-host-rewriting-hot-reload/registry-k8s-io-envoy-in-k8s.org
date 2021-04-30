@@ -29,6 +29,12 @@ static_resources:
               socket_address:
                 address: k8s.io
                 port_value: 443
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9003
 #+END_SRC
 
 *** envoy-lds.yaml
@@ -64,7 +70,7 @@ resources:
               inline_code: |
                 local reg1 = "k8s.gcr.io"
                 local reg2 = "registry-1.docker.io"
-                local reg2WithIP = "192.168.0.1"
+                local reg2WithIP = "192.168.0.18"
                 function envoy_on_request(request_handle)
                   local reg = reg1
                   remoteAddr = request_handle:headers():get("x-real-ip")
@@ -74,7 +80,8 @@ resources:
                   end
                   request_handle:logInfo("REG: "..reg)
                   request_handle:logInfo("REMOTEADDR: "..remoteAddr)
-                  -- request_handle:logInfo("Hello")
+                  request_handle:logInfo("Hello")
+                  request_handle:logInfo("My friend")
                   if request_handle:headers():get(":method") == "GET" then
                     request_handle:respond(
                       {
@@ -125,13 +132,14 @@ spec:
         command:
         - /usr/local/bin/envoy
         - -c
-        - /etc/envoy/envoy.yaml
+        - /etc/envoy.yaml
         - -l
         - debug
-        image: envoyproxy/envoy-dev:latest
+        image: envoyproxy/envoy:v1.18.2
         volumeMounts:
           - name: envoy-config
-            mountPath: /etc/envoy/
+            mountPath: /etc/envoy.yaml
+            subPath: envoy.yaml
           - name: envoy-config-lds
             mountPath: /var/lib/envoy/
         ports:
@@ -157,6 +165,10 @@ spec:
     port: 10000
     protocol: TCP
     targetPort: 10000
+  - name: registry-k8s-io-admin
+    port: 9003
+    protocol: TCP
+    targetPort: 9003
   selector:
     app: registry-k8s-io-envoy
   type: ClusterIP
@@ -181,13 +193,105 @@ spec:
   - hosts:
     - registry-k8s-io.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-k8s-io-envoy-admin
+spec:
+  rules:
+  - host: registry-k8s-io-admin.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    http:
+      paths:
+      - backend:
+          service:
+            name: registry-k8s-io-envoy
+            port:
+              number: 9003
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - registry-k8s-io-admin.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    secretName: letsencrypt-prod
 #+END_SRC
 
 #+BEGIN_SRC shell :results silent
-export ENVOY_LAST_CFG=$(cat envoy-config.yaml | sha256sum)
 envsubst < envoy.yaml | kubectl apply -f -
 #+END_SRC
 
 #+BEGIN_SRC shell :results silent
 kubectl delete -f envoy.yaml
 #+END_SRC
+
+** A classic dose of debug
+#+BEGIN_SRC shell
+curl https://registry-k8s-io-admin.$SHARINGIO_PAIR_BASE_DNS_NAME/config_dump | jq -r '.configs[2].dynamic_listeners[0]'
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{
+  "name": "listener_0",
+  "active_state": {
+    "listener": {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "name": "listener_0",
+      "address": {
+        "socket_address": {
+          "address": "0.0.0.0",
+          "port_value": 10000
+        }
+      },
+      "filter_chains": [
+        {
+          "filters": [
+            {
+              "name": "envoy.http_connection_manager",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+                "stat_prefix": "ingress_http",
+                "route_config": {
+                  "name": "local_route",
+                  "virtual_hosts": [
+                    {
+                      "name": "local_service",
+                      "domains": [
+                        "*"
+                      ],
+                      "routes": [
+                        {
+                          "match": {
+                            "prefix": "/"
+                          },
+                          "route": {
+                            "cluster": "web_service"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "http_filters": [
+                  {
+                    "name": "envoy.filters.http.lua",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua",
+                      "inline_code": "local reg1 = \"k8s.gcr.io\"\nlocal reg2 = \"registry-1.docker.io\"\nlocal reg2WithIP = \"192.168.0.18\"\nfunction envoy_on_request(request_handle)\n  local reg = reg1\n  remoteAddr = request_handle:headers():get(\"x-real-ip\")\n  if remoteAddr == reg2WithIP then\n    request_handle:logInfo(\"remoteAddr: \"..reg2WithIP)\n    reg = reg2\n  end\n  request_handle:logInfo(\"REG: \"..reg)\n  request_handle:logInfo(\"REMOTEADDR: \"..remoteAddr)\n  request_handle:logInfo(\"Hello\")\n  -- request_handle:logInfo(\"Hello\")\n  if request_handle:headers():get(\":method\") == \"GET\" then\n    request_handle:respond(\n      {\n        [\":status\"] = \"302\",\n        [\"location\"] = \"https://\"..reg..request_handle:headers():get(\":path\"),\n        [\"Content-Type\"] = \"text/html; charset=utf-8\",\n        [\":authority\"] = \"web_service\"\n      },\n      '<a href=\"'..\"https://\"..reg..request_handle:headers():get(\":path\")..'\">'..\"302\"..\"</a>.\\n\")\n  end\nend\n"
+                    }
+                  },
+                  {
+                    "name": "envoy.filters.http.router",
+                    "typed_config": {}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "last_updated": "2021-04-30T02:09:15.237Z"
+  }
+}
+#+end_example
