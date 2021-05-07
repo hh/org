@@ -1,0 +1,49 @@
+#+TITLE: ii GCP CAPI
+
+* Image builder
+
+Clone
+#+BEGIN_SRC shell
+git clone https://github.com/kubernetes-sigs/image-builder
+cd image-builder/images/capi
+#+END_SRC
+
+Install dependencies
+#+BEGIN_SRC
+sudo apt update
+sudo apt install -y ansible
+make deps-gce
+#+END_SRC
+
+Ensure Kubernetes v1.21.0
+#+BEGIN_SRC shell
+find packer/config/ -type f -exec sed -i -e 's/1.18.15/1.21.0/g' {} \;
+find packer/config/ -type f -exec sed -i -e 's/1.18/1.21/g' {} \;
+#+END_SRC
+
+Set Env
+#+BEGIN_SRC shell
+read GCP_PROJECT_ID
+export GCP_PROJECT_ID
+
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-credentials.json
+#+END_SRC
+
+Build GCE image
+#+BEGIN_SRC
+make build-gce-ubuntu-1804
+#+END_SRC
+
+The image will now be available as something like /projects/$GCP_PROJECT_ID/global/images/cluster-api-ubuntu-1804-v1-21-0-1620356019/
+
+* Deploying
+
+Prepare Env
+#+BEGIN_SRC shell
+export GCP_CONTROL_PLANE_MACHINE_TYPE=e2-standard-2 GCP_NETWORK_NAME=default GCP_NODE_MACHINE_TYPE=e2-standard-2 GCP_PROJECT=$GCP_PROJECT_ID GCP_REGION=us-east1 GCP_IMAGE_SELFLINK=projects/$GCP_PROJECT_ID/global/images/cluster-api-ubuntu-1804-v1-21-0-1620356019
+#+END_SRC
+
+Template
+#+BEGIN_SRC shell
+clusterctl config cluster --from ~/cluster-template.yaml ii-sandbox-test --kubernetes-version v1.21.0 --control-plane-machine-count=1 --worker-machine-count=0 --target-namespace=gcp-test > ii-sandbox-test.yaml
+#+END_SRC
