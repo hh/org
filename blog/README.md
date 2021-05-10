@@ -47,7 +47,7 @@ sudo apt install -y hugo
 Serve site:
 
 ```
-hugo serve -b https://humacs-hugo-443.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0 -p 443
+hugo serve -b https://hugo.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0 -p 443
 ```
 
 ## Key Directory Structure for Contributors
