@@ -1,0 +1,42 @@
+#+TITLE: mitmproxy with Podman
+
+* Setting up
+Bringing mitmproxy up with Podman (or Docker):
+#+BEGIN_SRC tmate :window mitm
+podman run -it --rm -p 8080:8080 --name mitmproxy mitmproxy/mitmproxy
+#+END_SRC
+
+Copy the CA out of the container:
+#+BEGIN_SRC tmate :window shell
+podman cp mitmproxy:/home/mitmproxy/.mitmproxy/mitmproxy-ca.pem /tmp/mitmproxy-ca.pem
+#+END_SRC
+
+Copy the CA into the ca-trust:
+#+BEGIN_SRC tmate :window shell
+sudo mv /tmp/mitmproxy-ca.pem /etc/pki/ca-trust/source/anchors/mitmproxy-ca.pem
+#+END_SRC
+
+Update the CA trust cache:
+#+BEGIN_SRC tmate :window shell
+sudo update-ca-trust
+#+END_SRC
+
+* Usage
+Pull a container image:
+#+BEGIN_SRC tmate :window shell
+HTTPS_PROXY=http://localhost:8080 podman pull k8s.gcr.io/pause:3.2
+#+END_SRC
+
+Going back to the /mitm/ window, you will now see requests as they come through.
+
+* Clean up
+Delete the container image tag
+#+BEGIN_SRC tmate :window shell
+podman rmi k8s.gcr.io/pause:3.2
+#+END_SRC
+
+Remove the CA from the ca-trust and update CA the trust cache:
+#+BEGIN_SRC tmate :window shell
+sudo rm /etc/pki/ca-trust/source/anchors/mitmproxy-ca.pem
+sudo update-ca-trust
+#+END_SRC
