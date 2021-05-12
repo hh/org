@@ -1,0 +1,121 @@
+#+TITLE: K8s Reg Asn Magic
+
+Login to gcloud
+#+BEGIN_SRC shell
+gcloud auth login
+#+END_SRC
+
+Set the project
+#+BEGIN_SRC shell
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+
+* Parse from API
+Save the data to a bucket
+#+BEGIN_SRC shell
+bq extract --destination_format NEWLINE_DELIMITED_JSON k8s_artifacts_gcslogs_appspot.riaan_ipv4_asn_ip_name_over_2500 gs://ii_bq_scratch_dump/ip-and-asn.json
+#+END_SRC
+
+Download the data from the bucket
+#+BEGIN_SRC shell
+gsutil cp gs://ii_bq_scratch_dump/ip-and-asn.json ip-and-asn.json
+#+END_SRC
+
+Store only the ASN
+#+BEGIN_SRC shell :results silent
+cat ip-and-asn.json | jq -r '.asn' | sort | uniq > asns.txt
+#+END_SRC
+
+Formatting the data
+#+BEGIN_SRC shell :tangle ./asn-data-processor.sh :results silent
+#!/bin/bash
+
+SKIP_TO=$1
+READ_FROM=asns.txt
+WRITE_TO=asn-data.csv
+
+TMPDIR=$(mktemp -d)
+echo "Temp folder: $TMPDIR"
+
+ALLOWED_RETRIES=5
+
+count=0
+while IFS= read -r asn; do
+    count=$((count+=1))
+    retries=0
+    echo "ASN[$count]: $asn"
+    if [ $asn -eq 0 ] || ( [ ! -z $SKIP_TO ] && [ $count -lt $SKIP_TO ] ); then
+        echo "Skipping [$count] $asn"
+        continue
+    fi
+    until curl "https://api.bgpview.io/asn/$asn" 2> /dev/null > $TMPDIR/$asn.json && cat $TMPDIR/$asn.json | jq .data.name 2>&1 > /dev/null; do
+        retries=$((retries+=1))
+        if [ $retries -eq $ALLOWED_RETRIES ]; then
+            echo "Skipping [$count] $asn"
+            retries=0
+            continue 2
+        fi
+        echo "Failed [$retries/$ALLOWED_RETRIES]. Retrying '$asn' in 3 seconds"
+        sleep 3s
+    done
+    cat $TMPDIR/$asn.json | jq -r '.data | (.email_contacts | join(";")) as $contacts | .description_short as $name | [.asn, $name, $contacts] | @csv' 2> /dev/null \
+        | tee -a $WRITE_TO 2>&1 > /dev/null
+    sleep 1s
+done < $READ_FROM
+#+END_SRC
+
+Upload to the bucket
+#+BEGIN_SRC shell :results silent
+gsutil cp ./asn-data.csv gs://ii_bq_scratch_dump/asn-data.csv
+gsutil ls $_
+#+END_SRC
+
+Load into big query
+#+BEGIN_SRC shell :results silent
+bq load --autodetect --source_format=CSV k8s_artifacts_gcslogs_appspot.asn_company_lookup gs://ii_bq_scratch_dump/asn-data.csv
+#+END_SRC
+
+* Parse from Postgres
+
+Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=peeringdb postgres:12.2-alpine
+#+END_SRC
+
+Clone https://git.2e8.dk/peeringdb-simplesync
+#+BEGIN_SRC shell
+git clone https://git.2e8.dk/peeringdb-simplesync
+#+END_SRC
+
+Write the config for sync.py
+#+BEGIN_SRC python :tangle peeringdb-simplesync/config.py
+from requests.auth import HTTPBasicAuth
+import os
+
+host=os.environ['SHARINGIO_PAIR_LOAD_BALANCER_IP']
+user=os.environ['PEERINGDB_USER']
+password=os.environ['PEERINGDB_PASSWORD']
+
+def get_config():
+    return {
+        'db_conn_str': 'dbname=peeringdb host=%s user=postgres password=password' % host,
+        'db_schema': 'peeringdb',
+        'auth': HTTPBasicAuth('%s' % user, '%s' % password),
+    }
+#+END_SRC
+
+Dump all of the data
+#+BEGIN_SRC tmate :window peeringdb-sync :dir peeringdb-simplesync
+./sync
+#+END_SRC
+
+* Clean up
+Remove the table
+#+BEGIN_SRC shell
+bq rm k8s_artifacts_gcslogs_appspot.asn_company_lookup
+#+END_SRC
+
+Clean up
+#+BEGIN_SRC shell :results silent
+rm -f asn-data.csv
+#+END_SRC
