@@ -90,12 +90,12 @@ docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=pe
 #+END_SRC
 
 Clone https://git.2e8.dk/peeringdb-simplesync
-#+BEGIN_SRC tmate :window peeringdb-sync :dir peeringdb-simplesync
+#+BEGIN_SRC tmate :window prepare :dir (getenv "HOME")
 git clone https://git.2e8.dk/peeringdb-simplesync
 #+END_SRC
 
 Write the config for sync.py
-#+BEGIN_SRC python :tangle peeringdb-simplesync/config.py
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
 from requests.auth import HTTPBasicAuth
 import os
 
@@ -154,25 +154,56 @@ psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP
 
 See the tables
 #+BEGIN_SRC sql-mode :eval never-export :exports both :session none :sql-user postgres :sql-database peeringdb :sql-server (getenv "SHARINGIO_PAIR_LOAD_BALANCER_IP") :sql-password password
-SELECT * FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
 #+END_SRC
 
 #+RESULTS:
 #+begin_SRC example
- schemaname | tablename | tableowner | tablespace | hasindexes | hasrules | hastriggers | rowsecurity
-------------+-----------+------------+------------+------------+----------+-------------+-------------
- peeringdb  | fac       | postgres   |            | t          | f        | f           | f
- peeringdb  | ix        | postgres   |            | t          | f        | f           | f
- peeringdb  | ixfac     | postgres   |            | t          | f        | f           | f
- peeringdb  | ixlan     | postgres   |            | t          | f        | f           | f
- peeringdb  | ixpfx     | postgres   |            | t          | f        | f           | f
- peeringdb  | net       | postgres   |            | t          | f        | f           | f
- peeringdb  | netfac    | postgres   |            | t          | f        | f           | f
- peeringdb  | netixlan  | postgres   |            | t          | f        | f           | f
- peeringdb  | org       | postgres   |            | t          | f        | f           | f
- peeringdb  | poc       | postgres   |            | t          | f        | f           | f
+ schemaname | tablename
+------------+-----------
+ peeringdb  | fac
+ peeringdb  | ix
+ peeringdb  | ixfac
+ peeringdb  | ixlan
+ peeringdb  | ixpfx
+ peeringdb  | net
+ peeringdb  | netfac
+ peeringdb  | netixlan
+ peeringdb  | org
+ peeringdb  | poc
 (10 rows)
 
+#+end_SRC
+
+Selecting data
+#+BEGIN_SRC go :tangle ./asn-db-data-processor.go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"database/sql"
+	_ "github.com/lib/pq"
+)
+
+func GetDBConnection() (*sql.DB, error) {
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://postgres:password@%v/peeringdb", os.Getenv("SHARINGIO_PAIR_LOAD_BALANCER_IP")))
+	db.Ping()
+	return db, err
+}
+
+func main() {
+	db, err := GetDBConnection()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	db.Ping()
+}
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
 #+end_SRC
 
 * Clean up
