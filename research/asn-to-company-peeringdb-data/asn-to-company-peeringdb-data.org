@@ -134,6 +134,7 @@ gsutil cp peeringdb-dump-$(date +%Y%m%d).sql gs://ii_bq_scratch_dump/peeringdb-d
 #+END_SRC
 
 ** With pre-prepared dump
+
 Download from the bucket
 #+BEGIN_SRC tmate :window peeringdb-sync
 gsutil cp gs://ii_bq_scratch_dump/peeringdb-dump-20210512.sql ./peeringdb-dump-20210512.sql
@@ -145,9 +146,34 @@ psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < ./peeringdb-
 #+END_SRC
 
 ** Explore
+
+Connect with psql
 #+BEGIN_SRC tmate :window peeringdb-sync
 psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP
 #+END_SRC
+
+See the tables
+#+BEGIN_SRC sql-mode :eval never-export :exports both :session none :sql-user postgres :sql-database peeringdb :sql-server (getenv "SHARINGIO_PAIR_LOAD_BALANCER_IP") :sql-password password
+SELECT * FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ schemaname | tablename | tableowner | tablespace | hasindexes | hasrules | hastriggers | rowsecurity
+------------+-----------+------------+------------+------------+----------+-------------+-------------
+ peeringdb  | fac       | postgres   |            | t          | f        | f           | f
+ peeringdb  | ix        | postgres   |            | t          | f        | f           | f
+ peeringdb  | ixfac     | postgres   |            | t          | f        | f           | f
+ peeringdb  | ixlan     | postgres   |            | t          | f        | f           | f
+ peeringdb  | ixpfx     | postgres   |            | t          | f        | f           | f
+ peeringdb  | net       | postgres   |            | t          | f        | f           | f
+ peeringdb  | netfac    | postgres   |            | t          | f        | f           | f
+ peeringdb  | netixlan  | postgres   |            | t          | f        | f           | f
+ peeringdb  | org       | postgres   |            | t          | f        | f           | f
+ peeringdb  | poc       | postgres   |            | t          | f        | f           | f
+(10 rows)
+
+#+end_SRC
 
 * Clean up
 Remove the table
@@ -158,8 +184,4 @@ bq rm k8s_artifacts_gcslogs_appspot.asn_company_lookup
 Clean up
 #+BEGIN_SRC shell :results silent
 rm -f asn-data.csv
-#+END_SRC
-* Scratch
-#+BEGIN_SRC tmate :window hello
-pwd
 #+END_SRC
