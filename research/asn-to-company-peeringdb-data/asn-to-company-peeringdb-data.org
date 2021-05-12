@@ -1,28 +1,29 @@
 #+TITLE: K8s Reg Asn Magic
+#+PROPERTY: header-args:tmate+ :socket /tmp/ii.default.target.iisocket
 
 Login to gcloud
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate :window prepare
 gcloud auth login
 #+END_SRC
 
 Set the project
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate :window prepare
 gcloud config set project k8s-infra-ii-sandbox
 #+END_SRC
 
 * Parse from API
 Save the data to a bucket
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate :window prepare
 bq extract --destination_format NEWLINE_DELIMITED_JSON k8s_artifacts_gcslogs_appspot.riaan_ipv4_asn_ip_name_over_2500 gs://ii_bq_scratch_dump/ip-and-asn.json
 #+END_SRC
 
 Download the data from the bucket
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate :window prepare
 gsutil cp gs://ii_bq_scratch_dump/ip-and-asn.json ip-and-asn.json
 #+END_SRC
 
 Store only the ASN
-#+BEGIN_SRC shell :results silent
+#+BEGIN_SRC tmate :window prepare
 cat ip-and-asn.json | jq -r '.asn' | sort | uniq > asns.txt
 #+END_SRC
 
@@ -64,6 +65,12 @@ while IFS= read -r asn; do
 done < $READ_FROM
 #+END_SRC
 
+Run the script
+#+BEGIN_SRC tmate :window prepare
+chmod +x ./asn-data-processor.sh
+time ./asn-data-processor.sh
+#+END_SRC
+
 Upload to the bucket
 #+BEGIN_SRC shell :results silent
 gsutil cp ./asn-data.csv gs://ii_bq_scratch_dump/asn-data.csv
@@ -83,7 +90,7 @@ docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=pe
 #+END_SRC
 
 Clone https://git.2e8.dk/peeringdb-simplesync
-#+BEGIN_SRC shell
+#+BEGIN_SRC tmate :window peeringdb-sync :dir peeringdb-simplesync
 git clone https://git.2e8.dk/peeringdb-simplesync
 #+END_SRC
 
@@ -109,6 +116,39 @@ Dump all of the data
 ./sync
 #+END_SRC
 
+Set env vars to not prompt for Postgres username and password
+#+BEGIN_SRC tmate :window peeringdb-sync
+export \
+    PGUSER=postgres \
+    PGPASSWORD=password
+#+END_SRC
+
+Dump the database
+#+BEGIN_SRC tmate :window peeringdb-sync
+pg_dump -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP > peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+
+Upload the dump
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp peeringdb-dump-$(date +%Y%m%d).sql gs://ii_bq_scratch_dump/peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+
+** With pre-prepared dump
+Download from the bucket
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp gs://ii_bq_scratch_dump/peeringdb-dump-20210512.sql ./peeringdb-dump-20210512.sql
+#+END_SRC
+
+Load the data from the dump into a new/separate Postgres instance
+#+BEGIN_SRC tmate :window peeringdb-sync
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < ./peeringdb-dump-20210512.sql
+#+END_SRC
+
+** Explore
+#+BEGIN_SRC tmate :window peeringdb-sync
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP
+#+END_SRC
+
 * Clean up
 Remove the table
 #+BEGIN_SRC shell
@@ -118,4 +158,8 @@ bq rm k8s_artifacts_gcslogs_appspot.asn_company_lookup
 Clean up
 #+BEGIN_SRC shell :results silent
 rm -f asn-data.csv
+#+END_SRC
+* Scratch
+#+BEGIN_SRC tmate :window hello
+pwd
 #+END_SRC
