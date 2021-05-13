@@ -203,7 +203,7 @@ select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::j
 
 Find data from peeringdb.net table
 #+BEGIN_SRC sql-mode
-select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.net where 'website' is not null limit 5;
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.net limit 5;
 #+END_SRC
 
 #+RESULTS:
@@ -219,22 +219,35 @@ select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::j
 
 #+end_SRC
 
+Getting fields with emails
 #+BEGIN_SRC sql-mode
-select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'email', net_id, status from peeringdb.poc where status = 'ok' limit 5;
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'email' as email, net_id from peeringdb.poc where status = 'ok' limit 5;
 #+END_SRC
 
 #+RESULTS:
 #+begin_SRC example
- id  |            name            |           ?column?           | net_id | status
------+----------------------------+------------------------------+--------+--------
- 100 | Telefonica DE Peering Team | peering.de@telefonica.com    |    115 | ok
-  48 | NOC                        | noc@stealth.net              |     26 | ok
-  53 | 24x7 NOC                   | NOC.AUS.NATL.BBN@charter.com |      9 | ok
-  23 | GTT NOC (outside the USA)  | noc@gtt.net                  |     14 | ok
- 191 | Support                    | support@is.co.za             |    179 | ok
+ id  |            name            |            email             | net_id
+-----+----------------------------+------------------------------+--------
+ 100 | Telefonica DE Peering Team | peering.de@telefonica.com    |    115
+  48 | NOC                        | noc@stealth.net              |     26
+  53 | 24x7 NOC                   | NOC.AUS.NATL.BBN@charter.com |      9
+  23 | GTT NOC (outside the USA)  | noc@gtt.net                  |     14
+ 191 | Support                    | support@is.co.za             |    179
 (5 rows)
 
 #+end_SRC
+
+TODO Connect ASNs with emails by joining names between tables
+#+BEGIN_SRC sql-mode
+select id,
+       data::jsonb ->> 'name' as name,
+       data::jsonb ->> 'asn' as asn,
+       data::jsonb ->> 'website' as "website"
+       from peeringdb.net
+       inner join peeringdb.poc on peeringdb.poc.data::jsonb ->> 'name' = net.name
+       where 'website' is not null
+       limit 5;
+#+END_SRC
 
 Scripting the data fetching in Go
 #+BEGIN_SRC go :tangle ./asn-db-data-processor.go
