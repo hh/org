@@ -188,54 +188,15 @@ Find data from peeringdb.org table
 select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.org where 'website' is not null limit 5;
 #+END_SRC
 
-#+RESULTS:
-#+begin_SRC example
- id |         name         | asn | website
-----+----------------------+-----+---------
- 46 | XS4ALL Internet B.V. |     |
- 17 | DALnet IRC Network   |     |
- 90 | Plushosting B.V.     |     |
- 91 | YellowBrix           |     |
- 92 | NYCX                 |     |
-(5 rows)
-
-#+end_SRC
-
 Find data from peeringdb.net table
 #+BEGIN_SRC sql-mode
 select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.net limit 5;
 #+END_SRC
 
-#+RESULTS:
-#+begin_SRC example
- id |         name         |  asn  |            website
-----+----------------------+-------+--------------------------------
- 83 | Cable&Wireless UK    | 5388  | http://www.cw.com/uk
- 24 | DSLExtreme           | 19817 | http://www.dslextreme.com
- 28 | New Edge Networks    | 19029 | http://www.newedgenetworks.com
- 97 | Netservices Plc      | 15444 | http://www.netservicesplc.com
- 36 | GrafiX Internet B.V. | 16131 | http://www.grafix.nl/
-(5 rows)
-
-#+end_SRC
-
 Getting fields with emails
 #+BEGIN_SRC sql-mode
 select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'email' as email, net_id from peeringdb.poc where status = 'ok' limit 5;
 #+END_SRC
-
-#+RESULTS:
-#+begin_SRC example
- id  |            name            |            email             | net_id
------+----------------------------+------------------------------+--------
- 100 | Telefonica DE Peering Team | peering.de@telefonica.com    |    115
-  48 | NOC                        | noc@stealth.net              |     26
-  53 | 24x7 NOC                   | NOC.AUS.NATL.BBN@charter.com |      9
-  23 | GTT NOC (outside the USA)  | noc@gtt.net                  |     14
- 191 | Support                    | support@is.co.za             |    179
-(5 rows)
-
-#+end_SRC
 
 Connect ASNs with emails by joining names between tables
 #+BEGIN_SRC sql-mode
@@ -251,19 +212,6 @@ select net.id,
        limit 5;
 #+END_SRC
 
-#+RESULTS:
-#+begin_SRC example
-  id   |          name          |  asn   |           website            |             email
--------+------------------------+--------+------------------------------+-------------------------------
- 19305 | Wnett Fibra            | 268729 | http://www.wnettfibra.com.br |
- 13590 | BAYNET                 | 131916 | http://www.baynet.ne.jp/     | BAYNET-peer@tokyobaynet.co.jp
- 23234 | Sebastian-Wilhelm Graf | 213261 | http://sebastian-graf.at     | abuse@AS213261.net
- 20819 | Hanqi Yang             | 208266 | https://network.alanyhq.com/ | abuse@alanyhq-global.net
- 21509 | Dorian Galiana         | 208196 | https://as208196.net         | abuse@as208196.net
-(5 rows)
-
-#+end_SRC
-
 #+BEGIN_SRC sql-mode
 \d peeringdb.net
 #+END_SRC
@@ -275,29 +223,90 @@ create schema asntocompany;
 
 #+RESULTS:
 #+begin_SRC example
-CREATE SCHEMA
+ERROR:  schema "asntocompany" already exists
 #+end_SRC
-
 #+BEGIN_SRC sql-mode
-begin;
 create table asnproc (
        asn bigint not null primary key
 );
 \copy asnproc from '/home/ii/peeringdb-simplesync/asns.txt';
-select *
-       from asnproc
-       limit 10 ;
-rollback;
-#+END_SRC
-
-#+BEGIN_SRC sql-mode
-\d
 #+END_SRC
 
 #+RESULTS:
 #+begin_SRC example
-Did not find any relations.
+CREATE TABLE
+COPY 415
 #+end_SRC
+
+#+BEGIN_SRC sql-mode
+select (net.data ->> 'name') as "name",
+       asn
+    from peeringdb.net
+    where (net.data ->> 'name') ilike '%google%'
+    limit 5;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+select count(*)
+from peeringdb.poc p
+where (p.data ->> 'email') is not null;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 10756
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select asn.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website",
+       (poc.data ->> 'email') as email
+       from asnproc asn
+       left join peeringdb.net net on (net.asn = asn.asn)
+       left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- where (poc.data ->> 'email') is not null
+       order by email asc;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+select
+       (poc.data ->> 'name') as poc_name
+from peeringdb.poc poc
+-- left join peeringdb.poc poc on ((net.data ->>'name') = (poc.data ->>'name'))
+where (poc.data ->> 'name') ilike '%google%'
+or (poc.data ->> 'name') ilike '%amazon%'
+or (poc.data ->> 'name') ilike '%microsoft%';
+-- where (net.data ->>'name') ilike '%google%';
+-- select data from peeringdb.net where (data ->> 'asn')::bigint = 21789 limit 1;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+begin;
+-- create table asnproc (
+--        asn bigint not null primary key
+-- );
+-- \copy asnproc from '/home/ii/peeringdb-simplesync/asns.txt';
+select count(*) from peeringdb.poc;
+select net.id,
+       asnproc.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website"
+       -- (poc.data ->> 'email') as email
+       from asnproc
+       join peeringdb.net net on ((net.data ->> 'asn')::bigint = asnproc.asn)
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = 'chonkers')
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- order by email asc
+       limit 5;
+rollback;
+#+END_SRC
 
 ** Building with Go
 
@@ -313,6 +322,15 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type asnToCompany struct {
+	ID string
+	Name string
+	ASN string
+	Email string
+}
+
+type asnToCompanySet []asnToCompany
+
 func GetDBConnection() (*sql.DB, error) {
 	db, err := sql.Open("postgres", fmt.Sprintf("postgres://postgres:password@%v/peeringdb", os.Getenv("SHARINGIO_PAIR_LOAD_BALANCER_IP")))
 	db.Ping()
@@ -327,10 +345,6 @@ func main() {
 	db.Ping()
 }
 #+END_SRC
-
-#+RESULTS:
-#+begin_SRC example
-#+end_SRC
 
 * Clean up
 Remove the table
