@@ -1,5 +1,6 @@
 #+TITLE: K8s Reg Asn Magic
 #+PROPERTY: header-args:tmate+ :socket /tmp/ii.default.target.iisocket
+#+PROPERTY: header-args:sql-mode+ :eval never-export :exports both :session none
 
 Login to gcloud
 #+BEGIN_SRC tmate :window prepare
@@ -92,6 +93,13 @@ docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=pe
 Clone https://git.2e8.dk/peeringdb-simplesync
 #+BEGIN_SRC tmate :window prepare :dir (getenv "HOME")
 git clone https://git.2e8.dk/peeringdb-simplesync
+cd peeringdb-simplesync
+#+END_SRC
+
+Enter PeeringDB creds
+#+BEGIN_SRC tmate :window prepare :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+read -p 'PEERINGDB_USER    : ' PEERINGDB_USER
+read -p 'PEERINGDB_PASSWORD: ' PEERINGDB_PASSWORD
 #+END_SRC
 
 Write the config for sync.py
@@ -112,19 +120,19 @@ def get_config():
 #+END_SRC
 
 Dump all of the data
-#+BEGIN_SRC tmate :window peeringdb-sync :dir peeringdb-simplesync
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 ./sync
 #+END_SRC
 
 Set env vars to not prompt for Postgres username and password
-#+BEGIN_SRC tmate :window peeringdb-sync
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 export \
     PGUSER=postgres \
     PGPASSWORD=password
 #+END_SRC
 
 Dump the database
-#+BEGIN_SRC tmate :window peeringdb-sync
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 pg_dump -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP > peeringdb-dump-$(date +%Y%m%d).sql
 #+END_SRC
 
@@ -175,7 +183,60 @@ SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_c
 
 #+end_SRC
 
-Selecting data
+Find data from peeringdb.org table
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.org where 'website' is not null limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id |         name         | asn | website
+----+----------------------+-----+---------
+ 46 | XS4ALL Internet B.V. |     |
+ 17 | DALnet IRC Network   |     |
+ 90 | Plushosting B.V.     |     |
+ 91 | YellowBrix           |     |
+ 92 | NYCX                 |     |
+(5 rows)
+
+#+end_SRC
+
+Find data from peeringdb.net table
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.net where 'website' is not null limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id |         name         |  asn  |            website
+----+----------------------+-------+--------------------------------
+ 83 | Cable&Wireless UK    | 5388  | http://www.cw.com/uk
+ 24 | DSLExtreme           | 19817 | http://www.dslextreme.com
+ 28 | New Edge Networks    | 19029 | http://www.newedgenetworks.com
+ 97 | Netservices Plc      | 15444 | http://www.netservicesplc.com
+ 36 | GrafiX Internet B.V. | 16131 | http://www.grafix.nl/
+(5 rows)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'email', net_id, status from peeringdb.poc where status = 'ok' limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id  |            name            |           ?column?           | net_id | status
+-----+----------------------------+------------------------------+--------+--------
+ 100 | Telefonica DE Peering Team | peering.de@telefonica.com    |    115 | ok
+  48 | NOC                        | noc@stealth.net              |     26 | ok
+  53 | 24x7 NOC                   | NOC.AUS.NATL.BBN@charter.com |      9 | ok
+  23 | GTT NOC (outside the USA)  | noc@gtt.net                  |     14 | ok
+ 191 | Support                    | support@is.co.za             |    179 | ok
+(5 rows)
+
+#+end_SRC
+
+Scripting the data fetching in Go
 #+BEGIN_SRC go :tangle ./asn-db-data-processor.go
 package main
 
