@@ -222,7 +222,8 @@ resource "google_storage_bucket" "ii_bq_scratch_dump" {
 ** Scripting terraform run to create folders for the project
 
 #+BEGIN_SRC tmate :window bulk-exporter-setup
-PROJ=k8s-infra-ii-sandbox
+#PROJ=k8s-infra-ii-sandbox
+PROJ=k8s-artifacts-prod
 DEST=`pwd`/$PROJ
 mkdir $DEST
 gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
@@ -241,12 +242,45 @@ head -3 /tmp/gcloud_projects.txt > /tmp/gcloud_projects_short.txt
 #+BEGIN_SRC shell :tangle (concat (getenv "HOME") "/gc_d_poc/bulk-exporter.sh")
 #!/bin/bash
 FNAME='/tmp/gcloud_projects_short.txt'
-PROJ=k8s-infra-ii-sandbox
-DEST=`pwd`/$PROJ
 n=1
 while read line; do
-mkdir $DEST
-gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
-n$((n+1))
+DEST=`pwd`/$line
+    echo -e 'project:' $line '\n'
+    echo -e 'dir:' $DEST  '\n'
+    echo -e 'Count:' $n '\n'
+    echo -e '\n'
+mkdir -p $DEST
+ echo 'y' | gcloud alpha resource-config bulk-export --resource-format=terraform --project=$line --path=$DEST
+n=$((n+1))
 done < $FNAME
 #+END_SRC
+
+
+#+BEGIN_SRC tmate :window bulk-export-setup
+chmod +x ~/gc_d_poc/bulk-exporter.sh
+#+END_SRC
+Lets run it!
+#+BEGIN_SRC tmate :window bulk-export-setup
+. ~/gc_d_poc/bulk-exporter.sh
+#+END_SRC
+
+Script seems to work, but we have permissions issues
+I raised the issue on: https://github.com/kubernetes/k8s.io/issues/1981
+
+tldr; we need cloudasset.googleapis.com enabled
+#+BEGIN_EXAMPLE
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
+API [cloudasset.googleapis.com] is required to continue, but is not
+enabled on project [k8s-artifacts-prod]. Would you like to enable and
+retry (this will take a few minutes)? (y/N)?  y
+
+Enabling service [cloudasset.googleapis.com] on project [k8s-artifacts-prod]...
+ERROR: (gcloud.alpha.resource-config.bulk-export) PERMISSION_DENIED: Permission denied to enable service [cloudasset.googleapis.com]
+- '@type': type.googleapis.com/google.rpc.PreconditionFailure
+  violations:
+  - subject: '110002'
+    type: googleapis.com
+- '@type': type.googleapis.com/google.rpc.ErrorInfo
+  domain: serviceusage.googleapis.com
+  reason: AUTH_PERMISSION_DENIED
+#+END_EXAMPLE
