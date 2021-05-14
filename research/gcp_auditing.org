@@ -1,0 +1,252 @@
+#+TITLE: Gcp Auditing
+* Gcloud things:
+Login to gcloud
+#+BEGIN_SRC tmate :window prepare
+gcloud auth login
+#+END_SRC
+
+Set the project
+#+BEGIN_SRC tmate :window prepare
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+
+Find sandbox-project-id
+#+BEGIN_SRC shell
+gcloud projects list | grep k8s-infra-ii-sandbox
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+k8s-infra-ii-sandbox            k8s-infra-ii-sandbox            631771264409
+#+end_example
+
+* Config bulk-exporter
+Run it and see what we get.
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=631771264409 --path=~/gc_d_poc/sandbox_dump
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+This command requires the `config-connector` binary to be installed to export GCP resource configurations.
+Would you like to install the`config-connector` binary to continue command execution?(Y/n)?
+ERROR:(gcloud.alpha.resource-config.bulk-export)
+You cannot perform this action because the Cloud SDK component manager is disabled for this installation.
+You can run the following command to achieve the same result for this installation:    
+#+END_EXAMPLE
+
+Update and install
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+sudo apt-get update && sudo apt-get install google-cloud-sdk-config-connector 
+#+END_SRC
+
+Lets try again
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=631771264409 --path=~/gc_d_poc/sandbox_dump
+#+END_SRC
+#+BEGIN_EXAMPLE
+Exporting resource configurations to [/home/ii/gc_d_poc/sandbox_dump]...done.                                                                                     
+ERROR: (gcloud.alpha.resource-config.bulk-export) Error executing export:: [error in 'config-connector' version '1.49.1': error creating temporary bucket and prefix: error getting project id: error retrieving gcp sdk credentials: google: could not find default credentials. See https://developers.google.com/accounts/docs/application-default-credentials for more information.
+]
+#+END_EXAMPLE
+
+I need to configure my application-default-credentials
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+gcloud auth application-default login
+#+END_SRC
+
+Lets try again
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=631771264409 --path=~/gc_d_poc/sandbox_dump
+#+END_SRC
+
+** A Little bit about the structure of the dump
+It creates 3 folders that contain various parts of the project.
+#+BEGIN_EXAMPLE
+i@bernokl-humacs-0:~/gc_d_poc$ ls -al
+total 12
+drwxr-xr-x  3 ii   ii   4096 May 14 10:03 .
+drwxrwxrwx 13 root root 4096 May 14 10:00 ..
+drwxr-xr-x  5 ii   ii   4096 May 14 11:45 sandbox_dump
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/
+total 20
+drwxr-xr-x 5 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 3 ii ii 4096 May 14 10:03 ..
+drwxr-xr-x 3 ii ii 4096 May 14 11:45 758905017065
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 k8s-infra-ii-sandbox
+drwxr-xr-x 4 ii ii 4096 May 14 11:45 projects
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/758905017065/
+total 12
+drwxr-xr-x 3 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 5 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x 2 ii ii 4096 May 14 11:45 Project
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/758905017065/Project/
+total 12
+drwxr-xr-x 2 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 3 ii ii 4096 May 14 11:45 ..
+-rw-r--r-- 1 ii ii  281 May 14 11:45 k8s-infra-ii-sandbox.tf
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/k8s-infra-ii-sandbox/
+total 12
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 .
+drwxr-xr-x 5 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 BigQueryDataset
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/k8s-infra-ii-sandbox/BigQueryDataset/ | tail
+total 12
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 .
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 ..
+drwxr-xr-x 2 ii ii 4096 May 14 11:44 US
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/k8s-infra-ii-sandbox/BigQueryDataset/US/ | tail
+total 16
+drwxr-xr-x 2 ii ii 4096 May 14 11:44 .
+drwxr-xr-x 3 ii ii 4096 May 14 11:44 ..
+-rw-r--r-- 1 ii ii  592 May 14 11:44 k8s-artifacts-gcslogs-appspot.tf
+-rw-r--r-- 1 ii ii  581 May 14 11:44 kubernetes-public-logs.tf
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/
+total 16
+drwxr-xr-x  4 ii ii 4096 May 14 11:45 .
+drwxr-xr-x  5 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x  4 ii ii 4096 May 14 11:45 631771264409
+drwxr-xr-x 10 ii ii 4096 May 14 11:45 k8s-infra-ii-sandbox
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/631771264409/
+total 16
+drwxr-xr-x 4 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 4 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x 2 ii ii 4096 May 14 11:46 Service
+drwxr-xr-x 4 ii ii 4096 May 14 11:46 StorageBucket
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/631771264409/StorageBucket/
+total 16
+drwxr-xr-x 4 ii ii 4096 May 14 11:46 .
+drwxr-xr-x 4 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x 2 ii ii 4096 May 14 11:46 US
+drwxr-xr-x 2 ii ii 4096 May 14 11:45 US-EAST1
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/631771264409/StorageBucket/US/
+total 16
+drwxr-xr-x 2 ii ii 4096 May 14 11:46 .
+drwxr-xr-x 4 ii ii 4096 May 14 11:46 ..
+-rw-r--r-- 1 ii ii  309 May 14 11:46 artifacts-k8s-infra-ii-sandbox-appspot-com.tf
+-rw-r--r-- 1 ii ii  279 May 14 11:46 export-c2e4nmc5jmg9n5nacc60.tf
+ii@bernokl-humacs-0:~/gc_d_poc$ cat sandbox_dump/projects/631771264409/StorageBucket/US/artifacts-k8s-infra-ii-sandbox-appspot-com.tf
+
+resource "google_storage_bucket" "artifacts_k8s_infra_ii_sandbox_appspot_com" {
+  force_destroy = false
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  location      = "US"
+  name          = "artifacts.k8s-infra-ii-sandbox.appspot.com"
+  project       = "projects/631771264409"
+  storage_class = "STANDARD"
+}
+ii@bernokl-humacs-0:~/gc_d_poc$ cat sandbox_dump/projects/631771264409/StorageBucket/US/export-c2e4nmc5jmg9n5nacc60.tf
+resource "google_storage_bucket" "export_c2e4nmc5jmg9n5nacc60" {
+  force_destroy = false
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  location      = "US"
+  name          = "export-c2e4nmc5jmg9n5nacc60"
+  project       = "projects/631771264409"
+  storage_class = "STANDARD"
+}
+
+i@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/k8s-infra-ii-sandbox/
+total 40
+drwxr-xr-x 10 ii ii 4096 May 14 11:45 .
+drwxr-xr-x  4 ii ii 4096 May 14 11:45 ..
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 BigQueryTable
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 ComputeFirewall
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 ComputeImage
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 ComputeNetwork
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 ComputeRoute
+drwxr-xr-x 27 ii ii 4096 May 14 11:46 ComputeSubnetwork
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 IAMServiceAccount
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 PubSubTopic
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/k8s-infra-ii-sandbox/ComputeImage/
+total 12
+drwxr-xr-x  2 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 10 ii ii 4096 May 14 11:45 ..
+-rw-r--r--  1 ii ii  772 May 14 11:45 cluster-api-ubuntu-1804-v1-21-0-1620356019.tf
+ii@bernokl-humacs-0:~/gc_d_poc$ cat sandbox_dump/projects/k8s-infra-ii-sandbox/ComputeImage/cluster-api-ubuntu-1804-v1-21-0-1620356019.tf
+resource "google_compute_image" "cluster_api_ubuntu_1804_v1_21_0_1620356019" {
+  description  = "Created by Packer"
+  disk_size_gb = 20
+  family       = "capi-ubuntu-1804-k8s-v1-21"
+
+  guest_os_features {
+    type = "SEV_CAPABLE"
+  }
+
+  guest_os_features {
+    type = "UEFI_COMPATIBLE"
+  }
+
+  guest_os_features {
+    type = "VIRTIO_SCSI_MULTIQUEUE"
+  }
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  licenses    = ["https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/licenses/ubuntu-1804-lts"]
+  name        = "cluster-api-ubuntu-1804-v1-21-0-1620356019"
+  project     = "k8s-infra-ii-sandbox"
+  source_disk = "https://www.googleapis.com/compute/v1/projects/k8s-infra-ii-sandbox/zones/us-central1-a/disks/packer-6094abb4-85d2-3b5d-0690-2c5c59a6c585"
+}
+ii@bernokl-humacs-0:~/gc_d_poc$ ls -al sandbox_dump/projects/631771264409/StorageBucket/US-EAST1/
+total 12
+drwxr-xr-x 2 ii ii 4096 May 14 11:45 .
+drwxr-xr-x 4 ii ii 4096 May 14 11:46 ..
+-rw-r--r-- 1 ii ii  393 May 14 11:45 ii-bq-scratch-dump.tf
+ii@bernokl-humacs-0:~/gc_d_poc$ cat sandbox_dump/projects/631771264409/StorageBucket/US-EAST1/ii-bq-scratch-dump.tf
+resource "google_storage_bucket" "ii_bq_scratch_dump" {
+  bucket_policy_only = true
+  force_destroy      = false
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  location                    = "US-EAST1"
+  name                        = "ii_bq_scratch_dump"
+  project                     = "projects/631771264409"
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+}
+
+#+END_EXAMPLE
+
+** Scripting terraform run to create folders for the project
+
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+PROJ=k8s-infra-ii-sandbox
+DEST=`pwd`/$PROJ
+mkdir $DEST
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
+#+END_SRC
+
+Create a file with all our projects
+#+BEGIN_SRC tmate :window bulk-exporter-setup
+gcloud projects list | awk '{ print $1}' | grep -v bosk | grep -v PROJ | grep -v apisnoo | grep -v "sys-" > /tmp/gcloud_projects.txt
+#+END_SRC
+
+Lets make a 3 org subset for testing:
+#+BEGIN_SRC tmate :window bulk-export-setup
+head -3 /tmp/gcloud_projects.txt > /tmp/gcloud_projects_short.txt
+#+END_SRC
+
+#+BEGIN_SRC shell :tangle (concat (getenv "HOME") "/gc_d_poc/bulk-exporter.sh")
+#!/bin/bash
+FNAME='/tmp/gcloud_projects_short.txt'
+PROJ=k8s-infra-ii-sandbox
+DEST=`pwd`/$PROJ
+n=1
+while read line; do
+mkdir $DEST
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
+n$((n+1))
+done < $FNAME
+#+END_SRC
