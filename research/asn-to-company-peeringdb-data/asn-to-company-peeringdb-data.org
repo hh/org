@@ -1,5 +1,4 @@
 #+TITLE: K8s Reg Asn Magic
-#+PROPERTY: header-args:tmate+ :socket /tmp/ii.default.target.iisocket
 #+PROPERTY: header-args:sql-mode+ :eval never-export :exports both :session none
 
 Login to gcloud
@@ -131,6 +130,7 @@ export \
     PGPASSWORD=password
 #+END_SRC
 
+** Create a new dump
 Dump the database
 #+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 pg_dump -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP > peeringdb-dump-$(date +%Y%m%d).sql
