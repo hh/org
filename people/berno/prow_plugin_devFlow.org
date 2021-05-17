@@ -1,0 +1,78 @@
+#+TITLE: Prow_plugin_dev Flow
+* Get connection to current AWS eks cluster
+** Add AWS binary
+#+begin_src shell
+mkdir ~/foo
+cd ~/foo
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+#+end_src
+** Add aws credentials
+#+begin_src shell
+mkdir -p ~/.aws
+#+end_src
+
+Create two files that will look something like this:
+#+begin_example
+~/.aws/credentials
+[default]
+aws_access_key_id = ADD78YOUR77OWNT6DEHP
+aws_secret_access_key = 9XthisShould87B3your0wn+mIuZ5UOY8hcN5B+PxPs6+dd
+
+~/.aws/config
+[default]
+region = ap-southeast-2
+output = table
+#+end_example
+** Test connectivity
+#+begin_src shell :dir ~/foo
+aws eks list-clusters
+#+end_src
+
+#+RESULTS:
+#+begin_example
+---------------------
+|   ListClusters    |
++-------------------+
+||    clusters     ||
+|+-----------------+|
+||  prow-LltO5Bjk  ||
+|+-----------------+|
+#+end_example
+** Lets get the kube config
+#+begin_src shell :dir ~/foo
+aws eks update-kubeconfig --name prow-LltO5Bjk
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Added new context arn:aws:eks:ap-southeast-2:928655657136:cluster/prow-LltO5Bjk to /home/ii/.kube/config
+#+end_example
+** Test connectivity
+Confirm we see our pods
+#+begin_src shell
+kubectl get pods -n default
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME                                         READY   STATUS    RESTARTS   AGE
+deck-649c4484cf-2mjjb                        1/1     Running   0          214d
+deck-649c4484cf-dnbr6                        1/1     Running   0          214d
+ghproxy-5ccfb97b79-4gls9                     1/1     Running   0          214d
+hook-54f4f7f6c6-88f7r                        1/1     Running   0          214d
+hook-54f4f7f6c6-xk25k                        1/1     Running   0          214d
+horologium-78db56b96-f78qg                   1/1     Running   0          214d
+plank-78fd4fb4b-ltn69                        1/1     Running   0          214d
+sinker-7874f997dd-n2hxs                      1/1     Running   1          214d
+statusreconciler-b65864b67-xqk47             1/1     Running   0          214d
+tide-68bb84fd79-8dw59                        1/1     Running   0          214d
+verify-conformance-release-d7677f7b6-g4dnt   1/1     Running   762        214d
+verify-conformance-test-578dc8c79d-bmmmc     1/1     Running   0          19h
+#+end_example
+
+* Get prow-config repo
+** Clone
+#+begin_src shell
+git clone git@github.com:cncf-infra/prow-config.git
+#+end_src
