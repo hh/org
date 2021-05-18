@@ -58,7 +58,7 @@ Lets try again
 #+BEGIN_SRC tmate :window bulk-exporter-setup
 gcloud alpha resource-config bulk-export --resource-format=terraform --project=631771264409 --path=~/gc_d_poc/sandbox_dump
 #+END_SRC
-
+Good that worked, a bit more detail on what I got back below
 ** A Little bit about the structure of the dump
 It creates 3 folders that contain various parts of the project.
 #+BEGIN_EXAMPLE
@@ -219,8 +219,8 @@ resource "google_storage_bucket" "ii_bq_scratch_dump" {
 
 #+END_EXAMPLE
 
-** Scripting terraform run to create folders for the project
-
+** Scripting bulk-export to run against multiple projects and create folders for each
+Very basic confirm
 #+BEGIN_SRC tmate :window bulk-exporter-setup
 #PROJ=k8s-infra-ii-sandbox
 PROJ=k8s-artifacts-prod
@@ -284,3 +284,75 @@ ERROR: (gcloud.alpha.resource-config.bulk-export) PERMISSION_DENIED: Permission 
   domain: serviceusage.googleapis.com
   reason: AUTH_PERMISSION_DENIED
 #+END_EXAMPLE
+** Enable cloudasset on staging-apisnoop
+We "control" 2 projects k8s-staging-apisnoop and k8s-infra-ii-sandbox.
+Test creating pr for permissions needed on apisnoop
+Result would be to run the bulk export against staging-apisnoop
+When asked for cloudasset follow existing process to create pr for permissions update on our project
+
+*** Confirm current project services available
+k8s-infra-ii-sandbox
+#+begin_src shell
+gcloud services list --project=k8s-infra-ii-sandbox
+#+end_src
+Notice cloudasset.googleapis.com in the results
+#+RESULTS:
+#+begin_example
+NAME                                 TITLE
+bigquery.googleapis.com              BigQuery API
+bigqueryconnection.googleapis.com    BigQuery Connection API
+bigquerydatatransfer.googleapis.com  BigQuery Data Transfer API
+bigqueryreservation.googleapis.com   BigQuery Reservation API
+bigquerystorage.googleapis.com       BigQuery Storage API
+cloudasset.googleapis.com            Cloud Asset API
+cloudbuild.googleapis.com            Cloud Build API
+cloudresourcemanager.googleapis.com  Cloud Resource Manager API
+compute.googleapis.com               Compute Engine API
+container.googleapis.com             Kubernetes Engine API
+containeranalysis.googleapis.com     Container Analysis API
+containerregistry.googleapis.com     Container Registry API
+iam.googleapis.com                   Identity and Access Management (IAM) API
+iamcredentials.googleapis.com        IAM Service Account Credentials API
+logging.googleapis.com               Cloud Logging API
+monitoring.googleapis.com            Cloud Monitoring API
+oslogin.googleapis.com               Cloud OS Login API
+pubsub.googleapis.com                Cloud Pub/Sub API
+storage-api.googleapis.com           Google Cloud Storage JSON API
+storage-component.googleapis.com     Cloud Storage
+#+end_example
+
+k8s-staging-apisnoop
+#+begin_src shell
+gcloud services list --project=k8s-staging-apisnoop
+#+end_src
+
+Notice no cloudasset.
+#+RESULTS:
+#+begin_example
+NAME                              TITLE
+cloudbuild.googleapis.com         Cloud Build API
+cloudkms.googleapis.com           Cloud Key Management Service (KMS) API
+containeranalysis.googleapis.com  Container Analysis API
+containerregistry.googleapis.com  Container Registry API
+containerscanning.googleapis.com  Container Scanning API
+logging.googleapis.com            Cloud Logging API
+pubsub.googleapis.com             Cloud Pub/Sub API
+secretmanager.googleapis.com      Secret Manager API
+storage-api.googleapis.com        Google Cloud Storage JSON API
+storage-component.googleapis.com  Cloud Storage
+#+end_example
+
+
+
+#+BEGIN_SRC tmate :window bulk-exporter-test
+#PROJ=k8s-infra-ii-sandbox
+PROJ=k8s-staging-apisnoop
+DEST=~/foo/$PROJ
+mkdir -p $DEST
+gcloud alpha resource-config bulk-export --resource-format=terraform --project=$PROJ --path=$DEST
+#+END_SRC
+
+OK this asked me if I want to enable cloudasset.googleapis.com
+I want to find the right way to have this service enabled in my project
+Looking through k8s.io to see what exists for adding a resource to a project
+Looking in gcloud docs to find best way to add/enable service for a  project
