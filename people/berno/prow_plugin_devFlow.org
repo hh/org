@@ -76,3 +76,25 @@ verify-conformance-test-578dc8c79d-bmmmc     1/1     Running   0          19h
 #+begin_src shell
 git clone git@github.com:cncf-infra/prow-config.git
 #+end_src
+* Manually run plugin
+## IMPORTANT ## This assume you are running it on pair.sharing.io
+If you are not running it there make sure you have go-lang installed and working
+** Add hook and oath tokens
+TODO: Details on hmac/oath creation
+In my case I already had oath and webhook
+#+begin_src shell
+sudo mkdir -p /etc/github/
+sudo mkdir -p /etc/webhook/
+sudo cp ~/.secret-oath /etc/github/oath
+sudo cp ~/.secret-hook /etc/webhook/hmac
+#+end_src
+** Update plugins.yaml for your instance
+Make sure the contents of the file has the repo your tokens is set up
+#+begin_src shell
+cp /home/ii/cncf-infra/prow-config/prow/external-plugins/verify-conformance-tests/vct.yaml /etc/plugins/plugins.yaml
+#+end_src
+* Run the go plugin
+#+begin_src tmate :window conf-test
+cd /home/ii/cncf-infra/prow-config/prow/external-plugins/verify-conformance-tests/
+go run main.go
+#+end_src
