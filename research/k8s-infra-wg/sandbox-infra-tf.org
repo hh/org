@@ -81,9 +81,7 @@ resource "google_bigquery_dataset" "k8s_artifacts_dataset_bb_test" {
   dataset_id                 = "k8s_artifacts_dataset_bb_test"
   delete_contents_on_destroy = false
 
-  labels {
-    managed-by-cnrm = "true"
-  }
+  labels = merge({ managed-by-cnrm = "true" })
 
   location = "US"
   project  = "k8s-infra-ii-sandbox"
@@ -94,13 +92,55 @@ Now the bucket
 resource "google_storage_bucket" "k8s_artifacts_bucket_bb_test" {
   force_destroy = false
 
-  labels {
-    managed-by-cnrm = "true"
-  }
+  labels = merge({ managed-by-cnrm = "true" })
 
   location      = "US"
-  name          = "artifacts.k8s-infra-ii-sandbox.appspot.com"
+  name          = "artifacts.k8s-infra-ii-sandbox-bb-test.appspot.com"
   project       = "projects/631771264409"
   storage_class = "STANDARD"
 }
+#+end_src
+Provider
+#+begin_src terraform :tangle (concat (getenv "HOME") "/terrafor_test/provider.tf")
+/*
+This file defines:
+- Required provider versions
+- Storage backend details
+*/
+
+terraform {
+
+
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 3.68.0"
+    }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 3.68.0"
+    }
+  }
+}
+
+#+end_src
+Versions
+#+begin_src terraform :tangle (concat (getenv "HOME") "/terrafor_test/versions.tf")
+/*
+This file defines:
+- Required Terraform version
+*/
+
+terraform {
+  required_version = "~> 0.13"
+}
+#+end_src
+Terraform init
+#+begin_src tmate :window terraform-init :dir (concat (getenv "HOME") "/terrafor_test")
+terraform init
+#+end_src
+
+Terraform apply
+#+begin_src tmate :window terraform-apply :dir (concat (getenv "HOME") "/terrafor_test")
+terraform apply
 #+end_src
