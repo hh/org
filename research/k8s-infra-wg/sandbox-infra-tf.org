@@ -1,0 +1,106 @@
+#+TITLE: Sandbox Infra Tf
+The Goal is to template building of all infra in the k8s-infra-ii-sandbox project.
+Starting point would be to create a list of infra we need in the project.
+The pr that kicked this off is [infra-adit#2011](https://github.com/kubernetes/k8s.io/pull/2011)
+It mentions a bunch of one off infra that will be the focus of our doc.
+* List of infra we currently use in the sandbox
+I have a full list of the resources in [ii/k8s-infra-dump](https://github.com/ii/k8s-infra-dump/tree/main/resource-config-bulk-export)
+This is a list of services I am aware of using:
+- Big query services
+  #+begin_example
+bigqueryconnection.googleapis.com    BigQuery Connection API
+bigquerydatatransfer.googleapis.com  BigQuery Data Transfer API
+bigqueryreservation.googleapis.com   BigQuery Reservation API
+  #+end_example
+  I notice the project also has these two services:
+  - bigquery.googleapis.com
+  - biquerystorage.googleapis.com
+  Perhaps they are default to an account with bq enabled? Will test
+- BQ dataset that will be used for log analysis
+  Name? Current is 'k8s_artifacts_gcslogs_appspot'
+- GCS buckets:
+  - export-destination (I do not know if this bucket is still needed)
+  - ii_bq_scratch_dump (This was very handy for bq testing)
+- Registry? I have the terraform for this, but dont think we have an immediate need?
+- Cluster setup is already in [cncf-config] (https://github.com/cncf-infra/prow-config/tree/master/infra/gcp/clusters/projects/k8s-infra-ii-sandbox)
+* GCP things
+First time using gcloud on this host, log in first.
+#+begin_src shell
+gcloud auth login
+#+end_src
+#+begin_src shell
+gcloud auth list
+#+end_src
+
+#+RESULTS:
+#+begin_example
+         Credentialed Accounts
+ACTIVE             ACCOUNT
+,*                  bb@ii.coop
+#+end_example
+
+#+begin_src shell
+gcloud projects list
+#+end_src
+
+#+RESULTS:
+#+begin_example
+PROJECT_ID                      NAME                            PROJECT_NUMBER
+apisnoop                        apisnoop                        840466421052
+k8s-artifacts-prod              k8s-artifacts-prod              388270116193
+k8s-artifacts-prod-bak          k8s-artifacts-prod-bak          1057569514213
+k8s-cip-test-prod               k8s-cip-test-prod               693665670941
+k8s-conform                     k8s-conform                     228988630781
+etc.......
+#+end_example
+Ok gcloud is active on my box
+* Terraform templates for bq-dataset, bucket
+First the dataset
+#+begin_src terraform :tangle (concat (getenv "HOME") "/terrafor_test/bq_test_dataset.tf")
+resource "google_bigquery_dataset" "k8s_artifacts_dataset_bb_test" {
+  access {
+    role          = "OWNER"
+    special_group = "projectOwners"
+  }
+
+  access {
+    role          = "OWNER"
+    user_by_email = "bb@ii.coop"
+  }
+
+  access {
+    role          = "READER"
+    special_group = "projectReaders"
+  }
+
+  access {
+    role          = "WRITER"
+    special_group = "projectWriters"
+  }
+
+  dataset_id                 = "k8s_artifacts_dataset_bb_test"
+  delete_contents_on_destroy = false
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  location = "US"
+  project  = "k8s-infra-ii-sandbox"
+}
+#+end_src
+Now the bucket
+#+begin_src terraform :tangle (concat (getenv "HOME") "/terrafor_test/bucket_test.tf")
+resource "google_storage_bucket" "k8s_artifacts_bucket_bb_test" {
+  force_destroy = false
+
+  labels {
+    managed-by-cnrm = "true"
+  }
+
+  location      = "US"
+  name          = "artifacts.k8s-infra-ii-sandbox.appspot.com"
+  project       = "projects/631771264409"
+  storage_class = "STANDARD"
+}
+#+end_src
