@@ -95,8 +95,8 @@ resource "google_storage_bucket" "k8s_artifacts_bucket_bb_test" {
   labels = merge({ managed-by-cnrm = "true" })
 
   location      = "US"
-  name          = "artifacts.k8s-infra-ii-sandbox-bb-test.appspot.com"
-  project       = "projects/631771264409"
+  name          = "k8s-infra-ii-sandbox-bb-test"
+  project       = "631771264409"
   storage_class = "STANDARD"
 }
 #+end_src
