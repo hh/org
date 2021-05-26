@@ -1,0 +1,33 @@
+#+TITLE: Bq_scratch
+Berno's BQ scratch bucket
+* Old UI explorations
+--This was used when we were exploring ip2asn matching.--
+Tab1,
+#+begin_src bq
+select NET.IPV4_TO_INT64(ipv4_c_ip) as ip,
+NET.IP_TO_STRING (ipv4_c_ip),
+int64_field_2 as asn,
+string_field_4 as asn_name
+from `k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.distinct_appspot_ip_netip_1`,
+`k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.ip2asn`
+where
+RANGE_BUCKET(
+NET.IPV4_TO_INT64(ipv4_c_ip),
+[
+NET.IPV4_TO_INT64(NET.IP_FROM_STRING(string_field_0)),
+NET.IPV4_TO_INT64(NET.IP_FROM_STRING(string_field_1))
+]
+)=1;
+#+end_src
+
+Convert IPv4 strings to int on peeringdb_expanded data
+#+begin_src bq
+SELECT
+  cidr_ip,
+  start_ip,
+  end_ip,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(start_ip)) AS start_ip_int,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(end_ip)) AS end_ip_int
+FROM
+  k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.peeringdb_expanded_ipv4_20210524;
+#+end_src
