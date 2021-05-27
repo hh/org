@@ -96,7 +96,7 @@ gcloud config list --format 'value(core.project)' 2>/dev/null
 k8s-infra-ii-sandbox
 #+end_example
 
-** Get google cloud.json local and load it into bq
+** Get google cloud.json local and load it into bq --FAILED
 Simple local download for now
 #+BEGIN_SRC shell
 wget https://www.gstatic.com/ipranges/cloud.json
@@ -128,3 +128,57 @@ ls -al | grep ip-ranges
 #+begin_src tmate :window bq-load
 bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_ipranges_json ./ip-ranges.json
 #+end_src
+** Load the data in postgres for pre-processing
+Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=ii postgres:12.2-alpine
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "")
+mkdir json_dumps && cd json_dumps
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+wget 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210524.json' &&
+wget 'https://ip-ranges.amazonaws.com/ip-ranges.json' &&
+wget 'https://www.gstatic.com/ipranges/cloud.json'
+#+END_SRC
+
+Confirm we can connect:
+#+BEGIN_SRC sql-mode
+\dn
+--SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+  List of schemas
+  Name  |  Owner
+--------+----------
+ public | postgres
+(1 row)
+#+end_SRC
+
+Lets load some data into postgres
+Lets put down a sql file that will let us load the data
+#+BEGIN_SRC sql :tangle (concat (getenv "HOME") "/json_dumps/dump_loads.sql")
+-- create table jsonraw(data jsonb);
+\copy jsonraw(data) from '/home/ii/json_dumps/cloud.json' csv quote e'\x01' delimiter e'\x02';
+#+END_SRC
+Lets see what we get
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+psql -U postgres -d ii -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < dump_loads.sql
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+psql -U postgres -d ii -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < dump_loads.sql
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+
+#+END_SRC
+#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
+
+#+END_SRC
