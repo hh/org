@@ -167,9 +167,35 @@ Lets see what we get
 #+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
 psql -U postgres -d ii -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < dump_loads.sql
 #+END_SRC
-#+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
-psql -U postgres -d ii -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < dump_loads.sql
+Nope, here is a direct run to document the error.
+#+BEGIN_SRC sql-mode
+\copy jsonraw(data) from '/home/ii/json_dumps/cloud.json' csv quote e'\x01' delimiter e'\x02';
 #+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ERROR:  invalid input syntax for type json
+DETAIL:  The input string ended unexpectedly.
+CONTEXT:  JSON data, line 1: {
+COPY jsonraw, line 1, column data: "{"
+#+end_SRC
+
+
+Next I need to figure out what is wrong with my json,
+Below I did a quick poke around with jq and I can navigate elements
+That means the json is valid?
+
+Guessing it is some convention, will poke around more later
+
+#+BEGIN_SRC shell
+cat /home/ii/json_dumps/cloud.json | jq '.prefixes[0].scope' | head
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+"asia-east1"
+#+end_example
+
 #+BEGIN_SRC tmate :window pg-load :dir (concat (getenv "HOME") "/json_dumps")
 
 #+END_SRC
