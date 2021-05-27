@@ -1,0 +1,130 @@
+#+TITLE: Which Cloud Ip Lookup
+Investigation of https://pypi.org/project/which-cloud/#files
+Based on https://github.com/SoundOn/which-cloud
+* Get the repo
+#+BEGIN_SRC shell
+git clone https://github.com/SoundOn/which-cloud.git
+#+END_SRC
+
+* Look at json repo points to:
+For the big 3 the repo points to 3 locations for json:
+GCP-document: https://cloud.google.com/compute/docs/faq#find_ip_range
+GCP-data: https://www.gstatic.com/ipranges/cloud.json
+AWS-document: https://docs.aws.amazon.com/general/latest/gr/aws-ip-ranges.html
+AWS-data: https://ip-ranges.amazonaws.com/ip-ranges.json
+Azure-document: https://www.microsoft.com/en-us/download/details.aspx?id=56519
+Azure-data: https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20201109.json
+** Look at GCP json
+###+BEGIN_SRC tmate :window SHELL
+
+#+BEGIN_SRC shell
+curl 'https://www.gstatic.com/ipranges/cloud.json' | jq '.' | head
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{
+  "syncToken": "1622048579440",
+  "creationTime": "2021-05-26T10:02:59.44",
+  "prefixes": [
+    {
+      "ipv4Prefix": "34.80.0.0/15",
+      "service": "Google Cloud",
+      "scope": "asia-east1"
+    },
+    {
+#+end_example
+
+** Look at AWS json
+###+BEGIN_SRC tmate :window SHELL
+
+#+BEGIN_SRC shell
+curl 'https://ip-ranges.amazonaws.com/ip-ranges.json' | jq '.' | head
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{
+  "syncToken": "1622066052",
+  "createDate": "2021-05-26-21-54-12",
+  "prefixes": [
+    {
+      "ip_prefix": "3.5.140.0/22",
+      "region": "ap-northeast-2",
+      "service": "AMAZON",
+      "network_border_group": "ap-northeast-2"
+    },
+#+end_example
+
+** Look at AWS json
+###+BEGIN_SRC tmate :window SHELL
+###+BEGIN_SRC shell
+Note this url seems to change by date, make sure any automation accounts for it
+#+BEGIN_SRC shell
+curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210524.json' | jq '.' | head
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{
+  "changeNumber": 149,
+  "cloud": "Public",
+  "values": [
+    {
+      "name": "ActionGroup",
+      "id": "ActionGroup",
+      "properties": {
+        "changeNumber": 9,
+        "region": "",
+#+end_example
+
+* Push to bq
+Login
+#+BEGIN_SRC tmate gcloud-auth
+gcloud auth login
+#+END_SRC
+Set project
+#+BEGIN_SRC tmate gcloud-auth
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+Confirm
+#+begin_src shell
+gcloud config list --format 'value(core.project)' 2>/dev/null
+#+end_src
+#+RESULTS:
+#+begin_example
+k8s-infra-ii-sandbox
+#+end_example
+
+** Get google cloud.json local and load it into bq
+Simple local download for now
+#+BEGIN_SRC shell
+wget https://www.gstatic.com/ipranges/cloud.json
+#+END_SRC
+#+BEGIN_SRC shell
+ls -al | grep cloud.json
+#+END_SRC
+Confirm
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii ii  43248 May 27 05:08 cloud.json
+#+end_example
+Load into bq
+mmmm it is getting errors... before I troubleshoot, let me try the same with aws
+#+begin_src tmate :window bq-load
+bq load --autodetect k8s_artifacts_dataset_bb_test.gcloud_ipranges_json ./cloud.json
+#+end_src
+#+BEGIN_SRC shell
+wget https://ip-ranges.amazonaws.com/ip-ranges.json
+#+END_SRC
+
+#+BEGIN_SRC shell
+ls -al | grep ip-ranges
+#+END_SRC
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii ii 846881 May 27 10:58 ip-ranges.json
+#+end_example
+#+begin_src tmate :window bq-load
+bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_ipranges_json ./ip-ranges.json
+#+end_src
