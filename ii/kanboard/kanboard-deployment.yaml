@@ -1,0 +1,33 @@
+
+
+# Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kanboard
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kanboard
+  template:
+    metadata:
+      labels:
+        app: kanboard
+    spec:
+      containers:
+      - image: kanboard/kanboard:latest
+        name: kanboard
+        ports:
+          - containerPort: 80
+        volumeMounts:
+          - name: kanboard
+            mountPath: /var/www/app/data
+      volumes:
+      - name: kanboard
+        persistentVolumeClaim:
+          claimName: kanboard

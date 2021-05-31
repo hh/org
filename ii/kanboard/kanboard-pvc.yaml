@@ -1,0 +1,16 @@
+
+
+# PVC
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
