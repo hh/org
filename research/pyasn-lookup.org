@@ -1,0 +1,87 @@
+#+TITLE: Pyasn Lookup
+This is an investigation of https://github.com/hadiasghari/pyasn
+* Clone repo
+#+BEGIN_SRC tmate :window pyasn
+git clone https://github.com/hadiasghari/pyasn.git
+#+END_SRC
+* Install pyasn
+#+BEGIN_SRC tmate :window pyasn
+pip install pyasn
+#+END_SRC
+#+BEGIN_SRC python tmate :window python
+#print('Please wait')
+return 'A line of text.\n'.rstrip()
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+A line of text.
+#+end_src
+* Download and process the latest rib file
+You can view the full list on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
+obviosly adjust for date
+to get the latest file simply run:
+pip installed the scripts in .local so I am adding it to my path
+TODO: Decide how we want to reference these scripts
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+export PATH="/home/ii/.local/bin/:$PATH"
+pyasn_util_download.py --latest
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Connecting to ftp://archive.routeviews.org
+Finding most recent archive in /bgpdata/2021.06/RIBS ...
+Finding most recent archive in /bgpdata/2021.05/RIBS ...
+Downloading ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/rib.20210531.2200.bz2
+Download complete.
+#+end_example
+
+* Process rib file to be useful below
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+ls -al | grep rib
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii   ii   124276057 Jun  1 11:35 rib.20210531.2200.bz2
+#+end_example
+
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+export PATH="/home/ii/.local/bin/:$PATH"
+pyasn_util_convert.py --single rib.20210531.2200.bz2 ipasn_20140531_1.dat
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+IPASN database saved (923124 IPV4 + 0 IPV6 prefixes)
+#+end_example
+
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+ls -alrt | tail -3
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii   ii   124276057 Jun  1 11:35 rib.20210531.2200.bz2
+-rw-r--r--  1 ii   ii    19939342 Jun  1 11:42 ipasn_20140531_1.dat
+#+end_example
+
+* Use pyasn to parse the data file
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
+import pyasn
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+return asndb.get_as_prefixes(1128)
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+{'131.180.0.0/16', '130.161.0.0/16', '145.94.0.0/16'}
+#+end_src
+
+
+Test
+#+RESULTS:
+#+begin_src python
+{'131.180.0.0/16', '145.94.0.0/16', '130.161.0.0/16'}
+#+end_src
