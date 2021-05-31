@@ -11,7 +11,7 @@ Set the project
 gcloud config set project k8s-infra-ii-sandbox
 #+END_SRC
 
-* Parse from API
+* Parse from bgpview API
 Save the data to a bucket
 #+BEGIN_SRC tmate :window prepare
 bq extract --destination_format NEWLINE_DELIMITED_JSON k8s_artifacts_gcslogs_appspot.riaan_ipv4_asn_ip_name_over_2500 gs://ii_bq_scratch_dump/ip-and-asn.json
@@ -84,7 +84,7 @@ Load into big query
 bq load --autodetect --source_format=CSV k8s_artifacts_gcslogs_appspot.asn_company_lookup gs://ii_bq_scratch_dump/asn-data.csv
 #+END_SRC
 
-* Parse from Postgres
+* Parse from peeringdb using Postgres
 
 Bring up Postgres
 
@@ -842,7 +842,6 @@ select jsonb_pretty(data) from peeringdb.ixlan limit 2;
 (2 rows)
 
 #+end_SRC
-
 
 
 *** peeringdb.ixpfx
