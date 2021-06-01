@@ -39,7 +39,7 @@ Downloading ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/rib.20210531.2200
 Download complete.
 #+end_example
 
-* Process rib file to be useful below
+* Process rib file so we can transform it into a local data file
 #+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
 ls -al | grep rib
 #+END_SRC
@@ -95,7 +95,18 @@ I will deal with data and other external seperateley
 - Read in asnFile, set variable to the resulting array
 - Set db string
 - Range through array, for each element run get_as_prefixes()
-- Store result in json object,
+- Store result in a dictionary(?),
   - the object has a key/value of asn/ip range.
   - there are multiple ip ranges per asn
-- When all the data has been appended to the json object write it to file as a csv
+- When all the data has been appended to the dictionary write it to file as a csv
+
+  The dictionary will look something like this:
+  #+BEGIN_EXAMPLE
+{
+  '6554': [
+   - 123412,
+  - 123133,
+  - 123231
+  ]
+}
+  #+END_EXAMPLE
