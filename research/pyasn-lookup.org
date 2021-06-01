@@ -79,9 +79,18 @@ return asndb.get_as_prefixes(1128)
 {'131.180.0.0/16', '130.161.0.0/16', '145.94.0.0/16'}
 #+end_src
 
-
-Test
-#+RESULTS:
-#+begin_src python
-{'131.180.0.0/16', '145.94.0.0/16', '130.161.0.0/16'}
-#+end_src
+* Plan flow that will network ranges for all asns
+I decided restrict this just to pyasn in python,
+I will deal with data and other external seperateley
+- Start with file that has all asns. Can get them from:
+  - https://bgp.potaroo.net/cidr/autnums.html has been a good resource
+  - Look what pyasn can produce
+  - Other? There is a lot of them out there, I struggled to find a complete one, happy to hear suggestions.
+- Import pyasn
+- Read in asnFile, set variable to the resulting array
+- Set db string
+- Range through array, for each element run get_as_prefixes()
+- Store result in json object,
+  - the object has a key/value of asn/ip range.
+  - there are multiple ip ranges per asn
+- When all the data has been appended to the json object write it to file as a csv
