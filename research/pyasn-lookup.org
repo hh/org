@@ -1,5 +1,7 @@
 #+TITLE: Pyasn Lookup
 This is an investigation of https://github.com/hadiasghari/pyasn
+Desired outcomes will be to parse the output from this library to tie each asn to it associated start and end ip ints so we can range over them to find customer asns
+This document only concerns itself with generating a asn to ip-range relationsip map
 * Clone repo
 #+BEGIN_SRC tmate :window pyasn
 git clone https://github.com/hadiasghari/pyasn.git
@@ -80,6 +82,9 @@ return asndb.get_as_prefixes(1128)
 #+end_src
 
 * Plan flow that will network ranges for all asns
+GOAL:
+I want a script that takes in asns and .dat file and returns a list of asns with associated network ranges
+
 I decided restrict this just to pyasn in python,
 I will deal with data and other external seperateley
 - Start with file that has all asns. Can get them from:
