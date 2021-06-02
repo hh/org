@@ -2,7 +2,11 @@
 Link to this document https://github.com/ii/org/blob/main/research/pyasn-lookup.org#lets-add-asn-results-to-the-dictionary
 This is an investigation of https://github.com/hadiasghari/pyasn
 Desired outcomes will be to parse the output from this library to tie each asn to it associated start and end ip ints so we can range over them to find customer asns
-This document only concerns itself with generating a asn to ip-range relationsip map
+This document concerns itself with:
+- Generating an asn to ip-range relationsip
+- Importing resulting csv into PostgreSQL and split subnets into start_ip and end_ip
+- Upload the results of the PG transformation to bq
+- Make final table with asn, cidr, start_ip, end_ip, start_ip_int, end_ip_int
 * Clone repo
 #+BEGIN_SRC tmate :window pyasn
 git clone https://github.com/hadiasghari/pyasn.git
@@ -11,6 +15,7 @@ git clone https://github.com/hadiasghari/pyasn.git
 #+BEGIN_SRC tmate :window pyasn
 pip install pyasn
 #+END_SRC
+Test python is up and working
 #+BEGIN_SRC python tmate :window python
 #print('Please wait')
 return 'A line of text.\n'.rstrip()
@@ -23,8 +28,9 @@ A line of text.
 * Download and process the latest rib file
 You can view the full list on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
 obviosly adjust for date
-to get the latest file simply run:
+To get the latest file simply run --latest
 pip installed the scripts in .local so I am adding it to my path
+These scripts are in the repo in pyasn-utils
 TODO: Decide how we want to reference these scripts
 #+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
 export PATH="/home/ii/.local/bin/:$PATH"
@@ -39,7 +45,6 @@ Finding most recent archive in /bgpdata/2021.05/RIBS ...
 Downloading ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/rib.20210531.2200.bz2
 Download complete.
 #+end_example
-
 * Process rib file so we can transform it into a local data file
 #+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
 ls -al | grep rib
@@ -69,8 +74,8 @@ ls -alrt | tail -3
 -rw-r--r--  1 ii   ii   124276057 Jun  1 11:35 rib.20210531.2200.bz2
 -rw-r--r--  1 ii   ii    19939342 Jun  1 11:42 ipasn_20140531_1.dat
 #+end_example
-
 * Use pyasn to parse the data file
+For this initial poc, I want to look up an ASN(1128) and get subnets back.
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
 import pyasn
 asndb = pyasn.pyasn('ipasn_20140531_1.dat')
@@ -81,33 +86,33 @@ return asndb.get_as_prefixes(1128)
 #+begin_src python
 {'131.180.0.0/16', '130.161.0.0/16', '145.94.0.0/16'}
 #+end_src
-
-* Plan flow that will network ranges for all asns
+* Plan flow that will get network ranges for all asns
 GOAL:
 I want a script that takes in asns and .dat file and returns a list of asns with associated network ranges
 
-I decided restrict this just to pyasn in python,
-I will deal with data and other external seperateley
-- Start with file that has all asns. Can get them from:
+I decided restrict this script to just pyasn in python,
+I will deal with data file generation and full ASN list generation seperateley
+High level plan:
+- Start with file that has all ASNs, we can get them from:
   - https://bgp.potaroo.net/cidr/autnums.html has been a good resource
   - Look what pyasn can produce
   - Other? There is a lot of them out there, I struggled to find a complete one, happy to hear suggestions.
 - Import pyasn
-- Read in asnFile, set variable to the resulting array
-- Set db string
-- Range through array, for each element run get_as_prefixes()
-- Store result in a dictionary(?),
+- Read in asnNumFile, set variable to the resulting array
+- Set db string for .dat file we are using for the lookup.
+- Range through array, for each element run get_as_prefixes() - ASN to subnet lookup
+- Store result in a dictionary,
   - the object has a key/value of asn/ip range.
   - there are multiple ip ranges per asn
 - When all the data has been appended to the dictionary write it to file as a csv
-** Very nice siscinct summary from zz
+** Very nice succinct summary from zz
+- i can open the asn list file and read it
+- i can assign it to a variable.
 - i can reference the variable and return the whole array
 - i can reference an index of this variable and return one item of the array
-- i can loop through an array and do something
-- i can loop through an array and add each item to a dict
-- i can write this dict to a file
-- i can open the csv.
-
+- i can loop through an array and call a function based on the variable
+- i can loop through an array and add each item and the results from the function to a dict
+- i can write this dict to a CSV file
 ** Dictionary struct
   The dictionary will look something like this:
   #+BEGIN_EXAMPLE
@@ -138,7 +143,6 @@ start
 {'399549\n': 5, '399553\n': 5, '399561\n': 5, '399564\n': 5, '399593\n': 5, '399588\n': 5, '399587\n': 5, '399724\n': 5}
 end
 #+end_src
-
 * Lets add asn results to the dictionary
 Printing the resulting dictionary
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
@@ -170,8 +174,8 @@ print("last subnets returned: ", subnets)
 print('end')
 #+END_SRC
 
-
-Look ma, good results
+Look ma, good results!
+Note the output from the final dictionary, it has output of each run through the loop appended to it.
 #+RESULTS:
 #+begin_src python
 start
@@ -202,10 +206,9 @@ Print final dictionary:  {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549'
 last subnets returned:  {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
 end
 #+end_src
-
 * Lets go output the results to a csv
 ** sample code
-
+Just a simple POC to see how outputting csv data works
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
 import csv
 a_file = open("sample.csv", "w")
@@ -223,6 +226,7 @@ a_file.close()
 a,1
 b,2
 #+end_src
+Easy enough.
 ** Add csv output to script
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
 ## Import pyasn and csv
@@ -268,6 +272,7 @@ start
 Print final dictionary:  {'216.87.87.0/24': '399549', '216.87.86.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.186.0/24': '399587', '193.8.185.0/24': '399587', '193.8.184.0/24': '399587', '193.3.54.0/24': '399587', '193.8.187.0/24': '399587'}
 end
 #+end_src
+Yip I conrimed the csv got generated and has the right content.
 * Add fault tolerance
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
 ## Import pyasn and csv
@@ -289,7 +294,7 @@ for singleAsn in asnNum:
     ## Go look up the asn subnets (prefixes)
     subnets = asndb.get_as_prefixes(singleAsn)
     ## Add checking to make sure we have subnets
-    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
+    ## TODO: insert asn with no routes place holder so we know which failed without having to do a lookup
     if not subnets:
         print("This ASN has no subnets", singleAsn)
     else:
@@ -321,7 +326,6 @@ This ASN has no subnets 399724
 Print final dictionary:  {'216.87.87.0/24': '399549', '216.87.86.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.184.0/24': '399587'}
 end
 #+end_src
-
 * Final script
 
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
@@ -369,7 +373,6 @@ for key, value in destDict.items():
 None
 #+end_src
 
-
 * Push to bq (just testing)
 
 #+begin_src shell
@@ -380,7 +383,6 @@ bq load --autodetect k8s_artifacts_dataset_bb_test.py_asn_test /home/ii/foo/pyAs
 #+begin_example
 It worked!
 #+end_example
-
 
 * Transform cidr to range using postgres
 ** Bring up Postgres
