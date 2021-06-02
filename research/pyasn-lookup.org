@@ -223,7 +223,7 @@ a_file.close()
 a,1
 b,2
 #+end_src
-
+** Add csv output to script
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
 ## Import pyasn and csv
 import pyasn
@@ -275,10 +275,10 @@ import pyasn
 import csv
 # Lets go!
 print('start')
-## Open asnNumFile and read
+## Set file path
 asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+## Open asnNumFile and read
 asnNum = [line.rstrip() for line in open(asnFile, "r+")]
-# print(asnNum)
 ## assign our dat file connection string
 asndb = pyasn.pyasn('ipasn_20140531_1.dat')
 ## Declare empty dictionary
@@ -286,22 +286,17 @@ destDict = {}
 singleAsn = ""
 ## Loop through list of asns
 for singleAsn in asnNum:
-    ## Set asn to int
-    ## print("val of x: ", singleAsn)
     ## Go look up the asn subnets (prefixes)
     subnets = asndb.get_as_prefixes(singleAsn)
-    print("This is x and it's prefix: ", singleAsn, asndb.get_as_prefixes(singleAsn))
-    ## Add subnets with
+    ## Add checking to make sure we have subnets
+    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
     if not subnets:
         print("This ASN has no subnets", singleAsn)
     else:
+        ## Add subnets to our dictionaries with
         originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+        ## This is what lets us append each loop to the final destDict
         destDict.update(originAsnDict)
-    ## print("Value of destDict", destDict)
-# print("dict of asn/net-ranges from the las loop: ", originAsnDict)
-print("Print final dictionary: ", destDict)
-# print("last subnets returned: ", subnets)
-# Open file for writing
 resultsCsv = open("pyAsnOutput.csv", "w")
 # write to csv
 writer = csv.writer(resultsCsv)
@@ -326,3 +321,197 @@ This ASN has no subnets 399724
 Print final dictionary:  {'216.87.87.0/24': '399549', '216.87.86.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.184.0/24': '399587'}
 end
 #+end_src
+
+* Final script
+
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
+## Import pyasn and csv
+import pyasn
+import csv
+
+## Set file path
+asnFile = "/home/ii/foo/asnNumbersOnly.txt"
+## Open asnNumFile and read
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+singleAsn = ""
+
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    ## Add checking to make sure we have subnets
+    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
+    if not subnets:
+        print("This ASN has no subnets", singleAsn)
+    else:
+        ## Add subnets to our dictionaries with
+        originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+        ## This is what lets us append each loop to the final destDict
+        destDict.update(originAsnDict)
+
+## Open handle to output file
+resultsCsv = open("pyAsnOutput.csv", "w")
+# write to csv
+writer = csv.writer(resultsCsv)
+for key, value in destDict.items():
+    writer.writerow([key, value])
+
+## winner winner chicken dinner
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+None
+#+end_src
+
+
+* Push to bq (just testing)
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.py_asn_test /home/ii/foo/pyAsnOutput.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+It worked!
+#+end_example
+
+
+* Transform cidr to range using postgres
+** Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=ii postgres:12.2-alpine
+#+END_SRC
+Get ip for pg
+#+BEGIN_SRC shell
+echo $SHARINGIO_PAIR_LOAD_BALANCER_IP
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+147.75.109.30
+#+end_example
+
+#+BEGIN_SRC sql-mode
+\dn
+--SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+  List of schemas
+  Name  |  Owner
+--------+----------
+ public | postgres
+(1 row)
+
+#+end_SRC
+
+** Load csv into pg
+#+BEGIN_SRC sql-mode
+create table pyasn_ip_asn  (ip cidr, asn int);
+\COPY pyasn_ip_asn from '/home/ii/foo/pyAsnOutput.csv' DELIMITER ',' CSV;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+CREATE TABLE
+#+end_SRC
+
+Confirmation:
+#+BEGIN_SRC sql-mode
+select * from pyasn_ip_asn limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+        ip        | asn
+------------------+-----
+ 8.13.230.128/27  |   1
+ 63.215.96.16/29  |   1
+ 8.13.232.96/27   |   1
+ 207.227.228.0/22 |   1
+ 8.44.88.192/29   |   1
+ 8.13.231.128/27  |   1
+ 63.215.98.16/29  |   1
+ 8.45.87.176/29   |   1
+ 8.13.231.32/27   |   1
+ 8.13.227.32/27   |   1
+(10 rows)
+
+#+end_SRC
+
+Split that into start and end
+#+BEGIN_SRC sql-mode
+select asn as asn,
+ip as ip,
+host(network(ip)::inet) as ip_start,
+host(broadcast(ip)::inet) as ip_end
+into table pyasn_ip_asn_extended
+from pyasn_ip_asn;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+SELECT 923058
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select * from pyasn_ip_asn_extended limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ asn |        ip        |   ip_start    |     ip_end
+-----+------------------+---------------+-----------------
+   1 | 8.13.230.128/27  | 8.13.230.128  | 8.13.230.159
+   1 | 63.215.96.16/29  | 63.215.96.16  | 63.215.96.23
+   1 | 8.13.232.96/27   | 8.13.232.96   | 8.13.232.127
+   1 | 207.227.228.0/22 | 207.227.228.0 | 207.227.231.255
+   1 | 8.44.88.192/29   | 8.44.88.192   | 8.44.88.199
+   1 | 8.13.231.128/27  | 8.13.231.128  | 8.13.231.159
+   1 | 63.215.98.16/29  | 63.215.98.16  | 63.215.98.23
+   1 | 8.45.87.176/29   | 8.45.87.176   | 8.45.87.183
+   1 | 8.13.231.32/27   | 8.13.231.32   | 8.13.231.63
+   1 | 8.13.227.32/27   | 8.13.227.32   | 8.13.227.63
+(10 rows)
+
+#+end_SRC
+
+#+begin_src sql-mode
+\copy (select * from pyasn_ip_asn_extended) to '/tmp/pyasn_expanded_ipv4.csv' csv header;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+COPY 923058
+#+end_SRC
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended /tmp/pyasn_expanded_ipv4.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+** Create table with asn, ips as ints
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql \
+'
+SELECT
+  asn as asn,
+  ip as cidr_ip,
+  ip_start as start_ip,
+  ip_end as end_ip,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_start)) AS start_ip_int,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_end)) AS end_ip
+  from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended`
+  WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
+'
+#+END_SRC
