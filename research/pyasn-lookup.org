@@ -202,3 +202,67 @@ end
 #+end_src
 
 * Lets go output the results to a csv
+** sample code
+
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+import csv
+a_file = open("sample.csv", "w")
+a_dict = {"a": 1, "b": 2}
+
+writer = csv.writer(a_file)
+for key, value in a_dict.items():
+    writer.writerow([key, value])
+
+a_file.close()
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+a,1
+b,2
+#+end_src
+
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+## Import pyasn and csv
+import pyasn
+import csv
+# Lets go!
+print('start')
+## Open asnNumFile and read
+asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+# print(asnNum)
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Set asn to int
+    ## print("val of x: ", singleAsn)
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    ## print("This is x and it's prefix: ", singleAsn, asndb.get_as_prefixes(singleAsn))
+    ## Add subnets with
+    originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+    destDict.update(originAsnDict)
+    ## print("Value of destDict", destDict)
+# print("dict of asn/net-ranges from the las loop: ", originAsnDict)
+print("Print final dictionary: ", destDict)
+# print("last subnets returned: ", subnets)
+# Open file for writing
+resultsCsv = open("pyAsnOutput.csv", "w")
+# write to csv
+writer = csv.writer(resultsCsv)
+for key, value in destDict.items():
+    writer.writerow([key, value])
+## winner winner chicken dinner
+print('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+Print final dictionary:  {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.184.0/24': '399587', '193.3.54.0/24': '399587', '193.8.185.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587'}
+end
+#+end_src
