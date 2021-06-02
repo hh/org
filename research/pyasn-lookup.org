@@ -1,4 +1,5 @@
 #+TITLE: Pyasn Lookup
+Link to this document https://github.com/ii/org/blob/main/research/pyasn-lookup.org#lets-add-asn-results-to-the-dictionary
 This is an investigation of https://github.com/hadiasghari/pyasn
 Desired outcomes will be to parse the output from this library to tie each asn to it associated start and end ip ints so we can range over them to find customer asns
 This document only concerns itself with generating a asn to ip-range relationsip map
@@ -151,6 +152,9 @@ asnNum = [line.rstrip() for line in File_object]
 print (asnNum)
 ## assign our dat file connection string
 asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+holdingDict = {}
+destDict = {}
 ## Loop through list of asns
 for x in asnNum:
     ## Set asn to int
@@ -159,10 +163,10 @@ for x in asnNum:
     subnets = asndb.get_as_prefixes(x)
     print ("This is x and it's prefix: ", x, asndb.get_as_prefixes(x))
     ## Add subnets with
-    dictOfWords = {i : x for i in subnets}
-    finalDict = dictOfWords.update(dictOfWords)
-print("dict of words: ", dictOfWords)
-print("Print final dictionary: ", finalDict)
+    originAsnDict = {i : x for i in subnets}
+    destDict = holdingDict.update(originAsnDict)
+print("dict of words: ", originAsnDict)
+print("Print final dictionary: ", destDict)
 print ("last subnets returned: ", subnets)
 print ('end')
 #+END_SRC
@@ -184,10 +188,36 @@ This is x and it's prefix:  399593 {'205.236.101.0/24'}
 val of x:  399588
 This is x and it's prefix:  399588 {'172.110.143.0/24'}
 val of x:  399587
-This is x and it's prefix:  399587 {'193.8.186.0/24', '193.8.187.0/24', '193.8.185.0/24', '193.8.184.0/24', '193.3.54.0/24'}
-dict of words:  {'193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.185.0/24': '399587', '193.8.184.0/24': '399587', '193.3.54.0/24': '399587'}
+This is x and it's prefix:  399587 {'193.8.184.0/24', '193.8.186.0/24', '193.8.185.0/24', '193.3.54.0/24', '193.8.187.0/24'}
+dict of words:  {'193.8.184.0/24': '399587', '193.8.186.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.187.0/24': '399587'}
 Print final dictionary:  None
-last subnets returned:  {'193.8.186.0/24', '193.8.187.0/24', '193.8.185.0/24', '193.8.184.0/24', '193.3.54.0/24'}
+last subnets returned:  {'193.8.184.0/24', '193.8.186.0/24', '193.8.185.0/24', '193.3.54.0/24', '193.8.187.0/24'}
+end
+#+end_src
+
+
+Love it, amper daar
+#+RESULTS:
+#+begin_src python
+start
+['399549', '399553', '399561', '399564', '399593', '399588', '399587']
+val of x:  399549
+This is x and it's prefix:  399549 {'216.87.87.0/24', '216.87.86.0/24'}
+val of x:  399553
+This is x and it's prefix:  399553 {'108.165.228.0/22'}
+val of x:  399561
+This is x and it's prefix:  399561 {'163.123.163.0/24'}
+val of x:  399564
+This is x and it's prefix:  399564 {'205.178.171.0/24'}
+val of x:  399593
+This is x and it's prefix:  399593 {'205.236.101.0/24'}
+val of x:  399588
+This is x and it's prefix:  399588 {'172.110.143.0/24'}
+val of x:  399587
+This is x and it's prefix:  399587 {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
+dict of words:  {'193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
+Print final dictionary:  {}
+last subnets returned:  {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
 end
 #+end_src
 
