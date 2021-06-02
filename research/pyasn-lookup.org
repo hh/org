@@ -372,7 +372,6 @@ for key, value in destDict.items():
 #+begin_src python
 None
 #+end_src
-
 * Push to bq (just testing)
 
 #+begin_src shell
@@ -383,7 +382,6 @@ bq load --autodetect k8s_artifacts_dataset_bb_test.py_asn_test /home/ii/foo/pyAs
 #+begin_example
 It worked!
 #+end_example
-
 * Transform cidr to range using postgres
 ** Bring up Postgres
 #+BEGIN_SRC tmate :window postgres
@@ -448,7 +446,7 @@ select * from pyasn_ip_asn limit 10;
 
 #+end_SRC
 
-Split that into start and end
+** Split that into start and end
 #+BEGIN_SRC sql-mode
 select asn as asn,
 ip as ip,
@@ -485,6 +483,7 @@ select * from pyasn_ip_asn_extended limit 10;
 
 #+end_SRC
 
+** Export to csv and upload to bq
 #+begin_src sql-mode
 \copy (select * from pyasn_ip_asn_extended) to '/tmp/pyasn_expanded_ipv4.csv' csv header;
 #+end_src
@@ -501,7 +500,6 @@ bq load --autodetect k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended /tmp/py
 #+RESULTS:
 #+begin_example
 #+end_example
-
 ** Create table with asn, ips as ints
 #+BEGIN_SRC shell
 bq query --nouse_legacy_sql \
