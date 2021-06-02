@@ -142,35 +142,32 @@ end
 * Lets add asn results to the dictionary
 Printing the resulting dictionary
 #+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
-print ('start')
 ## Import pyasn
 import pyasn
-## Open asnNumFile
-File_object = open(r"/home/ii/foo/asnNumbersOnlyTail10.txt","r+")
-## read the file in
-asnNum = [line.rstrip() for line in File_object]
-print (asnNum)
+print('start')
+## Open asnNumFile and read
+asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+print(asnNum)
 ## assign our dat file connection string
 asndb = pyasn.pyasn('ipasn_20140531_1.dat')
 ## Declare empty dictionary
-holdingDict = {}
-destDict = {'8.8.8.8' : '1111'}
+destDict = {}
 ## Loop through list of asns
-for x in asnNum:
+for singleAsn in asnNum:
     ## Set asn to int
-    print ("val of x: ", x)
+    print("val of x: ", singleAsn)
     ## Go look up the asn subnets (prefixes)
-    subnets = asndb.get_as_prefixes(x)
-    print ("This is x and it's prefix: ", x, asndb.get_as_prefixes(x))
+    subnets = asndb.get_as_prefixes(singleAsn)
+    print("This is x and it's prefix: ", singleAsn, asndb.get_as_prefixes(singleAsn))
     ## Add subnets with
-    originAsnDict = {i : x for i in subnets}
-#    holdingDict = originAsnDict.copy()
+    originAsnDict = {sbnets : singleAsn for sbnets in subnets}
     destDict.update(originAsnDict)
-    print ("Value of holdingDict", destDict)
+    print("Value of destDict", destDict)
 print("dict of words: ", originAsnDict)
 print("Print final dictionary: ", destDict)
-print ("last subnets returned: ", subnets)
-print ('end')
+print("last subnets returned: ", subnets)
+print('end')
 #+END_SRC
 
 #+RESULTS:
@@ -179,55 +176,29 @@ start
 ['399549', '399553', '399561', '399564', '399593', '399588', '399587']
 val of x:  399549
 This is x and it's prefix:  399549 {'216.87.86.0/24', '216.87.87.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549'}
 val of x:  399553
 This is x and it's prefix:  399553 {'108.165.228.0/22'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553'}
 val of x:  399561
 This is x and it's prefix:  399561 {'163.123.163.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561'}
 val of x:  399564
 This is x and it's prefix:  399564 {'205.178.171.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564'}
 val of x:  399593
 This is x and it's prefix:  399593 {'205.236.101.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593'}
 val of x:  399588
 This is x and it's prefix:  399588 {'172.110.143.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588'}
-val of x:  399587
-This is x and it's prefix:  399587 {'193.8.184.0/24', '193.8.185.0/24', '193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24'}
-Value of holdingDict {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587'}
-dict of words:  {'193.8.184.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587'}
-Print final dictionary:  {'8.8.8.8': '1111', '216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587'}
-last subnets returned:  {'193.8.184.0/24', '193.8.185.0/24', '193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24'}
-end
-#+end_src
-
-
-Love it, amper daar
-#+RESULTS:
-#+begin_src python
-start
-['399549', '399553', '399561', '399564', '399593', '399588', '399587']
-val of x:  399549
-This is x and it's prefix:  399549 {'216.87.87.0/24', '216.87.86.0/24'}
-val of x:  399553
-This is x and it's prefix:  399553 {'108.165.228.0/22'}
-val of x:  399561
-This is x and it's prefix:  399561 {'163.123.163.0/24'}
-val of x:  399564
-This is x and it's prefix:  399564 {'205.178.171.0/24'}
-val of x:  399593
-This is x and it's prefix:  399593 {'205.236.101.0/24'}
-val of x:  399588
-This is x and it's prefix:  399588 {'172.110.143.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588'}
 val of x:  399587
 This is x and it's prefix:  399587 {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
 dict of words:  {'193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
-Print final dictionary:  {}
+Print final dictionary:  {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
 last subnets returned:  {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
 end
 #+end_src
 
-OK, I can get the key-value pair into the dictionary, I just have to figure out how to append and not overwrite
+* Lets go output the results to a csv
