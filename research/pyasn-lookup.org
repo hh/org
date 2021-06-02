@@ -99,7 +99,15 @@ I will deal with data and other external seperateley
   - the object has a key/value of asn/ip range.
   - there are multiple ip ranges per asn
 - When all the data has been appended to the dictionary write it to file as a csv
+** Very nice siscinct summary from zz
+- i can reference the variable and return the whole array
+- i can reference an index of this variable and return one item of the array
+- i can loop through an array and do something
+- i can loop through an array and add each item to a dict
+- i can write this dict to a file
+- i can open the csv.
 
+** Dictionary struct
   The dictionary will look something like this:
   #+BEGIN_EXAMPLE
 {
@@ -110,3 +118,77 @@ I will deal with data and other external seperateley
   ]
 }
   #+END_EXAMPLE
+* Start with reading file into variable
+Printing the resulting dictionary
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+print ('start')
+File_object = open(r"/home/ii/foo/asnNumbersOnlyTail10.txt","r+")
+asnNum = File_object.readlines()
+print (asnNum)
+dictOfWords = {i : 5 for i in asnNum}
+print(dictOfWords)
+print ('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+['399716\n', '399717\n', '399718\n', '399719\n', '399720\n', '399721\n', '399722\n', '399723\n', '399724\n', '401308\n']
+{'399716\n': 5, '399717\n': 5, '399718\n': 5, '399719\n': 5, '399720\n': 5, '399721\n': 5, '399722\n': 5, '399723\n': 5, '399724\n': 5, '401308\n': 5}
+end
+#+end_src
+
+* Lets add asn results to the dictionary
+Printing the resulting dictionary
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+print ('start')
+## Import pyasn
+import pyasn
+## Open asnNumFile
+File_object = open(r"/home/ii/foo/asnNumbersOnlyTail10.txt","r+")
+## read the file in
+asnNum = [line.rstrip() for line in File_object]
+print (asnNum)
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Loop through list of asns
+for x in asnNum:
+    ## Set asn to int
+    print ("val of x: ", x)
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(x)
+    print ("This is x and it's prefix: ", x, asndb.get_as_prefixes(x))
+    ## Add subnets with
+    dictOfWords = {i : x for i in subnets}
+    finalDict = dictOfWords.update(dictOfWords)
+print("dict of words: ", dictOfWords)
+print("Print final dictionary: ", finalDict)
+print ("last subnets returned: ", subnets)
+print ('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+['399549', '399553', '399561', '399564', '399593', '399588', '399587']
+val of x:  399549
+This is x and it's prefix:  399549 {'216.87.87.0/24', '216.87.86.0/24'}
+val of x:  399553
+This is x and it's prefix:  399553 {'108.165.228.0/22'}
+val of x:  399561
+This is x and it's prefix:  399561 {'163.123.163.0/24'}
+val of x:  399564
+This is x and it's prefix:  399564 {'205.178.171.0/24'}
+val of x:  399593
+This is x and it's prefix:  399593 {'205.236.101.0/24'}
+val of x:  399588
+This is x and it's prefix:  399588 {'172.110.143.0/24'}
+val of x:  399587
+This is x and it's prefix:  399587 {'193.8.186.0/24', '193.8.187.0/24', '193.8.185.0/24', '193.8.184.0/24', '193.3.54.0/24'}
+dict of words:  {'193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.185.0/24': '399587', '193.8.184.0/24': '399587', '193.3.54.0/24': '399587'}
+Print final dictionary:  None
+last subnets returned:  {'193.8.186.0/24', '193.8.187.0/24', '193.8.185.0/24', '193.8.184.0/24', '193.3.54.0/24'}
+end
+#+end_src
+
+OK, I can get the key-value pair into the dictionary, I just have to figure out how to append and not overwrite
