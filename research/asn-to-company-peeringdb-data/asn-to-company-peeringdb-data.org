@@ -87,27 +87,39 @@ bq load --autodetect --source_format=CSV k8s_artifacts_gcslogs_appspot.asn_compa
 * Parse from peeringdb using Postgres
 
 Bring up Postgres
-
 #+BEGIN_SRC tmate :window postgres
 docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=peeringdb postgres:12.2-alpine
 #+END_SRC
+Set credentials
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+export \
+    PGUSER=postgres \
+    PGPASSWORD=password
+#+END_SRC
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < schema.sql
+#+END_SRC
 
 Clone https://git.2e8.dk/peeringdb-simplesync
-
 #+BEGIN_SRC tmate :window prepare :dir (getenv "HOME")
 git clone https://git.2e8.dk/peeringdb-simplesync
 cd peeringdb-simplesync
 #+END_SRC
 
 Enter PeeringDB creds
-
+You will need actual peeringdb creds to enter when this command prompts you
 #+BEGIN_SRC tmate :window prepare :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 read -p 'PEERINGDB_USER    : ' PEERINGDB_USER
+#+END_SRC
+#+BEGIN_SRC tmate :window prepare :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 read -p 'PEERINGDB_PASSWORD: ' PEERINGDB_PASSWORD
+#+END_SRC
+Export the vars so the script wil pick them up
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+export PEERINGDB_USER PEERINGDB_PASSWORD
 #+END_SRC
 
 Write the config for sync.py
-
 #+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
 from requests.auth import HTTPBasicAuth
 import os
@@ -125,9 +137,13 @@ def get_config():
 #+END_SRC
 
 Dump all of the data
+I had to install to make this work
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+pip install psycopg2-binary
+#+END_SRC
 
 #+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
-./sync
+python ./sync.py
 #+END_SRC
 
 Set env vars to not prompt for Postgres username and password
@@ -137,7 +153,6 @@ export \
     PGUSER=postgres \
     PGPASSWORD=password
 #+END_SRC
-
 ** Create a new dump
 Dump the database
 #+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
