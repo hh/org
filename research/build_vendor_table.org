@@ -11,8 +11,153 @@ Goal is to combine ip-asn data from 3 sources
 - end_ip
 - start_ip_int
 - end_ip_int
-* Peeringdb
+* Get asn to company list
+I found quite a few, but the most complete list at this time is:
+https://bgp.potaroo.net/cidr/autnums.html
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME"))
+mkdir autonums
+cd autonums
+wget https://bgp.potaroo.net/cidr/autnums.html
+#+END_SRC
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+cat autnums.html
+#+END_SRC
+** Suggestion from zz is to use the beautiful soup library from python
+I am going to work through https://zetcode.com/python/beautifulsoup/#:~:text=BeautifulSoup%20is%20a%20Python%20library,%2C%20navigable%20string%2C%20or%20comment.
+I will work in the autonums dir
 
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+sudo pip3 install lxml
+#+END_SRC
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+sudo pip3 install bs4
+#+END_SRC
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+cat autnums.html | head
+#+END_SRC
+
+#+BEGIN_SRC python tmate :window python
+#print('Please wait')
+return 'A line of text.\n'
+#+END_SRC
+#+BEGIN_SRC python
+return 'A line of text.\n'
+#+END_SRC
+#+RESULTS:
+#+begin_example
+/home/ii/ii/org/research
+#+end_example
+*** run python in-line, FAIL
+Python in org is not working, something related to list
+Error: if: Symbol’s value as variable is void: eshell-modules-list
+Skipping troubleshooting this, just going to run it as a script in tmate
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/autonums") :results output
+from bs4 import BeautifulSoup
+print ('start')
+with open('/home/ii/autonums/autnums.html', 'r') as f:
+    contents = f.read()
+    soup = BeautifulSoup(contents, 'lxml')
+    print(soup.head)
+print ('end')
+#+END_SRC
+Even very basic command that works in a old box fails
+#+BEGIN_SRC python tmate :window python
+#print('Please wait')
+return 'A line of text.\n'.rstrip()
+#+END_SRC
+
+*** run python in script WORKS
+You have to tangle this file out with ctrl-c, ctrl-v, t
+NOTE, that command will write files for all tangle blocks in the document
+If you dont want this on to write to disk again just comment it out.
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/autonums/testing_soup.py")
+#!/usr/bin/python
+from bs4 import BeautifulSoup
+with open('/home/ii/autonums/autnums.html', 'r') as f:
+    contents = f.read()
+    soup = BeautifulSoup(contents, 'lxml')
+    print(soup.head)
+#+END_SRC
+This runs the above to produce output
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+chmod +x testing_soup.py
+python testing_soup.py
+#+END_SRC
+** Build the script
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/autonums/soup.py")
+#!/usr/bin/python
+from bs4 import BeautifulSoup
+with open('/home/ii/autonums/autnums.html', 'r') as input_file:
+    contents = input_file.read()
+    soup = BeautifulSoup(contents, 'lxml')
+#    printn(soup.a)
+for tag in soup.find_all('a'):
+    asn = (f'"{tag.text}, {tag.next_sibling}"')
+    # print(asn)
+    results_file = open("asn_company_results.csv", "a")
+    results_file.write(asn)
+    results_file.write("\n")
+   # print >>results_file, asn
+    results_file.close()
+input_file.close()
+#+END_SRC
+This runs the above to produce output
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+chmod +x soup.py
+python soup.py
+#+END_SRC
+Litle cleanup of the output
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/,//2' asn_company_results.csv
+sed -i 's/\.,//' asn_company_results.csv
+sed -i 's/\s\+,/\,/' asn_company_results.csv
+sed -i 's/,\s\+/,\"/' asn_company_results.csv
+sed -i 's/,/\",/' asn_company_results.csv
+sed -i 's/CT-CNGI China telecom AC\/AEUR.*/CT-CNGI China telecom AC\/AEURA/g' asn_company_results.csv
+sed -i 's/IRKUT_IAP-AS.*/IRKUT_IAP-AS/g' asn_company_results.csv
+sed -i '/^\"$/d' asn_company_results.csv
+sed -i 's/$/\"/' asn_company_results.csv
+#+END_SRC
+** Import to postgres
+I stand up a postgres instance in the peeringdb section
+If you need one go look in peeringdb
+#+BEGIN_SRC sql-mode
+-- create table company_asn  (asn varchar, name varchar);
+\COPY company_asn from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+#+BEGIN_SRC sql-mode
+select * from company_asn limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ asn |       name
+-----+------------------
+ AS0 | -Reserved AS- ZZ
+ AS1 | LVLT-1 US
+ AS2 | UDEL-DCN US
+ AS3 | MIT-GATEWAYS US
+ AS4 | ISI-AS US
+ AS5 | SYMBOLICS US
+ AS6 | BULL-HN US
+ AS7 | DSTL EU
+ AS8 | RICE-AS US
+ AS9 | CMU-ROUTER US
+(10 rows)
+
+#+end_SRC
+
+* Peeringdb
 ** Parse from peeringdb using Postgres
 
 Bring up Postgres
@@ -33,6 +178,7 @@ export \
     PGUSER=postgres \
     PGPASSWORD=password
 #+END_SRC
+
 import the schema
 #+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
 psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < schema.sql
@@ -76,15 +222,6 @@ pip install psycopg2-binary
 python3 ./sync.py
 #+END_SRC
 
-
-Set env vars to not prompt for Postgres username and password
-
-#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
-export \
-    PGUSER=postgres \
-    PGPASSWORD=password
-#+END_SRC
-
 ** Create a new dump
 Dump the database
 #+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
@@ -96,7 +233,7 @@ Upload the dump
 gsutil cp peeringdb-dump-$(date +%Y%m%d).sql gs://ii_bq_scratch_dump/peeringdb-dump-$(date +%Y%m%d).sql
 #+END_SRC
 
-** With pre-prepared dump
+** Standup local peeringdb with pre-prepared dump
 
 Download from the bucket
 #+BEGIN_SRC tmate :window peeringdb-sync
@@ -789,7 +926,6 @@ select jsonb_pretty(data) from peeringdb.ixlan limit 2;
 
 #+end_SRC
 
-
 *** peeringdb.ixpfx
 
 #+BEGIN_SRC sql-mode
@@ -1150,8 +1286,8 @@ select jsonb_pretty(data) from peeringdb.poc limit 2;
 
 #+end_SRC
 
-
 ** Post process org blocks
+Just making sure we can get to json
 #+NAME: json-res
 #+BEGIN_SRC sql-mode :var json-r=""
 select data from peeringdb.ixlan limit 1;
@@ -1173,7 +1309,7 @@ jq '.'
  {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
 #+end_example
 
-** Wrap header
+** Wrap header for json.
 #+BEGIN_SRC sql-mode :results sql :wrap EXPORT json
 select data from peeringdb.ixlan limit 1;
 #+END_SRC
@@ -1184,8 +1320,7 @@ select data from peeringdb.ixlan limit 1;
 
 #+end_EXPORT
 
-
-** Building with Postgres
+** Building asn-ip list with Postgres (this requires import of a asn list)
 #+BEGIN_SRC sql-mode
 create schema asntocompany;
 #+END_SRC
