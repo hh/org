@@ -14,8 +14,26 @@ Goal is to combine ip-asn data from 3 sources
 * Get company to asn list - delete heading below
 
 #+BEGIN_SRC shell :results silent
-gsutil cp gs://ii_bq_scratch_dump/peeringdb_company_asn.csv ~/peeringdb_company_asn.csv
+gsutil cp ~/potaroo_company_asn.csv gs://ii_bq_scratch_dump/potaroo_company_asn.csv
 #+END_SRC
+#+BEGIN_SRC shell
+gsutil ls -al gs://ii_bq_scratch_dump/potaroo_company_asn.csv
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+   3334138  2021-06-08T00:10:05Z  gs://ii_bq_scratch_dump/potaroo_company_asn.csv#1623111005815246  metageneration=1
+TOTAL: 1 objects, 3334138 bytes (3.18 MiB)
+#+end_example
+#+BEGIN_SRC shell
+cat potaroo_company_asn.csv | wc -l
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+0
+#+end_example
+
 * Get asn to company list
 TODDO: this section needs to be replaced with:
 curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p'
@@ -27,94 +45,13 @@ https://bgp.potaroo.net/cidr/autnums.html
 # mkdir autonums
 # cd autonums
 # wget https://bgp.potaroo.net/cidr/autnums.html
-curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p > autnums_sed.csv
+curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p' > ~/autnums_sed.csv
 #+END_SRC
-#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
-cat autnums.html
-#+END_SRC
-** Suggestion from zz is to use the beautiful soup library from python
-Error: if: Symbol’s value as variable is void: eshell-modules-list
-Skipping troubleshooting this, just going to run it as a script in tmate
-#+BEGIN_SRC python :dir (concat (getenv "HOME") "/autonums") :results output
-from bs4 import BeautifulSoup
-print ('start')
-with open('/home/ii/autonums/autnums.html', 'r') as f:
-    contents = f.read()
-    soup = BeautifulSoup(contents, 'lxml')
-    print(soup.head)
-print ('end')
-#+END_SRC
-Even very basic command that works in a old box fails
-#+BEGIN_SRC python tmate :window python
-#print('Please wait')
-return 'A line of text.\n'.rstrip()
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/")
+cat ~/autnums_sed.csv | head
 #+END_SRC
 
-*** run python in script WORKS
-You have to tangle this file out with ctrl-c, ctrl-v, t
-NOTE, that command will write files for all tangle blocks in the document
-If you dont want this on to write to disk again just comment it out.
-#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/autonums/testing_soup.py")
-#!/usr/bin/python
-from bs4 import BeautifulSoup
-with open('/home/ii/autonums/autnums.html', 'r') as f:
-    contents = f.read()
-    soup = BeautifulSoup(contents, 'lxml')
-        print(soup.head)
-#+END_SRC
-This runs the above to produce output
-#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
-chmod +x testing_soup.py
-python testing_soup.py
-#+END_SRC
-** Build the script using beautiful soup
-#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/autonums/soup.py")
-#!/usr/bin/python
-from bs4 import BeautifulSoup
-with open('/home/ii/autonums/autnums.html', 'r') as input_file:
-    contents = input_file.read()
-    soup = BeautifulSoup(contents, 'lxml')
-#    printn(soup.a)
-for tag in soup.find_all('a'):
-    asn = (f'"{tag.text}, {tag.next_sibling}"')
-    # print(asn)
-    results_file = open("asn_company_results.csv", "a")
-    results_file.write(asn)
-    results_file.write("\n")
-   # print >>results_file, asn
-    results_file.close()
-input_file.close()
-#+END_SRC
-** Run script, clean up ouput.
-TODO: Replace entire polling of this date, it could be done in 3 lines by somebody comfortable with regex.
-This runs the above to produce output,
-It will fail unless you run the sed cleanup block below.
-    #+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
-chmod +x soup.py
-python soup.py
-#+END_SRC
-Litle cleanup of the output
-ok this is GROSSS! I know I know, dont judge me
-Obviously I just dealt with each import failure one at a time till it worked
-Stephen is taking a look to see if he can clean some of this up to be a bit more elegant
-Thank you Stephen!!
-#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/,//2' asn_company_results.csv
-sed -i 's/\.,//' asn_company_results.csv
-sed -i 's/\s\+,/\,/' asn_company_results.csv
-sed -i 's/,\s\+/,\"/' asn_company_results.csv
-sed -i 's/,/\",/' asn_company_results.csv
-sed -i 's/CT-CNGI China telecom AC\/AEUR.*/CT-CNGI China telecom AC\/AEURA/g' asn_company_results.csv
-sed -i 's/IRKUT_IAP-AS.*/IRKUT_IAP-AS/g' asn_company_results.csv
-sed -i '/^\"$/d' asn_company_results.csv
-sed -i 's/$/\"/' asn_company_results.csv
-#+END_SRC
+
 ** Import to postgres
 I stand up a postgres instance in the peeringdb section
 If you need one go look in peeringdb to see the command to start one.
@@ -122,8 +59,8 @@ If you need one go look in peeringdb to see the command to start one.
 -- adding this table to match wat caleb used
 -- create table asnproc (asn varchar, name varchar);
 -- \COPY asnproc from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
-create table company_asn  (asn varchar, name varchar);
-\COPY company_asn from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
+-- create table company_asn  (asn varchar, name varchar);
+\COPY company_asn from '/home/ii/autonums_sed.csv' DELIMITER ',' CSV;
 #+END_SRC
 
 #+RESULTS:
@@ -131,7 +68,7 @@ create table company_asn  (asn varchar, name varchar);
 #+end_SRC
 #+BEGIN_SRC sql-mode
 --select * from company_asn limit 10;
-select * from asnproc limit 10;
+select * from company_asn limit 10;
 #+END_SRC
 
 #+RESULTS:
@@ -561,7 +498,59 @@ BEGIN
 
 #+end_SRC
 
-* shadowserver
+* Combine data in shadowserver en pyasn datasets
+I already have the entire shadowserver table in bq, you can find the method that was used to generate it in https://github.com/ii/org/blob/main/research/shadowserver_asn.org
+I also have the entire pyasn lookup in bq method for loading it can be found on https://github.com/ii/org/blob/main/research/pyasn-lookup.org
+
+Lets get some basic queries working
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 20'
+#+end_src
+Confirming I can replace a table
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing --replace 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 10'
+#+end_src
+Testing appending
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing --append_table 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 10'
+#+end_src
+
+** Get asns with all distinct start times
+#+begin_src shell
+bq query --nouse_legacy_sql 'select count(*) from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`'
+#+end_src
+
+#+RESULTS:
+#+begin_example
++--------+
+|  f0_   |
++--------+
+| 518099 |
++--------+
+#+end_example
+
+#+begin_src shell
+bq query --nouse_legacy_sql 'select count(*) from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int`'
+#+end_src
+
+#+RESULTS:
+#+begin_example
++--------+
+|  f0_   |
++--------+
+| 923058 |
++--------+
+#+end_example
+
+
+#+begin_src shell
+bq query --nouse_legacy_sql 'select asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_1 from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int` as shadow inner join `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` as pyasn on pyasn.asn=shadow.asn limit10'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
 * org tools to process json, keep this in mind for this project
 ** Post process org blocks
 Just making sure we can get to json

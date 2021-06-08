@@ -6,11 +6,12 @@ https://bgp.potaroo.net/cidr/autnums.html
 TODDO: this section needs to be replaced with:
 curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p'
 I tested it and it still failed on one line, I did not troubleshoot, but this would be a way better way to get the data
+That Said the solution using beautiful soup still works
 
 ** curl the data
 #+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME"))
-# mkdir autonums
-# cd autonums
+ mkdir autonums
+ cd autonums
 # wget https://bgp.potaroo.net/cidr/autnums.html
 curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p > autnums_sed.csv
 #+END_SRC
@@ -35,9 +36,7 @@ cat autnums.html | head
 #print('Please wait')
 return 'A line of text.\n'
 #+END_SRC
-#+BEGIN_SRC python
-return 'A line of text.\n'
-#+END_SRC
+
 #+RESULTS:
 #+begin_example
 /home/ii/ii/org/research
