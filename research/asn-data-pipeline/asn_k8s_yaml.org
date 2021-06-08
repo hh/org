@@ -48,32 +48,40 @@ asns:
 #+end_src
 ** Parsing k8s.io yaml
 #+begin_src shell
-curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j - 
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv'
 #+end_src
 
 #+RESULTS:
 #+begin_example
-{
-  "name": "microsoft",
-  "redirectsTo": {
-    "registry": "kubernetes.acr.io",
-    "artifacts": "k8s-artifacts.acr.io"
-  },
-  "asns": [
-    12076,
-    8075,
-    8068,
-    8069,
-    16550
-  ]
-}
+12076,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
+8075,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
+8068,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
+8069,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
+16550,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
 #+end_example
 
 ** Parsing mirosoft json
 Still in progress
 #+begin_src shell
-curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210607.json' | jq -r '.values[] | .properties.region'
+curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210607.json' | jq -r \
+    '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv'
 #+end_src
+
+#+RESULTS:
+#+begin_example
+"13.66.60.119/32","Azure",""
+"13.66.143.220/30","Azure",""
+"13.66.202.14/32","Azure",""
+"13.66.248.225/32","Azure",""
+"13.66.249.211/32","Azure",""
+"13.67.10.124/30","Azure",""
+"13.69.109.132/30","Azure",""
+"13.71.199.112/30","Azure",""
+"13.77.53.216/30","Azure",""
+"13.77.172.102/32","Azure",""
+#+end_example
+
 * Google
 #+begin_src yaml tangle (concat (getenv "HOME") "/tmp/google.yaml")  
 name: google
