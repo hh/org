@@ -542,9 +542,14 @@ bq query --nouse_legacy_sql 'select count(*) from `k8s-infra-ii-sandbox.k8s_arti
 +--------+
 #+end_example
 
+This join is wonky, not fully understanding what I want to do.
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql 'select pyasn.asn, pyasn.cidr_ip, pyasn.start_ip, pyasn.end_ip, pyasn.start_ip_int, pyasn.end_ip_1 from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int` as shadow inner join `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` as pyasn on pyasn.asn=shadow.asn limit 10'
+#+end_src
 
-#+begin_src shell
-bq query --nouse_legacy_sql 'select asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_1 from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int` as shadow inner join `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` as pyasn on pyasn.asn=shadow.asn limit10'
+Lazy JOIN! I think this should get us what we want.
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` where start_ip_int not in (select start_ip_int from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`) limit 10'
 #+end_src
 
 #+RESULTS:
