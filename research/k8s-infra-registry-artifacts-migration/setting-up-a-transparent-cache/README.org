@@ -1,17 +1,14 @@
 #+TITLE: Setting up a transparent cache
 
-* Proxy Cache
+Hosting your own copies of Kubernetes images is a sustainable way to give back to the Kubernetes community.
+By setting up a transparent proxy cache, images will be pulled from you closer OCI compatible cache and then from /k8s.gcr.io/.
+
+* Deploying a proxy cache
+Here are two OCI compatible container registries that you can bring up to host container images.
+
 ** Distribution
-*** Deploy with Docker
-*** Deploy with Kubernetes
-
-Create the namespace
-#+begin_src shell
-kubectl create ns distribution
-#+end_src
-
 Define the config
-#+begin_src yaml :tangle ./config.yaml
+#+begin_src yaml :tangle ./config.yml
 version: 0.1
 log:
   accesslog:
@@ -49,12 +46,39 @@ health:
     threshold: 3
 proxy:
   remoteurl: https://k8s.gcr.io
+#+end_src
 
+*** Deploy with Docker
+#+begin_src shell
+USERNAME=distribution
+PASSWORD=Distritest1234!
+htpasswd -Bbn $USERNAME $PASSWORD > /tmp/htpasswd
+#+end_src
+
+#+begin_src shell :results silent
+docker run -d \
+    -p 5000:5000 \
+    -v /tmp/htpasswd:/etc/docker/registry/htpasswd \
+    -v /tmp/config.yml:/etc/docker/registry/config.yml \
+    --restart always \
+    --name registry-proxy-cache \
+    registry:2.7.1
+#+end_src
+
+#+begin_src shell :results silent
+docker rm -f registry-proxy-cache
+#+end_src
+
+*** Deploy with Kubernetes
+
+Create the namespace
+#+begin_src shell
+kubectl create ns distribution
 #+end_src
 
 Create the config
 #+begin_src shell
-kubectl -n distribution create configmap distribution-config --from-file=config\.yaml=distribution-config.yaml --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n distribution create configmap distribution-config --from-file=config\.yml=distribution-config.yaml --dry-run=client -o yaml | kubectl apply -f -
 #+end_src
 
 Create the auth secret
@@ -211,3 +235,4 @@ spec:
 ** ClusterAPI
 Requires v1alpha4
 https://github.com/kubernetes-sigs/cluster-api/blob/af33e43/bootstrap/kubeadm/api/v1alpha4/kubeadm_types.go#L115-L120
+
