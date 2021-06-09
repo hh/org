@@ -210,23 +210,6 @@ Login as application
 gcloud auth application-default login
 #+end_src
 
-*
-#+begin_src sql-mode :product bq
-SELECT
-  cidr_ip,
-  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int,
-  start_ip_int,
-  end_ip_int,
-  c_ip,
-  asn,
-  name,
-FROM
-  usage_all_ip_only,
-  shadow_pyasn_expanded
-WHERE
-c_ip_int >= start_ip_int AND c_ip_int <= end_ip_int;
-#+end_src
-
 * Prepare IP dataset
 ** usage_all_ip_only_distinct_int
 Copy data to a CSV file in a bucket
@@ -373,7 +356,7 @@ psql -U postgres -d postgres -h postgres -c "\\copy cust_ip from '/tmp/usage_all
 export PGUSER=postgres \
     PGPASSWORD=postgres
 
-psql -U postgres -d postgres -h postgres -c "\\copy shadow_pyasn_expanded from '/tmp/shadow_pyasn_expanded.csv';"
+psql -U postgres -d postgres -h postgres -c "\\copy shadow_pyasn_expanded from '/tmp/shadow_pyasn_expanded.csv' (DELIMITER(','));"
 #+end_src
 
 * Discover the data
@@ -388,4 +371,58 @@ select count(*) from cust_ip;
  7417599
 (1 row)
 
+#+end_SRC
+
+#+begin_src sql-mode
+select count(*) from shadow_pyasn_expanded;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+--------
+ 927411
+(1 row)
+
+#+end_SRC
+
+
+
+* Join the data
+#+begin_src sql-mode
+select 1,2,3;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ ?column? | ?column? | ?column?
+----------+----------+----------
+        1 |        2 |        3
+(1 row)
+
+#+end_SRC
+
+#+begin_src sql-mode
+\copy (SELECT
+  shadow_pyasn_expanded.cidr_ip,
+  shadow_pyasn_expanded.start_ip_net,
+  shadow_pyasn_expanded.end_ip_1,
+  shadow_pyasn_expanded.asn,
+  cust_ip.c_ip
+FROM
+  shadow_pyasn_expanded,
+  cust_ip
+WHERE
+  cust_ip.c_ip >= shadow_pyasn_expanded.start_ip_net
+AND cust_ip.c_ip <= shadow_pyasn_expanded.end_ip_1)
+TO
+  '/tmp/match-ip-to-iprange.csv'
+CSV
+HEADER
+;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+\copy: arguments required
 #+end_SRC
