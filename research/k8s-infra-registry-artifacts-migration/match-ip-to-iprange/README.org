@@ -1,0 +1,391 @@
+#+TITLE: Match IP to IP range
+
+* Bringing up Postgres
+** Secrets
+#+name: postgres-secret
+#+begin_src yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-configuration
+stringData:
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  PGDATABASE: postgres
+  PGUSER: postgres
+#+end_src
+** Deployment
+#+name: postgres-deployment
+#+begin_src yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  labels:
+    app: postgres
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  serviceName: "postgres"
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: postgres
+        image: docker.io/postgres:12.2-alpine
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsUser: 70
+          runAsGroup: 70
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - name: var-lib-postgresql
+            mountPath: /var/lib/postgresql/data
+          - name: var-run-postgresql
+            mountPath: /var/run/postgresql
+          - name: tmp
+            mountPath: /tmp
+        ports:
+        - containerPort: 5432
+        livenessProbe:
+          exec:
+            command:
+            - "sh"
+            - "-c"
+            - "pg_isready"
+            - "-U"
+            - "$POSTGRES_USER"
+          failureThreshold: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_PASSWORD
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: PGDATABASE
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: PGUSER
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      initContainers:
+        - name: postgres-db-permissions-fix
+          image: alpine:3.12
+          command:
+            - /bin/sh
+            - -c
+            - "/bin/chown -R 70:70 /var/lib/postgresql/data"
+          volumeMounts:
+          - name: var-lib-postgresql
+            mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: var-lib-postgresql
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: var-run-postgresql
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: "5432"
+    port: 5432
+    targetPort: 5432
+#+end_src
+** Deploying
+#+begin_src shell :noweb yes
+kubectl apply -f - << EOF
+<<postgres-secret>>
+---
+<<postgres-deployment>>
+EOF
+#+end_src
+
+#+RESULTS:
+#+begin_example
+secret/postgres-configuration created
+persistentvolumeclaim/postgres-pvc created
+statefulset.apps/postgres created
+service/postgres created
+#+end_example
+
+* Setting local vars
+Use /C-c C-v s/ to execute the following blocks
+** Defaults for sql-mode blocks
+#+begin_src elisp :results silent
+(set (make-local-variable 'org-babel-default-header-args:sql-mode)
+     ;; Set up all sql-mode blocks to be postgres and literate
+            '((:results . "replace code")
+              (:product . "postgres")
+              (:session . "none")
+              (:noweb . "yes")
+              (:comments . "no")
+              (:wrap . "SRC example")))
+#+end_src
+
+** Default for connecting to sql-mode
+#+begin_src elisp :results silent
+(set (make-local-variable 'sql-server) "postgres")
+(set (make-local-variable 'sql-port) 5432)
+(set (make-local-variable 'sql-user) "postgres")
+(set (make-local-variable 'sql-database) "postgres")
+(set (make-local-variable 'sql-product) '(quote postgres))
+#+end_src
+
+** Default for creating new sql-mode connections
+#+begin_src elisp :results silent
+(set (make-local-variable 'sql-connection-alist)
+     (list
+      ;; setting these allows for the connection to be
+      ;; created on the fly
+      (list 'none
+            (list 'sql-product '(quote postgres))
+            (list 'sql-user sql-user)
+            (list 'sql-database sql-database)
+            (list 'sql-port sql-port)
+            (list 'sql-server sql-server))))
+#+end_src
+
+
+* Connecting to Postgres
+Connection string: =postgres://postgres:password@postgres/postgres=
+
+* Sign in to Google auth
+Login to gcloud
+#+BEGIN_SRC tmate :window prepare
+gcloud auth login
+#+END_SRC
+
+Set the project
+#+BEGIN_SRC tmate :window prepare
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+
+Login as application
+#+begin_src tmate :window prepare
+gcloud auth application-default login
+#+end_src
+
+*
+#+begin_src sql-mode :product bq
+SELECT
+  cidr_ip,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int,
+  start_ip_int,
+  end_ip_int,
+  c_ip,
+  asn,
+  name,
+FROM
+  usage_all_ip_only,
+  shadow_pyasn_expanded
+WHERE
+c_ip_int >= start_ip_int AND c_ip_int <= end_ip_int;
+#+end_src
+
+* Prepare IP dataset
+** usage_all_ip_only_distinct_int
+Copy data to a CSV file in a bucket
+#+begin_src shell :prologue "( " :epilogue " ) 2>&1 ; :"
+TIMESTAMP=$(date +%Y%m%d%H%M)
+echo $TIMESTAMP > /tmp/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-timestamp.txt
+
+bq extract \
+    --destination_format CSV \
+    k8s-infra-ii-sandbox:k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int \
+    gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-$TIMESTAMP-*.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (6s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (7s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (7s) Current status: DONE
+#+end_example
+
+List csv files
+#+begin_src shell
+TIMESTAMP=$(cat /tmp/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-timestamp.txt | tr -d '\n')
+gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-$TIMESTAMP-*.csv | head
+echo "..."
+printf "Total: "
+gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-$TIMESTAMP-*.csv | wc -l
+#+end_src
+
+#+RESULTS:
+#+begin_example
+gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-202106091349-000000000000.csv
+...
+Total: 1
+#+end_example
+
+Download data
+#+begin_src tmate :window prepare
+TIMESTAMP=$(cat /tmp/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-timestamp.txt | tr -d '\n')
+mkdir -p /tmp/usage_all_ip_only/
+gsutil cp \
+    gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-$TIMESTAMP-*.csv \
+    /tmp/usage_all_ip_only/
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Merge the data
+#+begin_src tmate :window prepare
+cat /tmp/usage_all_ip_only/*.csv | tail +2 > /tmp/usage_all_ip_only.csv
+#+end_src
+
+** shadow_pyasn_expanded
+Copy data to a CSV file in a bucket
+#+begin_src shell :prologue "( " :epilogue " ) 2>&1 ; :"
+TIMESTAMP=$(date +%Y%m%d%H%M)
+echo $TIMESTAMP > /tmp/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-timestamp.txt
+
+bq extract \
+    --destination_format CSV \
+    k8s-infra-ii-sandbox:k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded \
+    gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-$TIMESTAMP-*.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (5s) Current status: DONE
+#+end_example
+
+List csv files
+#+begin_src shell
+TIMESTAMP=$(cat /tmp/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-timestamp.txt | tr -d '\n')
+gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-$TIMESTAMP-*.csv | head
+echo "..."
+printf "Total: "
+gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-$TIMESTAMP-*.csv | wc -l
+#+end_src
+
+#+RESULTS:
+#+begin_example
+gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-202106091415-000000000000.csv
+...
+Total: 1
+#+end_example
+
+Download data
+#+begin_src tmate :window prepare
+TIMESTAMP=$(cat /tmp/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-timestamp.txt | tr -d '\n')
+mkdir -p /tmp/shadow_pyasn_expanded/
+gsutil cp \
+    gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-$TIMESTAMP-*.csv \
+    /tmp/shadow_pyasn_expanded/
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Merge the data
+#+begin_src tmate :window prepare
+cat /tmp/shadow_pyasn_expanded/*.csv | tail +2 > /tmp/shadow_pyasn_expanded.csv
+#+end_src
+
+** shadow_pyasn_expanded
+k8s-infra-ii-sandbox:k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded
+
+* Create schema in Postgres
+#+begin_src sql-mode
+create table if not exists cust_ip (
+  c_ip bigint not null
+);
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+CREATE TABLE
+#+end_SRC
+
+#+begin_src sql-mode
+create table if not exists shadow_pyasn_expanded (
+  asn text,
+  cidr_ip cidr,
+  start_ip inet,
+  end_i inet,
+  start_ip_net bigint,
+  end_ip_1 bigint
+);
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+CREATE TABLE
+#+end_SRC
+
+* Insert data
+#+begin_src tmate :window prepare
+export PGUSER=postgres \
+    PGPASSWORD=postgres
+
+psql -U postgres -d postgres -h postgres -c "\\copy cust_ip from '/tmp/usage_all_ip_only.csv';"
+#+end_src
+
+#+begin_src tmate :window prepare
+export PGUSER=postgres \
+    PGPASSWORD=postgres
+
+psql -U postgres -d postgres -h postgres -c "\\copy shadow_pyasn_expanded from '/tmp/shadow_pyasn_expanded.csv';"
+#+end_src
+
+* Discover the data
+#+begin_src sql-mode
+select count(*) from cust_ip;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+  count
+---------
+ 7417599
+(1 row)
+
+#+end_SRC
