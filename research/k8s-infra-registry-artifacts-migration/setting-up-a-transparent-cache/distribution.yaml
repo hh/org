@@ -1,55 +1,11 @@
 
 
-# The distribution instance
+# Define the deployment
 
 apiVersion: v1
 kind: Namespace
 metadata:
   name: distribution
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: distribution-config
-data:
-  config.yml: |
-    version: 0.1
-    log:
-      accesslog:
-        disabled: true
-      level: debug
-      fields:
-        service: registry
-        environment: development
-    auth:
-      htpasswd:
-        realm: basic-realm
-        path: /etc/docker/registry/htpasswd
-    storage:
-      delete:
-        enabled: true
-      filesystem:
-        rootdirectory: /var/lib/registry
-      maintenance:
-        uploadpurging:
-          enabled: false
-    http:
-      addr: :5000
-      secret: registry-k8s-io-registry-k8s-io
-      debug:
-        addr: :5001
-        prometheus:
-          enabled: true
-          path: /metrics
-        headers:
-          X-Content-Type-Options: [nosniff]
-    health:
-      storagedriver:
-        enabled: true
-        interval: 10s
-        threshold: 3
-    proxy:
-      remoteurl: https://k8s.gcr.io
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -136,7 +92,7 @@ spec:
   selector:
     app: distribution
 ---
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: distribution
@@ -154,6 +110,9 @@ spec:
     http:
       paths:
       - path: /
+        pathType: ImplementationSpecific
         backend:
-          serviceName: distribution
-          servicePort: 5000
+          service:
+            name: distribution
+            port:
+              number: 5000
