@@ -548,13 +548,21 @@ bq query --nouse_legacy_sql 'select pyasn.asn, pyasn.cidr_ip, pyasn.start_ip, py
 #+end_src
 
 Lazy JOIN! I think this should get us what we want.
+Nah this got us what is not between them
 #+begin_src tmate :window bq_results
-bq query --nouse_legacy_sql 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` where start_ip_int not in (select start_ip_int from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`) limit 10'
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` where start_ip_int not in (select start_ip_int from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`)'
+#+end_src
+Lets try with except
+same result
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` except distinct select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`'
 #+end_src
 
-#+RESULTS:
-#+begin_example
-#+end_example
+This produced a table with what looks like a very good combination of everything in a and content of b that is not in a
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int`  UNION DISTINCT (select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`)'
+#+end_src
+
 
 * org tools to process json, keep this in mind for this project
 ** Post process org blocks
