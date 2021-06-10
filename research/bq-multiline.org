@@ -1,0 +1,106 @@
+#+TITLE: Writing an SQL-Mode Filter
+
+* TLDR
+** run this code
+#+begin_src elisp :noweb yes :results silent
+<<bq-src-block-args>>
+<<org-babel-sql-mode-pre-execute-hook>>
+#+end_src
+
+** multiline bq
+#+begin_src sql-mode
+select
+        1;
+#+end_src
+
+* Links/Documentation about sql-mode filters
+** [[https://github.com/nikclayton/ob-sql-mode#ob-sql-mode][ob-sql-mode]]
+- https://github.com/nikclayton/ob-sql-mode#ob-sql-mode
+* Possibilites
+** org-babel-sql-mode-pre-execute-hook
+Hook for functions to be called before the query is executed.
+
+Each function is called with two parameters, BODY is the text of
+the SQL statements to be run.  PROCESSED-PARAMS is the parameters
+to the code block.
+
+The hook should return a new BODY modified in some way.
+https://github.com/nikclayton/ob-sql-mode/blob/master/ob-sql-mode.el#L70-L78
+** org-babel-sql-mode-start-interpreter-prompt
+Useful to maybe start the interpreter without asking questions
+https://github.com/nikclayton/ob-sql-mode/blob/master/ob-sql-mode.el#L147-L156
+* gcloud auth login
+In kitty you will need to control-shift-click on the link, and paste the code back into the terminal.
+#+begin_src tmate :window login
+gcloud auth login
+#+end_src
+#+begin_src shell :results silent
+gcloud config set project k8s-infra-ii-sandbox
+#+end_src
+#+begin_src shell :results silent
+CREDFILE=$(ls  ~/.config/gcloud/legacy_credentials/*/singlestore_bq.json)
+echo credential_file = $CREDFILE > ~/.bigqueryrc
+#+end_src
+
+* Setting local vars
+** Defaults for sql-mode blocks
+#+name: bq-src-block-args
+#+begin_src elisp :results silent
+(set (make-local-variable 'org-babel-default-header-args:sql-mode)
+     ;; Set up all sql-mode blocks to be postgres and literate
+            '((:results . "replace code")
+              (:product . "bq")
+              (:session . "none")
+              (:noweb . "yes")
+              (:comments . "no")
+              (:wrap . "SRC example")))
+#+end_src
+
+** pre-execute-hook
+#+name: org-babel-sql-mode-pre-execute-hook
+#+begin_src elisp
+(setq org-babel-sql-mode-pre-execute-hook nil)
+(defun bq-simplify-body (body params)
+  (message "BODY:")
+  (message body)
+  (let* ((oneline (replace-regexp-in-string "\n" "" body))
+         )
+    (message "ONELINE:")
+    (message oneline)
+    (symbol-value 'oneline)
+    )
+  ;;(symbol-value 'body)
+
+  )
+(add-hook 'org-babel-sql-mode-pre-execute-hook 'bq-simplify-body)
+#+end_src
+
+#+RESULTS:
+#+begin_src elisp
+(bq-simplify-body)
+#+end_src
+
+** Listing the hooks
+#+begin_src elisp
+(symbol-value 'org-babel-sql-mode-pre-execute-hook)
+#+end_src
+
+#+RESULTS:
+#+begin_src elisp
+(bq-simplify-body)
+#+end_src
+
+* SQL
+#+begin_src sql-mode
+select
+        1;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
++-----+
+| f0_ |
++-----+
+|   1 |
++-----+
+#+end_SRC
