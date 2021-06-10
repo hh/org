@@ -47,39 +47,137 @@ asns:
 - 16550
 #+end_src
 ** Parsing k8s.io yaml
+*** microsoft
 #+begin_src shell
 curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j - \
-    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv'
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/microsoft_yaml.csv
+#+end_src
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/microsoft_yaml.csv
+#+end_src
+
+*** google
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/google.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/google_yaml.csv
 #+end_src
 
 #+RESULTS:
 #+begin_example
-12076,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
-8075,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
-8068,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
-8069,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
-16550,"microsoft","kubernetes.acr.io","k8s-artifacts.acr.io"
 #+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/google_yaml.csv
+#+end_src
+
+*** amazon
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/amazon.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/amazon_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/amazon_yaml.csv
+#+end_src
+
+*** alibabagroup
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/alibabagroup.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/alibabagroup_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/alibabagroup_yaml.csv
+#+end_src
+
+*** baidu
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/baidu.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/baidu_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/baidu_yaml.csv
+#+end_src
+
+*** digitalocean
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/digitalocean.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/digitalocean_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/digitalocean_yaml.csv
+#+end_src
+
+*** equinixmetal
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/equinixmetal.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/equinixmetal_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/equinixmetal_yaml.csv
+#+end_src
+
+*** huawei
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/huawei.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/huawei_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/huawei_yaml.csv
+#+end_src
+
+*** tencentcloud
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/tencentcloud.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/tencentcloud_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/tencentcloud_yaml.csv
+#+end_src
 
 ** Parsing mirosoft json
 Still in progress
 #+begin_src shell
 curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210607.json' | jq -r \
-    '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv'
+    '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' > /tmp/microsoft_subnet_region.csv
 #+end_src
 
 #+RESULTS:
 #+begin_example
-"13.66.60.119/32","Azure",""
-"13.66.143.220/30","Azure",""
-"13.66.202.14/32","Azure",""
-"13.66.248.225/32","Azure",""
-"13.66.249.211/32","Azure",""
-"13.67.10.124/30","Azure",""
-"13.69.109.132/30","Azure",""
-"13.71.199.112/30","Azure",""
-"13.77.53.216/30","Azure",""
-"13.77.172.102/32","Azure",""
 #+end_example
 
 * Google
