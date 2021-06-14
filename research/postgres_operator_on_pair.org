@@ -2,11 +2,29 @@
 Stand up postgres operator on multi node cluster
 Work based on https://github.com/zalando/postgres-operator
 * yaml needed:
-#+begin_src yaml :tangle /tmp/pg_db_operator.yaml :results silent
+#+begin_src yaml :tangle /tmp/pg_operator.yaml :results silent
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: postgres-operator
+  namespace: postgres-operator
+spec:
+  releaseName: postgres-operator
+  chart:
+    git: https://github.com/zalando/postgres-operator.git
+    ref: v1.6.1
+    path: charts/postgres-operator
+    values:
+      configKubernetes:
+        enable_pod_antiaffinity: "true"
+#+end_src
+
+#+begin_src yaml :tangle /tmp/pg_database.yaml :results silent
 apiVersion: "acid.zalan.do/v1"
 kind: postgresql
 metadata:
   name: ii-ii
+  namespace: ii-db
 spec:
   enableConnectionPooler: true
   teamId: "ii"
@@ -24,22 +42,6 @@ spec:
 #+end_src
 
 
-#+begin_src yaml :tangle /tmp/pg_chart_operator.yaml :results silent
-apiVersion: helm.fluxcd.io/v1
-kind: HelmRelease
-metadata:
-  name: postgres-operator
-  namespace: postgres-operator
-spec:
-  releaseName: postgres-operator
-  chart:
-    git: https://github.com/zalando/postgres-operator.git
-    ref: v1.6.1
-    path: charts/postgres-operator
-    values:
-      configKubernetes:
-        enable_pod_antiaffinity: "true"
-#+end_src
 
 * Create the postgres-operator ns
 #+begin_src shell
@@ -52,7 +54,16 @@ kubectl create ns postgres-operator
 
 * Apply the chart
 #+begin_src shell
-kubectl apply -f /tmp/pg_chart_operator.yaml
+kubectl create namespace ii-db
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/ii-db created
+#+end_example
+
+#+begin_src shell
+kubectl apply -f /tmp/pg_operator.yaml
 #+end_src
 
 #+RESULTS:
@@ -61,13 +72,15 @@ helmrelease.helm.fluxcd.io/postgres-operator created
 #+end_example
 
 #+begin_src shell
-kubectl apply -f /tmp/pg_db_operator.yaml
+kubectl apply -f /tmp/pg_database.yaml
 #+end_src
 
 #+RESULTS:
 #+begin_example
 postgresql.acid.zalan.do/ii-ii created
 #+end_example
+
+A
 
 * Create shell function to connect to psql in pg-operator
 THis can be used and tangled out, I ended up just using the lines to get the ip and password
@@ -117,35 +130,33 @@ DATABASE=${args[1]}
 POSTGRESQL_DATABASES=$(kubectl -n $NAMESPACE get postgresql $NAME -o=jsonpath='{.spec.databases}')
 DATABASE=${DATABASE:-$(echo $POSTGRESQL_DATABASES | jq -r 'keys[0]')}
 USERNAME=$(echo $POSTGRESQL_DATABASES | jq -r ".${DATABASE}")
-kubectl -n bernokl get secret ii.ii-ii.credentials.postgresql.acid.zalan.do -o=jsonpath='{.data.password}' | base64 --decode
-SECRET_NAME=$USERNAME.$NAME.
+SECRET_NAME=$USERNAME.$NAME.credentials.postgresql.acid.zalan.do
 SECRET=$(kubectl -n $NAMESPACE get secret $SECRET_NAME -o=jsonpath='{.data.password}' | base64 --decode)
 kubectl -n $NAMESPACE exec -it deployment/$NAME-pooler -- psql postgresql://$USERNAME:$SECRET@$NAME-pooler/$DATABASE "$@"
 #+end_src
 
 Lets go get the password
 #+begin_src shell
-kubectl -n bernokl get secret ii.ii-ii.credentials.postgresql.acid.zalan.do -o=jsonpath='{.data.password}' | base64 --decode
+kubectl -n ii-db get secret ii.ii-ii.credentials.postgresql.acid.zalan.do -o=jsonpath='{.data.password}' | base64 --decode
 #+end_src
 
 #+RESULTS:
 #+begin_example
-8Av3ugD8Pujwug7qwwUFhQRplehVyrwtfDwGAFHHihQLayJyO9lCjoqIi79HABqs
+DxSO4S1aUQG3dHoG8AXogt0rbm2PGc6HsVAVtSKnbsJF5bwi0CTKamGBULq6rhnu
 #+end_example
 
 Lets go get our host ip ( it is the one that ends with ii-pooler )
 #+begin_src shell
-kubectl -n bernokl get svc
+kubectl get svc -n ii-db
 #+end_src
 
 #+RESULTS:
 #+begin_example
-NAME                         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-ii-ii                        ClusterIP   10.104.170.68   <none>        5432/TCP   7m21s
-ii-ii-config                 ClusterIP   None            <none>        <none>     6m43s
-ii-ii-pooler                 ClusterIP   10.106.73.227   <none>        5432/TCP   6m27s
-ii-ii-repl                   ClusterIP   10.105.10.78    <none>        5432/TCP   7m20s
-public-html-go-http-server   ClusterIP   10.102.249.43   <none>        8080/TCP   79m
+NAME           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+ii-ii          ClusterIP   10.97.202.14     <none>        5432/TCP   33m
+ii-ii-config   ClusterIP   None             <none>        <none>     33m
+ii-ii-pooler   ClusterIP   10.110.111.126   <none>        5432/TCP   33m
+ii-ii-repl     ClusterIP   10.99.134.125    <none>        5432/TCP   33m
 #+end_example
 
 * Connect to psql
@@ -153,7 +164,7 @@ For this connection I used:
 user: ii
 db: ii
 pw: [one displayed above]
-how: ii-ii-pooler
+how: 10.110.111.126
 #+BEGIN_SRC sql-mode
 SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
 #+END_SRC
@@ -165,5 +176,6 @@ SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_c
 (0 rows)
 
 #+end_SRC
+
 
 Yas, I am connected and postgres is running on multiple nodes, how amazing is this?
