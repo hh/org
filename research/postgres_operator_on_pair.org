@@ -165,3 +165,5 @@ SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_c
 (0 rows)
 
 #+end_SRC
+
+Yas, I am connected and postgres is running on multiple nodes, how amazing is this?
