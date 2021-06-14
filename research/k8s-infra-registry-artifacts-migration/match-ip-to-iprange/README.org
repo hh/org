@@ -225,7 +225,34 @@ bq extract \
 
 #+RESULTS:
 #+begin_example
-Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (6s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (7s) Current status: RUNNING                                                                                      Waiting on bqjob_r2d928ae00ed33f93_00000179ee76495d_1 ... (7s) Current status: DONE
+
+Welcome to BigQuery! This script will walk you through the
+process of initializing your .bigqueryrc configuration file.
+
+First, we need to set up your credentials if they do not
+already exist.
+
+Credential creation complete. Now we will select a default project.
+
+List of projects:
+  #            projectId                     friendlyName
+ --- ------------------------------ ------------------------------
+  1   apisnoop                       apisnoop
+  2   k8s-artifacts-prod             k8s-artifacts-prod
+  3   k8s-cip-test-prod              k8s-cip-test-prod
+  4   k8s-infra-e2e-scale-project    k8s-infra-e2e-scale-project
+  5   k8s-infra-ii-sandbox           k8s-infra-ii-sandbox
+  6   k8s-infra-prow-build           k8s-infra-prow-build
+  7   k8s-infra-prow-build-trusted   k8s-infra-prow-build-trusted
+  8   k8s-infra-public-pii           k8s-infra-public-pii
+  9   kubernetes-public              kubernetes-public
+Found multiple projects. Please enter a selection for
+which should be the default, or leave blank to not
+set a default.
+
+Enter a selection (1 - 9): Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (6s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (7s) Current status: RUNNING                                                                                      Waiting on bqjob_r4f2d7a96d94d571d_0000017a0878d18d_1 ... (7s) Current status: DONE
+
+Got EOF; exiting. Is your input from a terminal?
 #+end_example
 
 List csv files
@@ -239,7 +266,7 @@ gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_onl
 
 #+RESULTS:
 #+begin_example
-gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-202106091349-000000000000.csv
+gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.usage_all_ip_only_distinct_int-202106141504-000000000000.csv
 ...
 Total: 1
 #+end_example
@@ -276,7 +303,7 @@ bq extract \
 
 #+RESULTS:
 #+begin_example
-Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r7cc7240d1c424b28_00000179ee8da14d_1 ... (5s) Current status: DONE
+Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (0s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (1s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (2s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (3s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (4s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (5s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (6s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (8s) Current status: RUNNING                                                                                      Waiting on bqjob_r74813be26a8df4cd_0000017a087f30c1_1 ... (8s) Current status: DONE
 #+end_example
 
 List csv files
@@ -290,7 +317,7 @@ gsutil ls gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_exp
 
 #+RESULTS:
 #+begin_example
-gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-202106091415-000000000000.csv
+gs://ii_bq_scratch_dump/k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded-202106141509-000000000000.csv
 ...
 Total: 1
 #+end_example
@@ -328,6 +355,7 @@ create table if not exists cust_ip (
 CREATE TABLE
 #+end_SRC
 
+
 #+begin_src sql-mode
 create table if not exists shadow_pyasn_expanded (
   asn text,
@@ -344,19 +372,18 @@ create table if not exists shadow_pyasn_expanded (
 CREATE TABLE
 #+end_SRC
 
+
+
 * Insert data
 #+begin_src tmate :window prepare
-export PGUSER=postgres \
-    PGPASSWORD=postgres
-
-psql -U postgres -d postgres -h postgres -c "\\copy cust_ip from '/tmp/usage_all_ip_only.csv';"
+export PGUSER=ii; PGPASSWORD=DxSO4S1aUQG3dHoG8AXogt0rbm2PGc6HsVAVtSKnbsJF5bwi0CTKamGBULq6rhnu;
+psql -U ii  -d ii -h  ii-ii-pooler.ii-db.svc.cluster.local -c "\\copy cust_ip from '/tmp/usage_all_ip_only.csv';"
 #+end_src
 
-#+begin_src tmate :window prepare
-export PGUSER=postgres \
-    PGPASSWORD=postgres
 
-psql -U postgres -d postgres -h postgres -c "\\copy shadow_pyasn_expanded from '/tmp/shadow_pyasn_expanded.csv' (DELIMITER(','));"
+#+begin_src tmate :window prepare
+export PGUSER=ii; export PGPASSWORD=DxSO4S1aUQG3dHoG8AXogt0rbm2PGc6HsVAVtSKnbsJF5bwi0CTKamGBULq6rhnu;
+psql -U ii -d ii -h  ii-ii-pooler.ii-db.svc.cluster.local -c "\\copy shadow_pyasn_expanded from '/tmp/shadow_pyasn_expanded.csv' (DELIMITER(','));"
 #+end_src
 
 * Discover the data
@@ -373,13 +400,14 @@ select count(*) from cust_ip;
 
 #+end_SRC
 
+
 #+begin_src sql-mode
 select count(*) from shadow_pyasn_expanded;
 #+end_src
 
 #+RESULTS:
 #+begin_SRC example
- count
+ count  
 --------
  927411
 (1 row)
@@ -395,7 +423,7 @@ select 1,2,3;
 
 #+RESULTS:
 #+begin_SRC example
- ?column? | ?column? | ?column?
+ ?column? | ?column? | ?column? 
 ----------+----------+----------
         1 |        2 |        3
 (1 row)
@@ -403,7 +431,25 @@ select 1,2,3;
 #+end_SRC
 
 #+begin_src sql-mode
-\copy (SELECT
+SELECT
+shadow_pyasn_expanded.cidr_ip,
+shadow_pyasn_expanded.start_ip_net,
+shadow_pyasn_expanded.end_ip_1,
+shadow_pyasn_expanded.asn,
+cust_ip.c_ip
+FROM
+shadow_pyasn_expanded,
+cust_ip
+WHERE
+cust_ip.c_ip >= shadow_pyasn_expanded.start_ip_net
+AND cust_ip.c_ip <= shadow_pyasn_expanded.end_ip_1
+LIMIT 10
+;
+#+end_src
+
+#+begin_src sql-mode
+\copy (
+  SELECT
   shadow_pyasn_expanded.cidr_ip,
   shadow_pyasn_expanded.start_ip_net,
   shadow_pyasn_expanded.end_ip_1,
@@ -414,15 +460,21 @@ FROM
   cust_ip
 WHERE
   cust_ip.c_ip >= shadow_pyasn_expanded.start_ip_net
-AND cust_ip.c_ip <= shadow_pyasn_expanded.end_ip_1)
+AND cust_ip.c_ip <= shadow_pyasn_expanded.end_ip_1
+)
 TO
   '/tmp/match-ip-to-iprange.csv'
 CSV
 HEADER
 ;
 #+end_src
+#+begin_src sql-mode
+\copy ( SELECT shadow_pyasn_expanded.cidr_ip, shadow_pyasn_expanded.start_ip_net, shadow_pyasn_expanded.end_ip_1, shadow_pyasn_expanded.asn, cust_ip.c_ip FROM shadow_pyasn_expanded, cust_ip WHERE cust_ip.c_ip >= shadow_pyasn_expanded.start_ip_net AND cust_ip.c_ip <= shadow_pyasn_expanded.end_ip_1) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
+#+end_src
 
 #+RESULTS:
 #+begin_SRC example
-\copy: arguments required
+/tmp/match-ip-to-iprange.csv: Permission denied
 #+end_SRC
+
+
