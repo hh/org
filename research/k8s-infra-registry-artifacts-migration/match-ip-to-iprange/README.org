@@ -414,7 +414,17 @@ select count(*) from shadow_pyasn_expanded;
 
 #+end_SRC
 
+* Add indexes to the tables
 
+#+begin_src sql-mode
+create index on shadow_pyasn_expanded (end_ip_1);
+#+end_src
+#+begin_src sql-mode
+create index on shadow_pyasn_expanded (start_ip_net);
+#+end_src
+#+begin_src sql-mode
+create index on cust_ip (c_ip);
+#+end_src
 
 * Join the data
 #+begin_src sql-mode
@@ -474,7 +484,11 @@ HEADER
 
 #+RESULTS:
 #+begin_SRC example
-/tmp/match-ip-to-iprange.csv: Permission denied
 #+end_SRC
 
-
+I ended up adding indexes and that got it to complete
+I have to come back to add the missing steps I did to get a successful  csv'
+* Upload results to bq
+#+begin_src tmate :window prepare
+bq load --autodetect k8s_artifacts_dataset_bb_test.match_ip_range_to_asn /tmp/match-ip-to-iprange.csv
+#+end_src
