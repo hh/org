@@ -1,0 +1,48 @@
+#+TITLE: Big Query Scratch
+Goal is a file that will be easy starting place for bq work
+* Log in to gcloud
+Login to gcloud
+#+BEGIN_SRC tmate :window prepare
+gcloud auth login
+#+END_SRC
+Set the project
+#+BEGIN_SRC tmate :window prepare
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+* Make sure we are in the right project in bq
+#+BEGIN_SRC tmate :window prepare
+bq ls
+#+END_SRC
+* Run big query queries
+*** Run in tmux terminal
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+#+END_SRC
+*** Run in the editor
+WARNING WILL FREEZE THE EDITOR UNTIL THE QUERY RETURNS
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
++-----------------+
+|      c_ip       |
++-----------------+
+| 199.101.198.44  |
+| 185.65.135.170  |
+| 163.172.227.108 |
+| 51.159.89.6     |
+| 163.172.227.108 |
+| 54.76.216.36    |
+| 165.225.200.171 |
+| 18.205.68.20    |
+| 3.8.77.100      |
+| 52.28.102.95    |
++-----------------+
+#+end_example
+
+*** Output to a table
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.watookalsynaamis 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+#+END_SRC
