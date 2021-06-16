@@ -1,0 +1,94 @@
+#+TITLE: K8sio Ensure Staging Pii Gcs
+This is document to work through
+https://github.com/kubernetes/k8s.io/issues/904#issuecomment-859932423
+
+Goal:
+- Enable logging for k8s-staging-* buckets
+- Ensure a bucket exist for the logs inside each project
+- Ensure access is gated to limit access per #2031
+
+* Investigating what exists
+** I see yaml with all staging projects
+https://github.com/kubernetes/k8s.io/blob/main/infra/gcp/infra.yaml
+** I see the ensure_staging_project() function has replaced the simple ensure_staging_gcs_bucket,
+https://github.com/kubernetes/k8s.io/blob/77220ac9f954e00a6a4bd854bd74c2566034dab2/infra/gcp/ensure-staging-storage.sh#L107
+** I see the buckets defined:
+https://github.com/kubernetes/k8s.io/blob/77220ac9f954e00a6a4bd854bd74c2566034dab2/infra/gcp/ensure-staging-storage.sh#L116
+
+** I would need a role binding to see the logs
+# Special case: empower k8s-infra-gcs-access-logs@kubernetes.io to read k8s-artifacts-gcslogs
+    # k8s-artifacts-gcslogs receive and store Cloud Audit logs for k8s-artificats-prod.
+    ensure_gcs_role_binding "gs://k8s-artifacts-gcslogs" \
+        "group:k8s-infra-gcs-access-logs@kubernetes.io" \
+        "objectViewer"
+
+I think this service needs to be enabled to see logs:
+#+begin_example
+readonly PROD_PROJECT_SERVICES=(
+    # prod projects may perform container analysis
+    containeranalysis.googleapis.com
+    # prod projects host containers in GCR
+    containerregistry.googleapis.com
+    # prod projects host binaries in GCS
+    storage-component.googleapis.com
+)
+#+end_example
+
+** I still need to make sure the logs is private
+
+* Next steps:
+** add log bucket for each stg project
+This looks like updating
+https://github.com/kubernetes/k8s.io/blob/77220ac9f954e00a6a4bd854bd74c2566034dab2/infra/gcp/ensure-staging-storage.sh#L116
+to have the log bucket line added
+#+begin_example
+    # The names of the buckets
+    local staging_bucket="gs://${project}" # used by humans
+    local staging_log_bucket="gs://${project}-log" # used logs
+    local gcb_bucket="gs://${project}-gcb" # used by GCB
+#+end_example
+
+** Add the services to start logging
+Looks like this will be updating
+https://github.com/kubernetes/k8s.io/blob/77220ac9f954e00a6a4bd854bd74c2566034dab2/infra/gcp/ensure-staging-storage.sh#L53
+Adding the last 3 container services below
+#+begin_example
+readonly STAGING_PROJECT_SERVICES=(
+    # These projects use GCB to build/push images to GCR
+    cloudbuild.googleapis.com
+    # Some GCB jobs may use KMS
+    cloudkms.googleapis.com
+    # These projects host images in GCR
+    containerregistry.googleapis.com
+    # Some GCB jobs may use Secret Manager (preferred over KMS)
+    secretmanager.googleapis.com
+    # These projects may host binaries in GCS
+    storage-component.googleapis.com
+    # projects may perform container analysis
+    containeranalysis.googleapis.com
+    # projects host containers in GCR
+    containerregistry.googleapis.com
+    # projects host binaries in GCS
+    storage-component.googleapis.com
+)
+#+end_example
+
+** Add roll binding so ii can view
+Looks like updating
+https://github.com/kubernetes/k8s.io/blob/77220ac9f954e00a6a4bd854bd74c2566034dab2/infra/gcp/ensure-staging-storage.sh#L311
+Adding a new entry to the staging_special list
+#+begin_example
+# Special case: empower k8s-infra-gcs-access-logs@kubernetes.io to read k8s-artifacts-gcslogs
+    # k8s-artifacts-gcslogs receive and store Cloud Audit logs for k8s-artificats-prod.
+    ensure_gcs_role_binding "gs://k8s-artifacts-gcslogs" \
+        "group:k8s-infra-gcs-access-logs@kubernetes.io" \
+        "objectViewer"
+
+#+end_example
+I ended up putting inside the ensure_staging_project so the permission gets set for each bucket
+Question:
+Would we want to put this in the special_case_func group so we can exclude buckets?
+#+begin_example
+    # Ensure access to audit logs
+    ensure_gcs_role_binding "gs://${project}" "group:k8s-infra-gcs-access-logs@kubernetes.io" "objectViewer"
+#+end_example
