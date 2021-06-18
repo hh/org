@@ -13,3 +13,4 @@ cncf/ci/*-token
 .orgids
 blog/public
 blog/resources
+**/tmate-*.log
