@@ -1,0 +1,226 @@
+#+TITLE: Local cluster
+#+PROPERTY: header-args:shell+ :prologue "( " :epilogue " ) 2>&1 ; :"
+#+PROPERTY: header-args:yaml+ :comments none
+#+PROPERTY: header-args:patch+ :comments none
+
+Setting up a local cluster.
+
+* Prologue
+
+
+* Preliminary steps
+** Save repo location
+#+begin_src tmate :window prepare
+export REPO_ROOT="${PWD}"
+#+end_src
+
+** Downloading a Talos RPi image
+Download the Talos image to flash to a MicroSD card from GitHub
+#+begin_src tmate :window prepare
+cd $(mktemp -d)
+curl -O -L \
+  https://github.com/talos-systems/talos/releases/download/v0.10.3/metal-rpi_4-arm64.img.xz
+export TALOS_METAL_RPI_IMG=${PWD}/*
+#+end_src
+
+Some Pis may require having the EEPROM updated, check [[https://www.talos.dev/docs/v0.10/single-board-computers/rpi_4/#updating-the-eeprom][the Talos docs]].
+
+** Prepare MicroSD cards
+Write the image to a MicroSD card
+#+begin_src tmate :window prepare
+export DISK_TO_USE_DEFAULT=/dev/sdb && \
+  read -p "Enter the disk to use (default: '${DISK_TO_USE}'): " DISK_TO_USE && \
+  sudo dd \
+    if=${TALOS_METAL_RPI_IMG} \
+    of="${DISK_TO_USE-$DISK_TO_USE_DEFAULT}" \
+    status=progress \
+    conv=fsync \
+    bs=4M
+#+end_src
+
+** Install =talosctl=
+To manage Talos on each node, =talosctl= is used to provision and manage
+#+begin_src tmate :window prepare
+curl -o ~/bin/talosctl -L \
+  https://github.com/talos-systems/talos/releases/download/v0.10.3/talosctl-$(uname | tr '[:upper:]' '[:lower:]')-amd64
+#+end_src
+
+* Discover node IPs
+Each node that comes up will, of course, have an IP address.
+I'm checking what the router says.
+
+* Determine that nodes are live
+#+begin_src tmate :window prepare
+export NODE_ADDRS=(192.168.1.111 192.168.1.127 192.168.1.234)
+#+end_src
+
+** Ensure nodes are live
+#+begin_src tmate :window prepare
+for IP in ${NODE_ADDRS[*]}; do
+    echo "Checking ${IP}:50000"
+    nc -zv "${IP}" "50000"
+done
+#+end_src
+
+* Generating the configuration
+#+begin_src tmate :window prepare
+talosctl gen config \
+    ii-nz \
+    https://192.168.1.100:6443 \
+    --output-dir talos/ \
+    --additional-sans k8s.ii.nz \
+    --install-disk /dev/mmcblk0 \
+    --install-image ghcr.io/talos-systems/installer:v0.10.3
+#+end_src
+
+* Modify the configuration
+#+begin_src diff :tangle talos-config-patches.patch :comment none
+diff --git a/talos/controlplane.yaml b/talos/controlplane.yaml
+index bc87738..cf17a8a 100644
+--- a/talos/controlplane.yaml
++++ b/talos/controlplane.yaml
+@@ -35,7 +35,12 @@ machine:
+     #         - rw
+
+     # Provides machine specific network configuration options.
+-    network: {}
++    network:
++      interfaces:
++        - interface: eth0
++          dhcp: true
++          vip:
++            ip: 192.168.1.100
+     # # `interfaces` is used to define the network interface configuration.
+     # interfaces:
+     #     - interface: eth0 # The interface name.
+@@ -214,6 +219,7 @@ machine:
+     #               slot: 0 # Key slot number for luks2 encryption.
+ # Provides cluster specific configuration options.
+ cluster:
++    allowSchedulingOnMasters: true
+     # Provides control plane specific configuration options.
+     controlPlane:
+         endpoint: https://192.168.1.100:6443 # Endpoint is the canonical controlplane endpoint, which can be an IP address or a DNS hostname.
+diff --git a/talos/init.yaml b/talos/init.yaml
+index ad6d34e..46bdafd 100644
+--- a/talos/init.yaml
++++ b/talos/init.yaml
+@@ -35,7 +35,12 @@ machine:
+     #         - rw
+
+     # Provides machine specific network configuration options.
+-    network: {}
++    network:
++      interfaces:
++        - interface: eth0
++          dhcp: true
++          vip:
++            ip: 192.168.1.100
+     # # `interfaces` is used to define the network interface configuration.
+     # interfaces:
+     #     - interface: eth0 # The interface name.
+@@ -214,6 +219,7 @@ machine:
+     #               slot: 0 # Key slot number for luks2 encryption.
+ # Provides cluster specific configuration options.
+ cluster:
++    allowSchedulingOnMasters: true
+     # Provides control plane specific configuration options.
+     controlPlane:
+         endpoint: https://192.168.1.100:6443 # Endpoint is the canonical controlplane endpoint, which can be an IP address or a DNS hostname.
+
+#+end_src
+
+Apply patches
+#+begin_src tmate :window prepare
+patch -ruN -d talos/ < "${REPO_ROOT}/talos-config-patches.patch"
+#+end_src
+
+* Use talosconfig
+#+begin_src tmate :window prepare
+export TALOSCONFIG=$PWD/talos/talosconfig
+#+end_src
+
+* Provisioning the first node
+#+begin_src tmate :window prepare
+talosctl apply-config --insecure --nodes "${NODE_ADDRS[0]}" --file talos/init.yaml
+#+end_src
+
+** Ensure that the node is active
+#+begin_src tmate :window prepare
+talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
+#+end_src
+
+* Provision all the nodes
+#+begin_src tmate :window prepare
+for IP in ${NODE_ADDRS[*]}; do
+    talosctl apply-config --insecure --nodes "${IP}" --file talos/controlplane.yaml
+done
+#+end_src
+
+** Watch the health of all nodes, as they become active
+#+begin_src tmate :window prepare
+talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
+#+end_src
+
+* Get kubeconfig
+#+begin_src tmate :window prepare
+talosctl kubeconfig -e 192.168.1.100 -n 192.168.1.100
+#+end_src
+
+* Get nodes
+#+begin_src shell
+kubectl get nodes
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME                  STATUS   ROLES                  AGE     VERSION
+talos-192-168-1-111   Ready    control-plane,master   16m     v1.21.1
+talos-192-168-1-127   Ready    control-plane,master   8m2s    v1.21.1
+talos-192-168-1-234   Ready    control-plane,master   7m43s   v1.21.1
+#+end_example
+
+* Get pods
+#+begin_src shell
+kubectl get pods -A
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAMESPACE     NAME                                          READY   STATUS    RESTARTS   AGE
+kube-system   coredns-fcc4c97fb-br6rd                       1/1     Running   0          17m
+kube-system   coredns-fcc4c97fb-cfstz                       1/1     Running   0          17m
+kube-system   kube-apiserver-talos-192-168-1-111            1/1     Running   0          14m
+kube-system   kube-apiserver-talos-192-168-1-127            1/1     Running   0          7m23s
+kube-system   kube-apiserver-talos-192-168-1-234            1/1     Running   0          7m55s
+kube-system   kube-controller-manager-talos-192-168-1-111   1/1     Running   3          15m
+kube-system   kube-controller-manager-talos-192-168-1-127   1/1     Running   0          7m23s
+kube-system   kube-controller-manager-talos-192-168-1-234   1/1     Running   0          7m55s
+kube-system   kube-flannel-5stx9                            1/1     Running   0          8m16s
+kube-system   kube-flannel-9kcx2                            1/1     Running   0          7m56s
+kube-system   kube-flannel-wxn5m                            1/1     Running   0          16m
+kube-system   kube-proxy-6dzrl                              1/1     Running   0          7m56s
+kube-system   kube-proxy-pb42s                              1/1     Running   0          8m16s
+kube-system   kube-proxy-w5q56                              1/1     Running   0          16m
+kube-system   kube-scheduler-talos-192-168-1-111            1/1     Running   3          15m
+kube-system   kube-scheduler-talos-192-168-1-127            1/1     Running   0          7m23s
+kube-system   kube-scheduler-talos-192-168-1-234            1/1     Running   0          7m55s
+#+end_example
+
+* Upload talos folder into Kubernetes secret
+#+begin_src tmate :window prepare
+kubectl -n kube-system create secret generic "talos-config" --from-file=talos/
+#+end_src
+
+Ensure that the files exist in the secret
+#+begin_src shell
+kubectl -n kube-system get secret talos-config -o yaml | yq e '.data | keys | .[]' -P -
+#+end_src
+
+#+RESULTS:
+#+begin_example
+controlplane.yaml
+init.yaml
+join.yaml
+talosconfig
+#+end_example
