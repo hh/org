@@ -1,0 +1,37 @@
+#+TITLE: Asn_pipeline_docker_file
+Goal: Create docker image we can ultimately run in a prow job.
+This document concerns itself with the docker file I will use to get an initial docker pipeline service working
+
+* Outcomes definitions
+k8s-infra-ii-sandbox:etl_staging.all_asn_company_outer_join
+ A table that contains the following columns
+ - asn
+ - company_name
+ - cidr_ip
+ - start_ip
+ - end_ip
+ - name_yaml
+ - redirectsToRegistry
+ - redirectsToArtifacts
+ - region
+ - website
+ - email
+* Files to process data sources
+ - Get ans from the yaml on k8s.io
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
+ - Get asn2company names from potaroo.net
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
+ - Get asn metadata (email, website) from peeringdb
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_metadata_table.org
+ - Get ans vendor (asn2iprange) from pyasn
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_vendor_table.org
+* Other asn files out of scope here, but important to remember
+ - Loading data from the prod logs to get clientip
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn-data.org
+ - Mapping the ranges from the asn2iprange set to client_ip
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/match-ip-to-ip-range.org
+* Concerns
+ - I have never run the above 4 together, also part of the vendor creation process specifically
+   converting string_ip to int uses bq to do the conversion, I do not want to over complicate the loading.
+
+* Lets get to it
