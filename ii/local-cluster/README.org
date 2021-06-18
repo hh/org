@@ -224,3 +224,20 @@ init.yaml
 join.yaml
 talosconfig
 #+end_example
+
+* Fetch Talos configs
+Create a new temp directory
+#+begin_src tmate :window prepare
+cd $(mktemp -d)
+#+end_src
+
+Extract talos-config into directory
+#+begin_src tmate :window prepare
+TALOS_CONFIGS="$(mktemp -t talos-config-XXXXX)"
+kubectl -n kube-system get secret talos-config -o yaml > "${TALOS_CONFIGS}"
+
+for FILE in $(cat "${TALOS_CONFIGS}" | yq e '.data | keys | .[]' -P -); do
+  echo $FILE
+  cat "${TALOS_CONFIGS}" | yq e ".data.\"${FILE}\"" -P - | base64 --decode > "talos/${FILE}"
+done
+#+end_src
