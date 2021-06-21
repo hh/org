@@ -16,7 +16,7 @@ bq ls
 * Run big query queries
 *** Run in tmux terminal
 #+BEGIN_SRC tmate :window prepare
-bq query --nouse_legacy_sql 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+bq query --nouse_legacy_sql 'SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros, client_ip, asn, name, name_with_yaml_name FROM (SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros  FROM k8s-infra-ii-sandbox.etl_staging.usage_all_20210608 ) A LEFT OUTER JOIN ( SELECT client_ip, asn, name, name_with_yaml_name FROM k8s-infra-ii-sandbox.riaan_data_store.asn_client_ip_lookup ) B ON A.c_ip=B.client_ip LIMIT 10'
 #+END_SRC
 *** Run in the editor
 WARNING WILL FREEZE THE EDITOR UNTIL THE QUERY RETURNS
@@ -44,5 +44,5 @@ bq query --nouse_legacy_sql 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.
 
 *** Output to a table
 #+BEGIN_SRC tmate :window prepare
-bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.watookalsynaamis 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+bq query --nouse_legacy_sql --destination_table riaan_data_store.asn_client_ip_lookup_org  'SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros, client_ip, asn, name, name_with_yaml_name FROM (SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros  FROM k8s-infra-ii-sandbox.etl_staging.usage_all_20210608 ) A LEFT OUTER JOIN ( SELECT client_ip, asn, name, name_with_yaml_name FROM k8s-infra-ii-sandbox.riaan_data_store.asn_client_ip_lookup ) B ON A.c_ip=B.client_ip '
 #+END_SRC
