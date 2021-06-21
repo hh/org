@@ -303,15 +303,37 @@ def get_config():
     ## TODO: Set a final destination table
     bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_raw_subnet_region /tmp/amazon_raw_subnet_region.csv
     bq load --autodetect k8s_artifacts_dataset_bb_test.google_raw_subnet_region /tmp/google_raw_subnet_region.csv
-    bq load --autodetect k8s_artifacts_dataset_bb_test.google_raw_subnet_region /tmp/microsoft_subnet_region.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.microsoft_raw_subnet_region /tmp/microsoft_subnet_region.csv
 
     ## GET Metadata from peeringdb
     ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_metadata_table.org
-    ##
+    ## In docker file section above, make sure credentials is set, psycopg2 is installed
+    ## Import the schema from the repo
+    psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < schema.sql
+    ## Run the sync to populate the database
+    python3 ./sync.py
+    ## Lets get a table with asns only
+    cat /home/ii/potaroo_company_asn.csv | cut -d ',' -f1 | sed 's/"//' | sed 's/"//'| cut -d 'S' -f2 >> asns_only.txt
+    ## placeholder for sql we will need to import asn_only from
+     create table asnproc (
+           asn bigint not null primary key
+     );
+    \copy asnproc from '/home/ii/autonums/asns_only.txt';
+    ## Placeholder sql for joining peeringdb to produce output with email, website
+      \copy ( select distinct asn.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website",
+       (poc.data ->> 'email') as email
+       into asn_name_web_email
+       from asnproc asn
+       left join peeringdb.net net on (net.asn = asn.asn)
+       left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- where (poc.data ->> 'email') is not null
+       order by email asc) to '/tmp/peeringdb_metadata.csv' csv header;;
 
-
-
-
+    ## Load output to bq
+    bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_raw_subnet_region /tmp/amazon_raw_subnet_region.csv
 
 
 
