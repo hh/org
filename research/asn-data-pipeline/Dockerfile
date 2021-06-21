@@ -4,6 +4,11 @@
 
 FROM postgres:12.2
 RUN apt-get update && \
+  apt-get install -y curl && \
+  echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" \
+    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+  curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg  add - && \
+  apt-get update && \
   apt-get install  -y --no-install-recommends \
   python3 \
   python3-dev \
@@ -14,5 +19,8 @@ RUN apt-get update && \
   curl \
   git \
   gcc \
-  libc6-dev
+  libc6-dev \
+  google-cloud-sdk && \
+  rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
+COPY ./main_etl_processor.sh docker-entrypoint-initdb.d/
