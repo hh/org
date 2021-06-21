@@ -1,15 +1,24 @@
 #+TITLE: ASN DATA
 Process to document manually loading/transform gs bucket logs for report consumption
 * Make sure we are logged in and bq points to the right datasets
+
+#+begin_src tmate :window prepare
+gcloud auth login
+#+end_src
+
+#+begin_src shell :results silent
+gcloud config set project k8s-infra-ii-sandbox
+#+end_src
+
 #+begin_src shell
 gcloud auth list
 #+end_src
 
 #+RESULTS:
 #+begin_example
-         Credentialed Accounts
+           Credentialed Accounts
 ACTIVE             ACCOUNT
-,*                  bb@ii.coop
+,*                  caleb@ii.coop
 #+end_example
 
 Make sure the sandbox is our default project

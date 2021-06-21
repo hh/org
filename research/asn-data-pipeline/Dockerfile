@@ -1,7 +1,3 @@
-# Container image
-
-# Define the image
-
 FROM postgres:12.2
 RUN apt-get update && \
   apt-get install -y curl && \
@@ -23,4 +19,4 @@ RUN apt-get update && \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
-COPY ./main_etl_processor.sh docker-entrypoint-initdb.d/
+COPY ./pg-init.d docker-entrypoint-initdb.d
