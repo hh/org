@@ -104,7 +104,9 @@ Checking my csv still exists
 #+begin_src shell
 gsutil ls -al gs://ii_bq_scratch_dump/ | grep peeringdb_company_asn
 #+end_src
-#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
+
+*** Python script we need for pyasn
+#+BEGIN_SRC python :dir  "./ii_pyasn.py")
 ## Import pyasn and csv
 import pyasn
 import csv
@@ -143,12 +145,14 @@ for key, value in destDict.items():
 
 ## winner winner chicken dinner
 #+END_SRC
-*** Python script we need for pyasn
 ** main shell
-#+BEGIN_SRC shell :tangle "/tmp/main_etl_processor.sh")
+#+BEGIN_SRC shell :tangle "./main_etl_processor.sh")
 #!/bin/bash
-    ## D Lets set up our environment (this will be done in dockerfile)
+    ## Lets set up our environment (this will be done in dockerfile)
     mkdir /tmp/foo
+
+    ## GET ASN_COMAPNY section
+    ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
     ## This will pull a fresh copy, I prefer to use what we have in gs
     # curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^,]+), (.*)/"\1", "\3", "\4"/p'  | head
     # TODO: add if statement to do manual parsing if the gs file is not there
@@ -156,13 +160,18 @@ for key, value in destDict.items():
 
     ## I want to import the above csv into pg
     ## Blocked by pg container
-    
+    ## placeholder sql
+   --create table company_asn  (asn varchar, name varchar);
+   \COPY company_asn from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
+
+
     ## Ok Caleb was going to create the docker imgage based on
     ## https://github.com/cncf/apisnoop/blob/main/apps/snoopdb/postgres/Dockerfile
     ## He is needed in xds
     ## I need to switch gears to get a container I can test in
 
-    ## PYASN section
+    ## GET PYASN section
+    ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_vendor_table.org
     ## D This moves to docker file when it is ready
     git clone https://github.com/hadiasghari/pyasn.git
     pip install pyasn
@@ -170,13 +179,49 @@ for key, value in destDict.items():
     ## pyasn installs its utils in ~/.local/bin/*
     ## Add pyasn utils to path (dockerfile?)
     export PATH="/home/ii/.local/bin/:$PATH"
-    ## full list of RIB files on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/ 
+    ## full list of RIB files on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
     cd /tmp/foo
     pyasn_util_download.py --latest
     ## Convert rib file to .dat we can process
     pyasn_util_convert.py --single rib.latest.bz2 ipasn_latest.dat
-    
-    
+    ## Run the py script we are including in the docker image
+    python ./ii-pyasn.py
+
+    ## Load csv into pg
+    ## placeholder sql
+    create table pyasn_ip_asn  (ip cidr, asn int);
+    \COPY pyasn_ip_asn from '/home/ii/foo/pyAsnOutput.csv' DELIMITER ',' CSV;
+    ## Split subnet into start and end
+      select asn as asn,
+      ip as ip,
+      host(network(ip)::inet) as ip_start,
+      host(broadcast(ip)::inet) as ip_end
+      into table pyasn_ip_asn_extended
+      from pyasn_ip_asn;
+
+     ## Copy the results to cs
+     \copy (select * from pyasn_ip_asn_extended) to '/tmp/pyasn_expanded_ipv4.csv' csv header;
+     ## Load csv to bq
+     bq load --autodetect k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended /tmp/pyasn_expanded_ipv4.csv
+     ## Lets go convert the beginning and end into ints
+       bq query --nouse_legacy_sql \
+       '
+       SELECT
+         asn as asn,
+         ip as cidr_ip,
+         ip_start as start_ip,
+         ip_end as end_ip,
+         NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_start)) AS start_ip_int,
+         NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_end)) AS end_ip
+         from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended`
+         WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
+       '
+
+    ## This should be the end of pyasn section, we have results table that covers start_ip/end_ip from fs our requirements
+    ## GET k8s asn yaml using:
+    ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
+
+
 #+end_src
 
 #+RESULTS:
