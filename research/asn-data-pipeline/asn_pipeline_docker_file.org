@@ -63,8 +63,20 @@ RUN apt-get update && \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
+COPY ./beCarefulDelete.json docker-entrypoint-initdb.d/
 COPY ./main_etl_processor.sh docker-entrypoint-initdb.d/
 #+end_src
+
+Set gcloud auth creds file we can use in the container
+#+begin_src tmate asn-etl
+export GOOGLE_APPLICATION_CREDENTIALS="./beCarefulDelete.json"
+#+end_src
+
+#+BEGIN_SRC tmate :window asn-etl
+export \
+    PGUSER=postgres \
+    PGPASSWORD=password
+#+END_SRC
 
 Build the image
 #+begin_src tmate :window asn-etl
@@ -73,7 +85,7 @@ docker build -t asn-etl-pipeline .
 
 Test it out
 #+begin_src tmate :window asn-etl
-docker run -it --rm asn-etl-pipeline
+docker run -e POSTGRES_PASSWORD="password" -it --rm asn-etl-pipeline
 #+end_src
 
 * Discuss architecture with Caleb.
@@ -93,14 +105,18 @@ docker run -it --rm asn-etl-pipeline
 * Next steps:
 ** Create container image we will use for the job
 ** Start converting org file into script we will be running on innit
-*** For the first script I will get the asn_company lookup from potaroo:
-https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
-*** For the second related step I will use pyasn:
-https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_vendor_table.org
 
 
 * Shell script
 ** Pre-condition for shell
+*** TODO
+- I am going to allow application use for my gcloud creds on this box
+- Set peeringdb_user, peeringdb_password
+- Update peeringdb config to go to postgres db
+- Make sure pg_USR/PW is set
+- Make sql scripts to run, how do I invoke?
+- Running directory?
+
 *** Gcloud
 Log into gs cloud
 #+BEGIN_SRC tmate :window prepare
@@ -114,6 +130,11 @@ Checking my csv still exists
 #+begin_src shell
 gsutil ls -al gs://ii_bq_scratch_dump/ | grep peeringdb_company_asn
 #+end_src
+I need to configure my application-default-credentials
+#+BEGIN_SRC tmate :window prepare
+gcloud auth application-default login
+#+END_SRC
+*** Set peeringdb user
 
 *** Python script we need for pyasn
 #+BEGIN_SRC python :dir  "./ii_pyasn.py")
@@ -167,7 +188,7 @@ pip install psycopg2-binary
 **** Where do we run the peeringdb sync.py?
 For now I will accomodate it in the script
 *** Python config we need to set for peeringdb connections
-#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
+#+BEGIN_SRC python :tangle "/tmp/config.py")
 from requests.auth import HTTPBasicAuth
 import os
 
@@ -193,6 +214,7 @@ def get_config():
 ** main shell
 #+BEGIN_SRC shell :tangle ./main_etl_processor.sh
 #!/bin/bash
+    export GOOGLE_APPLICATION_CREDENTIALS="./beCarefulDelete.json"
     ## Lets set up our environment (this will be done in dockerfile)
     mkdir /tmp/foo
 
@@ -206,8 +228,8 @@ def get_config():
     ## I want to import the above csv into pg
     ## Blocked by pg container
     ## placeholder sql
-   --create table company_asn  (asn varchar, name varchar);
-   \COPY company_asn from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
+   create table company_asn  (asn varchar, name varchar);
+   \COPY company_asn from '/tmp/potaroo_company_asn.csv' DELIMITER ',' CSV;
 
 
     ## GET PYASN section
