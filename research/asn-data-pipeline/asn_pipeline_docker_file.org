@@ -19,6 +19,8 @@ k8s-infra-ii-sandbox:etl_staging.all_asn_company_outer_join
 * Files to process data sources
  - Get ans from the yaml on k8s.io
    https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
+ - Get asn, datacenter from vendor json
+   https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
  - Get asn2company names from potaroo.net
    https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
  - Get asn metadata (email, website) from peeringdb
@@ -154,7 +156,40 @@ for key, value in destDict.items():
 ## winner winner chicken dinner
 #+end_src
 
-*** Python script we need for pyasn
+*** Things we need in the docker file
+**** pyasn:
+-    git clone https://github.com/hadiasghari/pyasn.git
+-    pip install pyasn
+**** Peeringdb:
+- Clone https://git.2e8.dk/peeringdb-simplesync (git clone https://git.2e8.dk/peeringdb-simplesync)
+**** Set pg-sql creds so peeringdb can load csv into pg without needing to log in
+pip install psycopg2-binary
+**** Where do we run the peeringdb sync.py?
+For now I will accomodate it in the script
+*** Python config we need to set for peeringdb connections
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
+from requests.auth import HTTPBasicAuth
+import os
+
+host=os.environ['SHARINGIO_PAIR_LOAD_BALANCER_IP']
+user=os.environ['PEERINGDB_USER']
+password=os.environ['PEERINGDB_PASSWORD']
+
+def get_config():
+    return {
+        'db_conn_str': 'dbname=peeringdb host=%s user=postgres password=password' % host,
+        'db_schema': 'peeringdb',
+        'auth': HTTPBasicAuth(user, password)
+    }
+#+END_SRC
+*** Set the peeringdb creds
+- set PEERINGDB_USER
+- set PEERINGDB_PASSWORD
+
+
+
+
+
 ** main shell
 #+BEGIN_SRC shell :tangle ./main_etl_processor.sh
 #!/bin/bash
@@ -175,16 +210,8 @@ for key, value in destDict.items():
    \COPY company_asn from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
 
 
-    ## Ok Caleb was going to create the docker imgage based on
-    ## https://github.com/cncf/apisnoop/blob/main/apps/snoopdb/postgres/Dockerfile
-    ## He is needed in xds
-    ## I need to switch gears to get a container I can test in
-
     ## GET PYASN section
     ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_vendor_table.org
-    ## D This moves to docker file when it is ready
-    git clone https://github.com/hadiasghari/pyasn.git
-    pip install pyasn
 
     ## pyasn installs its utils in ~/.local/bin/*
     ## Add pyasn utils to path (dockerfile?)
@@ -230,13 +257,77 @@ for key, value in destDict.items():
     ## This should be the end of pyasn section, we have results table that covers start_ip/end_ip from fs our requirements
     ## GET k8s asn yaml using:
     ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
+    ## Lets create csv's to import
+    ## TODO: refactor this to loop that can generate these in a couple of passes
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/microsoft_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/google.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/google_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/amazon.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/amazon_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/alibabagroup.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/alibabagroup_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/baidu.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/baidu_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/digitalocean.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/digitalocean_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/equinixmetal.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/equinixmetal_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/huawei.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/huawei_yaml.csv
+    curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/tencentcloud.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/tencentcloud_yaml.csv
+
+    ## Load all the csv
+    ## TODO: Make this into a loop.
+    ## TODO: Set a final destination table
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/microsoft_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/google_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/amazon_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/alibabagroup_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/baidu_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/digitalocean_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/equinixmetal_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/huawei_yaml.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/tencentcloud_yaml.csv
+
+    ## GET Vendor YAML
+    ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
+    curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210607.json' | jq -r \
+    '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' > /tmp/microsoft_subnet_region.csv
+    curl 'https://www.gstatic.com/ipranges/cloud.json' | jq -r '.prefixes[] | [.ipv4Prefix, .service, .scope] | @csv' > /tmp/google_raw_subnet_region.csv
+    curl 'https://ip-ranges.amazonaws.com/ip-ranges.json' | jq -r '.prefixes[] | [.ip_prefix, .service, .region] | @csv' > /tmp/amazon_raw_subnet_region.csv
+
+    ## Load all the csv
+    ## TODO: Make this into a loop.
+    ## TODO: Set a final destination table
+    bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_raw_subnet_region /tmp/amazon_raw_subnet_region.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.google_raw_subnet_region /tmp/google_raw_subnet_region.csv
+    bq load --autodetect k8s_artifacts_dataset_bb_test.google_raw_subnet_region /tmp/microsoft_subnet_region.csv
+
+    ## GET Metadata from peeringdb
+    ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_metadata_table.org
+    ##
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #+end_src
 
-#+RESULTS:
-#+begin_example
-#+end_example
 
 
 #+begin_src shell
