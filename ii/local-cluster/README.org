@@ -8,7 +8,7 @@ Setting up a local cluster.
 * Prologue
 
 
-* Preliminary steps
+* Prepare
 ** Save repo location
 #+begin_src tmate :window prepare
 export REPO_ROOT="${PWD}"
@@ -45,11 +45,12 @@ curl -o ~/bin/talosctl -L \
   https://github.com/talos-systems/talos/releases/download/v0.10.3/talosctl-$(uname | tr '[:upper:]' '[:lower:]')-amd64
 #+end_src
 
-* Discover node IPs
+* Set up
+** Discover node IPs
 Each node that comes up will, of course, have an IP address.
 I'm checking what the router says.
 
-* Determine that nodes are live
+** Determine that nodes are live
 #+begin_src tmate :window prepare
 export NODE_ADDRS=(192.168.1.111 192.168.1.127 192.168.1.234)
 #+end_src
@@ -62,7 +63,7 @@ for IP in ${NODE_ADDRS[*]}; do
 done
 #+end_src
 
-* Generating the configuration
+** Generating the configuration
 #+begin_src tmate :window prepare
 talosctl gen config \
     ii-nz \
@@ -73,7 +74,7 @@ talosctl gen config \
     --install-image ghcr.io/talos-systems/installer:v0.10.3
 #+end_src
 
-* Modify the configuration
+** Modify the configuration
 #+begin_src diff :tangle talos-config-patches.patch :comment none
 diff --git a/talos/controlplane.yaml b/talos/controlplane.yaml
 index bc87738..cf17a8a 100644
@@ -135,39 +136,39 @@ Apply patches
 patch -ruN -d talos/ < "${REPO_ROOT}/talos-config-patches.patch"
 #+end_src
 
-* Use talosconfig
+** Use talosconfig
 #+begin_src tmate :window prepare
 export TALOSCONFIG=$PWD/talos/talosconfig
 #+end_src
 
-* Provisioning the first node
+** Provisioning the first node
 #+begin_src tmate :window prepare
 talosctl apply-config --insecure --nodes "${NODE_ADDRS[0]}" --file talos/init.yaml
 #+end_src
 
-** Ensure that the node is active
+*** Ensure that the node is active
 #+begin_src tmate :window prepare
 talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
 #+end_src
 
-* Provision all the nodes
+** Provision all the nodes
 #+begin_src tmate :window prepare
 for IP in ${NODE_ADDRS[*]}; do
     talosctl apply-config --insecure --nodes "${IP}" --file talos/controlplane.yaml
 done
 #+end_src
 
-** Watch the health of all nodes, as they become active
+*** Watch the health of all nodes, as they become active
 #+begin_src tmate :window prepare
 talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
 #+end_src
 
-* Get kubeconfig
+** Get kubeconfig
 #+begin_src tmate :window prepare
 talosctl kubeconfig -e 192.168.1.100 -n 192.168.1.100
 #+end_src
 
-* Get nodes
+** Get nodes
 #+begin_src shell
 kubectl get nodes
 #+end_src
@@ -180,7 +181,8 @@ talos-192-168-1-127   Ready    control-plane,master   8m2s    v1.21.1
 talos-192-168-1-234   Ready    control-plane,master   7m43s   v1.21.1
 #+end_example
 
-* Get pods
+* Validate
+** Get pods
 #+begin_src shell
 kubectl get pods -A
 #+end_src
@@ -207,7 +209,8 @@ kube-system   kube-scheduler-talos-192-168-1-127            1/1     Running   0 
 kube-system   kube-scheduler-talos-192-168-1-234            1/1     Running   0          7m55s
 #+end_example
 
-* Upload talos folder into Kubernetes secret
+* Ensure set up
+** Upload talos folder into Kubernetes secret
 #+begin_src tmate :window prepare
 kubectl -n kube-system create secret generic "talos-config" --from-file=talos/
 #+end_src
@@ -225,7 +228,7 @@ join.yaml
 talosconfig
 #+end_example
 
-* Fetch Talos configs
+** Fetch Talos configs
 Create a new temp directory
 #+begin_src tmate :window prepare
 cd $(mktemp -d)
@@ -236,8 +239,209 @@ Extract talos-config into directory
 TALOS_CONFIGS="$(mktemp -t talos-config-XXXXX)"
 kubectl -n kube-system get secret talos-config -o yaml > "${TALOS_CONFIGS}"
 
+mkdir -p talos/
 for FILE in $(cat "${TALOS_CONFIGS}" | yq e '.data | keys | .[]' -P -); do
   echo $FILE
   cat "${TALOS_CONFIGS}" | yq e ".data.\"${FILE}\"" -P - | base64 --decode > "talos/${FILE}"
 done
+#+end_src
+
+** Get node IPs from the cluster
+#+begin_src tmate :window prepare
+export NODE_ADDRS=$(kubectl get nodes -o yaml | yq e '.items[].status.addresses[] | select(.type=="InternalIP") | .address' -P -)
+#+end_src
+
+** Get machinetype
+#+begin_src tmate :window prepare
+talosctl -e 192.168.1.100 -n "$(echo ${NODE_ADDRS} | tr ' ' ',')" get machinetype
+#+end_src
+
+** Shutdown RPis
+#+begin_src tmate :window prepare
+for IP in ${NODE_ADDRS[*]}; do
+    talosctl shutdown -e 192.168.1.100 -n "${IP}"
+done
+#+end_src
+
+** Reset all nodes to uninitialised Talos
+#+begin_src tmate :window prepare
+read -p "Are you sure you want to reset all nodes, effectively destroying the cluster? [Enter|C-c] "
+for IP in ${NODE_ADDRS[*]}; do
+    talosctl -e "${IP}" -n "${IP}" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
+done
+#+end_src
+
+* Workloads
+** metallb
+*** Prepare
+Create a directory for the manifests and a namespace for the resources
+#+begin_src shell :results silent
+mkdir -p metallb
+curl -o metallb/namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.6/manifests/namespace.yaml
+curl -o metallb/metallb.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.6/manifests/metallb.yaml
+#+end_src
+
+*** Configure
+Using layer2 for ARP capabilities and provide a very sufficient 10 IP address range in a part of the network that is configure to not be used by DHCP.
+#+begin_src yaml :tangle ./metallb/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 192.168.1.20-192.168.1.30
+#+end_src
+
+*** Install
+#+begin_src shell
+kubectl apply -f metallb/namespace.yaml
+kubectl -n metallb-system get secret memberlist 2> /dev/null \
+    || kubectl -n metallb-system create secret generic memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
+kubectl -n metallb-system apply -f ./metallb/config.yaml
+kubectl -n metallb-system apply -f ./metallb/metallb.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/metallb-system created
+secret/memberlist created
+configmap/config created
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/controller created
+podsecuritypolicy.policy/speaker created
+serviceaccount/controller created
+serviceaccount/speaker created
+clusterrole.rbac.authorization.k8s.io/metallb-system:controller created
+clusterrole.rbac.authorization.k8s.io/metallb-system:speaker created
+role.rbac.authorization.k8s.io/config-watcher created
+role.rbac.authorization.k8s.io/pod-lister created
+clusterrolebinding.rbac.authorization.k8s.io/metallb-system:controller created
+clusterrolebinding.rbac.authorization.k8s.io/metallb-system:speaker created
+rolebinding.rbac.authorization.k8s.io/config-watcher created
+rolebinding.rbac.authorization.k8s.io/pod-lister created
+daemonset.apps/speaker created
+deployment.apps/controller created
+#+end_example
+
+** Helm-Operator
+Unfortunately the Helm-Operator project by FluxCD is both in maintenance mode and unsupported on arm64. Here in the prepare stage, I'm patching the current state of how things are to build an arm64 image. Ideally, this is all in a single Dockerfile and does not use Make scripts. I'm unsure what the future of Helm-Operator is, but I'd like to see and help support for architectures outta-the-box.
+
+*** Prepare
+Create a directory for the manifests and a namespace for the resources
+#+begin_src shell :results silent
+mkdir -p helm-operator
+kubectl create namespace helm-operator --dry-run=client -o yaml \
+  | kubectl apply -f -
+#+end_src
+
+*** Configure
+Create local manifests to apply in the cluster
+#+begin_src shell :results silent
+curl -o ./helm-operator/helm-operator-crds.yaml -L https://raw.githubusercontent.com/fluxcd/helm-operator/1.2.0/deploy/crds.yaml
+
+helm repo add fluxcd https://charts.fluxcd.io
+helm template helm-operator --create-namespace fluxcd/helm-operator \
+    --namespace helm-operator \
+    --set helm.versions=v3 \
+    --set image.repository=registry.gitlab.com/bobymcbobs/container-images/helm-operator \
+    --set image.tag=1.2.0 \
+      > ./helm-operator/helm-operator.yaml
+#+end_src
+
+*** Install
+#+begin_src shell
+kubectl apply -f ./helm-operator/helm-operator-crds.yaml
+kubectl -n helm-operator apply -f ./helm-operator/helm-operator.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Warning: apiextensions.k8s.io/v1beta1 CustomResourceDefinition is deprecated in v1.16+, unavailable in v1.22+; use apiextensions.k8s.io/v1 CustomResourceDefinition
+customresourcedefinition.apiextensions.k8s.io/helmreleases.helm.fluxcd.io created
+serviceaccount/helm-operator created
+secret/helm-operator-git-deploy created
+configmap/helm-operator-kube-config created
+Warning: rbac.authorization.k8s.io/v1beta1 ClusterRole is deprecated in v1.17+, unavailable in v1.22+; use rbac.authorization.k8s.io/v1 ClusterRole
+clusterrole.rbac.authorization.k8s.io/helm-operator created
+Warning: rbac.authorization.k8s.io/v1beta1 ClusterRoleBinding is deprecated in v1.17+, unavailable in v1.22+; use rbac.authorization.k8s.io/v1 ClusterRoleBinding
+clusterrolebinding.rbac.authorization.k8s.io/helm-operator created
+service/helm-operator created
+deployment.apps/helm-operator created
+#+end_example
+
+** nginx-ingress controller
+*** Prepare
+
+Create a directory for the manifests and a namespace for the resources
+#+begin_src shell :results silent
+mkdir -p nginx-ingress
+kubectl create namespace nginx-ingress --dry-run=client -o yaml \
+  | kubectl apply -f -
+#+end_src
+
+*** Configure
+Ensuring that remote IP addresses will be forwarded as headers in the requests, using the fields in the /.spec.values.controller.service/ field.
+Preferring that each nginx-ingress pod runs on a different node.
+#+begin_src yaml :tangle ./nginx-ingress/nginx-ingress.yaml
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  releaseName: nginx-ingress
+  chart:
+    repository: https://kubernetes.github.io/ingress-nginx
+    name: ingress-nginx
+    version: 3.30.0
+  values:
+    controller:
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 3
+        targetCPUUtilizationPercentage: 80
+      service:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - ingress-nginx
+              topologyKey: "kubernetes.io/hostname"
+    defaultBackend:
+      enabled: false
+#+end_src
+
+*** Install
+#+begin_src shell
+kubectl -n nginx-ingress apply -f nginx-ingress/nginx-ingress.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+helmrelease.helm.fluxcd.io/nginx-ingress created
+#+end_example
+
+** Cert-Manager
+*** Prepare
+#+begin_src shell :results silent
+mkdir -p ./cert-manager
+curl -o ./cert-manager/cert-manager.yaml -L https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
+#+end_src
+
+*** Install
+#+begin_src shell :results silent
+kubectl apply -f ./cert-manager/cert-manager.yaml
 #+end_src
