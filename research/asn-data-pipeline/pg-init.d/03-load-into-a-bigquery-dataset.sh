@@ -6,10 +6,14 @@ EOF
 gcloud config set project "${GCP_PROJECT}"
 
 ## Load csv to bq
-bq load --autodetect "${GCP_BIGQUERY_DATASET}.pyasn_ip_asn_extended" /tmp/pyasn_expanded_ipv4.csv
+bq load --autodetect "${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
+
+## Load a copy of the potaroo_data to bq
+# https://github.com/ii/org/blob/main/research/asn-data-pipeline/match-ip-to-ip-range.org
+bq load --autodetect "${GCP_BIGQUERY_DATASET}.pyasn_ip_asn_extended" /tmp/pyasn_expanded_ipv4.csv asn:integer,ip:string,ip_start:string,ip_end:string
 
 ## Lets go convert the beginning and end into ints
-cat /app/ext-ip-asn.sql | envsubst | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.vendor"
+envsubst < /app/ext-ip-asn.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.vendor"
 
 mkdir -p /tmp/vendor
 
@@ -33,7 +37,7 @@ for VENDOR in ${VENDORS[*]}; do
       | yq e . -j - \
       | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
         > "/tmp/vendor/${VENDOR}_yaml.csv"
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_json" "/tmp/vendor/${VENDOR}_yaml.csv"
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" name:string,redirectsToRegistry:string,redirectsToArtifacts:string
 done
 
 ASN_VENDORS=(
@@ -46,7 +50,7 @@ ASN_VENDORS=(
 ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
 curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date=yesterday +%Y%m%d).json" \
     | jq -r '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' \
-      > /tmp/vendor/microsoft_subnet_region.csv
+      > /tmp/vendor/microsoft_raw_subnet_region.csv
 curl 'https://www.gstatic.com/ipranges/cloud.json' \
     | jq -r '.prefixes[] | [.ipv4Prefix, .service, .scope] | @csv' \
       > /tmp/vendor/google_raw_subnet_region.csv
@@ -56,7 +60,7 @@ curl 'https://ip-ranges.amazonaws.com/ip-ranges.json' \
 
 ## Load all the csv
 for VENDOR in ${ASN_VENDORS[*]}; do
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.${VENDOR}_raw_subnet_region" "/tmp/vendor/${VENDOR}_raw_subnet_region.csv"
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_json" "/tmp/vendor/${VENDOR}_raw_subnet_region.csv" ipprefix:string,service:string,region:string
 done
 
 mkdir -p /tmp/peeringdb-tables
@@ -64,7 +68,7 @@ PEERINGDB_TABLES=(
     net
     poc
 )
-for PEERINGDB_TABLE in ${PEERINGDB_TABLES}; do
+for PEERINGDB_TABLE in ${PEERINGDB_TABLES[*]}; do
     curl -sG "https://www.peeringdb.com/api/${PEERINGDB_TABLE}" | jq '.data' > "/tmp/peeringdb-tables/${PEERINGDB_TABLE}.json"
 done
 

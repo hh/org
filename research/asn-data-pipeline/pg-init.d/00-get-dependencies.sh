@@ -6,14 +6,24 @@ gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGL
 ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
 ## This will pull a fresh copy, I prefer to use what we have in gs
 # curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^,]+), (.*)/"\1", "\3", "\4"/p'  | head
-# TODO: add if statement to do manual parsing if the gs file is not there
+
+# Remove the previous data set
+bq rm -r -f "${GCP_BIGQUERY_DATASET}"
+
+# initalise a new data set with the given name
+bq mk \
+--dataset \
+--description "etl pipeline dataset for ASN data from CNCF supporting vendors of k8s infrastructure" \
+"${GCP_PROJECT}:${GCP_BIGQUERY_DATASET}"
 
 if [ ! -f "/tmp/potaroo_data.csv" ]; then
     gsutil cp gs://ii_bq_scratch_dump/potaroo_company_asn.csv  /tmp/potaroo_data.csv
 fi
 
 # Strip data to only return ASN numbers
-cat /tmp/potaroo_data.csv | cut -d ',' -f1 | sed 's/"//' | sed 's/"//'| cut -d 'S' -f2 | tail +2 >> /tmp/potaroo_asn.txt
+cat /tmp/potaroo_data.csv | cut -d ',' -f1 | sed 's/"//' | sed 's/"//'| cut -d 'S' -f2 | tail +2 > /tmp/potaroo_asn.txt
+
+cat /tmp/potaroo_data.csv | tail +2 | sed 's,^AS,,g' > /tmp/potaroo_asn_companyname.csv
 
 ## GET PYASN section
 ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_vendor_table.org
