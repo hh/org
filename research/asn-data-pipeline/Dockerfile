@@ -19,4 +19,6 @@ RUN apt-get update && \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
+WORKDIR /app
 COPY ./pg-init.d docker-entrypoint-initdb.d
+COPY ./app .
