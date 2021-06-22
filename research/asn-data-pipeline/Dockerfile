@@ -1,3 +1,7 @@
+FROM golang:1.16.5-stretch as godeps
+RUN go get -u github.com/mikefarah/yq/v4 && \
+  test -f /go/bin/yq
+
 FROM postgres:12.2
 RUN apt-get update && \
   apt-get install -y curl && \
@@ -16,9 +20,11 @@ RUN apt-get update && \
   git \
   gcc \
   libc6-dev \
+  gettext-base \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
 WORKDIR /app
+COPY --from=godeps /go/bin/yq /usr/local/bin/yq
 COPY ./pg-init.d docker-entrypoint-initdb.d
 COPY ./app .
