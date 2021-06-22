@@ -2,7 +2,7 @@ FROM golang:1.16.5-stretch as godeps
 RUN go get -u github.com/mikefarah/yq/v4 && \
   test -f /go/bin/yq
 
-FROM postgres:12.2
+FROM postgres:12.7
 RUN apt-get update && \
   apt-get install -y curl && \
   echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" \

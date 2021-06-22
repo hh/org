@@ -69,7 +69,7 @@ PEERINGDB_TABLES=(
     poc
 )
 for PEERINGDB_TABLE in ${PEERINGDB_TABLES[*]}; do
-    curl -sG "https://www.peeringdb.com/api/${PEERINGDB_TABLE}" | jq '.data' > "/tmp/peeringdb-tables/${PEERINGDB_TABLE}.json"
+    curl -sG "https://www.peeringdb.com/api/${PEERINGDB_TABLE}" | jq -c '.data[]' | sed 's,",\",g' > "/tmp/peeringdb-tables/${PEERINGDB_TABLE}.json"
 done
 
 # /tmp/potaroo_asn.txt
