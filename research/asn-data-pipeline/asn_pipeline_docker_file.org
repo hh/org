@@ -548,6 +548,20 @@ tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
 bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
 #+end_src
 
+Load Logs
+#+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
+## Load logs to bq
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
+## Need to figure out why this ones fails
+bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
+#+end_src
+
 Stop the database
 #+begin_src shell :tangle ./pg-init.d/10-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
