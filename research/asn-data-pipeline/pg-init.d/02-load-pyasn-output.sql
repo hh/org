@@ -1,5 +1,5 @@
-COPY company_asn from '/tmp/potaroo_data.csv' DELIMITER ',' CSV;
-COPY pyasn_ip_asn from '/tmp/pyAsnOutput.csv' DELIMITER ',' CSV;
+copy company_asn from '/tmp/potaroo_data.csv' delimiter ',' csv;
+copy pyasn_ip_asn from '/tmp/pyAsnOutput.csv' delimiter ',' csv;
 
 -- Split subnet into start and end
 select

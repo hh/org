@@ -1,3 +1,7 @@
+
+
+# Load vendor data with ASNs into BigQuery
+
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
 project_id = ${GCP_PROJECT}
@@ -35,9 +39,9 @@ VENDORS=(
 for VENDOR in ${VENDORS[*]}; do
   curl -s "https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/${VENDOR}.yaml" \
       | yq e . -j - \
-      | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
+      | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [. ,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
         > "/tmp/vendor/${VENDOR}_yaml.csv"
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" name:string,redirectsToRegistry:string,redirectsToArtifacts:string
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn:integer,name:string,redirectsToRegistry:string,redirectsToArtifacts:string
 done
 
 ASN_VENDORS=(
@@ -48,7 +52,7 @@ ASN_VENDORS=(
 
 ## GET Vendor YAML
 ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
-curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date=yesterday +%Y%m%d).json" \
+curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
     | jq -r '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' \
       > /tmp/vendor/microsoft_raw_subnet_region.csv
 curl 'https://www.gstatic.com/ipranges/cloud.json' \
