@@ -13,4 +13,4 @@ copy (
   left join peeriingdbpoc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
 -- where (net.data ->>'website') is not null
 -- where (poc.data ->> 'email') is not null
-  order by email asc) to '/tmp/peeringdb_metadata.csv' csv header;
+  order by email asc) to '/tmp/peeringdb_metadata_prepare.csv' csv header;

@@ -72,7 +72,7 @@ RUN apt-get update && \
 RUN pip3 install pyasn
 WORKDIR /app
 COPY --from=godeps /go/bin/yq /usr/local/bin/yq
-COPY ./pg-init.d docker-entrypoint-initdb.d
+COPY ./pg-init.d /docker-entrypoint-initdb.d
 COPY ./app .
 #+end_src
 
@@ -234,7 +234,6 @@ done
 #+end_src
 
 ** Local testing
-
 Generate a key file for ServiceAccount auth
 #+begin_src shell :results silent
 gcloud iam service-accounts keys create /tmp/asn-etl-pipeline-gcp-sa.json --iam-account=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
@@ -245,14 +244,14 @@ Change key permissions
 sudo chown 999 /tmp/asn-etl-pipeline-gcp-sa.json
 #+end_src
 
-Test it out
+Test it out with local work
 #+begin_src tmate :window asn-etl
 TMP_DIR_ETL=$(mktemp -d)
 sudo chmod 0777 "${TMP_DIR_ETL}"
 docker run \
     -it \
     --rm \
-    -e POSTGRES_PASSWORD="password" \
+    -e POSTGRES_PASSWORD="postgres" \
     -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/asn-etl-pipeline-gcp-sa.json \
     -e GCP_PROJECT=k8s-infra-ii-sandbox \
     -e GCP_SERVICEACCOUNT=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com \
@@ -261,6 +260,24 @@ docker run \
     -v "${PWD}/pg-init.d:/docker-entrypoint-initdb.d" \
     -v "${TMP_DIR_ETL}:/tmp" \
     -v "${PWD}/app:/app" \
+    asn-etl-pipeline
+echo "${TMP_DIR_ETL}"
+#+end_src
+
+Test it out normally
+#+begin_src tmate :window asn-etl
+TMP_DIR_ETL=$(mktemp -d)
+sudo chmod 0777 "${TMP_DIR_ETL}"
+docker run \
+    -it \
+    --rm \
+    -e POSTGRES_PASSWORD="postgres" \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/asn-etl-pipeline-gcp-sa.json \
+    -e GCP_PROJECT=k8s-infra-ii-sandbox \
+    -e GCP_SERVICEACCOUNT=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com \
+    -e GCP_BIGQUERY_DATASET=etl_script_generated_set \
+    -v /tmp/asn-etl-pipeline-gcp-sa.json:/tmp/asn-etl-pipeline-gcp-sa.json \
+    -v "${TMP_DIR_ETL}:/tmp" \
     asn-etl-pipeline
 echo "${TMP_DIR_ETL}"
 #+end_src
@@ -313,6 +330,7 @@ for key, value in destDict.items():
 ## winner winner chicken dinner
 #+end_src
 
+Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #+BEGIN_SRC shell :tangle ./pg-init.d/00-get-dependencies.sh
 #!/bin/bash
 set -x
@@ -388,19 +406,19 @@ create table peeriingdbpoc (
 commit;
 #+end_src
 
+TODO: write description
 #+begin_src sql-mode :tangle ./pg-init.d/02-load-pyasn-output.sql
--- Use the above output to create the pyasn_ip_asn table below
--- placeholder sql
-
-COPY company_asn from '/tmp/potaroo_data.csv' DELIMITER ',' CSV;
-COPY pyasn_ip_asn from '/tmp/pyAsnOutput.csv' DELIMITER ',' CSV;
+copy company_asn from '/tmp/potaroo_data.csv' delimiter ',' csv;
+copy pyasn_ip_asn from '/tmp/pyAsnOutput.csv' delimiter ',' csv;
 
 -- Split subnet into start and end
-select asn as asn,
-ip as ip,
-host(network(ip)::inet) as ip_start,
-host(broadcast(ip)::inet) as ip_end
-into table pyasn_ip_asn_extended
+select
+  asn as asn,
+  ip as ip,
+  host(network(ip)::inet) as ip_start,
+  host(broadcast(ip)::inet) as ip_end
+into
+  table pyasn_ip_asn_extended
 from pyasn_ip_asn;
 
 -- Copy the results to cs
@@ -420,6 +438,7 @@ SELECT
     WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
 #+end_src
 
+Load vendor data with ASNs into BigQuery
 #+begin_src shell :tangle ./pg-init.d/03-load-into-a-bigquery-dataset.sh
 
 cat << EOF > $HOME/.bigqueryrc
@@ -501,6 +520,7 @@ done
 ## placeholder for sql we will need to import asn_only from
 #+end_src
 
+Prepare ASN data with company names
 #+begin_src sql-mode :tangle ./pg-init.d/04-load-asn-data.sql
 copy asnproc from '/tmp/potaroo_asn.txt';
 
@@ -517,10 +537,13 @@ copy (
   left join peeriingdbpoc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
 -- where (net.data ->>'website') is not null
 -- where (poc.data ->> 'email') is not null
-  order by email asc) to '/tmp/peeringdb_metadata.csv' csv header;
+  order by email asc) to '/tmp/peeringdb_metadata_prepare.csv' csv header;
 #+end_src
 
+Load ASN data with company names into BigQuery
 #+begin_src shell :tangle ./pg-init.d/05-bq-load-metadata.sh
 ## Load output to bq
-bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" <(tail +2 /tmp/peeringdb_metadata.csv) asn:integer,name:string,website:string,email:string
+tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
+
+bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
 #+end_src

@@ -26,5 +26,5 @@ RUN apt-get update && \
 RUN pip3 install pyasn
 WORKDIR /app
 COPY --from=godeps /go/bin/yq /usr/local/bin/yq
-COPY ./pg-init.d docker-entrypoint-initdb.d
+COPY ./pg-init.d /docker-entrypoint-initdb.d
 COPY ./app .
