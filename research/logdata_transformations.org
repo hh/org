@@ -1,0 +1,89 @@
+#+TITLE: Big Query Scratch
+Goal is a file that will be easy starting place for bq work
+* Log in to gcloud
+Login to gcloud
+#+BEGIN_SRC tmate :window prepare
+gcloud auth login
+#+END_SRC
+Set the project
+#+BEGIN_SRC tmate :window prepare
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+* Make sure we are in the right project in bq
+#+BEGIN_SRC tmate :window prepare
+bq ls
+#+END_SRC
+
+* Examples for to run big query queries
+*** Run in tmux terminal
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql 'SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros, client_ip, asn, name, name_with_yaml_name FROM (SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros  FROM k8s-infra-ii-sandbox.etl_staging.usage_all_20210608 ) A LEFT OUTER JOIN ( SELECT client_ip, asn, name, name_with_yaml_name FROM k8s-infra-ii-sandbox.riaan_data_store.asn_client_ip_lookup ) B ON A.c_ip=B.client_ip LIMIT 10'
+#+END_SRC
+
+
+*** Run in the editor
+WARNING WILL FREEZE THE EDITOR UNTIL THE QUERY RETURNS
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql 'SELECT c_ip FROM `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` LIMIT 10'
+#+END_SRC
+
+
+*** Output to a table
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.asn_client_ip_lookup_org  'SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros, client_ip, asn, name, name_with_yaml_name FROM (SELECT c_ip, cs_bytes, sc_bytes, cs_referer, time_micros  FROM k8s-infra-ii-sandbox.etl_staging.usage_all_20210608 ) A LEFT OUTER JOIN ( SELECT client_ip, asn, name, name_with_yaml_name FROM k8s-infra-ii-sandbox.riaan_data_store.asn_client_ip_lookup ) B ON A.c_ip=B.client_ip '
+#+END_SRC
+
+* Data transformation of log data
+
+** Goal: create a `usage_all` table that include all `usage_all` columns plus new culomns for ASN, ASN Company name. Where the ASN exist in https://github.com/kubernetes/k8s.io/tree/main/registry.k8s.io/infra/meta/asns the Company name should be replaced by the name in the `.yaml` file. This is to support the sorting of the ASN companies with `.yaml` file into one group in Data Studio.
+** Sub goal: Add a column for image_name with regex 'REGEXP_EXTRACT(cs_referer,'^https://(?:[^/]+)/+v2/(?:k8s-artifacts-prod/+)*([a-z0-9-/]+)/blobs/sha256:(?:[a-f0-9]+)')' This is however not critical and are easy to achive in Data Studio
+
+
+*** Output to a table - Find distinct IPs from `usage_all` data
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_distinct_ip_org  'SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.usage_all` GROUP BY c_ip ORDER BY Total_Count DESC LIMIT 100'
+#+END_SRC
+
+
+
+*** Output to a table - Change distinct IP to int.
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_distinct_ip_and_int_org  'SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `k8s-infra-ii-sandbox.riaan_data_store.etl_test_distinct_ip_org` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")'
+#+END_SRC
+
+
+
+*** Output to a table - Join potaroo data with .yaml names
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_potaroo_with_yaml_names_org  'SELECT asn, companyname, name_yaml FROM ( SELECT    asn, companyname FROM `k8s-infra-ii-sandbox.etl_script_generated_set_riaan.potaroo_all_asn_name`) A LEFT OUTER JOIN ( SELECT asn_yaml, name_yaml FROM `k8s-infra-ii-sandbox.etl_staging.k8s_repo_yaml_20210609`) B ON A.asn=B.asn_yaml'
+#+END_SRC
+
+
+
+*** Output to a table - Join potaroo and yaml name in to one column
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_potaroo_with_yaml_names_in_one_column_org  'SELECT A.asn, A.companyname, case when name_yaml is not null then name_yaml  else B.companyname end as name_with_yaml_name FROM ( SELECT asn, companyname FROM `k8s-infra-ii-sandbox.riaan_data_store.etl_test_potaroo_with_yaml_names_org`) A LEFT JOIN ( SELECT asn, companyname, name_yaml FROM `k8s-infra-ii-sandbox.riaan_data_store.etl_test_potaroo_with_yaml_names_org`) B ON A.asn=B.asn'
+#+END_SRC
+
+
+
+*** Output to a table - Join verdor with company name 
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_vendor_with_company_name_org  'SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml_name FROM ( SELECT asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int FROM `k8s-infra-ii-sandbox.etl_script_generated_set_riaan.vendor`) A LEFT OUTER JOIN ( SELECT asn, name_with_yaml_name FROM `k8s-infra-ii-sandbox.riaan_data_store.etl_test_potaroo_with_yaml_names_in_one_column_org`) B ON A.asn=B.asn'
+#+END_SRC
+
+
+
+
+*** Output to a table - Join ASN data to distinct IPs - DOEN OOR MET INT VALUES
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.etl_test_join_asn_and_distinct_ip_org  'SELECT c_ip, Total_Count, c_ip_int,asn, name_with_yaml_name FROM`k8s-infra-ii-sandbox.riaan_data_store.etl_test_distinct_ip_and_int_org`, `k8s-infra-ii-sandbox.riaan_data_store.etl_test_vendor_with_company_name_org` WHERE c_ip_int >=start_ip_int AND c_ip_int <=end_ip_int '
+#+END_SRC
+
+
+
+
+*** Output to a table - Join the IP / ASN / Company name with the `usage_all` table
+#+BEGIN_SRC tmate :window prepare
+bq query --nouse_legacy_sql --destination_table riaan_data_store.asn_client_ip_lookup_org  ' '
+#+END_SRC
