@@ -445,3 +445,105 @@ curl -o ./cert-manager/cert-manager.yaml -L https://github.com/jetstack/cert-man
 #+begin_src shell :results silent
 kubectl apply -f ./cert-manager/cert-manager.yaml
 #+end_src
+
+** CAPI + Sidero
+*** Install
+#+begin_src tmate :window prepare
+export SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true
+export SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21
+
+clusterctl init -b talos -c talos -i sidero
+#+end_src
+
+** PXE boot server (dnsmasq)
+*** Prepare
+#+begin_src shell :results silent
+mkdir -p dnsmasq
+kubectl create namespace dnsmasq --dry-run=client -o yaml | \
+    kubectl apply -f -
+#+end_src
+
+*** Configure
+
+Configure dnsmasq
+#+begin_src text :tangle ./dnsmasq/dnsmasq.conf :comments none
+#dnsmasq config, for a complete example, see:
+#  http://oss.segetech.com/intra/srv/dnsmasq.conf
+
+port=0
+dhcp-range=192.168.1.0,proxy
+
+pxe-service=0,"Raspberry Pi Boot"
+#+end_src
+
+Configure the container
+#+begin_src dockerfile :tangle ./dnsmasq/Dockerfile :comments none
+FROM alpine:edge
+# fetch dnsmasq and webproc binary
+RUN apk update \
+ && apk --no-cache add dnsmasq tcpdump git \
+ && apk add --no-cache --virtual .build-deps curl \
+ && apk del .build-deps
+#configure dnsmasq
+RUN mkdir -p /etc/default/
+RUN echo -e "ENABLED=1\nIGNORE_RESOLVCONF=yes" > /etc/default/dnsmasq
+COPY ./dnsmasq/dnsmasq.conf /etc/dnsmasq.conf
+#run!
+ENTRYPOINT ["dnsmasq","--no-daemon"]
+#+end_src
+
+Configure the deployment
+#+begin_src yaml :tangle ./dnsmasq/dnsmasq.yaml :comments none
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsmasq
+  namespace: dnsmasq
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      nz.ii: dnsmasq
+  template:
+    metadata:
+      labels:
+        nz.ii: dnsmasq
+    spec:
+      allowPrivilegeEscalation: true
+      allowedCapabilities:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+      hostNetwork: true
+      hostPorts:
+      - max: 7472
+        min: 7472
+      privileged: true
+    spec:
+      containers:
+      - name: dnsmasq
+        image: registry.gitlab.com/ii/nz/dnsmasq:latest
+        ports:
+        - containerPort: 67
+          hostPort: 67
+          protocol: UDP
+#+end_src
+
+*** Build
+#+begin_src tmate :window dnsmasq
+kubectl build \
+    --destination registry.gitlab.com/ii/nz/dnsmasq:latest \
+    --snapshotMode=redo \
+    --context=$PWD \
+    --dockerfile ./dnsmasq/Dockerfile
+#+end_src
+
+*** Install
+#+begin_src shell
+kubectl apply -f ./dnsmasq/dnsmasq.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/dnsmasq created
+#+end_example
