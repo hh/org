@@ -141,6 +141,11 @@ patch -ruN -d talos/ < "${REPO_ROOT}/talos-config-patches.patch"
 export TALOSCONFIG=$PWD/talos/talosconfig
 #+end_src
 
+Write the endpoint
+#+begin_src shell :results silent
+talosctl config endpoint 192.168.1.100
+#+end_src
+
 ** Provisioning the first node
 #+begin_src tmate :window prepare
 talosctl apply-config --insecure --nodes "${NODE_ADDRS[0]}" --file talos/init.yaml
@@ -265,10 +270,12 @@ done
 
 ** Reset all nodes to uninitialised Talos
 #+begin_src tmate :window prepare
-read -p "Are you sure you want to reset all nodes, effectively destroying the cluster? [Enter|C-c] "
-for IP in ${NODE_ADDRS[*]}; do
-    talosctl -e "${IP}" -n "${IP}" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
-done
+read -p "Are you sure you want to reset all nodes, effectively destroying the cluster? [Enter|C-c] " && \
+(
+  for IP in ${NODE_ADDRS[*]}; do
+      talosctl -e "${IP}" -n "${IP}" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
+  done
+)
 #+end_src
 
 * Workloads
@@ -404,8 +411,8 @@ spec:
     controller:
       autoscaling:
         enabled: true
-        minReplicas: 1
-        maxReplicas: 3
+        minReplicas: 3
+        maxReplicas: 10
         targetCPUUtilizationPercentage: 80
       service:
         type: LoadBalancer
@@ -431,7 +438,7 @@ kubectl -n nginx-ingress apply -f nginx-ingress/nginx-ingress.yaml
 
 #+RESULTS:
 #+begin_example
-helmrelease.helm.fluxcd.io/nginx-ingress created
+helmrelease.helm.fluxcd.io/nginx-ingress configured
 #+end_example
 
 ** Cert-Manager

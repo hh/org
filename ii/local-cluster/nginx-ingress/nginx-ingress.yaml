@@ -13,8 +13,8 @@ spec:
     controller:
       autoscaling:
         enabled: true
-        minReplicas: 1
-        maxReplicas: 3
+        minReplicas: 3
+        maxReplicas: 10
         targetCPUUtilizationPercentage: 80
       service:
         type: LoadBalancer
