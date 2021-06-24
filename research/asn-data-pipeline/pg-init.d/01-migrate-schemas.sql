@@ -1,5 +1,18 @@
 begin;
 
+create table if not exists cust_ip (
+  c_ip bigint not null
+);
+
+create table if not exists vendor_expanded_int (
+  asn text,
+  cidr_ip cidr,
+  start_ip inet,
+  end_ip inet,
+  start_ip_int bigint,
+  end_ip_int bigint
+);
+
 create table company_asn (
   asn varchar,
   name varchar

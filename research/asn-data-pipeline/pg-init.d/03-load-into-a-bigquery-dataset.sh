@@ -41,7 +41,7 @@ for VENDOR in ${VENDORS[*]}; do
       | yq e . -j - \
       | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [. ,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
         > "/tmp/vendor/${VENDOR}_yaml.csv"
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn:integer,name:string,redirectsToRegistry:string,redirectsToArtifacts:string
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn_yaml:integer,name_yaml:string,redirectsToRegistry:string,redirectsToArtifacts:string
 done
 
 ASN_VENDORS=(
@@ -52,7 +52,9 @@ ASN_VENDORS=(
 
 ## GET Vendor YAML
 ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
-curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
+## TODO: Make this a loop that goes through dates to find a working URL
+## curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
+curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210621.json" \
     | jq -r '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' \
       > /tmp/vendor/microsoft_raw_subnet_region.csv
 curl 'https://www.gstatic.com/ipranges/cloud.json' \

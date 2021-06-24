@@ -255,7 +255,8 @@ docker run \
     -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/asn-etl-pipeline-gcp-sa.json \
     -e GCP_PROJECT=k8s-infra-ii-sandbox \
     -e GCP_SERVICEACCOUNT=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com \
-    -e GCP_BIGQUERY_DATASET=etl_script_generated_set \
+    -e GCP_BIGQUERY_DATASET=etl_script_generated_set_1 \
+    -e GCP_BIGQUERY_DATASET_BK=etl_script_generated_set \
     -v /tmp/asn-etl-pipeline-gcp-sa.json:/tmp/asn-etl-pipeline-gcp-sa.json \
     -v "${PWD}/pg-init.d:/docker-entrypoint-initdb.d" \
     -v "${TMP_DIR_ETL}:/tmp" \
@@ -335,7 +336,12 @@ Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #!/bin/bash
 set -x
 
-gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+## This is just to continue testing wile I wait for permissions for the service account
+## Use the activate-service-account live once it has permissions
+## The container is being run it so it should let me manually do the auth
+gcloud auth login
+## gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+
 ## GET ASN_COMAPNY section
 ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
 ## This will pull a fresh copy, I prefer to use what we have in gs
@@ -379,9 +385,26 @@ python3 /app/ip-from-pyasn.py /tmp/potaroo_asn.txt ipasn_latest.dat /tmp/pyAsnOu
 ## This will output pyasnOutput.csv
 #+END_SRC
 
+#+RESULTS:
+#+begin_example
+#+end_example
+
 SQL for migrating the database
 #+begin_src sql-mode :tangle ./pg-init.d/01-migrate-schemas.sql
 begin;
+
+create table if not exists cust_ip (
+  c_ip bigint not null
+);
+
+create table if not exists vendor_expanded_int (
+  asn text,
+  cidr_ip cidr,
+  start_ip inet,
+  end_ip inet,
+  start_ip_int bigint,
+  end_ip_int bigint
+);
 
 create table company_asn (
   asn varchar,
@@ -480,7 +503,7 @@ for VENDOR in ${VENDORS[*]}; do
       | yq e . -j - \
       | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [. ,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
         > "/tmp/vendor/${VENDOR}_yaml.csv"
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn:integer,name:string,redirectsToRegistry:string,redirectsToArtifacts:string
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn_yaml:integer,name_yaml:string,redirectsToRegistry:string,redirectsToArtifacts:string
 done
 
 ASN_VENDORS=(
@@ -491,7 +514,9 @@ ASN_VENDORS=(
 
 ## GET Vendor YAML
 ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
-curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
+## TODO: Make this a loop that goes through dates to find a working URL
+## curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
+curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210621.json" \
     | jq -r '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' \
       > /tmp/vendor/microsoft_raw_subnet_region.csv
 curl 'https://www.gstatic.com/ipranges/cloud.json' \
@@ -549,7 +574,7 @@ bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.
 #+end_src
 
 Load Logs
-#+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
+#+begin_src shell:tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
 bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
 ## Need to figure out why this ones fails
@@ -562,20 +587,120 @@ bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gc
 bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
 #+end_src
 
+# Added a backup set so I can avoid pulling logs if re-running
+#+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
+SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_BK}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
+#+end_src
+
+#+begin_src shell :tangle ./app/distinct_ip_int.sql
+## Get single clientip as int.
+SELECT c_ip AS c_ip, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+#+end_src
+
+#+begin_src shell :tangle ./app/distinct_ipint_only.sql
+## Get single clientip as int.
+SELECT NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+#+end_src
+
+#+begin_src shell :tangle ./app/potaroo_extra_yaml_name_column.sql
+## Potaroo data with extra column for yaml name
+SELECT asn, companyname, name_yaml FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name`) A LEFT OUTER JOIN ( SELECT asn_yaml, name_yaml FROM `${GCP_BIGQUERY_DATASET}.vendor_yaml`) B ON A.asn=B.asn_yaml
+#+end_src
+
+
+#+begin_src shell :tangle ./app/potaroo_yaml_name_subbed.sql
+## Potaroo with company names subbed out
+SELECT A.asn, A.companyname, case when name_yaml is not null then name_yaml  else B.companyname end as name_with_yaml_name FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column`) A LEFT JOIN ( SELECT asn, companyname, name_yaml FROM `${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column`) B ON A.asn=B.asn
+#+end_src
+
+#+begin_src shell :tangle ./app/vendor_with_company_name.sql
+## Add company name to vendor
+SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml_name FROM ( SELECT asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int FROM `${GCP_BIGQUERY_DATASET}.vendor`) A LEFT OUTER JOIN ( SELECT asn, name_with_yaml_name FROM `${GCP_BIGQUERY_DATASET}..4_potaroo_with_yaml_name_subbed`) B ON A.asn=B.asn
+#+end_src
+
+Run the above sql to do some more transformations
+#+begin_src shell :tangle ./pg-init.d/07_bq_usage_data_transformation.sh
+## Get single clientip as int.
+envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+envsubst < /app/distinct_ip_int.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2_ip_int"
+envsubst < /app/distinct_ipint_only.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2a_ip_int"
+envsubst < /app/potaroo_extra_yaml_name_column.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column"
+envsubst < /app/potaroo_yaml_name_subbed.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.4_potaroo_with_yaml_name_subbed"
+envsubst < /app/vendor_with_company_name.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.5_vendor_with_company_name"
+#+end_src
+
+Grab all distinct clientips
+#+begin_src shell :tangle ./pg-init.d/08_download_c_ip_int.sh
+## Set a timestamp to work with
+TIMESTAMP=$(date +%Y%m%d%H%M)
+echo $TIMESTAMP > /tmp/my-timestamp.txt
+## Dump the entire table to gcs
+bq extract \
+--destination_format CSV \
+${GCP_BIGQUERY_DATASET}.2a_ip_int \
+gs://ii_bq_scratch_dump/2a_ip_inti-$TIMESTAMP-*.csv
+## Download the files
+TIMESTAMP=$(cat /tmp/my-timestamp.txt | tr -d '\n')
+mkdir -p /tmp/usage_all_ip_only/
+gsutil cp \
+gs://ii_bq_scratch_dump/2a_ip_inti-$TIMESTAMP-*.csv \
+/tmp/usage_all_ip_only/
+## Merge the data
+cat /tmp/usage_all_ip_only/*.csv | tail +2 > /tmp/usage_all_ip_only.csv
+#+end_src
+
+Download our expanded load_vendor for local processing
+#+begin_src shell :tangle ./pg-init.d/09_download_expanded_ips.sh
+## Set a timestamp to work with
+TIMESTAMP=$(date +%Y%m%d%H%M)
+echo $TIMESTAMP > /tmp/my-timestamp.txt
+## Dump the entire table to gcs
+bq extract \
+--destination_format CSV \
+${GCP_BIGQUERY_DATASET}.vendor \
+gs://ii_bq_scratch_dump/vendor-$TIMESTAMP-*.csv
+## Download the files
+TIMESTAMP=$(cat /tmp/my-timestamp.txt | tr -d '\n')
+mkdir -p /tmp/expanded_pyasn/
+gsutil cp \
+gs://ii_bq_scratch_dump/vendor-$TIMESTAMP-*.csv \
+/tmp/expanded_pyasn/
+## Merge the data
+cat /tmp/expanded_pyasn/*.csv | tail +2 > /tmp/expanded_pyasn.csv
+#+end_src
+
+Copy in the tables, add some indexes and create a dump based on cross join
+#+begin_src sql-mode :tangle ./pg-init.d/10-load-single-ip-int.sql
+-- Copy the customer ip in
+copy cust_ip from '/tmp/usage_all_ip_only.csv';
+-- Copy pyasn expanded in
+copy vendor_expanded_int from '/tmp/expanded_pyasn.csv' (DELIMITER(','));
+-- Indexes on the Data we are about to range
+create index on vendor_expanded_int (end_ip_int);
+create index on vendor_expanded_int (start_ip_int);
+create index on cust_ip (c_ip);
+
+copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_expanded_int.end_ip, vendor_expanded_int.asn, cust_ip.c_ip FROM vendor_expanded_int, cust_ip WHERE cust_ip.c_ip >= vendor_expanded_int.start_ip_int AND cust_ip.c_ip <= vendor_expanded_int.end_ip_int) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
+#+end_src
+
+#+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.06_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
+#+end_src
+
 Stop the database
-#+begin_src shell :tangle ./pg-init.d/10-stop-postgres.sh
+#+begin_src shell :tangle ./pg-init.d/12-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
-  # in the Postgres container image,
-  # the command run changes to "postgres" once it's completed loading up
-  # and is in a ready state
-  #
-  # here we wait for that state and attempt to exit cleanly, without error
-  (
-    until [ "$(cat /proc/1/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
-      sleep 1s
-    done
-    # exit Postgres with a code of 0
-    pg_ctl kill QUIT 1
-  ) &
+    # in the Postgres container image,
+    # the command run changes to "postgres" once it's completed loading up
+    # and is in a ready state
+    #
+    # here we wait for that state and attempt to exit cleanly, without error
+    (
+        until [ "$(cat /proc/1/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
+            sleep 1s
+        done
+        # exit Postgres with a code of 0
+        pg_ctl kill QUIT 1
+    ) &
 fi
 #+end_src
