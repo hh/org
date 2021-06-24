@@ -460,11 +460,85 @@ Links:
 
 *** Install
 #+begin_src tmate :window prepare
-export SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true
-export SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21
+export SIDERO_METADATA_SERVER_HOST_NETWORK=true \
+  SIDERO_METADATA_SERVER_PORT=9091 \
+  SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true \
+  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21
 
 clusterctl init -b talos -c talos -i sidero
 #+end_src
+
+*** Debug
+#+begin_src tmate :window prepare
+curl 192.168.1.234:8081/ipxe
+#+end_src
+
+*** Finalise
+Patch the sidero-tftp service an IP
+#+begin_src shell
+kubectl -n sidero-system patch service sidero-tftp -p '{"spec":{"type":"LoadBalancer"}}'
+#+end_src
+(assign a virtual IP across the network)
+
+#+RESULTS:
+#+begin_example
+service/sidero-tftp patched
+#+end_example
+
+Check the IP address
+#+begin_src shell
+kubectl -n sidero-system get svc sidero-tftp
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME          TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)        AGE
+sidero-tftp   LoadBalancer   10.106.255.147   192.168.1.21   69:31930/UDP   27h
+#+end_example
+
+Launch a debug container
+#+begin_src yaml :tangle ./sidero-cm-debug.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidero-debug
+  namespace: sidero-system
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: sidero-debug
+    securityContext:
+      privileged: true
+    command:
+      - sleep
+      - infinity
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - sidero
+            topologyKey: "kubernetes.io/hostname"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+#+end_src
+
+#+begin_src shell
+kubectl apply -f ./sidero-cm-debug.yaml
+#+end_src
+
+*** Remove
+#+begin_src tmate :window prepare
+clusterctl delete --all
+#+end_src
+
+(useful for iterating)
 
 ** PXE boot server (dnsmasq)
 *** Prepare
@@ -484,7 +558,8 @@ Configure dnsmasq
 port=0
 dhcp-range=192.168.1.0,proxy
 
-pxe-service=0,"Raspberry Pi Boot"
+pxe-service=0,"PXE boot",192.168.1.21
+dhcp-boot=/var/lib/sidero/tftp,boothost,192.168.1.21
 #+end_src
 
 Configure the container
@@ -514,7 +589,7 @@ metadata:
 spec:
   strategy:
     type: Recreate
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       nz.ii: dnsmasq
@@ -532,6 +607,14 @@ spec:
       - name: dnsmasq
         image: registry.gitlab.com/ii/nz/dnsmasq:latest
         imagePullPolicy: Always
+        volumeMounts:
+          - name: config
+            mountPath: /etc/dnsmasq
+        args:
+          - --conf-file=/etc/dnsmasq/dnsmasq.conf
+          - --log-debug
+          - --log-queries
+          - --log-dhcp
         securityContext:
           allowPrivilegeEscalation: true
           capabilities:
@@ -542,8 +625,11 @@ spec:
           privileged: true
         ports:
         - containerPort: 67
-          hostPort: 67
           protocol: UDP
+      volumes:
+      - name: config
+        configMap:
+          name: dnsmasq-config
 #+end_src
 
 *** Build
@@ -576,4 +662,69 @@ for IP in ${NODE_ADDRS[*]}; do
     echo "Checking ${IP}:67"
     nc -zvu "${IP}" "67"
 done
+#+end_src
+
+#+begin_src yaml :tangle ./dnsmasq/debug-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: dnsmasq-debug
+  name: dnsmasq-debug
+  namespace: dnsmasq
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: dnsmasq-debug
+    securityContext:
+      privileged: true
+    command:
+      - sleep
+      - infinity
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - dnsmasq
+            topologyKey: "kubernetes.io/hostname"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+#+end_src
+
+#+begin_src shell
+kubectl delete -f ./dnsmasq/debug-pod.yaml
+#+end_src
+
+Drop a shell
+#+begin_src tmate :window tcpdump
+kubectl -n dnsmasq exec -it dnsmasq-debug -- sh
+#+end_src
+
+Install tcpdump
+#+begin_src tmate :window tcpdump
+apk add tcpdump
+#+end_src
+
+List interfaces
+#+begin_src tmate :window tcpdump
+ip a
+#+end_src
+We'll use eth0, since that's the host network for the Pi
+
+*** More
+Scale to zero
+#+begin_src
+kubectl -n dnsmasq scale deployment dnsmasq --replicas=0
+#+end_src
+
+Scale to one
+#+begin_src
+kubectl -n dnsmasq scale deployment dnsmasq --replicas=1
 #+end_src

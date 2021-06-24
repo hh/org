@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidero-debug
+  namespace: sidero-system
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: sidero-debug
+    securityContext:
+      privileged: true
+    command:
+      - sleep
+      - infinity
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - sidero
+            topologyKey: "kubernetes.io/hostname"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always

@@ -9,7 +9,7 @@ metadata:
 spec:
   strategy:
     type: Recreate
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       nz.ii: dnsmasq
@@ -27,6 +27,14 @@ spec:
       - name: dnsmasq
         image: registry.gitlab.com/ii/nz/dnsmasq:latest
         imagePullPolicy: Always
+        volumeMounts:
+          - name: config
+            mountPath: /etc/dnsmasq
+        args:
+          - --conf-file=/etc/dnsmasq/dnsmasq.conf
+          - --log-debug
+          - --log-queries
+          - --log-dhcp
         securityContext:
           allowPrivilegeEscalation: true
           capabilities:
@@ -37,5 +45,8 @@ spec:
           privileged: true
         ports:
         - containerPort: 67
-          hostPort: 67
           protocol: UDP
+      volumes:
+      - name: config
+        configMap:
+          name: dnsmasq-config
