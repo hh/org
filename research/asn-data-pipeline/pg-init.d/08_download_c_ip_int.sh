@@ -17,4 +17,5 @@ gsutil cp \
 gs://ii_bq_scratch_dump/2a_ip_inti-$TIMESTAMP-*.csv \
 /tmp/usage_all_ip_only/
 ## Merge the data
-cat /tmp/usage_all_ip_only/*.csv | tail +2 > /tmp/usage_all_ip_only.csv
+cat /tmp/usage_all_ip_only/*.csv | tail +2 > /tmp/usage_all_ip_only_1.csv
+cat /tmp/usage_all_ip_only_1.csv | grep -v c_ip_int > /tmp/usage_all_ip_only.csv
