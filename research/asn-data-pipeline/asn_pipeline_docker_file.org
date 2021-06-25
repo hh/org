@@ -255,8 +255,7 @@ docker run \
     -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/asn-etl-pipeline-gcp-sa.json \
     -e GCP_PROJECT=k8s-infra-ii-sandbox \
     -e GCP_SERVICEACCOUNT=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com \
-    -e GCP_BIGQUERY_DATASET=etl_script_generated_set_1 \
-    -e GCP_BIGQUERY_DATASET_BK=etl_script_generated_set \
+    -e GCP_BIGQUERY_DATASET=etl_script_generated_set \
     -v /tmp/asn-etl-pipeline-gcp-sa.json:/tmp/asn-etl-pipeline-gcp-sa.json \
     -v "${PWD}/pg-init.d:/docker-entrypoint-initdb.d" \
     -v "${TMP_DIR_ETL}:/tmp" \
@@ -311,7 +310,7 @@ for singleAsn in asnNum:
     ## Go look up the asn subnets (prefixes)
     subnets = asndb.get_as_prefixes(singleAsn)
     ## Add checking to make sure we have subnets
-    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
+    ## TODO: insert asn with no routes so we know which faiGCP_BIGQUERY_DATASETled without having to do a lookup
     if subnets:
         ## Add subnets to our dictionaries with
         originAsnDict = {sbnets : singleAsn for sbnets in subnets}
@@ -589,7 +588,7 @@ bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gc
 
 # Added a backup set so I can avoid pulling logs if re-running
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
-SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_BK}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
+SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
 #+end_src
 
 #+begin_src shell :tangle ./app/distinct_ip_int.sql
@@ -686,7 +685,7 @@ copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.06_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
+bq load --autodetect ${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
 Stop the database
