@@ -573,7 +573,7 @@ bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.
 #+end_src
 
 Load Logs
-#+begin_src shell:tangle ./pg-init.d/06-bq-load-logs.sh
+#+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
 bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
 ## Need to figure out why this ones fails
@@ -688,8 +688,12 @@ copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_
 bq load --autodetect ${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
+#+begin_src shell :tangle ./pg-init.d/12-prepare-final-table.sh
+bq query --nouse_legacy_sql --destination_table ${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup 'SELECT time_micros, A.c_ip, c_ip_type,  c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object,   asn, name_with_yaml_name  FROM ( SELECT time_micros, c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host,   cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object FROM  `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` ) A LEFT OUTER JOIN ( SELECT asn, c_ip,name_with_yaml_name FROM `k8s-infra-ii-sandbox.riaan_data_store.6_etl_test_join_asn_and_distinct_ip_org`) B ON A.c_ip=B.c_ip'
+#+end_src
+
 Stop the database
-#+begin_src shell :tangle ./pg-init.d/12-stop-postgres.sh
+#+begin_src shell :tangle ./pg-init.d/13-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up
