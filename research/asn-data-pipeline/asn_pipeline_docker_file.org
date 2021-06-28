@@ -220,18 +220,79 @@ gcloud iam service-accounts create asn-etl \
 #+end_src
 
 Assign the role to the ServiceAccount
-#+begin_src shell :results silent
+#+begin_src shell :prologue "(\n" :epilogue ") 2>&1 ; :"
+GCP_PROJECT=k8s-infra-ii-sandbox
+GCP_SERVICEACCOUNT="asn-etl@${GCP_PROJECT}.iam.gserviceaccount.com"
 ROLES=(
     roles/bigquery.user
     roles/bigquery.dataEditor
+    roles/bigquery.dataOwner
+    roles/
 )
 
+CURRENT_IAM_POLICIES=$(gcloud projects get-iam-policy "${GCP_PROJECT}" \
+  --flatten="bindings[].members" \
+  --format='table(bindings.role)' \
+  --filter="bindings.members:${GCP_SERVICEACCOUNT}" \
+  | tail +2)
+
 for ROLE in ${ROLES[*]}; do
-  gcloud projects add-iam-policy-binding k8s-infra-ii-sandbox \
-    --member="serviceAccount:asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com" \
-    --role="${ROLE}"
+    echo "# Checking role: '${ROLE}'"
+    if echo "${CURRENT_IAM_POLICIES}" | grep -q -E "(^| )${ROLE}( |$)"; then
+        echo "# Role '${ROLE}' already exists"
+    else
+        gcloud projects add-iam-policy-binding "${GCP_PROJECT}" \
+            --member="serviceAccount:${GCP_SERVICEACCOUNT}" \
+            --role="${ROLE}"
+        echo "# Added role '${ROLE}'"
+    fi
 done
+while IFS= read -r ROLE; do
+    echo "${ROLES[*]}" | grep -q -E "(^| )${ROLE}( |$)"
+    INCLUDES_IN_DECLARATION=$?
+    if [ ! ${INCLUDES_IN_DECLARATION} -eq 0 ]; then
+        gcloud projects remove-iam-policy-binding "${GCP_PROJECT}" \
+            --member="serviceAccount:${GCP_SERVICEACCOUNT}" \
+            --role="${ROLE}"
+        echo "# Role '${ROLE}' has been removed"
+    fi
+done < <(echo "${CURRENT_IAM_POLICIES}")
 #+end_src
+
+#+RESULTS:
+#+begin_example
+# Checking role: 'roles/bigquery.user'
+# Role 'roles/bigquery.user' already exists
+# Checking role: 'roles/bigquery.dataEditor'
+# Role 'roles/bigquery.dataEditor' already exists
+# Checking role: 'roles/bigquery.dataOwner'
+# Role 'roles/bigquery.dataOwner' already exists
+#+end_example
+
+Get iam policies
+#+begin_src shell
+gcloud projects get-iam-policy k8s-infra-ii-sandbox \
+  --flatten="bindings[].members" \
+  --format='table(bindings.role)' \
+  --filter="bindings.members:asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com" \
+  | tail +2 | xargs
+#+end_src
+
+#+RESULTS:
+#+begin_example
+roles/bigquery.dataEditor roles/bigquery.dataOwner roles/bigquery.user
+#+end_example
+
+Ensure bucket permissions
+#+begin_src shell :prologue "(\n" :epilogue ") 2>&1 ; :"
+GCP_PROJECT=k8s-infra-ii-sandbox
+GCP_BUCKET_NAME=ii_bq_scratch_dump
+gsutil iam ch "serviceAccount:asn-etl@${GCP_PROJECT}.iam.gserviceaccount.com:legacyBucketWriter" "gs://${GCP_BUCKET_NAME}"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
 
 ** Local testing
 Generate a key file for ServiceAccount auth
@@ -329,23 +390,37 @@ for key, value in destDict.items():
 
 ## winner winner chicken dinner
 #+end_src
+#+begin_src tmate :window test-gcloud
+gcloud auth list
+#+end_src
+#+begin_src tmate :window test-gcloud
+bq ls
+#+end_src
 
 Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #+BEGIN_SRC shell :tangle ./pg-init.d/00-get-dependencies.sh
 #!/bin/bash
 set -x
 
+cat << EOF > $HOME/.bigqueryrc
+credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
+project_id = ${GCP_PROJECT}
+EOF
+
+gcloud config set project "${GCP_PROJECT}"
+
 ## This is just to continue testing wile I wait for permissions for the service account
 ## Use the activate-service-account live once it has permissions
 ## The container is being run it so it should let me manually do the auth
-gcloud auth login
-## gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+# gcloud auth login
+gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
 
 ## GET ASN_COMAPNY section
 ## using https://github.com/ii/org/blob/main/research/asn-data-pipeline/etl_asn_company_table.org
 ## This will pull a fresh copy, I prefer to use what we have in gs
 # curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^,]+), (.*)/"\1", "\3", "\4"/p'  | head
 
+bq ls
 # Remove the previous data set
 bq rm -r -f "${GCP_BIGQUERY_DATASET}"
 
@@ -462,14 +537,6 @@ SELECT
 
 Load vendor data with ASNs into BigQuery
 #+begin_src shell :tangle ./pg-init.d/03-load-into-a-bigquery-dataset.sh
-
-cat << EOF > $HOME/.bigqueryrc
-credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
-project_id = ${GCP_PROJECT}
-EOF
-
-gcloud config set project "${GCP_PROJECT}"
-
 ## Load csv to bq
 bq load --autodetect "${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
 
@@ -575,20 +642,25 @@ bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.
 Load Logs
 #+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
-## Need to figure out why this ones fails
-bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
+if [ -z "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
+  ## Need to figure out why this ones fails
+  bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
+fi
 #+end_src
 
 # Added a backup set so I can avoid pulling logs if re-running
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
 SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
+#+end_src
+#+begin_src sql-mode :tangle ./app/distinct_c_ip_count_logs.sql
+SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
 #+end_src
 
 #+begin_src shell :tangle ./app/distinct_ip_int.sql
@@ -620,7 +692,11 @@ SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml
 Run the above sql to do some more transformations
 #+begin_src shell :tangle ./pg-init.d/07_bq_usage_data_transformation.sh
 ## Get single clientip as int.
-envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+    envsubst < /app/distinct_c_ip_count_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+else
+    envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+fi
 envsubst < /app/distinct_ip_int.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2_ip_int"
 envsubst < /app/distinct_ipint_only.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2a_ip_int"
 envsubst < /app/potaroo_extra_yaml_name_column.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column"

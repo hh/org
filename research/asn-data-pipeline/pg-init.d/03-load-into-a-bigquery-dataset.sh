@@ -2,13 +2,6 @@
 
 # Load vendor data with ASNs into BigQuery
 
-cat << EOF > $HOME/.bigqueryrc
-credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
-project_id = ${GCP_PROJECT}
-EOF
-
-gcloud config set project "${GCP_PROJECT}"
-
 ## Load csv to bq
 bq load --autodetect "${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
 
