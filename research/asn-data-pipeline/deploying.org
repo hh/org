@@ -1,0 +1,92 @@
+#+TITLE: Deploying
+
+The ETL Pipeline is based off the /postgres:12.7-buster/ container image.
+
+* Variables and configuration
+
+| Name                             | Description                                                                                              | Default |
+|----------------------------------+----------------------------------------------------------------------------------------------------------+---------|
+| ~ASN_DATA_PIPELINE_RETAIN~       | Keep the Postgres instance up                                                                            |         |
+| ~GOOGLE_APPLICATION_CREDENTIALS~ | Used by the /gcloud/ command, the value represents a local JSON file containing credentials for GCP auth | ~""~    |
+| ~GCP_PROJECT~                    | The GCP project to use                                                                                   | ~""~    |
+| ~GCP_SERVICEACCOUNT~             | The GCP ServiceAccount to use                                                                            | ~""~    |
+| ~GCP_BIGQUERY_DATASET~           | The GCP BigQuery Dataset to use                                                                          | ~""~    |
+
+Also note the variables inherited from the Postgres image, [[https://github.com/docker-library/docs/blob/master/postgres/README.md#environment-variables][here]].
+
+* Running as a Kubernetes CronJob
+
+Define the CronJob
+#+begin_src yaml :tangle ./asn-etl-pipeline.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: asn-etl-pipeline
+  labels:
+    app: asn-etl-pipeline
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      name: asn-etl-pipeline
+    spec:
+      parallelism: 1
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: asn-etl-pipeline
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: asn-etl-pipeline
+              image: asn-etl-pipeline
+              imagePullPolicy: Never
+              volumeMounts:
+                - name: gcp-app-creds
+                  mountPath: /etc/asn-etl-pipeline
+              env:
+                - name: POSTGRES_PASSWORD
+                  value: postgres
+                - name: GCP_PROJECT
+                  value: k8s-infra-ii-sandbox
+                - name: GCP_SERVICEACCOUNT
+                  value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+                - name: GCP_BIGQUERY_DATASET
+                  value: etl_script_generated_set
+                - name: GCP_BIGQUERY_DATASET_LOGS
+                  value: etl_script_generated_set_prod
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
+                - name: ASN_DATA_PIPELINE_RETAIN
+                  value: "false"
+          volumes:
+            - name: gcp-app-creds
+              secret:
+                secretName: gcp-app-creds
+#+end_src
+
+Create the Secret
+#+begin_src shell :results silent
+kubectl create secret generic gcp-app-creds \
+    --from-file=asn-etl-pipeline-gcp-sa.json=/tmp/asn-etl-pipeline-gcp-sa.json \
+    --dry-run=client \
+    -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+Deploy the CronJob
+#+begin_src shell :results silent
+kubectl apply -f ./asn-etl-pipeline.yaml
+#+end_src
+
+Get logs
+#+begin_src tmate :window asn-etl
+kubectl logs -l app=asn-etl-pipeline --prefix -f
+#+end_src
+
+Delete the CronJob
+#+begin_src shell :results silent
+kubectl delete -f ./asn-etl-pipeline.yaml
+#+end_src
