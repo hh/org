@@ -477,7 +477,8 @@ create table if not exists vendor_expanded_int (
   start_ip inet,
   end_ip inet,
   start_ip_int bigint,
-  end_ip_int bigint
+  end_ip_int bigint,
+  name_with_yaml_name varchar
 );
 
 create table company_asn (
@@ -733,7 +734,7 @@ echo $TIMESTAMP > /tmp/my-timestamp.txt
 ## Dump the entire table to gcs
 bq extract \
 --destination_format CSV \
-${GCP_BIGQUERY_DATASET}.vendor \
+${GCP_BIGQUERY_DATASET}.5_vendor_with_company_name \
 gs://ii_bq_scratch_dump/vendor-$TIMESTAMP-*.csv
 ## Download the files
 TIMESTAMP=$(cat /tmp/my-timestamp.txt | tr -d '\n')
@@ -757,19 +758,34 @@ create index on vendor_expanded_int (end_ip_int);
 create index on vendor_expanded_int (start_ip_int);
 create index on cust_ip (c_ip);
 
-copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_expanded_int.end_ip, vendor_expanded_int.asn, cust_ip.c_ip FROM vendor_expanded_int, cust_ip WHERE cust_ip.c_ip >= vendor_expanded_int.start_ip_int AND cust_ip.c_ip <= vendor_expanded_int.end_ip_int) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
+copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_expanded_int.end_ip, vendor_expanded_int.asn, vendor_expanded_int.name_with_yaml_name, cust_ip.c_ip FROM vendor_expanded_int, cust_ip WHERE cust_ip.c_ip >= vendor_expanded_int.start_ip_int AND cust_ip.c_ip <= vendor_expanded_int.end_ip_int) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
 bq load --autodetect ${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
-#+begin_src shell :tangle ./pg-init.d/12-prepare-final-table.sh
-bq query --nouse_legacy_sql --destination_table ${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup 'SELECT time_micros, A.c_ip, c_ip_type,  c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object,   asn, name_with_yaml_name  FROM ( SELECT time_micros, c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host,   cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object FROM  `k8s-infra-ii-sandbox.etl_staging.usage_all_20210608` ) A LEFT OUTER JOIN ( SELECT asn, c_ip,name_with_yaml_name FROM `k8s-infra-ii-sandbox.riaan_data_store.6_etl_test_join_asn_and_distinct_ip_org`) B ON A.c_ip=B.c_ip'
+#+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all.sql
+SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
+#+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
+envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+#+end_src
+
+
+#+begin_src shell :tangle ./app/join_all_the_things.sql
+SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
+#+end_src
+
+#+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
+## Get single clientip as int.
+envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+#+end_src
+
+
 Stop the database
-#+begin_src shell :tangle ./pg-init.d/13-stop-postgres.sh
+#+begin_src shell :tangle ./pg-init.d/14-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up

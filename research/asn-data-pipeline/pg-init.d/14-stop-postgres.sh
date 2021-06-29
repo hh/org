@@ -1,5 +1,6 @@
 
 
+
 # Stop the database
 
 if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
