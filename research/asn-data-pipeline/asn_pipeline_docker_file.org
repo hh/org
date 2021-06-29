@@ -778,9 +778,9 @@ SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BI
 
 #+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
-    envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
-else
     envsubst < /app/add_c_ip_int_to_usage_all_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+else
+    envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
 fi
 #+end_src
 
@@ -789,14 +789,14 @@ fi
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
-#+begin_src shell :tangle ./app/join_all_the_things.sql
+#+begin_src shell :tangle ./app/join_all_the_things_no_logs.sql
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
 ## Get single clientip as int.
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
-    envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+    envsubst < /app/join_all_the_things_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
 else
     envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
 fi
