@@ -5,6 +5,8 @@
 #!/bin/bash
 set -x
 
+eval "${ASN_DATA_PIPELINE_PREINIT}"
+
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
 project_id = ${GCP_PROJECT}

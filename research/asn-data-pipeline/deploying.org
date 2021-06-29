@@ -25,7 +25,7 @@ metadata:
   labels:
     app: asn-etl-pipeline
 spec:
-  schedule: "*/10 * * * *"
+  schedule: "*/2 * * * *"
   concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
@@ -43,9 +43,14 @@ spec:
             - name: asn-etl-pipeline
               image: asn-etl-pipeline
               imagePullPolicy: Never
+              # command:
+              #   - sleep
+              #   - +Inf
               volumeMounts:
                 - name: gcp-app-creds
                   mountPath: /etc/asn-etl-pipeline
+                # - name: gcp-user-account
+                #   mountPath: /tmp/gcp-user-account/.config/gcloud
               env:
                 - name: POSTGRES_PASSWORD
                   value: postgres
@@ -61,16 +66,41 @@ spec:
                   value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
                 - name: ASN_DATA_PIPELINE_RETAIN
                   value: "false"
+                # - name: ASN_DATA_PIPELINE_PREINIT
+                #   value: |
+                #     mkdir -p /var/lib/postgresql/.config ;
+                #     cp -r /tmp/gcp-user-account/.config/gcloud/..data/ /var/lib/postgresql/.config/gcloud/ ;
+                #     mkdir -p /var/lib/postgresql/.config/gcloud/configurations/ ;
+                #     cat << EOF > ~/.config/gcloud/configurations/config_default
+                #     [core]
+                #     project = k8s-infra-ii-sandbox
+                #     account = bb@ii.coop
+                #     EOF
+                #     gsutil ls
           volumes:
             - name: gcp-app-creds
               secret:
                 secretName: gcp-app-creds
+            # - name: gcp-user-account
+            #   secret:
+            #     secretName: gcp-user-account
+            #     defaultMode: 0777
 #+end_src
 
 Create the Secret
 #+begin_src shell :results silent
 kubectl create secret generic gcp-app-creds \
     --from-file=asn-etl-pipeline-gcp-sa.json=/tmp/asn-etl-pipeline-gcp-sa.json \
+    --dry-run=client \
+    -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+Create the Secret, from local gcloud user creds
+#+begin_src shell :results silent
+cd "${HOME}/.config/gcloud"
+kubectl create secret generic gcp-user-account \
+    --from-file="." \
     --dry-run=client \
     -o yaml \
     | kubectl apply -f -

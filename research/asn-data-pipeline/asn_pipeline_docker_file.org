@@ -402,6 +402,8 @@ Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #!/bin/bash
 set -x
 
+eval "${ASN_DATA_PIPELINE_PREINIT}"
+
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
 project_id = ${GCP_PROJECT}
@@ -769,8 +771,17 @@ bq load --autodetect ${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup /tmp/match-i
 SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
+
+#+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all_no_logs.sql
+SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+#+end_src
+
 #+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
-envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+    envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+else
+    envsubst < /app/add_c_ip_int_to_usage_all_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+fi
 #+end_src
 
 
@@ -778,9 +789,17 @@ envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --re
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
+#+begin_src shell :tangle ./app/join_all_the_things.sql
+SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
+#+end_src
+
 #+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
 ## Get single clientip as int.
-envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+    envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+else
+    envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+fi
 #+end_src
 
 
