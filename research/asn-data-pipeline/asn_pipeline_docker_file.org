@@ -346,6 +346,7 @@ docker run \
     -e GCP_PROJECT=k8s-infra-ii-sandbox \
     -e GCP_SERVICEACCOUNT=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com \
     -e GCP_BIGQUERY_DATASET=etl_script_generated_set \
+    -e GCP_BIGQUERY_DATASET_LOGS=etl_script_generated_set_prod \
     -v /tmp/asn-etl-pipeline-gcp-sa.json:/tmp/asn-etl-pipeline-gcp-sa.json \
     -v "${TMP_DIR_ETL}:/tmp" \
     asn-etl-pipeline

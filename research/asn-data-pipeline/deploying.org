@@ -185,6 +185,43 @@ spec:
   type: periodic
 #+end_src
 
+Or, in Prow config.yaml
+#+begin_src yaml
+periodics:
+  - interval: 5m
+    agent: kubernetes
+    name: asn-data-pipeline
+    decorate: true
+    spec:
+      containers:
+        - name: asn-etl-pipeline
+          image: asn-etl-pipeline
+          command:
+            - /usr/local/bin/docker-entrypoint.sh
+            - postgres
+          imagePullPolicy: Never
+          volumeMounts:
+            - name: gcp-app-creds
+              mountPath: /etc/asn-etl-pipeline
+          env:
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: GCP_PROJECT
+              value: k8s-infra-ii-sandbox
+            - name: GCP_SERVICEACCOUNT
+              value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+            - name: GCP_BIGQUERY_DATASET
+              value: etl_script_generated_set
+            - name: GCP_BIGQUERY_DATASET_LOGS
+              value: etl_script_generated_set_prod
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
+      volumes:
+        - name: gcp-app-creds
+          secret:
+            secretName: gcp-app-creds
+#+end_src
+
 Create the Secret
 #+begin_src shell :results silent
 kubectl -n prow-workloads create secret generic gcp-app-creds \
