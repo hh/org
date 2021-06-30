@@ -1,9 +1,8 @@
 
 
-
 # Stop the database
 
-if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
+if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up
     # and is in a ready state

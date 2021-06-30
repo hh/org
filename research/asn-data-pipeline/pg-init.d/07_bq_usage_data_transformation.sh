@@ -3,7 +3,7 @@
 # Run the above sql to do some more transformations
 
 ## Get single clientip as int.
-if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
     envsubst < /app/distinct_c_ip_count_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
 else
     envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"

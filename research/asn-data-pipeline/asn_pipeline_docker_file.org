@@ -411,7 +411,8 @@ Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #!/bin/bash
 set -x
 
-eval "${ASN_DATA_PIPELINE_PREINIT}"
+set -euo pipefail
+eval "${ASN_DATA_PIPELINE_PREINIT:-}"
 
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
@@ -654,7 +655,7 @@ bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.
 Load Logs
 #+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
-if [ -z "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
   bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
   ## Need to figure out why this ones fails
   bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
@@ -704,7 +705,7 @@ SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml
 Run the above sql to do some more transformations
 #+begin_src shell :tangle ./pg-init.d/07_bq_usage_data_transformation.sh
 ## Get single clientip as int.
-if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
     envsubst < /app/distinct_c_ip_count_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
 else
     envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
@@ -786,7 +787,7 @@ SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BI
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
-if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
     envsubst < /app/add_c_ip_int_to_usage_all_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
 else
     envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
@@ -804,17 +805,16 @@ SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status
 
 #+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
 ## Get single clientip as int.
-if [ -n "${GCP_BIGQUERY_DATASET_LOGS}" ]; then
+if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
     envsubst < /app/join_all_the_things_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
 else
     envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
 fi
 #+end_src
 
-
 Stop the database
 #+begin_src shell :tangle ./pg-init.d/14-stop-postgres.sh
-if [ ! "${ASN_DATA_PIPELINE_RETAIN}" = true ]; then
+if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up
     # and is in a ready state
