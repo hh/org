@@ -295,6 +295,15 @@ gsutil iam ch "serviceAccount:asn-etl@${GCP_PROJECT}.iam.gserviceaccount.com:leg
 #+end_example
 
 ** Local testing
+Remove all existing keys
+#+begin_src shell :prologue "(\n" :epilogue ")\n2>&1 ; :" :results silent
+for KEY in $(gcloud iam service-accounts keys list --iam-account=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com | tail +2 | awk '{print $1}'); do
+    yes | gcloud iam service-accounts keys delete "${KEY}" --iam-account=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+done
+#+end_src
+
+There appears to be a limit of about 10 or so keys per service-account.
+
 Generate a key file for ServiceAccount auth
 #+begin_src shell :results silent
 gcloud iam service-accounts keys create /tmp/asn-etl-pipeline-gcp-sa.json --iam-account=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
