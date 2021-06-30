@@ -137,6 +137,7 @@ patch -ruN -d talos/ < "${REPO_ROOT}/talos-config-patches.patch"
 #+end_src
 
 ** Use talosconfig
+#+NAME: export-talosconfig
 #+begin_src tmate :window prepare
 export TALOSCONFIG=$PWD/talos/talosconfig
 #+end_src
@@ -240,7 +241,7 @@ cd $(mktemp -d)
 #+end_src
 
 Extract talos-config into directory
-#+begin_src tmate :window prepare
+#+begin_src tmate :window prepare :noweb yes
 TALOS_CONFIGS="$(mktemp -t talos-config-XXXXX)"
 kubectl -n kube-system get secret talos-config -o yaml > "${TALOS_CONFIGS}"
 
@@ -249,6 +250,7 @@ for FILE in $(cat "${TALOS_CONFIGS}" | yq e '.data | keys | .[]' -P -); do
   echo $FILE
   cat "${TALOS_CONFIGS}" | yq e ".data.\"${FILE}\"" -P - | base64 --decode > "talos/${FILE}"
 done
+<<export-talosconfig>>
 #+end_src
 
 ** Get node IPs from the cluster
@@ -441,6 +443,44 @@ kubectl -n nginx-ingress apply -f nginx-ingress/nginx-ingress.yaml
 helmrelease.helm.fluxcd.io/nginx-ingress configured
 #+end_example
 
+** local-path-provisioner
+Currently used, to get-the-job-done.
+My end goal is to use Rook+Ceph in-place, but I'm starting with this.
+
+*** Prepare
+Create a directory for the manifests and a namespace for the resources.
+#+begin_src shell :results silent
+mkdir -p local-path-provisioner
+curl -o local-path-provisioner/local-path-provisioner.yaml -L https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+#+end_src
+
+*** Install
+#+begin_src shell
+kubectl apply -f local-path-provisioner/local-path-provisioner.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/local-path-storage created
+serviceaccount/local-path-provisioner-service-account created
+clusterrole.rbac.authorization.k8s.io/local-path-provisioner-role created
+clusterrolebinding.rbac.authorization.k8s.io/local-path-provisioner-bind created
+deployment.apps/local-path-provisioner created
+storageclass.storage.k8s.io/local-path created
+configmap/local-path-config created
+#+end_example
+
+*** Finalise
+Ensuring that local-path is the default StorageClass.
+#+begin_src shell
+kubectl patch storageclasses.storage.k8s.io local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+storageclass.storage.k8s.io/local-path patched
+#+end_example
+
 ** Cert-Manager
 *** Prepare
 #+begin_src shell :results silent
@@ -457,6 +497,63 @@ kubectl apply -f ./cert-manager/cert-manager.yaml
 Links:
 - https://www.sidero.dev/docs/v0.3/getting-started/install-clusterapi/
 - https://www.sidero.dev/docs/v0.3/guides/rpi4-as-servers/#rpi4-boot-process
+
+*** Configure
+#+begin_src yaml :tangle ./sidero-controller-manager-debug.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidero-debug
+  namespace: sidero-system
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: sidero-debug
+    securityContext:
+      privileged: true
+    volumeMounts:
+      - mountPath: /var/lib/sidero/tftp
+        name: tftp-folder
+    command:
+      - sh
+      - -c
+      - apk add tar && sleep infinity
+  volumes:
+    - name: tftp-folder
+      persistentVolumeClaim:
+        claimName: sidero-tftp
+#+end_src
+#+begin_src yaml :tangle ./sidero-controller-manager-tftp-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sidero-tftp
+  namespace: sidero-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+#+end_src
+#+begin_src yaml :tangle ./sidero-controller-manager-tftp-patch.yaml
+spec:
+  template:
+    spec:
+      volumes:
+        - name: tftp-folder
+          persistentVolumeClaim:
+            claimName: sidero-tftp
+      containers:
+      - name: manager
+        volumeMounts:
+          - mountPath: /var/lib/sidero/tftp
+            name: tftp-folder
+#+end_src
+- TODO Sidero TFTP, for UEFI boot
+  - share the /var/lib/sidero/tftp folder as a PVC with a alpine pod
+- TODO copy UEFI boot into TFTP folder and RPI_EFI.fd from SD card
 
 *** Install
 #+begin_src tmate :window prepare
@@ -496,42 +593,99 @@ NAME          TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)        AGE
 sidero-tftp   LoadBalancer   10.106.255.147   192.168.1.21   69:31930/UDP   27h
 #+end_example
 
-Launch a debug container
-#+begin_src yaml :tangle ./sidero-cm-debug.yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: sidero-debug
-  namespace: sidero-system
-spec:
-  hostNetwork: true
-  containers:
-  - image: alpine:3.12
-    name: sidero-debug
-    securityContext:
-      privileged: true
-    command:
-      - sleep
-      - infinity
-  affinity:
-    podAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - weight: 1
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                    - sidero
-            topologyKey: "kubernetes.io/hostname"
-  dnsPolicy: ClusterFirst
-  restartPolicy: Always
+Create a PVC for the TFTP folder
+#+begin_src shell
+kubectl apply -f ./sidero-controller-manager-tftp-pvc.yaml
+kubectl -n sidero-system patch deployment sidero-controller-manager --patch-file ./sidero-controller-manager-tftp-patch.yaml
 #+end_src
 
+#+RESULTS:
+#+begin_example
+persistentvolumeclaim/sidero-tftp unchanged
+deployment.apps/sidero-controller-manager patched
+#+end_example
+
+Create a Pod that's also got the TFTP mount
 #+begin_src shell
-kubectl apply -f ./sidero-cm-debug.yaml
+kubectl -n sidero-system delete pod sidero-debug 2> /dev/null
+kubectl apply -f ./sidero-controller-manager-debug.yaml
 #+end_src
+
+#+RESULTS:
+#+begin_example
+pod "sidero-debug" deleted
+pod/sidero-debug created
+#+end_example
+
+Download UEFI assets
+#+begin_src tmate :window prepare
+VERSION=v1.28
+ASSET=RPi4_UEFI_Firmware_${VERSION}.zip
+EXTRACTED_DIR=$(mktemp -d)
+cd ~/Downloads
+if [ ! -f "${ASSET}" ]; then
+  curl -O -L https://github.com/pftf/RPi4/releases/download/${VERSION}/${ASSET}
+fi
+mkdir "${EXTRACTED_DIR}/tftp"
+unzip "${ASSET}" -d "${EXTRACTED_DIR}/tftp"
+echo "${EXTRACTED_DIR}"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Archive:  RPi4_UEFI_Firmware_v1.28.zip
+  inflating: /tmp/tmp.l4pO8ClVUQ/RPI_EFI.fd
+  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-4-b.dtb
+  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-400.dtb
+  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-cm4.dtb
+  inflating: /tmp/tmp.l4pO8ClVUQ/config.txt
+  inflating: /tmp/tmp.l4pO8ClVUQ/fixup4.dat
+  inflating: /tmp/tmp.l4pO8ClVUQ/start4.elf
+   creating: /tmp/tmp.l4pO8ClVUQ/overlays/
+  inflating: /tmp/tmp.l4pO8ClVUQ/overlays/miniuart-bt.dtbo
+  inflating: /tmp/tmp.l4pO8ClVUQ/Readme.md
+   creating: /tmp/tmp.l4pO8ClVUQ/firmware/
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/Readme.txt
+   creating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.clm_blob
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.bin
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.Raspberry
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.txt
+  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/LICENCE.txt
+/tmp/tmp.l4pO8ClVUQ
+#+end_example
+
+Copy assets in-place
+#+begin_src tmate :window prepare
+kubectl -n sidero-system cp "${EXTRACTED_DIR}/tftp/" sidero-debug:/var/lib/sidero/
+#+end_src
+
+Verify
+#+begin_src shell
+kubectl -n sidero-system exec -it sidero-debug -- ls -alh /var/lib/sidero/tftp/
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Unable to use a TTY - input is not a terminal or the right kind of file
+total 6M
+drwxrwxrwx    4 root     root         290 Jun 24 23:23 .
+drwxr-xr-x    3 root     root          18 Jun 24 23:19 ..
+-rw-r--r--    1 1000     1000        1.9M Jun 24 23:23 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jun 24 23:23 Readme.md
+-rw-r--r--    1 1000     1000       48.1K Jun 24 23:23 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jun 24 23:23 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jun 24 23:23 bcm2711-rpi-cm4.dtb
+-rw-r--r--    1 1000     1000         206 Jun 24 23:23 config.txt
+drwxr-xr-x    3 root     root          55 Jun 24 23:23 firmware
+-rw-r--r--    1 1000     1000        5.3K Jun 24 23:23 fixup4.dat
+-rw-r--r--    1 root     root      968.6K Jun 24 23:04 ipxe-arm64.efi
+-rw-r--r--    1 root     root      996.5K Jun 24 23:04 ipxe.efi
+drwxr-xr-x    2 root     root          30 Jun 24 23:23 overlays
+-rw-r--r--    1 1000     1000        2.1M Jun 24 23:23 start4.elf
+-rw-r--r--    1 root     root       81.0K Jun 24 23:04 undionly.kpxe
+-rw-r--r--    1 root     root       81.0K Jun 24 23:04 undionly.kpxe.0
+#+end_example
 
 *** Remove
 #+begin_src tmate :window prepare
@@ -549,7 +703,6 @@ kubectl create namespace dnsmasq --dry-run=client -o yaml | \
 #+end_src
 
 *** Configure
-
 Configure dnsmasq
 #+begin_src text :tangle ./dnsmasq/dnsmasq.conf :comments none
 #dnsmasq config, for a complete example, see:
@@ -557,23 +710,39 @@ Configure dnsmasq
 
 port=0
 dhcp-range=192.168.1.0,proxy
+pxe-service=0,"Raspberry Pi Boot"
 
-pxe-service=0,"PXE boot",192.168.1.21
-dhcp-boot=/var/lib/sidero/tftp,boothost,192.168.1.21
+enable-tftp=*
+
+tftp-root=/var/lib/sidero/tftp
+# dhcp-boot=ipxe-arm64.efi,192.168.1.127,192.168.1.127
+
+log-queries
+log-dhcp
 #+end_src
 
 Configure the container
 #+begin_src dockerfile :tangle ./dnsmasq/Dockerfile :comments none
-FROM alpine:edge
-# fetch dnsmasq and webproc binary
-RUN apk update \
- && apk --no-cache add dnsmasq tcpdump git \
- && apk add --no-cache --virtual curl \
-#configure dnsmasq
-RUN mkdir -p /etc/default/
-RUN echo -e "ENABLED=1\nIGNORE_RESOLVCONF=yes" > /etc/default/dnsmasq
-#run!
+FROM alpine:3.12 AS final
+RUN apk add --no-cache tcpdump curl dnsmasq-dnssec
+RUN mkdir -p /etc/default/ && \
+  echo -e "ENABLED=1\nIGNORE_RESOLVCONF=yes" > /etc/default/dnsmasq
 ENTRYPOINT ["dnsmasq","--no-daemon"]
+#+end_src
+
+TFTP PVC
+#+begin_src yaml :tangle ./dnsmasq/dnsmasq-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dnsmasq-tftp
+  namespace: dnsmasq
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 #+end_src
 
 Configure the deployment
@@ -610,11 +779,11 @@ spec:
         volumeMounts:
           - name: config
             mountPath: /etc/dnsmasq
+          - name: tftp-folder
+            mountPath: /var/lib/sidero/tftp
         args:
-          - --conf-file=/etc/dnsmasq/dnsmasq.conf
-          - --log-debug
-          - --log-queries
-          - --log-dhcp
+          - -C
+          - /etc/dnsmasq/dnsmasq.conf
         securityContext:
           allowPrivilegeEscalation: true
           capabilities:
@@ -625,11 +794,21 @@ spec:
           privileged: true
         ports:
         - containerPort: 67
+          hostPort: 67
+          protocol: UDP
+        - containerPort: 69
+          hostPort: 69
+          protocol: UDP
+        - containerPort: 7472
+          hostPort: 7472
           protocol: UDP
       volumes:
       - name: config
         configMap:
           name: dnsmasq-config
+      - name: tftp-folder
+        persistentVolumeClaim:
+          claimName: dnsmasq-tftp
 #+end_src
 
 *** Build
@@ -647,16 +826,23 @@ kubectl -n dnsmasq create configmap dnsmasq-config --from-file=dnsmasq/dnsmasq.c
     kubectl apply -f -
 export DNSMASQ_CONF_HASH="$(sha256sum ./dnsmasq/dnsmasq.conf | awk '{print $1}')"
 export DOCKERFILE_HASH="$(sha256sum ./dnsmasq/Dockerfile | awk '{print $1}')"
+kubectl apply -f ./dnsmasq/dnsmasq-pvc.yaml
 envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 #+end_src
 
 #+RESULTS:
 #+begin_example
 configmap/dnsmasq-config configured
+persistentvolumeclaim/dnsmasq-tftp unchanged
 deployment.apps/dnsmasq configured
 #+end_example
 
 *** Validate
+Get logs
+#+begin_src tmate :window dnsmasq
+kubectl -n dnsmasq logs -l app=dnsmasq --prefix -f
+#+end_src
+
 #+begin_src tmate :window prepare
 for IP in ${NODE_ADDRS[*]}; do
     echo "Checking ${IP}:67"
@@ -720,11 +906,56 @@ We'll use eth0, since that's the host network for the Pi
 
 *** More
 Scale to zero
-#+begin_src
+#+begin_src shell
 kubectl -n dnsmasq scale deployment dnsmasq --replicas=0
 #+end_src
 
+#+RESULTS:
+#+begin_example
+deployment.apps/dnsmasq scaled
+#+end_example
+
 Scale to one
-#+begin_src
+#+begin_src shell
 kubectl -n dnsmasq scale deployment dnsmasq --replicas=1
 #+end_src
+
+*** Finalise
+
+Copy TFTP folder from sidero-controller-manager into dnsmasq's TFTP folder
+#+begin_src shell
+echo "Copying TFTP out from Sidero Controller Manager"
+SCM_TFTP_FOLDER=/tmp
+kubectl -n sidero-system cp sidero-debug:/var/lib/sidero/tftp "${SCM_TFTP_FOLDER}/tftp"
+echo "Local contents of ${SCM_TFTP_FOLDER}/tftp"
+ls -alh "${SCM_TFTP_FOLDER}/tftp/"
+
+# echo "Copying local contents to dnsmasq"
+# DNSMASQ_POD_NAME="$(kubectl -n dnsmasq get pods -l app=dnsmasq -o=jsonpath='{.items[0].metadata.name}')"
+# kubectl -n dnsmasq cp "${SCM_TFTP_FOLDER}/tftp" "${DNSMASQ_POD_NAME}":/var/lib/sidero/
+# kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tftp
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Copying TFTP out from Sidero Controller Manager
+tar: Removing leading `/' from member names
+Local contents of /tmp/tftp
+total 6.4M
+drwxr-xr-x.  4 caleb caleb  320 Jul  1 09:38 .
+drwxrwxrwt. 26 root  root   680 Jul  1 09:38 ..
+-rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-400.dtb
+-rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-4-b.dtb
+-rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-cm4.dtb
+-rw-r--r--.  1 caleb caleb  206 Jul  1 09:38 config.txt
+drwxr-xr-x.  3 caleb caleb  100 Jul  1 09:38 firmware
+-rw-r--r--.  1 caleb caleb 5.4K Jul  1 09:38 fixup4.dat
+-rw-r--r--.  1 caleb caleb 969K Jul  1 09:38 ipxe-arm64.efi
+-rw-r--r--.  1 caleb caleb 997K Jul  1 09:38 ipxe.efi
+drwxr-xr-x.  2 caleb caleb   60 Jul  1 09:38 overlays
+-rw-r--r--.  1 caleb caleb 5.4K Jul  1 09:38 Readme.md
+-rw-r--r--.  1 caleb caleb 2.0M Jul  1 09:38 RPI_EFI.fd
+-rw-r--r--.  1 caleb caleb 2.2M Jul  1 09:38 start4.elf
+-rw-r--r--.  1 caleb caleb  82K Jul  1 09:38 undionly.kpxe
+-rw-r--r--.  1 caleb caleb  82K Jul  1 09:38 undionly.kpxe.0
+#+end_example

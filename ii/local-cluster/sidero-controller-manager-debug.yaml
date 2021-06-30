@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidero-debug
+  namespace: sidero-system
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: sidero-debug
+    securityContext:
+      privileged: true
+    volumeMounts:
+      - mountPath: /var/lib/sidero/tftp
+        name: tftp-folder
+    command:
+      - sh
+      - -c
+      - apk add tar && sleep infinity
+  volumes:
+    - name: tftp-folder
+      persistentVolumeClaim:
+        claimName: sidero-tftp

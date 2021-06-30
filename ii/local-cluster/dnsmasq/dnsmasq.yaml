@@ -30,11 +30,11 @@ spec:
         volumeMounts:
           - name: config
             mountPath: /etc/dnsmasq
+          - name: tftp-folder
+            mountPath: /var/lib/sidero/tftp
         args:
-          - --conf-file=/etc/dnsmasq/dnsmasq.conf
-          - --log-debug
-          - --log-queries
-          - --log-dhcp
+          - -C
+          - /etc/dnsmasq/dnsmasq.conf
         securityContext:
           allowPrivilegeEscalation: true
           capabilities:
@@ -45,8 +45,18 @@ spec:
           privileged: true
         ports:
         - containerPort: 67
+          hostPort: 67
+          protocol: UDP
+        - containerPort: 69
+          hostPort: 69
+          protocol: UDP
+        - containerPort: 7472
+          hostPort: 7472
           protocol: UDP
       volumes:
       - name: config
         configMap:
           name: dnsmasq-config
+      - name: tftp-folder
+        persistentVolumeClaim:
+          claimName: dnsmasq-tftp
