@@ -712,10 +712,10 @@ port=0
 dhcp-range=192.168.1.0,proxy
 pxe-service=0,"Raspberry Pi Boot"
 
-enable-tftp=*
+#enable-tftp=*
 
-tftp-root=/var/lib/sidero/tftp
-# dhcp-boot=ipxe-arm64.efi,192.168.1.127,192.168.1.127
+#tftp-root=/var/lib/sidero/tftp
+dhcp-boot=ipxe-arm64.efi,192.168.1.127,192.168.1.127
 
 log-queries
 log-dhcp
@@ -785,19 +785,17 @@ spec:
           - -C
           - /etc/dnsmasq/dnsmasq.conf
         securityContext:
-          allowPrivilegeEscalation: true
           capabilities:
             add:
               - NET_ADMIN
               - NET_RAW
               - SYS_ADMIN
-          privileged: true
         ports:
         - containerPort: 67
           hostPort: 67
           protocol: UDP
-        - containerPort: 69
-          hostPort: 69
+        - containerPort: 4011
+          hostPort: 4011
           protocol: UDP
         - containerPort: 7472
           hostPort: 7472
@@ -835,6 +833,7 @@ envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 configmap/dnsmasq-config configured
 persistentvolumeclaim/dnsmasq-tftp unchanged
 deployment.apps/dnsmasq configured
+service/dnsmasq configured
 #+end_example
 
 *** Validate
@@ -919,6 +918,11 @@ Scale to one
 #+begin_src shell
 kubectl -n dnsmasq scale deployment dnsmasq --replicas=1
 #+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/dnsmasq scaled
+#+end_example
 
 *** Finalise
 

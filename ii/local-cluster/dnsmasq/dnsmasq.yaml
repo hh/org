@@ -36,19 +36,17 @@ spec:
           - -C
           - /etc/dnsmasq/dnsmasq.conf
         securityContext:
-          allowPrivilegeEscalation: true
           capabilities:
             add:
               - NET_ADMIN
               - NET_RAW
               - SYS_ADMIN
-          privileged: true
         ports:
         - containerPort: 67
           hostPort: 67
           protocol: UDP
-        - containerPort: 69
-          hostPort: 69
+        - containerPort: 4011
+          hostPort: 4011
           protocol: UDP
         - containerPort: 7472
           hostPort: 7472
