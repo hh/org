@@ -481,18 +481,6 @@ kubectl patch storageclasses.storage.k8s.io local-path -p '{"metadata": {"annota
 storageclass.storage.k8s.io/local-path patched
 #+end_example
 
-** Cert-Manager
-*** Prepare
-#+begin_src shell :results silent
-mkdir -p ./cert-manager
-curl -o ./cert-manager/cert-manager.yaml -L https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
-#+end_src
-
-*** Install
-#+begin_src shell :results silent
-kubectl apply -f ./cert-manager/cert-manager.yaml
-#+end_src
-
 ** CAPI + Sidero
 Links:
 - https://www.sidero.dev/docs/v0.3/getting-started/install-clusterapi/
@@ -537,7 +525,7 @@ spec:
     requests:
       storage: 1Gi
 #+end_src
-#+begin_src yaml :tangle ./sidero-controller-manager-tftp-patch.yaml
+#+begin_src yaml :tangle ./sidero-controller-manager-patch.yaml
 spec:
   template:
     spec:
@@ -562,47 +550,56 @@ export SIDERO_METADATA_SERVER_HOST_NETWORK=true \
   SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true \
   SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21
 
-clusterctl init -b talos -c talos -i sidero
-#+end_src
-
-*** Debug
-#+begin_src tmate :window prepare
-curl 192.168.1.234:8081/ipxe
+clusterctl init -b talos -c talos -i sidero:v0.3.0
 #+end_src
 
 *** Finalise
+
+Patch the sidero-http service an IP
+#+begin_src shell
+kubectl -n sidero-system patch service sidero-http -p '{"spec":{"type":"LoadBalancer"}}'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+service/sidero-http patched
+#+end_example
+
 Patch the sidero-tftp service an IP
 #+begin_src shell
 kubectl -n sidero-system patch service sidero-tftp -p '{"spec":{"type":"LoadBalancer"}}'
 #+end_src
-(assign a virtual IP across the network)
 
 #+RESULTS:
 #+begin_example
 service/sidero-tftp patched
 #+end_example
 
+(assign a virtual IP across the network)
+
 Check the IP address
 #+begin_src shell
-kubectl -n sidero-system get svc sidero-tftp
+kubectl -n sidero-system get svc
 #+end_src
 
 #+RESULTS:
 #+begin_example
-NAME          TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)        AGE
-sidero-tftp   LoadBalancer   10.106.255.147   192.168.1.21   69:31930/UDP   27h
+NAME                                        TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)          AGE
+sidero-controller-manager-metrics-service   ClusterIP      10.110.134.127   <none>         8443/TCP         21s
+sidero-http                                 LoadBalancer   10.111.134.233   192.168.1.21   8081:30451/TCP   20s
+sidero-tftp                                 LoadBalancer   10.97.54.231     192.168.1.22   69:31432/UDP     20s
 #+end_example
 
 Create a PVC for the TFTP folder
 #+begin_src shell
 kubectl apply -f ./sidero-controller-manager-tftp-pvc.yaml
-kubectl -n sidero-system patch deployment sidero-controller-manager --patch-file ./sidero-controller-manager-tftp-patch.yaml
+kubectl -n sidero-system patch deployment sidero-controller-manager --patch-file ./sidero-controller-manager-patch.yaml
 #+end_src
 
 #+RESULTS:
 #+begin_example
 persistentvolumeclaim/sidero-tftp unchanged
-deployment.apps/sidero-controller-manager patched
+deployment.apps/sidero-controller-manager patched (no change)
 #+end_example
 
 Create a Pod that's also got the TFTP mount
@@ -687,11 +684,20 @@ drwxr-xr-x    2 root     root          30 Jun 24 23:23 overlays
 -rw-r--r--    1 root     root       81.0K Jun 24 23:04 undionly.kpxe.0
 #+end_example
 
+*** Debug
+Logs
+#+begin_src tmate :window sidero
+kubectl -n sidero-system logs -l app=sidero -f
+#+end_src
+
+#+begin_src tmate :window prepare
+curl 192.168.1.127:8081/ipxe
+#+end_src
+
 *** Remove
 #+begin_src tmate :window prepare
 clusterctl delete --all
 #+end_src
-
 (useful for iterating)
 
 ** PXE boot server (dnsmasq)
@@ -711,14 +717,13 @@ Configure dnsmasq
 port=0
 dhcp-range=192.168.1.0,proxy
 pxe-service=0,"Raspberry Pi Boot"
-
-#enable-tftp=*
-
-#tftp-root=/var/lib/sidero/tftp
-dhcp-boot=ipxe-arm64.efi,192.168.1.127,192.168.1.127
+dhcp-boot=ipxe.efi,192.168.1.22,192.168.1.22
 
 log-queries
 log-dhcp
+
+#enable-tftp=*
+#tftp-root=/var/lib/sidero/tftp
 #+end_src
 
 Configure the container
@@ -833,7 +838,6 @@ envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 configmap/dnsmasq-config configured
 persistentvolumeclaim/dnsmasq-tftp unchanged
 deployment.apps/dnsmasq configured
-service/dnsmasq configured
 #+end_example
 
 *** Validate
