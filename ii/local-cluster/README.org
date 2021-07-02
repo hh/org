@@ -52,7 +52,8 @@ I'm checking what the router says.
 
 ** Determine that nodes are live
 #+begin_src tmate :window prepare
-export NODE_ADDRS=(192.168.1.111 192.168.1.127 192.168.1.234)
+#export NODE_ADDRS=(192.168.1.111 192.168.1.127 192.168.1.234)
+export NODE_ADDRS=(192.168.1.234)
 #+end_src
 
 ** Ensure nodes are live
@@ -143,7 +144,7 @@ export TALOSCONFIG=$PWD/talos/talosconfig
 #+end_src
 
 Write the endpoint
-#+begin_src shell :results silent
+#+begin_src tmate :window prepare
 talosctl config endpoint 192.168.1.100
 #+end_src
 
@@ -275,7 +276,7 @@ done
 read -p "Are you sure you want to reset all nodes, effectively destroying the cluster? [Enter|C-c] " && \
 (
   for IP in ${NODE_ADDRS[*]}; do
-      talosctl -e "${IP}" -n "${IP}" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
+      talosctl -e "${IP}" -n "${IP}" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL,STATE
   done
 )
 #+end_src
@@ -440,7 +441,7 @@ kubectl -n nginx-ingress apply -f nginx-ingress/nginx-ingress.yaml
 
 #+RESULTS:
 #+begin_example
-helmrelease.helm.fluxcd.io/nginx-ingress configured
+helmrelease.helm.fluxcd.io/nginx-ingress created
 #+end_example
 
 ** local-path-provisioner
@@ -545,16 +546,16 @@ spec:
 
 *** Install
 #+begin_src tmate :window prepare
+# SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true \
 export SIDERO_METADATA_SERVER_HOST_NETWORK=true \
   SIDERO_METADATA_SERVER_PORT=9091 \
-  SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=true \
-  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21
+  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21 \
+  SIDERO_CONTROLLER_MANAGER_AUTO_ACCEPT_SERVERS=true
 
 clusterctl init -b talos -c talos -i sidero:v0.3.0
 #+end_src
 
 *** Finalise
-
 Patch the sidero-http service an IP
 #+begin_src shell
 kubectl -n sidero-system patch service sidero-http -p '{"spec":{"type":"LoadBalancer"}}'
@@ -584,22 +585,27 @@ kubectl -n sidero-system get svc
 
 #+RESULTS:
 #+begin_example
-NAME                                        TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)          AGE
-sidero-controller-manager-metrics-service   ClusterIP      10.110.134.127   <none>         8443/TCP         21s
-sidero-http                                 LoadBalancer   10.111.134.233   192.168.1.21   8081:30451/TCP   20s
-sidero-tftp                                 LoadBalancer   10.97.54.231     192.168.1.22   69:31432/UDP     20s
+NAME                                        TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)          AGE
+sidero-controller-manager-metrics-service   ClusterIP      10.101.66.253   <none>         8443/TCP         7m4s
+sidero-http                                 LoadBalancer   10.103.54.118   192.168.1.21   8081:31916/TCP   7m4s
+sidero-tftp                                 LoadBalancer   10.96.159.209   192.168.1.22   69:30513/UDP     7m3s
 #+end_example
 
 Create a PVC for the TFTP folder
 #+begin_src shell
+# TODO figure out how to use dnsmasq/dhcp for just PXE and Sidero CM for TFTP
 kubectl apply -f ./sidero-controller-manager-tftp-pvc.yaml
 kubectl -n sidero-system patch deployment sidero-controller-manager --patch-file ./sidero-controller-manager-patch.yaml
+kubectl -n sidero-system delete pod -l app=sidero 2> /dev/null
 #+end_src
 
 #+RESULTS:
 #+begin_example
 persistentvolumeclaim/sidero-tftp unchanged
 deployment.apps/sidero-controller-manager patched (no change)
+pod "caps-controller-manager-5948c84db7-tfjvd" deleted
+pod "sidero-controller-manager-68cd57f8db-476rk" deleted
+pod "sidero-controller-manager-8694596b44-9sqfp" deleted
 #+end_example
 
 Create a Pod that's also got the TFTP mount
@@ -614,50 +620,7 @@ pod "sidero-debug" deleted
 pod/sidero-debug created
 #+end_example
 
-Download UEFI assets
-#+begin_src tmate :window prepare
-VERSION=v1.28
-ASSET=RPi4_UEFI_Firmware_${VERSION}.zip
-EXTRACTED_DIR=$(mktemp -d)
-cd ~/Downloads
-if [ ! -f "${ASSET}" ]; then
-  curl -O -L https://github.com/pftf/RPi4/releases/download/${VERSION}/${ASSET}
-fi
-mkdir "${EXTRACTED_DIR}/tftp"
-unzip "${ASSET}" -d "${EXTRACTED_DIR}/tftp"
-echo "${EXTRACTED_DIR}"
-#+end_src
-
-#+RESULTS:
-#+begin_example
-Archive:  RPi4_UEFI_Firmware_v1.28.zip
-  inflating: /tmp/tmp.l4pO8ClVUQ/RPI_EFI.fd
-  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-4-b.dtb
-  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-400.dtb
-  inflating: /tmp/tmp.l4pO8ClVUQ/bcm2711-rpi-cm4.dtb
-  inflating: /tmp/tmp.l4pO8ClVUQ/config.txt
-  inflating: /tmp/tmp.l4pO8ClVUQ/fixup4.dat
-  inflating: /tmp/tmp.l4pO8ClVUQ/start4.elf
-   creating: /tmp/tmp.l4pO8ClVUQ/overlays/
-  inflating: /tmp/tmp.l4pO8ClVUQ/overlays/miniuart-bt.dtbo
-  inflating: /tmp/tmp.l4pO8ClVUQ/Readme.md
-   creating: /tmp/tmp.l4pO8ClVUQ/firmware/
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/Readme.txt
-   creating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.clm_blob
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.bin
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.Raspberry
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/brcm/brcmfmac43455-sdio.txt
-  inflating: /tmp/tmp.l4pO8ClVUQ/firmware/LICENCE.txt
-/tmp/tmp.l4pO8ClVUQ
-#+end_example
-
-Copy assets in-place
-#+begin_src tmate :window prepare
-kubectl -n sidero-system cp "${EXTRACTED_DIR}/tftp/" sidero-debug:/var/lib/sidero/
-#+end_src
-
-Verify
+Czech the content
 #+begin_src shell
 kubectl -n sidero-system exec -it sidero-debug -- ls -alh /var/lib/sidero/tftp/
 #+end_src
@@ -665,33 +628,54 @@ kubectl -n sidero-system exec -it sidero-debug -- ls -alh /var/lib/sidero/tftp/
 #+RESULTS:
 #+begin_example
 Unable to use a TTY - input is not a terminal or the right kind of file
-total 6M
-drwxrwxrwx    4 root     root         290 Jun 24 23:23 .
-drwxr-xr-x    3 root     root          18 Jun 24 23:19 ..
--rw-r--r--    1 1000     1000        1.9M Jun 24 23:23 RPI_EFI.fd
--rw-r--r--    1 1000     1000        5.3K Jun 24 23:23 Readme.md
--rw-r--r--    1 1000     1000       48.1K Jun 24 23:23 bcm2711-rpi-4-b.dtb
--rw-r--r--    1 1000     1000       48.1K Jun 24 23:23 bcm2711-rpi-400.dtb
--rw-r--r--    1 1000     1000       48.7K Jun 24 23:23 bcm2711-rpi-cm4.dtb
--rw-r--r--    1 1000     1000         206 Jun 24 23:23 config.txt
-drwxr-xr-x    3 root     root          55 Jun 24 23:23 firmware
--rw-r--r--    1 1000     1000        5.3K Jun 24 23:23 fixup4.dat
--rw-r--r--    1 root     root      968.6K Jun 24 23:04 ipxe-arm64.efi
--rw-r--r--    1 root     root      996.5K Jun 24 23:04 ipxe.efi
-drwxr-xr-x    2 root     root          30 Jun 24 23:23 overlays
--rw-r--r--    1 1000     1000        2.1M Jun 24 23:23 start4.elf
--rw-r--r--    1 root     root       81.0K Jun 24 23:04 undionly.kpxe
--rw-r--r--    1 root     root       81.0K Jun 24 23:04 undionly.kpxe.0
+total 2M
+drwxrwxrwx    2 root     root          88 Jul  2 06:27 .
+drwxr-xr-x    3 root     root          18 Jul  2 06:26 ..
+-rw-r--r--    1 root     root      968.6K Jul  2 06:27 ipxe-arm64.efi
+-rw-r--r--    1 root     root      996.5K Jul  2 06:27 ipxe.efi
+-rw-r--r--    1 root     root       81.0K Jul  2 06:27 undionly.kpxe
+-rw-r--r--    1 root     root       81.0K Jul  2 06:27 undionly.kpxe.0
 #+end_example
+
+Copy assets in-place
+#+begin_src tmate :window prepare
+kubectl -n sidero-system cp sidero-debug:/var/lib/sidero /tmp/
+#+end_src
+
+(TODO ensure this is unneeded)
+
+Prepare script for setting up RPis with boot files
+#+NAME: tftp-root-setup
+#+begin_src shell :comments none :prologue "" :epilogue ""
+UUIDs="2cb186c5"
+FILES="start4.elf fixup4.dat config.txt RPI_EFI.fd ipxe.efi ipxe-arm64.efi firmware overlays bcm2711-rpi-4-b.dtb"
+
+cd /var/lib/sidero/tftp
+for UUID in ${UUIDs}; do
+    echo "${UUID}:"
+    mkdir -p ${UUID}
+    cd ${UUID}
+    rm *
+    for FILE in $FILES; do
+      echo "- ${FILE}"
+      ln -sf ../$FILE ./$FILE
+    done
+    cd -
+done
+ls -alhR
+#+end_src
+
+Create symlinks for boot files based on the RPi's UUID
+#+begin_src tmate :window prepare :noweb yes
+kubectl -n sidero-system exec -it sidero-debug -- sh -x -c '
+<<tftp-root-setup>>
+'
+#+end_src
 
 *** Debug
 Logs
 #+begin_src tmate :window sidero
 kubectl -n sidero-system logs -l app=sidero -f
-#+end_src
-
-#+begin_src tmate :window prepare
-curl 192.168.1.127:8081/ipxe
 #+end_src
 
 *** Remove
@@ -717,19 +701,20 @@ Configure dnsmasq
 port=0
 dhcp-range=192.168.1.0,proxy
 pxe-service=0,"Raspberry Pi Boot"
-dhcp-boot=ipxe.efi,192.168.1.22,192.168.1.22
-
+pxe-prompt="PXE booting Talos from Sidero in",0
+dhcp-boot=ipxe-arm64.efi,sidero
 log-queries
 log-dhcp
 
-#enable-tftp=*
-#tftp-root=/var/lib/sidero/tftp
+enable-tftp=*
+tftp-root=/var/lib/sidero/tftp
 #+end_src
 
 Configure the container
 #+begin_src dockerfile :tangle ./dnsmasq/Dockerfile :comments none
 FROM alpine:3.12 AS final
 RUN apk add --no-cache tcpdump curl dnsmasq-dnssec
+# TODO run as non-root
 RUN mkdir -p /etc/default/ && \
   echo -e "ENABLED=1\nIGNORE_RESOLVCONF=yes" > /etc/default/dnsmasq
 ENTRYPOINT ["dnsmasq","--no-daemon"]
@@ -835,9 +820,9 @@ envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 
 #+RESULTS:
 #+begin_example
-configmap/dnsmasq-config configured
-persistentvolumeclaim/dnsmasq-tftp unchanged
-deployment.apps/dnsmasq configured
+configmap/dnsmasq-config created
+persistentvolumeclaim/dnsmasq-tftp created
+deployment.apps/dnsmasq created
 #+end_example
 
 *** Validate
@@ -905,6 +890,7 @@ List interfaces
 #+begin_src tmate :window tcpdump
 ip a
 #+end_src
+
 We'll use eth0, since that's the host network for the Pi
 
 *** More
@@ -928,42 +914,200 @@ kubectl -n dnsmasq scale deployment dnsmasq --replicas=1
 deployment.apps/dnsmasq scaled
 #+end_example
 
-*** Finalise
+*** Prepare assets
+Download UEFI assets
+#+begin_src tmate :window prepare
+FILES="start4.elf fixup4.dat config.txt RPI_EFI.fd ipxe.efi ipxe-arm64.efi firmware overlays bcm2711-rpi-4-b.dtb"
+
+cd /var/lib/sidero/tftp
+for UUID in ${UUIDs}; do
+    echo "${UUID}:"
+    mkdir -p ${UUID}
+    cd ${UUID}
+    rm *
+    for FILE in $FILES; do
+        echo "- ${FILE}"
+        ln -sf ../$FILE ./$FILE
+    done
+    cd -
+done
+VERSION=v1.28
+ASSET=RPi4_UEFI_Firmware_${VERSION}.zip
+EXTRACTED_DIR=/tmp/tftp
+if [ ! -f "${HOME}/Downloads/${ASSET}" ]; then
+    curl -o ${HOME}/Downloads/${ASSET} -L https://github.com/pftf/RPi4/releases/download/${VERSION}/${ASSET}
+fi
+mkdir -p "${EXTRACTED_DIR}"
+unzip -o "${HOME}/Downloads/${ASSET}" -d "${EXTRACTED_DIR}"
+
+for _SERIAL in servers/*; do
+    SERIAL="${_SERIAL/servers\//}"
+    echo "${SERIAL}:"
+    mkdir -p "${EXTRACTED_DIR}/${SERIAL}"
+    cp -f "${_SERIAL}/RPI_EFI.fd" "${EXTRACTED_DIR}/${SERIAL}/"
+    cp -a tftp-root/SERIAL/* /tmp/tftp/${SERIAL}/
+done
+#+end_src
+
+*** HOLD Copy TFTP contents to dnsmasq
 
 Copy TFTP folder from sidero-controller-manager into dnsmasq's TFTP folder
 #+begin_src shell
-echo "Copying TFTP out from Sidero Controller Manager"
-SCM_TFTP_FOLDER=/tmp
-kubectl -n sidero-system cp sidero-debug:/var/lib/sidero/tftp "${SCM_TFTP_FOLDER}/tftp"
-echo "Local contents of ${SCM_TFTP_FOLDER}/tftp"
-ls -alh "${SCM_TFTP_FOLDER}/tftp/"
+# echo "Copying TFTP out from Sidero Controller Manager"
+# SCM_TFTP_FOLDER=/tmp
+# kubectl -n sidero-system cp sidero-debug:/var/lib/sidero/tftp "${SCM_TFTP_FOLDER}/tftp"
+# echo "Local contents of ${SCM_TFTP_FOLDER}/tftp"
+# ls -alh "${SCM_TFTP_FOLDER}/tftp/"
 
-# echo "Copying local contents to dnsmasq"
-# DNSMASQ_POD_NAME="$(kubectl -n dnsmasq get pods -l app=dnsmasq -o=jsonpath='{.items[0].metadata.name}')"
-# kubectl -n dnsmasq cp "${SCM_TFTP_FOLDER}/tftp" "${DNSMASQ_POD_NAME}":/var/lib/sidero/
-# kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tftp
+echo "Copying local contents to dnsmasq"
+DNSMASQ_POD_NAME="$(kubectl -n dnsmasq get pods -l app=dnsmasq -o=jsonpath='{.items[0].metadata.name}')"
+kubectl -n dnsmasq cp "/tmp/tftp" "${DNSMASQ_POD_NAME}":/var/lib/sidero/
+kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tftp
 #+end_src
 
 #+RESULTS:
 #+begin_example
-Copying TFTP out from Sidero Controller Manager
-tar: Removing leading `/' from member names
-Local contents of /tmp/tftp
-total 6.4M
-drwxr-xr-x.  4 caleb caleb  320 Jul  1 09:38 .
-drwxrwxrwt. 26 root  root   680 Jul  1 09:38 ..
--rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-400.dtb
--rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-4-b.dtb
--rw-r--r--.  1 caleb caleb  49K Jul  1 09:38 bcm2711-rpi-cm4.dtb
--rw-r--r--.  1 caleb caleb  206 Jul  1 09:38 config.txt
-drwxr-xr-x.  3 caleb caleb  100 Jul  1 09:38 firmware
--rw-r--r--.  1 caleb caleb 5.4K Jul  1 09:38 fixup4.dat
--rw-r--r--.  1 caleb caleb 969K Jul  1 09:38 ipxe-arm64.efi
--rw-r--r--.  1 caleb caleb 997K Jul  1 09:38 ipxe.efi
-drwxr-xr-x.  2 caleb caleb   60 Jul  1 09:38 overlays
--rw-r--r--.  1 caleb caleb 5.4K Jul  1 09:38 Readme.md
--rw-r--r--.  1 caleb caleb 2.0M Jul  1 09:38 RPI_EFI.fd
--rw-r--r--.  1 caleb caleb 2.2M Jul  1 09:38 start4.elf
--rw-r--r--.  1 caleb caleb  82K Jul  1 09:38 undionly.kpxe
--rw-r--r--.  1 caleb caleb  82K Jul  1 09:38 undionly.kpxe.0
+Copying local contents to dnsmasq
+Unable to use a TTY - input is not a terminal or the right kind of file
+total 6M
+drwxrwxrwx   10 root     root        4.0K Jul  2 06:59 .
+drwxr-xr-x    3 root     root          18 Jul  2 06:33 ..
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 2bbd241a
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 2cb186c5
+-rw-r--r--    1 1000     1000        1.9M Jul  2 06:59 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jul  2 06:59 Readme.md
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 bc3ef28
+-rw-r--r--    1 1000     1000       48.1K Jul  2 06:59 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jul  2 06:59 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jul  2 06:59 bcm2711-rpi-cm4.dtb
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 c3052218
+-rw-r--r--    1 1000     1000         206 Jul  2 06:59 config.txt
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 dd24784d
+drwxr-xr-x    2 root     root         175 Jul  2 06:59 ebc28a3f
+drwxr-xr-x    3 root     root          55 Jul  2 06:59 firmware
+-rw-r--r--    1 1000     1000        5.3K Jul  2 06:59 fixup4.dat
+-rw-r--r--    1 1000     1000      968.6K Jul  2 06:59 ipxe-arm64.efi
+-rw-r--r--    1 1000     1000      996.5K Jul  2 06:59 ipxe.efi
+drwxr-xr-x    2 root     root          30 Jul  2 06:59 overlays
+-rw-r--r--    1 1000     1000        2.1M Jul  2 06:59 start4.elf
+-rw-r--r--    1 1000     1000       81.0K Jul  2 06:59 undionly.kpxe
+-rw-r--r--    1 1000     1000       81.0K Jul  2 06:59 undionly.kpxe.0
+#+end_example
+
+* Bringing up servers with Sidero
+Declare the Environment for the RPis
+#+begin_src yaml :tangle ./sidero/rpi-environment.yaml
+apiVersion: metal.sidero.dev/v1alpha1
+kind: Environment
+metadata:
+  name: raspberrypi4-servers
+spec:
+  initrd:
+    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz
+  kernel:
+    args:
+    - console=tty0
+    - console=ttyS0
+    - consoleblank=0
+    - earlyprintk=ttyS0
+    - ima_appraise=fix
+    - ima_hash=sha512
+    - ima_template=ima-ng
+    - init_on_alloc=1
+    - initrd=initramfs.xz
+    - nvme_core.io_timeout=4294967295
+    - printk.devkmsg=on
+    - pti=on
+    - random.trust_cpu=on
+    - slab_nomerge=
+    - talos.config=http://192.168.1.21:8081/configdata?uuid={uuid}
+    - talos.platform=metal
+    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64
+#+end_src
+
+Declare the ServerClass to use for RPis
+#+begin_src yaml :tangle ./sidero/rpi-serverclass.yaml
+apiVersion: metal.sidero.dev/v1alpha1
+kind: ServerClass
+metadata:
+  name: raspberrypi4-servers
+spec:
+  environmentRef:
+    name: raspberrypi4-servers
+  configPatches:
+    - op: add
+      path: /cluster/allowSchedulingOnMasters
+      value: true
+    - op: replace
+      path: /machine/install
+      value:
+        disk: /dev/mmcblk1
+        image: ghcr.io/talos-systems/installer:v0.10.3
+        bootloader: true
+        wipe: true
+        force: false
+  qualifiers:
+    cpu:
+      - manufacturer: Broadcom
+        version: "BCM2711 (ARM Cortex-A72)"
+    systemInformation:
+      - manufacturer: "Raspberry Pi Foundation"
+        productName: "Raspberry Pi 4 Model B"
+#+end_src
+
+Apply the ServerClass and Environment
+#+begin_src shell :results silent
+kubectl apply \
+    -f ./sidero/rpi-serverclass.yaml \
+    -f ./sidero/rpi-environment.yaml
+#+end_src
+
+Create a namespace for the clusters
+#+begin_src shell :results silent
+kubectl create ns local-clusters
+#+end_src
+
+Generate config
+#+begin_src shell :results silent
+export \
+    CONTROL_PLANE_ENDPOINT=192.168.1.31 \
+    CONTROL_PLANE_PORT=6443 \
+    CONTROL_PLANE_SERVERCLASS=raspberrypi4-servers \
+    KUBERNETES_VERSION=v1.20.1 \
+    TALOS_VERSION=v1.10.3 \
+    WORKER_SERVERCLASS=raspberrypi4-server
+clusterctl config cluster -n local-clusters local-cluster-mgmt -i sidero > ./sidero/local-clusters/local-cluster-mgmt.yaml
+#+end_src
+
+Bring up the workload cluster
+#+begin_src shell
+kubectl apply -f ./sidero/local-clusters/local-cluster-mgmt.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+cluster.cluster.x-k8s.io/local-cluster-mgmt created
+metalcluster.infrastructure.cluster.x-k8s.io/local-cluster-mgmt created
+metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp created
+taloscontrolplane.controlplane.cluster.x-k8s.io/local-cluster-mgmt-cp created
+talosconfigtemplate.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers created
+machinedeployment.cluster.x-k8s.io/local-cluster-mgmt-workers created
+metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers created
+#+end_example
+
+See the provisioning
+#+begin_src shell
+kubectl get servers,machines,clusters -A
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME                                                           HOSTNAME        ACCEPTED   ALLOCATED   CLEAN   POWER
+server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   192.168.1.207   true       true        false   on
+
+NAMESPACE        NAME                                                   PROVIDERID   PHASE          VERSION
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-cp-mtrv2                Provisioning   v1.20.1
+
+NAMESPACE        NAME                                          PHASE
+local-clusters   cluster.cluster.x-k8s.io/local-cluster-mgmt   Provisioned
 #+end_example
