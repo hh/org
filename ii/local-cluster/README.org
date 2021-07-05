@@ -1089,13 +1089,13 @@ kubectl apply -f ./sidero/local-clusters/local-cluster-mgmt.yaml
 
 #+RESULTS:
 #+begin_example
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": clusters.cluster.x-k8s.io "local-cluster-mgmt" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalclusters.infrastructure.cluster.x-k8s.io "local-cluster-mgmt" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalmachinetemplates.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-cp" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": taloscontrolplanes.controlplane.cluster.x-k8s.io "local-cluster-mgmt-cp" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": talosconfigtemplates.bootstrap.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": machinedeployments.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
-Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalmachinetemplates.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
+cluster.cluster.x-k8s.io/local-cluster-mgmt created
+metalcluster.infrastructure.cluster.x-k8s.io/local-cluster-mgmt created
+metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp created
+taloscontrolplane.controlplane.cluster.x-k8s.io/local-cluster-mgmt-cp created
+talosconfigtemplate.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers created
+machinedeployment.cluster.x-k8s.io/local-cluster-mgmt-workers created
+metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers created
 #+end_example
 
 See the provisioning
@@ -1106,10 +1106,42 @@ kubectl get servers,machines,clusters,serverclasses -A
 #+RESULTS:
 #+begin_example
 NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
-server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   Pi7        true       true        false   on
+server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   Pi7        true
 server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       false   on
+
+NAMESPACE   NAME                                                AVAILABLE                                  IN USE
+            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca632487ab4"]   []
+            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca632487ab4"]   []
+#+end_example
+
+*** Debug
+See all things CAPI and Sidero
+#+begin_src shell
+kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' | xargs | tr ' ' ',') -A
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAMESPACE        NAME                                                                 AGE
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-cp-8dq4v   71m
+
+NAMESPACE       NAME                                                         TYPE                     PROVIDER      VERSION   WATCH NAMESPACE
+cabpt-system    provider.clusterctl.cluster.x-k8s.io/bootstrap-talos         BootstrapProvider        talos         v0.2.0
+cacppt-system   provider.clusterctl.cluster.x-k8s.io/control-plane-talos     ControlPlaneProvider     talos         v0.1.0
+capi-system     provider.clusterctl.cluster.x-k8s.io/cluster-api             CoreProvider             cluster-api   v0.3.20
+sidero-system   provider.clusterctl.cluster.x-k8s.io/infrastructure-sidero   InfrastructureProvider   sidero        v0.3.0
+
+NAMESPACE   NAME                                                                                 READY
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca63203f59a   true
+
+NAMESPACE   NAME                                                KERNEL                                                                           INITRD                                                                                READY
+            environment.metal.sidero.dev/default                https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-amd64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-amd64.xz   True
+            environment.metal.sidero.dev/raspberrypi4-servers   https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz   True
 
 NAMESPACE   NAME                                                AVAILABLE                                  IN USE
             serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
             serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
+
+NAMESPACE   NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       false   on
 #+end_example
