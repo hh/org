@@ -259,6 +259,12 @@ done
 export NODE_ADDRS=$(kubectl get nodes -o yaml | yq e '.items[].status.addresses[] | select(.type=="InternalIP") | .address' -P -)
 #+end_src
 
+** Get the TalosConfig
+#+begin_src tmate :window prepare
+export TALOSCONFIG=$(mktemp /tmp/tmp.XXXXX)
+kubectl -n local-clusters get talosconfig -l cluster.x-k8s.io/cluster-name=local-cluster-mgmt -o=jsonpath='{.items[0].status.talosConfig}' > "${TALOSCONFIG}"
+#+end_src
+
 ** Get machinetype
 #+begin_src tmate :window prepare
 talosctl -e 192.168.1.100 -n "$(echo ${NODE_ADDRS} | tr ' ' ',')" get machinetype
@@ -973,31 +979,158 @@ kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tft
 Copying local contents to dnsmasq
 Unable to use a TTY - input is not a terminal or the right kind of file
 total 6M
-drwxrwxrwx   10 root     root        4.0K Jul  5 00:05 .
+drwxrwxrwx   10 root     root        4.0K Jul  5 04:04 .
 drwxr-xr-x    3 root     root          18 Jul  4 22:09 ..
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 2bbd241a
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 2cb186c5
--rw-r--r--    1 1000     1000        1.9M Jul  5 00:05 RPI_EFI.fd
--rw-r--r--    1 1000     1000        5.3K Jul  5 00:05 Readme.md
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 bc3ef28
--rw-r--r--    1 1000     1000       48.1K Jul  5 00:05 bcm2711-rpi-4-b.dtb
--rw-r--r--    1 1000     1000       48.1K Jul  5 00:05 bcm2711-rpi-400.dtb
--rw-r--r--    1 1000     1000       48.7K Jul  5 00:05 bcm2711-rpi-cm4.dtb
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 c3052218
--rw-r--r--    1 1000     1000         206 Jul  5 00:05 config.txt
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 dd24784d
-drwxr-xr-x    2 root     root         175 Jul  5 00:05 ebc28a3f
-drwxr-xr-x    3 root     root          55 Jul  5 00:05 firmware
--rw-r--r--    1 1000     1000        5.3K Jul  5 00:05 fixup4.dat
--rw-r--r--    1 1000     1000      968.6K Jul  5 00:05 ipxe-arm64.efi
--rw-r--r--    1 1000     1000      996.5K Jul  5 00:05 ipxe.efi
-drwxr-xr-x    2 root     root          30 Jul  5 00:05 overlays
--rw-r--r--    1 1000     1000        2.1M Jul  5 00:05 start4.elf
--rw-r--r--    1 1000     1000       81.0K Jul  5 00:05 undionly.kpxe
--rw-r--r--    1 1000     1000       81.0K Jul  5 00:05 undionly.kpxe.0
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 2bbd241a
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 2cb186c5
+-rw-r--r--    1 1000     1000        1.9M Jul  5 04:04 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jul  5 04:04 Readme.md
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 bc3ef28
+-rw-r--r--    1 1000     1000       48.1K Jul  5 04:04 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jul  5 04:04 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jul  5 04:04 bcm2711-rpi-cm4.dtb
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 c3052218
+-rw-r--r--    1 1000     1000         206 Jul  5 04:04 config.txt
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 dd24784d
+drwxr-xr-x    2 root     root         175 Jul  5 04:04 ebc28a3f
+drwxr-xr-x    3 root     root          55 Jul  5 04:04 firmware
+-rw-r--r--    1 1000     1000        5.3K Jul  5 04:04 fixup4.dat
+-rw-r--r--    1 1000     1000      968.6K Jul  5 04:04 ipxe-arm64.efi
+-rw-r--r--    1 1000     1000      996.5K Jul  5 04:04 ipxe.efi
+drwxr-xr-x    2 root     root          30 Jul  5 04:04 overlays
+-rw-r--r--    1 1000     1000        2.1M Jul  5 04:04 start4.elf
+-rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe
+-rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe.0
 #+end_example
 
 * Bringing up servers with Sidero
+Declare some common configuration
+#+begin_src yaml :tangle ./sidero/local-cluster-rpi-template.yaml
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 10.244.0.0/16
+    services:
+      cidrBlocks:
+        - 10.96.0.0/12
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: MetalCluster
+    name: ${CLUSTER_NAME}
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: ${CLUSTER_NAME}-cp
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  controlPlaneEndpoint:
+    host: ${CONTROL_PLANE_ENDPOINT}
+    port: ${CONTROL_PLANE_PORT}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-cp
+spec:
+  template:
+    spec:
+      serverClassRef:
+        apiVersion: metal.sidero.dev/v1alpha1
+        kind: ServerClass
+        name: ${CONTROL_PLANE_SERVERCLASS}
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: ${CLUSTER_NAME}-cp
+spec:
+  version: ${KUBERNETES_VERSION}
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  infrastructureTemplate:
+    kind: MetalMachineTemplate
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    name: ${CLUSTER_NAME}-cp
+  controlPlaneConfig:
+    init:
+      generateType: init
+      talosVersion: ${TALOS_VERSION}
+      configPatches:
+        - op: add
+          path: /machine/network
+          value:
+            interfaces:
+              - interface: eth0
+                dhcp: true
+                vip:
+                  ip: ${CONTROL_PLANE_ENDPOINT}
+    controlplane:
+      generateType: controlplane
+      talosVersion: ${TALOS_VERSION}
+      configPatches:
+        - op: add
+          path: /machine/network
+          value:
+            interfaces:
+              - interface: eth0
+                dhcp: true
+                vip:
+                  ip: ${CONTROL_PLANE_ENDPOINT}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}-workers
+spec:
+  template:
+    spec:
+      generateType: join
+      talosVersion: ${TALOS_VERSION}
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}-workers
+spec:
+  clusterName: ${CLUSTER_NAME}
+  replicas: ${WORKER_MACHINE_COUNT}
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      version: ${KUBERNETES_VERSION}
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: TalosConfigTemplate
+          name: ${CLUSTER_NAME}-workers
+      clusterName: ${CLUSTER_NAME}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+        kind: MetalMachineTemplate
+        name: ${CLUSTER_NAME}-workers
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-workers
+spec:
+  template:
+    spec:
+      serverClassRef:
+        apiVersion: metal.sidero.dev/v1alpha1
+        kind: ServerClass
+        name: ${WORKER_SERVERCLASS}
+#+end_src
+
 Declare the Environment for the RPis
 #+begin_src yaml :tangle ./sidero/rpi-environment.yaml
 apiVersion: metal.sidero.dev/v1alpha1
@@ -1079,7 +1212,7 @@ export \
     KUBERNETES_VERSION=v1.20.1 \
     TALOS_VERSION=v1.10.3 \
     WORKER_SERVERCLASS=raspberrypi4-server
-clusterctl config cluster -n local-clusters local-cluster-mgmt -i sidero > ./sidero/local-clusters/local-cluster-mgmt.yaml
+clusterctl config cluster -n local-clusters local-cluster-mgmt --from ./sidero/local-cluster-rpi-template.yaml > ./sidero/local-clusters/local-cluster-mgmt.yaml
 #+end_src
 
 Bring up the workload cluster
@@ -1098,6 +1231,7 @@ machinedeployment.cluster.x-k8s.io/local-cluster-mgmt-workers created
 metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers created
 #+end_example
 
+*** Debug
 See the provisioning
 #+begin_src shell
 kubectl get servers,machines,clusters,serverclasses -A
@@ -1106,15 +1240,20 @@ kubectl get servers,machines,clusters,serverclasses -A
 #+RESULTS:
 #+begin_example
 NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
-server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   Pi7        true
+server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true
 server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       false   on
 
+NAMESPACE        NAME                                                   PROVIDERID   PHASE          VERSION
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-cp-v8kgn                Provisioning   v1.20.1
+
+NAMESPACE        NAME                                          PHASE
+local-clusters   cluster.cluster.x-k8s.io/local-cluster-mgmt   Provisioned
+
 NAMESPACE   NAME                                                AVAILABLE                                  IN USE
-            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca632487ab4"]   []
-            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca632487ab4"]   []
+            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
+            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
 #+end_example
 
-*** Debug
 See all things CAPI and Sidero
 #+begin_src shell
 kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' | xargs | tr ' ' ',') -A
@@ -1122,26 +1261,33 @@ kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' 
 
 #+RESULTS:
 #+begin_example
-NAMESPACE        NAME                                                                 AGE
-local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-cp-8dq4v   71m
-
 NAMESPACE       NAME                                                         TYPE                     PROVIDER      VERSION   WATCH NAMESPACE
 cabpt-system    provider.clusterctl.cluster.x-k8s.io/bootstrap-talos         BootstrapProvider        talos         v0.2.0
 cacppt-system   provider.clusterctl.cluster.x-k8s.io/control-plane-talos     ControlPlaneProvider     talos         v0.1.0
 capi-system     provider.clusterctl.cluster.x-k8s.io/cluster-api             CoreProvider             cluster-api   v0.3.20
 sidero-system   provider.clusterctl.cluster.x-k8s.io/infrastructure-sidero   InfrastructureProvider   sidero        v0.3.0
 
-NAMESPACE   NAME                                                                                 READY
-            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca63203f59a   true
-
 NAMESPACE   NAME                                                KERNEL                                                                           INITRD                                                                                READY
             environment.metal.sidero.dev/default                https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-amd64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-amd64.xz   True
             environment.metal.sidero.dev/raspberrypi4-servers   https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz   True
 
-NAMESPACE   NAME                                                AVAILABLE                                  IN USE
-            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
-            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
+NAMESPACE   NAME                                                AVAILABLE                                                                         IN USE
+            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
+            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
 
 NAMESPACE   NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
-            server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true                   true    on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       true    on
 #+end_example
+
+** Get TalosConfig
+#+begin_src tmate :window mgm-cluster
+export TALOSCONFIG=$(mktemp /tmp/tmp.XXXXX)
+kubectl -n local-clusters get talosconfig -l cluster.x-k8s.io/cluster-name=local-cluster-mgmt -o=jsonpath='{.items[0].status.talosConfig}' > "${TALOSCONFIG}"
+#+end_src
+
+** Get KubeConfig
+#+begin_src tmate :window mgm-cluster
+export KUBECONFIG=$(mktemp /tmp/tmp.XXXXX)
+talosctl --talosconfig "${TALOSCONFIG}" -e 192.168.1.31 -n 192.168.1.31 kubeconfig "${KUBECONFIG}"
+#+end_src

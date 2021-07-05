@@ -51,9 +51,27 @@ metadata:
 spec:
   controlPlaneConfig:
     controlplane:
+      configPatches:
+      - op: add
+        path: /machine/network
+        value:
+          interfaces:
+          - dhcp: true
+            interface: eth0
+            vip:
+              ip: 192.168.1.31
       generateType: controlplane
       talosVersion: v1.10.3
     init:
+      configPatches:
+      - op: add
+        path: /machine/network
+        value:
+          interfaces:
+          - dhcp: true
+            interface: eth0
+            vip:
+              ip: 192.168.1.31
       generateType: init
       talosVersion: v1.10.3
   infrastructureTemplate:
