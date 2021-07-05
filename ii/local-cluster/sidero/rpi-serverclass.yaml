@@ -15,7 +15,7 @@ spec:
         disk: /dev/mmcblk1
         image: ghcr.io/talos-systems/installer:v0.10.3
         bootloader: true
-        wipe: true
+        wipe: false
         force: false
   qualifiers:
     cpu:

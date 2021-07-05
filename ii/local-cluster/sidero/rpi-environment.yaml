@@ -21,6 +21,6 @@ spec:
     - pti=on
     - random.trust_cpu=on
     - slab_nomerge=
-    - talos.config=http://192.168.1.21:8081/configdata?uuid={uuid}
+    - talos.config=http://192.168.1.21:8081/configdata?uuid=${uuid}
     - talos.platform=metal
     url: https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64
