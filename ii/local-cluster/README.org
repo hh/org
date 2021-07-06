@@ -1301,8 +1301,18 @@ NAMESPACE=local-clusters
 SERVERS="$(kubectl -n ${NAMESPACE} get metalmachines -l cluster.x-k8s.io/cluster-name=${CLUSTER_NAME} -o=jsonpath='{range .items[*]}server/{.spec.serverRef.name} {end}')"
 MACHINES="$(kubectl -n ${NAMESPACE} get machines -l cluster.x-k8s.io/cluster-name=${CLUSTER_NAME} -o=jsonpath='{range .items[*]}machine/{.metadata.name} {end}')"
 METALMACHINES="$(kubectl -n ${NAMESPACE} get metalmachines -l cluster.x-k8s.io/cluster-name=${CLUSTER_NAME} -o=jsonpath='{range .items[*]}metalmachine/{.metadata.name} {end}')"
-kubectl delete ${METALMACHINES} ${SERVER} ${MACHINES}
+kubectl -n "${NAMESPACE}" delete ${METALMACHINES} ${SERVER} ${MACHINES}
 #+end_src
+
+(optional) Remove servers with no status
+#+begin_src shell
+kubectl delete server $(kubectl -n local-clusters get server -o=json | jq -r '.items[] | select(.status==null) | .metadata.name')
+#+end_src
+
+#+RESULTS:
+#+begin_example
+server.metal.sidero.dev "00c03111-0000-0000-0000-dca63203f59a" deleted
+#+end_example
 
 Remove the cluster
 #+begin_src shell
