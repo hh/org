@@ -1014,7 +1014,7 @@ The following steps must be performed on each RPi
 4. Wait until the green screen before unplugging the power for the RPi
 
 ** Bring up and configure the UEFI firmware
-1. Fetch a release of RPI4_UEFI firmware (currently using /v1.26/)
+1. Fetch a release of RPI4_UEFI firmware (currently using /v1.26/) from the [[https://github.com/pftf/RPi4/releases][GitHub Repo]]
 2. Write the contents of the zip file to a fat32 formatted microSD card
 3. Insert and boot the microSD card
 4. Enter the UEFI set up
