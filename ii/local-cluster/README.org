@@ -1023,7 +1023,7 @@ With a spare keyboard plugged into the target RPi,
 *** Configure the UEFI firmware
 1. Remove Memory limit: In /Device Manager -> Raspberry Pi Configuration -> Advanced Configuration/, set /Limit RAM to 3 GB/ to /Disabled/; F10 + Y to save.
 2. Max out CPU clock: In /Device Manager -> Raspberry Pi Configuration -> CPU Configuration/, set /CPU clock/ to /Max/; F10 + Y to save.
-3. Declare the iPXE HTTP boot URI: In /Device Manager -> Network Device List -> <MAC ADDRESS> -> HTTP Boot Configuration/, set /Boot URI/ to http://boot.ii.nz/tftp/ipxe-arm64.efi, set /Name/ to /boot.ii.nz/; F10 + Y to save.
+3. Declare the iPXE HTTP boot URI: In /Device Manager -> Network Device List -> <MAC ADDRESS> -> HTTP Boot Configuration/, set /Input the description/ to /boot.ii.nz/ and /Boot URI/ to http://boot.ii.nz/tftp/ipxe-arm64.efi; F10 + Y to save.
 4. Tidy up the boot order: In /Boot Maintenance Manager -> Boot Options -> Delete Boot Option/, ensure that the following options remain (in no specific order):
    - /boot.ii.nz/
    - /SD/MMC .../
