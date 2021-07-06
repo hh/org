@@ -1035,6 +1035,7 @@ The following steps must be performed on each RPi
 Once complete, /esc/ the entire way out to the main menu and hit reset. When the RPi starts booting again, unplug from power before it reaches a source to boot from.
 
 Now, on the SD card with the UEFI firmware, it the file /RPI_EFI.fd/ must be copied into the [[./servers][./servers]] folder, by the board serial number.
+Is it useful to find the serial number when the RPi is booted with no network or SD card (located on /board: <...> <SERIAL NUMBER> .../).
 
 * Bringing up servers with Sidero
 Declare some common configuration
