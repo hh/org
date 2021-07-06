@@ -979,29 +979,62 @@ kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tft
 Copying local contents to dnsmasq
 Unable to use a TTY - input is not a terminal or the right kind of file
 total 6M
-drwxrwxrwx   10 root     root        4.0K Jul  5 04:04 .
-drwxr-xr-x    3 root     root          18 Jul  4 22:09 ..
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 2bbd241a
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 2cb186c5
--rw-r--r--    1 1000     1000        1.9M Jul  5 04:04 RPI_EFI.fd
--rw-r--r--    1 1000     1000        5.3K Jul  5 04:04 Readme.md
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 bc3ef28
--rw-r--r--    1 1000     1000       48.1K Jul  5 04:04 bcm2711-rpi-4-b.dtb
--rw-r--r--    1 1000     1000       48.1K Jul  5 04:04 bcm2711-rpi-400.dtb
--rw-r--r--    1 1000     1000       48.7K Jul  5 04:04 bcm2711-rpi-cm4.dtb
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 c3052218
--rw-r--r--    1 1000     1000         206 Jul  5 04:04 config.txt
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 dd24784d
-drwxr-xr-x    2 root     root         175 Jul  5 04:04 ebc28a3f
-drwxr-xr-x    3 root     root          55 Jul  5 04:04 firmware
--rw-r--r--    1 1000     1000        5.3K Jul  5 04:04 fixup4.dat
+drwxrwxrwx   11 root     root        4.0K Jul  6 01:42 .
+drwxr-xr-x    3 root     root          18 Jul  6 01:33 ..
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 2bbd241a
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 2cb186c5
+-rw-r--r--    1 1000     1000        1.9M Jul  6 01:42 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jul  6 01:42 Readme.md
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 bc3ebf28
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 bc3ef28
+-rw-r--r--    1 1000     1000       48.1K Jul  6 01:42 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jul  6 01:42 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jul  6 01:42 bcm2711-rpi-cm4.dtb
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 c3052218
+-rw-r--r--    1 1000     1000         206 Jul  6 01:42 config.txt
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 dd24784d
+drwxr-xr-x    2 root     root         175 Jul  6 01:42 ebc28a3f
+drwxr-xr-x    3 root     root          55 Jul  6 01:42 firmware
+-rw-r--r--    1 1000     1000        5.3K Jul  6 01:42 fixup4.dat
 -rw-r--r--    1 1000     1000      968.6K Jul  5 04:04 ipxe-arm64.efi
 -rw-r--r--    1 1000     1000      996.5K Jul  5 04:04 ipxe.efi
-drwxr-xr-x    2 root     root          30 Jul  5 04:04 overlays
--rw-r--r--    1 1000     1000        2.1M Jul  5 04:04 start4.elf
+drwxr-xr-x    2 root     root          30 Jul  6 01:42 overlays
+-rw-r--r--    1 1000     1000        2.1M Jul  6 01:42 start4.elf
 -rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe
 -rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe.0
 #+end_example
+
+* Preparing RPis for network booting
+The following steps must be performed on each RPi
+
+** Flash the latest network EEPROM firmware
+1. Fetch the latest release of EEPROM (network) from the [[https://github.com/raspberrypi/rpi-eeprom/releases][GitHub Repo]]
+2. Write the contents of the zip file to a fat32 formatted microSD card
+3. Insert and boot the microSD card on the RPi
+4. Wait until the green screen before unplugging the power for the RPi
+
+** Bring up and configure the UEFI firmware
+1. Fetch a release of RPI4_UEFI firmware (currently using /v1.26/)
+2. Write the contents of the zip file to a fat32 formatted microSD card
+3. Insert and boot the microSD card
+4. Enter the UEFI set up
+
+*** Configure the UEFI firmware
+1. Remove Memory limit: In /Device Manager -> Raspberry Pi Configuration -> Advanced Configuration/, set /Limit RAM to 3 GB/ to /Disabled/; F10 to save.
+2. Max out CPU clock: In /Device Manager -> Raspberry Pi Configuration -> CPU Configuration/, set /CPU clock/ to /Max/; F10 + Y to save.
+3. Declare the iPXE HTTP boot URI: In /Device Manager -> Network Device List -> <MAC ADDRESS> -> HTTP Boot Configuration/, set /Boot URI/ to http://boot.ii.nz/tftp/ipxe-arm64.efi, set /Name/ to /boot.ii.nz/; F10 + Y to save.
+4. Tidy up the boot order: In /Boot Maintenance Manager -> Boot Options -> Change Boot Order/, ensure that the following options remain (in no specific order):
+   - /boot.ii.nz/
+   - /SD/MMC .../
+   /Commit Changes and Exit/ to save.
+4. Restructure the boot order: In /Boot Maintenance Manager -> Boot Options -> Change Boot Order/, set the order to:
+   - /boot.ii.nz/
+   - /SD/MMC .../
+   /Commit Changes and Exit/ to save.
+
+Once complete, /esc/ the entire way out to the main menu and hit reset. When the RPi starts booting again, unplug from power before it reaches a source to boot from.
+
+Now, on the SD card with the UEFI firmware, it the file /RPI_EFI.fd/ must be copied into the [[./servers][./servers]] folder, by the board serial number.
 
 * Bringing up servers with Sidero
 Declare some common configuration
@@ -1261,22 +1294,57 @@ kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' 
 
 #+RESULTS:
 #+begin_example
+NAMESPACE        NAME                                                                 AGE
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-cp-dztg7   144m
+
+NAMESPACE        NAME                                                                        AGE
+local-clusters   talosconfigtemplate.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers   145m
+
+NAMESPACE        NAME                                          PHASE
+local-clusters   cluster.cluster.x-k8s.io/local-cluster-mgmt   Provisioned
+
+NAMESPACE        NAME                                                            PHASE     REPLICAS   READY   UPDATED   UNAVAILABLE
+local-clusters   machinedeployment.cluster.x-k8s.io/local-cluster-mgmt-workers   Running
+
+NAMESPACE        NAME                                                   PROVIDERID                                      PHASE     VERSION
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-cp-k9rhs   sidero://00c03111-0000-0000-0000-dca63203f59a   Running   v1.20.1
+
+NAMESPACE        NAME                                                                REPLICAS   AVAILABLE   READY
+local-clusters   machineset.cluster.x-k8s.io/local-cluster-mgmt-workers-6f4b4cbf84
+
 NAMESPACE       NAME                                                         TYPE                     PROVIDER      VERSION   WATCH NAMESPACE
 cabpt-system    provider.clusterctl.cluster.x-k8s.io/bootstrap-talos         BootstrapProvider        talos         v0.2.0
 cacppt-system   provider.clusterctl.cluster.x-k8s.io/control-plane-talos     ControlPlaneProvider     talos         v0.1.0
 capi-system     provider.clusterctl.cluster.x-k8s.io/cluster-api             CoreProvider             cluster-api   v0.3.20
 sidero-system   provider.clusterctl.cluster.x-k8s.io/infrastructure-sidero   InfrastructureProvider   sidero        v0.3.0
 
+NAMESPACE        NAME                                                                    READY   INITIALIZED   REPLICAS   READY REPLICAS   UNAVAILABLE REPLICAS
+local-clusters   taloscontrolplane.controlplane.cluster.x-k8s.io/local-cluster-mgmt-cp   true    true          1          1
+
+NAMESPACE        NAME                                                              CLUSTER              READY
+local-clusters   metalcluster.infrastructure.cluster.x-k8s.io/local-cluster-mgmt   local-cluster-mgmt   true
+
+NAMESPACE        NAME                                                                       READY
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp-sg7b8   true
+
+NAMESPACE        NAME                                                                              AGE
+local-clusters   metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp        145m
+local-clusters   metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers   145m
+
+NAMESPACE   NAME                                                                                 READY
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca63203f59a   true
+
 NAMESPACE   NAME                                                KERNEL                                                                           INITRD                                                                                READY
             environment.metal.sidero.dev/default                https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-amd64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-amd64.xz   True
             environment.metal.sidero.dev/raspberrypi4-servers   https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz   True
 
 NAMESPACE   NAME                                                AVAILABLE                                                                         IN USE
-            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
-            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
+            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
+            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   ["00c03111-0000-0000-0000-dca63203f59a"]
 
 NAMESPACE   NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
-            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true                   true    on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   Pi7        true       true        false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true       false       false   on
             server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       true    on
 #+end_example
 
