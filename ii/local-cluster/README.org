@@ -1014,7 +1014,7 @@ The following steps must be performed on each RPi
 4. Wait until the green screen before unplugging the power for the RPi
 
 ** Bring up and configure the UEFI firmware
-With a spare keyboard plugged into the target RPi,
+Into the non-networked target RPi, have spare keyboard and display plugged in,
 1. Fetch a release of RPI4_UEFI firmware (currently using /v1.28/) from the [[https://github.com/pftf/RPi4/releases][GitHub Repo]]
 2. Write the contents of the zip file to a fat32 formatted microSD card
 3. Insert and boot the microSD card
