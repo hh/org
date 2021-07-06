@@ -1017,7 +1017,7 @@ The following steps must be performed on each RPi
 1. Fetch a release of RPI4_UEFI firmware (currently using /v1.26/) from the [[https://github.com/pftf/RPi4/releases][GitHub Repo]]
 2. Write the contents of the zip file to a fat32 formatted microSD card
 3. Insert and boot the microSD card
-4. Enter the UEFI set up
+4. Enter the UEFI set up by hitting /Esc/
 
 *** Configure the UEFI firmware
 1. Remove Memory limit: In /Device Manager -> Raspberry Pi Configuration -> Advanced Configuration/, set /Limit RAM to 3 GB/ to /Disabled/; F10 to save.
@@ -1032,7 +1032,7 @@ The following steps must be performed on each RPi
    - /SD/MMC .../
    /Commit Changes and Exit/ to save.
 
-Once complete, /esc/ the entire way out to the main menu and hit reset. When the RPi starts booting again, unplug from power before it reaches a source to boot from.
+Once complete, /Esc/ the entire way out to the main menu and hit reset. When the RPi starts booting again, unplug from power before it reaches a source to boot from.
 
 Now, on the SD card with the UEFI firmware, it the file /RPI_EFI.fd/ must be copied into the [[./servers][./servers]] folder, by the board serial number.
 Is it useful to find the serial number when the RPi is booted with no network or SD card (located on /board: <...> <SERIAL NUMBER> .../).
