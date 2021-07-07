@@ -32,9 +32,14 @@ spec:
             mountPath: /etc/dnsmasq
           - name: tftp-folder
             mountPath: /var/lib/sidero/tftp
-        args:
-          - -C
-          - /etc/dnsmasq/dnsmasq.conf
+        env:
+          - name: DHCP_RANGE
+            value: "${DHCP_RANGE}"
+        command:
+          - bash
+          - -x
+          - -c
+          - dnsmasq --no-daemon -C <(envsubst < /etc/dnsmasq/dnsmasq.conf)
         securityContext:
           capabilities:
             add:

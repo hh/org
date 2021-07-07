@@ -1,13 +1,14 @@
 #+TITLE: Local cluster
-#+PROPERTY: header-args:shell+ :prologue "( " :epilogue " ) 2>&1 ; :"
+#+PROPERTY: header-args:diff+ :comments none
+#+PROPERTY: header-args:dockerfile+ :comments none
+#+PROPERTY: header-args:shell+ :prologue "( " :epilogue " ) 2>&1 ; :" :comments none
+#+PROPERTY: header-args:text+ :comments none
+#+PROPERTY: header-args:tmate+ :comments none
 #+PROPERTY: header-args:yaml+ :comments none
-#+PROPERTY: header-args:patch+ :comments none
 
 Setting up a local cluster.
 
 * Prologue
-
-
 * Prepare
 ** Save repo location
 #+begin_src tmate :window prepare
@@ -46,17 +47,104 @@ curl -o ~/bin/talosctl -L \
 #+end_src
 
 * Set up
-** Discover node IPs
+** kind
+Declare the kind config
+#+begin_src yaml :tangle ./kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+ - role: control-plane
+   extraPortMappings:
+   - containerPort: 67
+     hostPort: 67
+     protocol: UDP
+   - containerPort: 69
+     hostPort: 69
+     protocol: UDP
+   - containerPort: 80
+     hostPort: 80
+     protocol: TCP
+   - containerPort: 443
+     hostPort: 443
+     protocol: TCP
+   - containerPort: 4011
+     hostPort: 4011
+     protocol: UDP
+   - containerPort: 7472
+     hostPort: 7472
+     protocol: UDP
+   - containerPort: 8081
+     hostPort: 8081
+     protocol: TCP
+   kubeadmConfigPatches:
+   - |
+     apiVersion: kubeadm.k8s.io/v1beta2
+     kind: InitConfiguration
+     nodeRegistration:
+       kubeletExtraArgs:
+         node-labels: "ingress-ready=true"
+#+end_src
+
+Using kind /v0.11.1/ or greater, launch the cluster
+#+begin_src tmate :window prepare
+export HOST_IP=$(ip a | grep 192.168 | awk '{print $2}' | cut -d '/' -f1 | head -n 1)
+kind create cluster --config <(envsubst < ./kind-config.yaml)
+#+end_src
+
+#+begin_src tmate :window prepare
+export HOST_IP=$(ip a | grep 192.168 | awk '{print $2}' | cut -d '/' -f1 | head -n 1)
+talosctl cluster create \
+  -p 67:67/udp,69:69/udp,80:80/tcp,443:443/tcp,4011:4011/udp,7472:7472/tcp,8081:8081/tcp \
+  --workers 0 \
+  --config-patch '[{"op": "add", "path": "/cluster/allowSchedulingOnMasters", "value": true}]' \
+  --endpoint "${HOST_IP}"
+#+end_src
+
+Install nginx-ingress-controller
+#+begin_src shell
+VERSION=$(curl -s https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/stable.txt)
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/${VERSION}/deploy/static/provider/kind/deploy.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/ingress-nginx created
+serviceaccount/ingress-nginx created
+configmap/ingress-nginx-controller created
+clusterrole.rbac.authorization.k8s.io/ingress-nginx created
+clusterrolebinding.rbac.authorization.k8s.io/ingress-nginx created
+role.rbac.authorization.k8s.io/ingress-nginx created
+rolebinding.rbac.authorization.k8s.io/ingress-nginx created
+service/ingress-nginx-controller-admission created
+service/ingress-nginx-controller created
+deployment.apps/ingress-nginx-controller created
+validatingwebhookconfiguration.admissionregistration.k8s.io/ingress-nginx-admission created
+serviceaccount/ingress-nginx-admission created
+clusterrole.rbac.authorization.k8s.io/ingress-nginx-admission created
+clusterrolebinding.rbac.authorization.k8s.io/ingress-nginx-admission created
+role.rbac.authorization.k8s.io/ingress-nginx-admission created
+rolebinding.rbac.authorization.k8s.io/ingress-nginx-admission created
+job.batch/ingress-nginx-admission-create created
+job.batch/ingress-nginx-admission-patch created
+#+end_example
+
+Set /NODE_ADDRS/ var
+#+begin_src tmate :window prepare
+export NODE_ADDRS=$(ip a | grep 192.168 | awk '{print $2}' | cut -d '/' -f1 | head -n 1)
+#+end_src
+
+** a Talos node
+*** Discover node IPs
 Each node that comes up will, of course, have an IP address.
 I'm checking what the router says.
 
-** Determine that nodes are live
+*** Determine that nodes are live
 #+begin_src tmate :window prepare
 #export NODE_ADDRS=(192.168.1.111 192.168.1.127 192.168.1.234)
 export NODE_ADDRS=(192.168.1.234)
 #+end_src
 
-** Ensure nodes are live
+*** Ensure nodes are live
 #+begin_src tmate :window prepare
 for IP in ${NODE_ADDRS[*]}; do
     echo "Checking ${IP}:50000"
@@ -64,7 +152,7 @@ for IP in ${NODE_ADDRS[*]}; do
 done
 #+end_src
 
-** Generating the configuration
+*** Generating the configuration
 #+begin_src tmate :window prepare
 talosctl gen config \
     ii-nz \
@@ -75,7 +163,7 @@ talosctl gen config \
     --install-image ghcr.io/talos-systems/installer:v0.10.3
 #+end_src
 
-** Modify the configuration
+*** Modify the configuration
 #+begin_src diff :tangle talos-config-patches.patch :comment none
 diff --git a/talos/controlplane.yaml b/talos/controlplane.yaml
 index bc87738..cf17a8a 100644
@@ -137,7 +225,7 @@ Apply patches
 patch -ruN -d talos/ < "${REPO_ROOT}/talos-config-patches.patch"
 #+end_src
 
-** Use talosconfig
+*** Use talosconfig
 #+NAME: export-talosconfig
 #+begin_src tmate :window prepare
 export TALOSCONFIG=$PWD/talos/talosconfig
@@ -148,34 +236,34 @@ Write the endpoint
 talosctl config endpoint 192.168.1.100
 #+end_src
 
-** Provisioning the first node
+*** Provisioning the first node
 #+begin_src tmate :window prepare
 talosctl apply-config --insecure --nodes "${NODE_ADDRS[0]}" --file talos/init.yaml
 #+end_src
 
-*** Ensure that the node is active
+**** Ensure that the node is active
 #+begin_src tmate :window prepare
 talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
 #+end_src
 
-** Provision all the nodes
+*** Provision all the nodes
 #+begin_src tmate :window prepare
 for IP in ${NODE_ADDRS[*]}; do
     talosctl apply-config --insecure --nodes "${IP}" --file talos/controlplane.yaml
 done
 #+end_src
 
-*** Watch the health of all nodes, as they become active
+**** Watch the health of all nodes, as they become active
 #+begin_src tmate :window prepare
 talosctl health -e "${NODE_ADDRS[0]}" -n "${NODE_ADDRS[0]}"
 #+end_src
 
-** Get kubeconfig
+*** Get kubeconfig
 #+begin_src tmate :window prepare
 talosctl kubeconfig -e 192.168.1.100 -n 192.168.1.100
 #+end_src
 
-** Get nodes
+*** Get nodes
 #+begin_src shell
 kubectl get nodes
 #+end_src
@@ -554,16 +642,16 @@ spec:
 #+begin_src tmate :window prepare
 export SIDERO_METADATA_SERVER_HOST_NETWORK=true \
   SIDERO_METADATA_SERVER_PORT=9091 \
-  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT=192.168.1.21 \
+  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT="${HOST_IP:-192.168.1.20}" \
   SIDERO_CONTROLLER_MANAGER_AUTO_ACCEPT_SERVERS=true \
   SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=false \
-  SIDERO_CONTROLLER_MANAGER_BOOT_FROM_DISK_METHOD=ipxe-sanboot
+  SIDERO_CONTROLLER_MANAGER_BOOT_FROM_DISK_METHOD=http-404
 
 clusterctl init -b talos -c talos -i sidero:v0.3.0
 #+end_src
 
 *** Finalise
-Patch the sidero-http service an IP
+(metal-only) Assign a virtal IP to the sidero-http service
 #+begin_src shell
 kubectl -n sidero-system patch service sidero-http -p '{"spec":{"type":"LoadBalancer"}}'
 #+end_src
@@ -573,17 +661,16 @@ kubectl -n sidero-system patch service sidero-http -p '{"spec":{"type":"LoadBala
 service/sidero-http patched
 #+end_example
 
-Patch the sidero-tftp service an IP
+(kind-only) Assign an external IP to sidero-http
 #+begin_src shell
-kubectl -n sidero-system patch service sidero-tftp -p '{"spec":{"type":"LoadBalancer"}}'
+export KIND_IP="$(docker inspect kind-control-plane -f '{{.NetworkSettings.Networks.kind.IPAddress}}')"
+kubectl -n sidero-system patch service sidero-http -p "{\"spec\":{\"externalIPs\":[\"${KIND_IP}\"]}}"
 #+end_src
 
 #+RESULTS:
 #+begin_example
-service/sidero-tftp patched
+service/sidero-http patched
 #+end_example
-
-(assign a virtual IP across the network)
 
 Check the IP address
 #+begin_src shell
@@ -592,10 +679,10 @@ kubectl -n sidero-system get svc
 
 #+RESULTS:
 #+begin_example
-NAME                                        TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)          AGE
-sidero-controller-manager-metrics-service   ClusterIP      10.101.66.253   <none>         8443/TCP         7m4s
-sidero-http                                 LoadBalancer   10.103.54.118   192.168.1.21   8081:31916/TCP   7m4s
-sidero-tftp                                 LoadBalancer   10.96.159.209   192.168.1.22   69:30513/UDP     7m3s
+NAME                                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+sidero-controller-manager-metrics-service   ClusterIP   10.96.179.223   <none>        8443/TCP   105s
+sidero-http                                 ClusterIP   10.96.42.45     172.18.0.2    8081/TCP   105s
+sidero-tftp                                 ClusterIP   10.96.188.36    <none>        69/UDP     105s
 #+end_example
 
 Expose Sidero-HTTP as a HTTPs Ingress
@@ -626,7 +713,7 @@ kubectl apply -f ./ingress-boot-ii-nz.yaml
 
 #+RESULTS:
 #+begin_example
-ingress.networking.k8s.io/boot-ii-nz configured
+ingress.networking.k8s.io/boot-ii-nz created
 #+end_example
 
 Create a PVC for the TFTP folder
@@ -639,11 +726,11 @@ kubectl -n sidero-system delete pod -l app=sidero 2> /dev/null
 
 #+RESULTS:
 #+begin_example
-persistentvolumeclaim/sidero-tftp unchanged
-deployment.apps/sidero-controller-manager patched (no change)
-pod "caps-controller-manager-5948c84db7-tfjvd" deleted
-pod "sidero-controller-manager-68cd57f8db-476rk" deleted
-pod "sidero-controller-manager-8694596b44-9sqfp" deleted
+persistentvolumeclaim/sidero-tftp created
+deployment.apps/sidero-controller-manager patched
+pod "caps-controller-manager-5948c84db7-xvsjb" deleted
+pod "sidero-controller-manager-75fddbc447-k7rvv" deleted
+pod "sidero-controller-manager-7df64648d5-zhrrh" deleted
 #+end_example
 
 Create a Pod that's also got the TFTP mount
@@ -654,7 +741,6 @@ kubectl apply -f ./sidero-controller-manager-debug.yaml
 
 #+RESULTS:
 #+begin_example
-pod "sidero-debug" deleted
 pod/sidero-debug created
 #+end_example
 
@@ -667,12 +753,12 @@ kubectl -n sidero-system exec -it sidero-debug -- ls -alh /var/lib/sidero/tftp/
 #+begin_example
 Unable to use a TTY - input is not a terminal or the right kind of file
 total 2M
-drwxrwxrwx    2 root     root          88 Jul  2 06:27 .
-drwxr-xr-x    3 root     root          18 Jul  2 06:26 ..
--rw-r--r--    1 root     root      968.6K Jul  4 22:12 ipxe-arm64.efi
--rw-r--r--    1 root     root      996.5K Jul  4 22:12 ipxe.efi
--rw-r--r--    1 root     root       81.0K Jul  4 22:12 undionly.kpxe
--rw-r--r--    1 root     root       81.0K Jul  4 22:12 undionly.kpxe.0
+drwxrwxrwx    2 root     root        4.0K Jul  6 23:53 .
+drwxr-xr-x    3 root     root        4.0K Jul  6 23:53 ..
+-rw-r--r--    1 root     root      968.6K Jul  6 23:53 ipxe-arm64.efi
+-rw-r--r--    1 root     root      996.5K Jul  6 23:53 ipxe.efi
+-rw-r--r--    1 root     root       81.0K Jul  6 23:53 undionly.kpxe
+-rw-r--r--    1 root     root       81.0K Jul  6 23:53 undionly.kpxe.0
 #+end_example
 
 Copy assets in-place
@@ -685,6 +771,21 @@ kubectl -n sidero-system cp sidero-debug:/var/lib/sidero /tmp/
 Logs
 #+begin_src tmate :window sidero
 kubectl -n sidero-system logs -l app=sidero -f
+#+end_src
+
+Scale to zero
+#+begin_src shell
+kubectl -n sidero-system scale deployment sidero-controller-manager --replicas=0
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/sidero-controller-manager scaled
+#+end_example
+
+Scale to one
+#+begin_src shell
+kubectl -n sidero-system scale deployment sidero-controller-manager --replicas=1
 #+end_src
 
 *** Remove
@@ -708,7 +809,7 @@ Configure dnsmasq
 #  http://oss.segetech.com/intra/srv/dnsmasq.conf
 
 port=0
-dhcp-range=192.168.1.0,proxy
+dhcp-range=${DHCP_RANGE},proxy
 pxe-service=0,"Raspberry Pi Boot"
 pxe-prompt="PXE booting Talos from Sidero in",0
 dhcp-boot=ipxe-arm64.efi,sidero
@@ -722,7 +823,7 @@ tftp-root=/var/lib/sidero/tftp
 Configure the container
 #+begin_src dockerfile :tangle ./dnsmasq/Dockerfile :comments none
 FROM alpine:3.12 AS final
-RUN apk add --no-cache tcpdump curl dnsmasq-dnssec
+RUN apk add --no-cache tcpdump curl dnsmasq-dnssec gettext bash
 # TODO run as non-root
 RUN mkdir -p /etc/default/ && \
   echo -e "ENABLED=1\nIGNORE_RESOLVCONF=yes" > /etc/default/dnsmasq
@@ -780,9 +881,14 @@ spec:
             mountPath: /etc/dnsmasq
           - name: tftp-folder
             mountPath: /var/lib/sidero/tftp
-        args:
-          - -C
-          - /etc/dnsmasq/dnsmasq.conf
+        env:
+          - name: DHCP_RANGE
+            value: "${DHCP_RANGE}"
+        command:
+          - bash
+          - -x
+          - -c
+          - dnsmasq --no-daemon -C <(envsubst < /etc/dnsmasq/dnsmasq.conf)
         securityContext:
           capabilities:
             add:
@@ -809,6 +915,7 @@ spec:
 #+end_src
 
 *** Build
+**** Build for the target architecture
 #+begin_src tmate :window dnsmasq
 kubectl build \
     --destination registry.gitlab.com/ii/nz/dnsmasq:latest \
@@ -817,12 +924,39 @@ kubectl build \
     --dockerfile ./dnsmasq/Dockerfile
 #+end_src
 
+**** Build for /amd64/ and /arm64/
+Prepare (1/2): prepare binfmt files
+#+begin_src tmate :window dnsmasq
+docker run --privileged --rm tonistiigi/binfmt --install all
+#+end_src
+
+Prepare (2/2): create a builder
+#+begin_src tmate :window dnsmasq
+docker buildx create --use
+#+end_src
+
+Build
+#+begin_src tmate :window dnsmasq
+docker buildx build \
+    --platform linux/arm64/v8,linux/amd64 \
+    --push \
+    --tag registry.gitlab.com/ii/nz/dnsmasq:latest \
+    --file ./dnsmasq/Dockerfile \
+    ./dnsmasq/
+#+end_src
+(dependencies: docker-ce=>20.10.6, docker-buildx=>0.3.1, qemu-user-static, binfmt-support)
+
 *** Install
 #+begin_src shell
 kubectl -n dnsmasq create configmap dnsmasq-config --from-file=dnsmasq/dnsmasq.conf --dry-run=client -o yaml | \
     kubectl apply -f -
 export DNSMASQ_CONF_HASH="$(sha256sum ./dnsmasq/dnsmasq.conf | awk '{print $1}')"
 export DOCKERFILE_HASH="$(sha256sum ./dnsmasq/Dockerfile | awk '{print $1}')"
+# if [ "$(kubectl config current-context)" = "kind-kind" ]; then
+#     DHCP_RANGE="$(docker network inspect -f '{{json .IPAM.Config}}' kind | jq -r .[0].Subnet | cut -d / -f1)"
+# fi
+export DHCP_RANGE="${DHCP_RANGE:-192.168.1.0}"
+echo "DHCP_RANGE: ${DHCP_RANGE}"
 kubectl apply -f ./dnsmasq/dnsmasq-pvc.yaml
 envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 #+end_src
@@ -830,8 +964,9 @@ envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 #+RESULTS:
 #+begin_example
 configmap/dnsmasq-config configured
+DHCP_RANGE: 192.168.1.0
 persistentvolumeclaim/dnsmasq-tftp unchanged
-deployment.apps/dnsmasq unchanged
+deployment.apps/dnsmasq configured
 #+end_example
 
 *** Validate
@@ -841,9 +976,12 @@ kubectl -n dnsmasq logs -l app=dnsmasq --prefix -f
 #+end_src
 
 #+begin_src tmate :window prepare
+PORTS=(67 69)
 for IP in ${NODE_ADDRS[*]}; do
-    echo "Checking ${IP}:67"
-    nc -zvu "${IP}" "67"
+    for PORT in ${PORTS[*]}; do
+        echo "Checking ${IP}:${PORT}"
+        nc -zvu "${IP}" "${PORT}" || "  port '${PORT}' inaccessible"
+    done
 done
 #+end_src
 
@@ -902,7 +1040,6 @@ ip a
 
 We'll use eth0, since that's the host network for the Pi
 
-*** More
 Scale to zero
 #+begin_src shell
 kubectl -n dnsmasq scale deployment dnsmasq --replicas=0
@@ -958,7 +1095,7 @@ for _SERIAL in servers/*; do
 done
 #+end_src
 
-*** HOLD Copy TFTP contents to dnsmasq
+*** Copy TFTP contents to dnsmasq
 
 Copy TFTP folder from sidero-controller-manager into dnsmasq's TFTP folder
 #+begin_src shell
@@ -979,29 +1116,35 @@ kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tft
 Copying local contents to dnsmasq
 Unable to use a TTY - input is not a terminal or the right kind of file
 total 6M
-drwxrwxrwx   11 root     root        4.0K Jul  6 02:53 .
-drwxr-xr-x    3 root     root          18 Jul  6 01:33 ..
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 2bbd241a
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 2cb186c5
--rw-r--r--    1 1000     1000        1.9M Jul  6 02:53 RPI_EFI.fd
--rw-r--r--    1 1000     1000        5.3K Jul  6 02:53 Readme.md
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 bc3ebf28
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 bc3ef28
--rw-r--r--    1 1000     1000       48.1K Jul  6 02:53 bcm2711-rpi-4-b.dtb
--rw-r--r--    1 1000     1000       48.1K Jul  6 02:53 bcm2711-rpi-400.dtb
--rw-r--r--    1 1000     1000       48.7K Jul  6 02:53 bcm2711-rpi-cm4.dtb
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 c3052218
--rw-r--r--    1 1000     1000         206 Jul  6 02:53 config.txt
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 dd24784d
-drwxr-xr-x    2 root     root         175 Jul  6 02:54 ebc28a3f
-drwxr-xr-x    3 root     root          55 Jul  6 02:53 firmware
--rw-r--r--    1 1000     1000        5.3K Jul  6 02:53 fixup4.dat
--rw-r--r--    1 1000     1000      968.6K Jul  5 04:04 ipxe-arm64.efi
--rw-r--r--    1 1000     1000      996.5K Jul  5 04:04 ipxe.efi
-drwxr-xr-x    2 root     root          30 Jul  6 02:53 overlays
--rw-r--r--    1 1000     1000        2.1M Jul  6 02:54 start4.elf
--rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe
--rw-r--r--    1 1000     1000       81.0K Jul  5 04:04 undionly.kpxe.0
+drwxrwxrwx   17 root     root        4.0K Jul  7 01:40 .
+drwxr-xr-x    3 root     root        4.0K Jul  7 01:40 ..
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 136c6fe1
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 1f8570e2
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 2bbd241a
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 2cb186c5
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 407d7434
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 4b1fcf44
+-rw-r--r--    1 1000     1000        1.9M Jul  7 01:40 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jul  7 01:40 Readme.md
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bc3ebf28
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bc3ef28
+-rw-r--r--    1 1000     1000       48.1K Jul  7 01:40 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jul  7 01:40 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jul  7 01:40 bcm2711-rpi-cm4.dtb
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bf267951
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 c3052218
+-rw-r--r--    1 1000     1000         206 Jul  7 01:40 config.txt
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 d997b14e
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 dd24784d
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 ebc28a3f
+drwxr-xr-x    3 root     root        4.0K Jul  7 01:40 firmware
+-rw-r--r--    1 1000     1000        5.3K Jul  7 01:40 fixup4.dat
+-rw-r--r--    1 1000     1000      968.6K Jul  7 01:40 ipxe-arm64.efi
+-rw-r--r--    1 1000     1000      996.5K Jul  7 01:40 ipxe.efi
+drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 overlays
+-rw-r--r--    1 1000     1000        2.1M Jul  7 01:40 start4.elf
+-rw-r--r--    1 1000     1000       81.0K Jul  7 01:40 undionly.kpxe
+-rw-r--r--    1 1000     1000       81.0K Jul  7 01:40 undionly.kpxe.0
 #+end_example
 
 * Preparing RPis for network booting
