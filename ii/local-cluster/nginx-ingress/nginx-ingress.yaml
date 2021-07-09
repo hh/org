@@ -11,23 +11,19 @@ spec:
     version: 3.30.0
   values:
     controller:
-      autoscaling:
-        enabled: true
-        minReplicas: 3
-        maxReplicas: 10
-        targetCPUUtilizationPercentage: 80
-      service:
-        type: LoadBalancer
-        externalTrafficPolicy: Local
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
                 matchExpressions:
                   - key: app.kubernetes.io/name
                     operator: In
                     values:
                       - ingress-nginx
               topologyKey: "kubernetes.io/hostname"
+      service:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
     defaultBackend:
       enabled: false

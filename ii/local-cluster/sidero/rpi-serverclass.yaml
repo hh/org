@@ -6,14 +6,14 @@ spec:
   environmentRef:
     name: raspberrypi4-servers
   configPatches:
-    - op: add
-      path: /cluster/allowSchedulingOnMasters
-      value: true
+    # - op: add
+    #   path: /cluster/allowSchedulingOnMasters
+    #   value: true
     - op: replace
       path: /machine/install
       value:
         disk: /dev/mmcblk1
-        image: ghcr.io/talos-systems/installer:v0.10.3
+        image: ghcr.io/talos-systems/installer:v0.11.0
         bootloader: true
         wipe: false
         force: false

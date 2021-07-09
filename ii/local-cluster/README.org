@@ -20,7 +20,7 @@ Download the Talos image to flash to a MicroSD card from GitHub
 #+begin_src tmate :window prepare
 cd $(mktemp -d)
 curl -O -L \
-  https://github.com/talos-systems/talos/releases/download/v0.10.3/metal-rpi_4-arm64.img.xz
+  https://github.com/talos-systems/talos/releases/download/v0.10.4/metal-rpi_4-arm64.img.xz
 export TALOS_METAL_RPI_IMG=${PWD}/*
 #+end_src
 
@@ -43,7 +43,8 @@ export DISK_TO_USE_DEFAULT=/dev/sdb && \
 To manage Talos on each node, =talosctl= is used to provision and manage
 #+begin_src tmate :window prepare
 curl -o ~/bin/talosctl -L \
-  https://github.com/talos-systems/talos/releases/download/v0.10.3/talosctl-$(uname | tr '[:upper:]' '[:lower:]')-amd64
+  https://github.com/talos-systems/talos/releases/download/v0.11.0/talosctl-$(uname | tr '[:upper:]' '[:lower:]')-amd64
+chmod +x ~/bin/talosctl
 #+end_src
 
 * Set up
@@ -467,16 +468,16 @@ kubectl -n helm-operator apply -f ./helm-operator/helm-operator.yaml
 #+RESULTS:
 #+begin_example
 Warning: apiextensions.k8s.io/v1beta1 CustomResourceDefinition is deprecated in v1.16+, unavailable in v1.22+; use apiextensions.k8s.io/v1 CustomResourceDefinition
-customresourcedefinition.apiextensions.k8s.io/helmreleases.helm.fluxcd.io created
-serviceaccount/helm-operator created
-secret/helm-operator-git-deploy created
-configmap/helm-operator-kube-config created
+customresourcedefinition.apiextensions.k8s.io/helmreleases.helm.fluxcd.io configured
+serviceaccount/helm-operator unchanged
+secret/helm-operator-git-deploy unchanged
+configmap/helm-operator-kube-config unchanged
 Warning: rbac.authorization.k8s.io/v1beta1 ClusterRole is deprecated in v1.17+, unavailable in v1.22+; use rbac.authorization.k8s.io/v1 ClusterRole
-clusterrole.rbac.authorization.k8s.io/helm-operator created
+clusterrole.rbac.authorization.k8s.io/helm-operator unchanged
 Warning: rbac.authorization.k8s.io/v1beta1 ClusterRoleBinding is deprecated in v1.17+, unavailable in v1.22+; use rbac.authorization.k8s.io/v1 ClusterRoleBinding
-clusterrolebinding.rbac.authorization.k8s.io/helm-operator created
-service/helm-operator created
-deployment.apps/helm-operator created
+clusterrolebinding.rbac.authorization.k8s.io/helm-operator unchanged
+service/helm-operator unchanged
+deployment.apps/helm-operator configured
 #+end_example
 
 ** nginx-ingress controller
@@ -506,24 +507,20 @@ spec:
     version: 3.30.0
   values:
     controller:
-      autoscaling:
-        enabled: true
-        minReplicas: 3
-        maxReplicas: 10
-        targetCPUUtilizationPercentage: 80
-      service:
-        type: LoadBalancer
-        externalTrafficPolicy: Local
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
                 matchExpressions:
                   - key: app.kubernetes.io/name
                     operator: In
                     values:
                       - ingress-nginx
               topologyKey: "kubernetes.io/hostname"
+      service:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
     defaultBackend:
       enabled: false
 #+end_src
@@ -642,7 +639,7 @@ spec:
 #+begin_src tmate :window prepare
 export SIDERO_METADATA_SERVER_HOST_NETWORK=true \
   SIDERO_METADATA_SERVER_PORT=9091 \
-  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT="${HOST_IP:-192.168.1.20}" \
+  SIDERO_CONTROLLER_MANAGER_API_ENDPOINT="${HOST_IP:-192.168.1.21}" \
   SIDERO_CONTROLLER_MANAGER_AUTO_ACCEPT_SERVERS=true \
   SIDERO_CONTROLLER_MANAGER_HOST_NETWORK=false \
   SIDERO_CONTROLLER_MANAGER_BOOT_FROM_DISK_METHOD=http-404
@@ -679,10 +676,10 @@ kubectl -n sidero-system get svc
 
 #+RESULTS:
 #+begin_example
-NAME                                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-sidero-controller-manager-metrics-service   ClusterIP   10.96.179.223   <none>        8443/TCP   105s
-sidero-http                                 ClusterIP   10.96.42.45     172.18.0.2    8081/TCP   105s
-sidero-tftp                                 ClusterIP   10.96.188.36    <none>        69/UDP     105s
+NAME                                        TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)          AGE
+sidero-controller-manager-metrics-service   ClusterIP      10.100.182.164   <none>         8443/TCP         77s
+sidero-http                                 LoadBalancer   10.105.234.143   192.168.1.21   8081:30367/TCP   77s
+sidero-tftp                                 ClusterIP      10.100.74.148    <none>         69/UDP           77s
 #+end_example
 
 Expose Sidero-HTTP as a HTTPs Ingress
@@ -728,9 +725,9 @@ kubectl -n sidero-system delete pod -l app=sidero 2> /dev/null
 #+begin_example
 persistentvolumeclaim/sidero-tftp created
 deployment.apps/sidero-controller-manager patched
-pod "caps-controller-manager-5948c84db7-xvsjb" deleted
-pod "sidero-controller-manager-75fddbc447-k7rvv" deleted
-pod "sidero-controller-manager-7df64648d5-zhrrh" deleted
+pod "caps-controller-manager-5948c84db7-vbwhm" deleted
+pod "sidero-controller-manager-565796bc46-9xzhx" deleted
+pod "sidero-controller-manager-76c76bdc8d-s2f7q" deleted
 #+end_example
 
 Create a Pod that's also got the TFTP mount
@@ -753,12 +750,12 @@ kubectl -n sidero-system exec -it sidero-debug -- ls -alh /var/lib/sidero/tftp/
 #+begin_example
 Unable to use a TTY - input is not a terminal or the right kind of file
 total 2M
-drwxrwxrwx    2 root     root        4.0K Jul  6 23:53 .
-drwxr-xr-x    3 root     root        4.0K Jul  6 23:53 ..
--rw-r--r--    1 root     root      968.6K Jul  6 23:53 ipxe-arm64.efi
--rw-r--r--    1 root     root      996.5K Jul  6 23:53 ipxe.efi
--rw-r--r--    1 root     root       81.0K Jul  6 23:53 undionly.kpxe
--rw-r--r--    1 root     root       81.0K Jul  6 23:53 undionly.kpxe.0
+drwxrwxrwx    2 root     root           6 Jul  8 20:49 .
+drwxr-xr-x    3 root     root           3 Jul  8 20:49 ..
+-rw-r--r--    1 root     root      968.6K Jul  8 20:49 ipxe-arm64.efi
+-rw-r--r--    1 root     root      996.5K Jul  8 20:49 ipxe.efi
+-rw-r--r--    1 root     root       81.0K Jul  8 20:49 undionly.kpxe
+-rw-r--r--    1 root     root       81.0K Jul  8 20:49 undionly.kpxe.0
 #+end_example
 
 Copy assets in-place
@@ -952,9 +949,9 @@ kubectl -n dnsmasq create configmap dnsmasq-config --from-file=dnsmasq/dnsmasq.c
     kubectl apply -f -
 export DNSMASQ_CONF_HASH="$(sha256sum ./dnsmasq/dnsmasq.conf | awk '{print $1}')"
 export DOCKERFILE_HASH="$(sha256sum ./dnsmasq/Dockerfile | awk '{print $1}')"
-# if [ "$(kubectl config current-context)" = "kind-kind" ]; then
-#     DHCP_RANGE="$(docker network inspect -f '{{json .IPAM.Config}}' kind | jq -r .[0].Subnet | cut -d / -f1)"
-# fi
+if [ "$(kubectl config current-context)" = "kind-kind" ]; then
+    DHCP_RANGE="$(docker network inspect -f '{{json .IPAM.Config}}' kind | jq -r .[0].Subnet | cut -d / -f1)"
+fi
 export DHCP_RANGE="${DHCP_RANGE:-192.168.1.0}"
 echo "DHCP_RANGE: ${DHCP_RANGE}"
 kubectl apply -f ./dnsmasq/dnsmasq-pvc.yaml
@@ -966,7 +963,7 @@ envsubst < ./dnsmasq/dnsmasq.yaml | kubectl apply -f -
 configmap/dnsmasq-config configured
 DHCP_RANGE: 192.168.1.0
 persistentvolumeclaim/dnsmasq-tftp unchanged
-deployment.apps/dnsmasq configured
+deployment.apps/dnsmasq unchanged
 #+end_example
 
 *** Validate
@@ -1080,6 +1077,7 @@ done
 VERSION=v1.28
 ASSET=RPi4_UEFI_Firmware_${VERSION}.zip
 EXTRACTED_DIR=/tmp/tftp
+rm -rf "${EXTRACTED_DIR}"
 if [ ! -f "${HOME}/Downloads/${ASSET}" ]; then
     curl -o ${HOME}/Downloads/${ASSET} -L https://github.com/pftf/RPi4/releases/download/${VERSION}/${ASSET}
 fi
@@ -1093,6 +1091,7 @@ for _SERIAL in servers/*; do
     cp -f "${_SERIAL}/RPI_EFI.fd" "${EXTRACTED_DIR}/${SERIAL}/"
     cp -a tftp-root/SERIAL/* /tmp/tftp/${SERIAL}/
 done
+ls -alhR /tmp/tftp
 #+end_src
 
 *** Copy TFTP contents to dnsmasq
@@ -1107,6 +1106,7 @@ Copy TFTP folder from sidero-controller-manager into dnsmasq's TFTP folder
 
 echo "Copying local contents to dnsmasq"
 DNSMASQ_POD_NAME="$(kubectl -n dnsmasq get pods -l app=dnsmasq -o=jsonpath='{.items[0].metadata.name}')"
+kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- rm -rf /var/lib/sidero/tftp/*
 kubectl -n dnsmasq cp "/tmp/tftp" "${DNSMASQ_POD_NAME}":/var/lib/sidero/
 kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tftp
 #+end_src
@@ -1115,36 +1115,37 @@ kubectl -n dnsmasq exec -it "${DNSMASQ_POD_NAME}" -- ls -alh /var/lib/sidero/tft
 #+begin_example
 Copying local contents to dnsmasq
 Unable to use a TTY - input is not a terminal or the right kind of file
-total 6M
-drwxrwxrwx   17 root     root        4.0K Jul  7 01:40 .
-drwxr-xr-x    3 root     root        4.0K Jul  7 01:40 ..
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 136c6fe1
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 1f8570e2
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 2bbd241a
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 2cb186c5
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 407d7434
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 4b1fcf44
--rw-r--r--    1 1000     1000        1.9M Jul  7 01:40 RPI_EFI.fd
--rw-r--r--    1 1000     1000        5.3K Jul  7 01:40 Readme.md
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bc3ebf28
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bc3ef28
--rw-r--r--    1 1000     1000       48.1K Jul  7 01:40 bcm2711-rpi-4-b.dtb
--rw-r--r--    1 1000     1000       48.1K Jul  7 01:40 bcm2711-rpi-400.dtb
--rw-r--r--    1 1000     1000       48.7K Jul  7 01:40 bcm2711-rpi-cm4.dtb
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 bf267951
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 c3052218
--rw-r--r--    1 1000     1000         206 Jul  7 01:40 config.txt
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 d997b14e
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 dd24784d
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 ebc28a3f
-drwxr-xr-x    3 root     root        4.0K Jul  7 01:40 firmware
--rw-r--r--    1 1000     1000        5.3K Jul  7 01:40 fixup4.dat
--rw-r--r--    1 1000     1000      968.6K Jul  7 01:40 ipxe-arm64.efi
--rw-r--r--    1 1000     1000      996.5K Jul  7 01:40 ipxe.efi
-drwxr-xr-x    2 root     root        4.0K Jul  7 01:40 overlays
--rw-r--r--    1 1000     1000        2.1M Jul  7 01:40 start4.elf
--rw-r--r--    1 1000     1000       81.0K Jul  7 01:40 undionly.kpxe
--rw-r--r--    1 1000     1000       81.0K Jul  7 01:40 undionly.kpxe.0
+Unable to use a TTY - input is not a terminal or the right kind of file
+total 2M
+drwxrwxrwx   17 root     root          29 Jul  9 04:26 .
+drwxr-xr-x    3 root     root           3 Jul  8 20:50 ..
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 136c6fe1
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 1f8570e2
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 2bbd241a
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 2cb186c5
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 407d7434
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 4b1fcf44
+-rw-r--r--    1 1000     1000        1.9M Jul  9 04:26 RPI_EFI.fd
+-rw-r--r--    1 1000     1000        5.3K Jul  9 04:26 Readme.md
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 bc3ebf28
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 bc3ef28
+-rw-r--r--    1 1000     1000       48.1K Jul  9 04:26 bcm2711-rpi-4-b.dtb
+-rw-r--r--    1 1000     1000       48.1K Jul  9 04:26 bcm2711-rpi-400.dtb
+-rw-r--r--    1 1000     1000       48.7K Jul  9 04:26 bcm2711-rpi-cm4.dtb
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 bf267951
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 c3052218
+-rw-r--r--    1 1000     1000         206 Jul  9 04:26 config.txt
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 d997b14e
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 dd24784d
+drwxr-xr-x    2 root     root          11 Jul  9 04:26 ebc28a3f
+drwxr-xr-x    3 root     root           5 Jul  9 04:26 firmware
+-rw-r--r--    1 1000     1000        5.3K Jul  9 04:26 fixup4.dat
+-rw-rw-r--    1 1000     1000      968.6K Jul  8 23:19 ipxe-arm64.efi
+-rw-rw-r--    1 1000     1000      996.5K Jul  8 23:19 ipxe.efi
+drwxr-xr-x    2 root     root           3 Jul  9 04:26 overlays
+-rw-r--r--    1 1000     1000        2.1M Jul  9 04:26 start4.elf
+-rw-rw-r--    1 1000     1000       81.0K Jul  8 23:19 undionly.kpxe
+-rw-rw-r--    1 1000     1000       81.0K Jul  8 23:19 undionly.kpxe.0
 #+end_example
 
 * Preparing RPis for network booting
@@ -1317,7 +1318,7 @@ metadata:
   name: raspberrypi4-servers
 spec:
   initrd:
-    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz
+    url: https://github.com/talos-systems/talos/releases/download/v0.11.0/initramfs-arm64.xz
   kernel:
     args:
     - console=tty0
@@ -1336,7 +1337,7 @@ spec:
     - slab_nomerge=
     - talos.config=http://192.168.1.21:8081/configdata?uuid=${uuid}
     - talos.platform=metal
-    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64
+    url: https://github.com/talos-systems/talos/releases/download/v0.11.0/vmlinuz-arm64
 #+end_src
 
 Declare the ServerClass to use for RPis
@@ -1349,14 +1350,14 @@ spec:
   environmentRef:
     name: raspberrypi4-servers
   configPatches:
-    - op: add
-      path: /cluster/allowSchedulingOnMasters
-      value: true
+    # - op: add
+    #   path: /cluster/allowSchedulingOnMasters
+    #   value: true
     - op: replace
       path: /machine/install
       value:
         disk: /dev/mmcblk1
-        image: ghcr.io/talos-systems/installer:v0.10.3
+        image: ghcr.io/talos-systems/installer:v0.11.0
         bootloader: true
         wipe: false
         force: false
@@ -1387,9 +1388,11 @@ export \
     CONTROL_PLANE_ENDPOINT=192.168.1.31 \
     CONTROL_PLANE_PORT=6443 \
     CONTROL_PLANE_SERVERCLASS=raspberrypi4-servers \
-    KUBERNETES_VERSION=v1.20.1 \
-    TALOS_VERSION=v1.10.3 \
-    WORKER_SERVERCLASS=raspberrypi4-server
+    KUBERNETES_VERSION=v1.21.2 \
+    TALOS_VERSION=v1.11.0 \
+    WORKER_SERVERCLASS=raspberrypi4-servers \
+    WORKER_MACHINE_COUNT=5 \
+    CONTROL_PLANE_MACHINE_COUNT=1
 clusterctl config cluster -n local-clusters local-cluster-mgmt --from ./sidero/local-cluster-rpi-template.yaml > ./sidero/local-clusters/local-cluster-mgmt.yaml
 #+end_src
 
@@ -1417,23 +1420,81 @@ kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' 
 
 #+RESULTS:
 #+begin_example
+NAMESPACE        NAME                                                                      AGE
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-cp-pxtxg        94m
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers-hk9q5   94m
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers-hlttg   94m
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers-m7snc   14m
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers-nd65c   94m
+local-clusters   talosconfig.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers-qmsxw   94m
+
+NAMESPACE        NAME                                                                        AGE
+local-clusters   talosconfigtemplate.bootstrap.cluster.x-k8s.io/local-cluster-mgmt-workers   94m
+
+NAMESPACE        NAME                                          PHASE
+local-clusters   cluster.cluster.x-k8s.io/local-cluster-mgmt   Provisioned
+
+NAMESPACE        NAME                                                            PHASE     REPLICAS   READY   UPDATED   UNAVAILABLE
+local-clusters   machinedeployment.cluster.x-k8s.io/local-cluster-mgmt-workers   Running   5          5       5
+
+NAMESPACE        NAME                                                                   PROVIDERID                                      PHASE     VERSION
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-cp-l5bnd                   sidero://00c03111-0000-0000-0000-dca63203f4f8   Running   v1.21.2
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd-2hdrs   sidero://00c03111-0000-0000-0000-dca632487ab4   Running   v1.21.2
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd-67kxr   sidero://00c03112-0000-0000-0000-dca6327dcbba   Running   v1.21.2
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd-p6zrd   sidero://00c03111-0000-0000-0000-dca63203f59a   Running   v1.21.2
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd-pljkq   sidero://00c03111-0000-0000-0000-dca6321c2b8a   Running   v1.21.2
+local-clusters   machine.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd-wn7bv   sidero://00c03111-0000-0000-0000-dca6321c36d1   Running   v1.21.2
+
+NAMESPACE        NAME                                                                REPLICAS   AVAILABLE   READY
+local-clusters   machineset.cluster.x-k8s.io/local-cluster-mgmt-workers-647744d6cd   5          5           5
+
 NAMESPACE       NAME                                                         TYPE                     PROVIDER      VERSION   WATCH NAMESPACE
 cabpt-system    provider.clusterctl.cluster.x-k8s.io/bootstrap-talos         BootstrapProvider        talos         v0.2.0
 cacppt-system   provider.clusterctl.cluster.x-k8s.io/control-plane-talos     ControlPlaneProvider     talos         v0.1.0
 capi-system     provider.clusterctl.cluster.x-k8s.io/cluster-api             CoreProvider             cluster-api   v0.3.20
 sidero-system   provider.clusterctl.cluster.x-k8s.io/infrastructure-sidero   InfrastructureProvider   sidero        v0.3.0
 
+NAMESPACE        NAME                                                                    READY   INITIALIZED   REPLICAS   READY REPLICAS   UNAVAILABLE REPLICAS
+local-clusters   taloscontrolplane.controlplane.cluster.x-k8s.io/local-cluster-mgmt-cp   true    true          1          1
+
+NAMESPACE        NAME                                                              CLUSTER              READY
+local-clusters   metalcluster.infrastructure.cluster.x-k8s.io/local-cluster-mgmt   local-cluster-mgmt   true
+
+NAMESPACE        NAME                                                                            READY
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp-sdpgq        true
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers-7lg59   true
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers-jwnz9   true
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers-lt82n   true
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers-nx7pg   true
+local-clusters   metalmachine.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers-qmnhp   true
+
+NAMESPACE        NAME                                                                              AGE
+local-clusters   metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-cp        94m
+local-clusters   metalmachinetemplate.infrastructure.cluster.x-k8s.io/local-cluster-mgmt-workers   94m
+
+NAMESPACE   NAME                                                                                 READY
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca63203f4f8   true
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca63203f59a   true
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca6321c2b8a   true
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca6321c36d1   true
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03111-0000-0000-0000-dca632487ab4   true
+            serverbinding.infrastructure.cluster.x-k8s.io/00c03112-0000-0000-0000-dca6327dcbba   true
+
 NAMESPACE   NAME                                                KERNEL                                                                           INITRD                                                                                READY
             environment.metal.sidero.dev/default                https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-amd64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-amd64.xz   True
-            environment.metal.sidero.dev/raspberrypi4-servers   https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64   https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz   True
+            environment.metal.sidero.dev/raspberrypi4-servers   https://github.com/talos-systems/talos/releases/download/v0.11.0/vmlinuz-arm64   https://github.com/talos-systems/talos/releases/download/v0.11.0/initramfs-arm64.xz   True
 
-NAMESPACE   NAME                                                AVAILABLE                                                                         IN USE
-            serverclass.metal.sidero.dev/any                    ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
-            serverclass.metal.sidero.dev/raspberrypi4-servers   ["00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca632487ab4"]   []
+NAMESPACE   NAME                                                AVAILABLE   IN USE
+            serverclass.metal.sidero.dev/any                    []          ["00c03111-0000-0000-0000-dca63203f4f8","00c03111-0000-0000-0000-dca63203f59a","00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca6321c36d1","00c03111-0000-0000-0000-dca632487ab4","00c03112-0000-0000-0000-dca6327dcbba"]
+            serverclass.metal.sidero.dev/raspberrypi4-servers   []          ["00c03111-0000-0000-0000-dca63203f4f8","00c03111-0000-0000-0000-dca63203f59a","00c03111-0000-0000-0000-dca6321c2b8a","00c03111-0000-0000-0000-dca6321c36d1","00c03111-0000-0000-0000-dca632487ab4","00c03112-0000-0000-0000-dca6327dcbba"]
 
 NAMESPACE   NAME                                                           HOSTNAME   ACCEPTED   ALLOCATED   CLEAN   POWER
-            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true       false       false   on
-            server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       false       true    on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f4f8   Pi0        true       true        false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca63203f59a   Pi7        true       true        false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c2b8a   Pi4        true       true        false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca6321c36d1   Pi2        true       true        false   on
+            server.metal.sidero.dev/00c03111-0000-0000-0000-dca632487ab4   Pi5        true       true        false   on
+            server.metal.sidero.dev/00c03112-0000-0000-0000-dca6327dcbba   Pi1        true       true        false   on
 #+end_example
 
 *** Deleting the cluster
@@ -1447,6 +1508,22 @@ METALMACHINES="$(kubectl -n ${NAMESPACE} get metalmachines -l cluster.x-k8s.io/c
 kubectl -n "${NAMESPACE}" delete ${METALMACHINES} ${SERVER} ${MACHINES}
 #+end_src
 
+#+RESULTS:
+#+begin_example
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-cp-4tfx9" deleted
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers-bmj8c" deleted
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers-hp7jd" deleted
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers-hxg7f" deleted
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers-vdglk" deleted
+metalmachine.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers-xz9cc" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-cp-k6rvc" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-workers-6f4b4cbf84-7vhfs" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-workers-6f4b4cbf84-fg7pf" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-workers-6f4b4cbf84-gtcc5" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-workers-6f4b4cbf84-px7bz" deleted
+machine.cluster.x-k8s.io "local-cluster-mgmt-workers-6f4b4cbf84-tjct4" deleted
+#+end_example
+
 (optional) Remove servers with no status
 #+begin_src shell
 kubectl delete server $(kubectl -n local-clusters get server -o=json | jq -r '.items[] | select(.status==null) | .metadata.name')
@@ -1454,7 +1531,7 @@ kubectl delete server $(kubectl -n local-clusters get server -o=json | jq -r '.i
 
 #+RESULTS:
 #+begin_example
-server.metal.sidero.dev "00c03111-0000-0000-0000-dca63203f59a" deleted
+kubectl delete server
 #+end_example
 
 Remove the cluster
@@ -1464,23 +1541,68 @@ kubectl delete -f ./sidero/local-clusters/local-cluster-mgmt.yaml
 
 #+RESULTS:
 #+begin_example
-cluster.cluster.x-k8s.io "local-cluster-mgmt" deleted
-metalcluster.infrastructure.cluster.x-k8s.io "local-cluster-mgmt" deleted
-metalmachinetemplate.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-cp" deleted
-taloscontrolplane.controlplane.cluster.x-k8s.io "local-cluster-mgmt-cp" deleted
-talosconfigtemplate.bootstrap.cluster.x-k8s.io "local-cluster-mgmt-workers" deleted
-metalmachinetemplate.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers" deleted
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": clusters.cluster.x-k8s.io "local-cluster-mgmt" not found
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalclusters.infrastructure.cluster.x-k8s.io "local-cluster-mgmt" not found
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalmachinetemplates.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-cp" not found
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": taloscontrolplanes.controlplane.cluster.x-k8s.io "local-cluster-mgmt-cp" not found
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": talosconfigtemplates.bootstrap.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
 Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": machinedeployments.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
+Error from server (NotFound): error when deleting "./sidero/local-clusters/local-cluster-mgmt.yaml": metalmachinetemplates.infrastructure.cluster.x-k8s.io "local-cluster-mgmt-workers" not found
 #+end_example
 
 ** Get TalosConfig
 #+begin_src tmate :window mgm-cluster
-export TALOSCONFIG=$(mktemp /tmp/tmp.XXXXX)
+export TALOSCONFIG=/tmp/local-cluster-mgmt-talosconfig
 kubectl -n local-clusters get talosconfig -l cluster.x-k8s.io/cluster-name=local-cluster-mgmt -o=jsonpath='{.items[0].status.talosConfig}' > "${TALOSCONFIG}"
 #+end_src
 
 ** Get KubeConfig
 #+begin_src tmate :window mgm-cluster
-export KUBECONFIG=$(mktemp /tmp/tmp.XXXXX)
+export KUBECONFIG=/tmp/local-cluster-mgmt-kubeconfig
 talosctl --talosconfig "${TALOSCONFIG}" -e 192.168.1.31 -n 192.168.1.31 kubeconfig "${KUBECONFIG}"
 #+end_src
+
+** Check health of Nodes
+#+begin_src shell :wrap "SRC text"
+export KUBECONFIG=/tmp/local-cluster-mgmt-kubeconfig
+kubectl get nodes
+#+end_src
+
+#+RESULTS:
+#+begin_SRC text
+NAME   STATUS   ROLES    AGE     VERSION
+pi0    Ready    <none>   82m     v1.21.2
+pi1    Ready    <none>   82m     v1.21.2
+pi2    Ready    <none>   82m     v1.21.2
+pi4    Ready    <none>   5m12s   v1.21.2
+pi5    Ready    <none>   5m36s   v1.21.2
+pi7    Ready    <none>   82m     v1.21.2
+#+end_SRC
+
+** Fetch a list of all of the Pods
+#+begin_src shell :wrap "SRC text"
+export KUBECONFIG=/tmp/local-cluster-mgmt-kubeconfig
+kubectl get pods -A
+#+end_src
+
+#+RESULTS:
+#+begin_SRC text
+NAMESPACE     NAME                          READY   STATUS    RESTARTS   AGE
+kube-system   coredns-6ff77786fb-cdr8s      1/1     Running   5          83m
+kube-system   coredns-6ff77786fb-jx4t2      1/1     Running   5          83m
+kube-system   kube-apiserver-pi0            1/1     Running   4          81m
+kube-system   kube-controller-manager-pi0   1/1     Running   11         82m
+kube-system   kube-flannel-c4l95            1/1     Running   5          82m
+kube-system   kube-flannel-hrflr            1/1     Running   10         82m
+kube-system   kube-flannel-mqvq2            1/1     Running   10         82m
+kube-system   kube-flannel-n47hn            1/1     Running   0          5m45s
+kube-system   kube-flannel-x6b65            1/1     Running   4          82m
+kube-system   kube-flannel-zqz22            1/1     Running   0          6m9s
+kube-system   kube-proxy-br6pp              1/1     Running   5          82m
+kube-system   kube-proxy-fdmlg              1/1     Running   0          6m9s
+kube-system   kube-proxy-jxqmm              1/1     Running   5          82m
+kube-system   kube-proxy-khmbb              1/1     Running   4          82m
+kube-system   kube-proxy-mrhnb              1/1     Running   0          5m45s
+kube-system   kube-proxy-nlz8k              1/1     Running   5          82m
+kube-system   kube-scheduler-pi0            1/1     Running   11         81m
+#+end_SRC

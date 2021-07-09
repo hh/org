@@ -4,7 +4,7 @@ metadata:
   name: raspberrypi4-servers
 spec:
   initrd:
-    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/initramfs-arm64.xz
+    url: https://github.com/talos-systems/talos/releases/download/v0.11.0/initramfs-arm64.xz
   kernel:
     args:
     - console=tty0
@@ -23,4 +23,4 @@ spec:
     - slab_nomerge=
     - talos.config=http://192.168.1.21:8081/configdata?uuid=${uuid}
     - talos.platform=metal
-    url: https://github.com/talos-systems/talos/releases/download/v0.10.3/vmlinuz-arm64
+    url: https://github.com/talos-systems/talos/releases/download/v0.11.0/vmlinuz-arm64
