@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: dnsmasq-debug
+  name: dnsmasq-debug
+  namespace: dnsmasq
+spec:
+  hostNetwork: true
+  containers:
+  - image: alpine:3.12
+    name: dnsmasq-debug
+    securityContext:
+      privileged: true
+    command:
+      - sleep
+      - infinity
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - dnsmasq
+            topologyKey: "kubernetes.io/hostname"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always

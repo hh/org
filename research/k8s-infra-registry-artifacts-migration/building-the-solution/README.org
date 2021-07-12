@@ -1,0 +1,24 @@
+#+TITLE: Building registry.k8s.io
+
+The goal of this doc is to describe the processes of what is involved and needed in the registry redirection.
+
+* What is required for building registry.k8s.io
+** Source IP from a HTTP request
+This will be done by using the /X-Real-Ip/ header, provided by the Ingress controller.
+
+** Look up table for source IP to ASN
+PeeringDB contains the IP blocks per each ASN.
+The source IP can be matched against a source block via either a SQL query of a builtin Golang function.
+
+** Look up table for ASN to company
+The PeeringDB data dump will provide all the information needed to match Company <-> ASN.
+
+** Connect look up tables with request rewrites
+Questions:
+- will the data be stored in a SQL database, or a ConfigMap + JSON store?
+
+** Provide 302 request rewrite
+This will be implemented in either completely custom code based on [[https://github.com/kubernetes/k8s.io/tree/main/artifactserver][ArtifactServer]], or an Envoy with a Go WASM filter.
+
+** Provide logs
+Logs will provide information about the request and the redirection.

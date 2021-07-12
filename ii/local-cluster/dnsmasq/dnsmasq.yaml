@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsmasq
+  namespace: dnsmasq
+  labels:
+    nz.ii: dnsmasq
+    app: dnsmasq
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      nz.ii: dnsmasq
+  template:
+    metadata:
+      annotations:
+        nz.ii/dnsmasq.conf-sha256sum: "${DNSMASQ_CONF_HASH}"
+        nz.ii/dockerfile-sha256sum: "${DOCKERFILE_HASH}"
+      labels:
+        nz.ii: dnsmasq
+        app: dnsmasq
+    spec:
+      hostNetwork: true
+      containers:
+      - name: dnsmasq
+        image: registry.gitlab.com/ii/nz/dnsmasq:latest
+        imagePullPolicy: Always
+        volumeMounts:
+          - name: config
+            mountPath: /etc/dnsmasq
+          - name: tftp-folder
+            mountPath: /var/lib/sidero/tftp
+        env:
+          - name: DHCP_RANGE
+            value: "${DHCP_RANGE}"
+        command:
+          - bash
+          - -x
+          - -c
+          - dnsmasq --no-daemon -C <(envsubst < /etc/dnsmasq/dnsmasq.conf)
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+              - NET_RAW
+              - SYS_ADMIN
+        ports:
+        - containerPort: 67
+          hostPort: 67
+          protocol: UDP
+        - containerPort: 4011
+          hostPort: 4011
+          protocol: UDP
+        - containerPort: 7472
+          hostPort: 7472
+          protocol: UDP
+      volumes:
+      - name: config
+        configMap:
+          name: dnsmasq-config
+      - name: tftp-folder
+        persistentVolumeClaim:
+          claimName: dnsmasq-tftp

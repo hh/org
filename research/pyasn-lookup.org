@@ -1,0 +1,517 @@
+#+TITLE: Pyasn Lookup
+Link to this document https://github.com/ii/org/blob/main/research/pyasn-lookup.org#lets-add-asn-results-to-the-dictionary
+This is an investigation of https://github.com/hadiasghari/pyasn
+Desired outcomes will be to parse the output from this library to tie each asn to it associated start and end ip ints so we can range over them to find customer asns
+This document concerns itself with:
+- Generating an asn to ip-range relationsip
+- Importing resulting csv into PostgreSQL and split subnets into start_ip and end_ip
+- Upload the results of the PG transformation to bq
+- Make final table with asn, cidr, start_ip, end_ip, start_ip_int, end_ip_int
+* Clone repo
+#+BEGIN_SRC tmate :window pyasn
+git clone https://github.com/hadiasghari/pyasn.git
+#+END_SRC
+* Install pyasn
+#+BEGIN_SRC tmate :window pyasn
+pip install pyasn
+#+END_SRC
+Test python is up and working
+#+BEGIN_SRC python tmate :window python
+#print('Please wait')
+return 'A line of text.\n'.rstrip()
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+A line of text.
+#+end_src
+* Download and process the latest rib file
+You can view the full list on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
+obviosly adjust for date
+To get the latest file simply run --latest
+pip installed the scripts in .local so I am adding it to my path
+These scripts are in the repo in pyasn-utils
+TODO: Decide how we want to reference these scripts
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+export PATH="/home/ii/.local/bin/:$PATH"
+pyasn_util_download.py --latest
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Connecting to ftp://archive.routeviews.org
+Finding most recent archive in /bgpdata/2021.06/RIBS ...
+Finding most recent archive in /bgpdata/2021.05/RIBS ...
+Downloading ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/rib.20210531.2200.bz2
+Download complete.
+#+end_example
+* Process rib file so we can transform it into a local data file
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+ls -al | grep rib
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii   ii   124276057 Jun  1 11:35 rib.20210531.2200.bz2
+#+end_example
+
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+export PATH="/home/ii/.local/bin/:$PATH"
+pyasn_util_convert.py --single rib.20210531.2200.bz2 ipasn_20140531_1.dat
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+IPASN database saved (923124 IPV4 + 0 IPV6 prefixes)
+#+end_example
+
+#+BEGIN_SRC shell :dir (concat (getenv "HOME") "/foo")
+ls -alrt | tail -3
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+-rw-r--r--  1 ii   ii   124276057 Jun  1 11:35 rib.20210531.2200.bz2
+-rw-r--r--  1 ii   ii    19939342 Jun  1 11:42 ipasn_20140531_1.dat
+#+end_example
+* Use pyasn to parse the data file
+For this initial poc, I want to look up an ASN(1128) and get subnets back.
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
+import pyasn
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+return asndb.get_as_prefixes(1128)
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+{'131.180.0.0/16', '130.161.0.0/16', '145.94.0.0/16'}
+#+end_src
+* Plan flow that will get network ranges for all asns
+GOAL:
+I want a script that takes in asns and .dat file and returns a list of asns with associated network ranges
+
+I decided restrict this script to just pyasn in python,
+I will deal with data file generation and full ASN list generation seperateley
+High level plan:
+- Start with file that has all ASNs, we can get them from:
+  - https://bgp.potaroo.net/cidr/autnums.html has been a good resource
+  - Look what pyasn can produce
+  - Other? There is a lot of them out there, I struggled to find a complete one, happy to hear suggestions.
+- Import pyasn
+- Read in asnNumFile, set variable to the resulting array
+- Set db string for .dat file we are using for the lookup.
+- Range through array, for each element run get_as_prefixes() - ASN to subnet lookup
+- Store result in a dictionary,
+  - the object has a key/value of asn/ip range.
+  - there are multiple ip ranges per asn
+- When all the data has been appended to the dictionary write it to file as a csv
+** Very nice succinct summary from zz
+- i can open the asn list file and read it
+- i can assign it to a variable.
+- i can reference the variable and return the whole array
+- i can reference an index of this variable and return one item of the array
+- i can loop through an array and call a function based on the variable
+- i can loop through an array and add each item and the results from the function to a dict
+- i can write this dict to a CSV file
+** Dictionary struct
+  The dictionary will look something like this:
+  #+BEGIN_EXAMPLE
+{
+  '6554': [
+   - 123412,
+  - 123133,
+  - 123231
+  ]
+}
+  #+END_EXAMPLE
+* Start with reading file into variable
+Printing the resulting dictionary
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+print ('start')
+File_object = open(r"/home/ii/foo/asnNumbersOnlyTail10.txt","r+")
+asnNum = File_object.readlines()
+print (asnNum)
+dictOfWords = {i : 5 for i in asnNum}
+print(dictOfWords)
+print ('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+['399549\n', '399553\n', '399561\n', '399564\n', '399593\n', '399588\n', '399587\n', '399724\n']
+{'399549\n': 5, '399553\n': 5, '399561\n': 5, '399564\n': 5, '399593\n': 5, '399588\n': 5, '399587\n': 5, '399724\n': 5}
+end
+#+end_src
+* Lets add asn results to the dictionary
+Printing the resulting dictionary
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+## Import pyasn
+import pyasn
+print('start')
+## Open asnNumFile and read
+asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+print(asnNum)
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Set asn to int
+    print("val of x: ", singleAsn)
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    print("This is x and it's prefix: ", singleAsn, asndb.get_as_prefixes(singleAsn))
+    ## Add subnets with
+    originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+    destDict.update(originAsnDict)
+    print("Value of destDict", destDict)
+print("dict of words: ", originAsnDict)
+print("Print final dictionary: ", destDict)
+print("last subnets returned: ", subnets)
+print('end')
+#+END_SRC
+
+Look ma, good results!
+Note the output from the final dictionary, it has output of each run through the loop appended to it.
+#+RESULTS:
+#+begin_src python
+start
+['399549', '399553', '399561', '399564', '399593', '399588', '399587']
+val of x:  399549
+This is x and it's prefix:  399549 {'216.87.86.0/24', '216.87.87.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549'}
+val of x:  399553
+This is x and it's prefix:  399553 {'108.165.228.0/22'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553'}
+val of x:  399561
+This is x and it's prefix:  399561 {'163.123.163.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561'}
+val of x:  399564
+This is x and it's prefix:  399564 {'205.178.171.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564'}
+val of x:  399593
+This is x and it's prefix:  399593 {'205.236.101.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593'}
+val of x:  399588
+This is x and it's prefix:  399588 {'172.110.143.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588'}
+val of x:  399587
+This is x and it's prefix:  399587 {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
+Value of destDict {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
+dict of words:  {'193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
+Print final dictionary:  {'216.87.86.0/24': '399549', '216.87.87.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.3.54.0/24': '399587', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.184.0/24': '399587', '193.8.185.0/24': '399587'}
+last subnets returned:  {'193.3.54.0/24', '193.8.186.0/24', '193.8.187.0/24', '193.8.184.0/24', '193.8.185.0/24'}
+end
+#+end_src
+* Lets go output the results to a csv
+** sample code
+Just a simple POC to see how outputting csv data works
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+import csv
+a_file = open("sample.csv", "w")
+a_dict = {"a": 1, "b": 2}
+
+writer = csv.writer(a_file)
+for key, value in a_dict.items():
+    writer.writerow([key, value])
+
+a_file.close()
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+a,1
+b,2
+#+end_src
+Easy enough.
+** Add csv output to script
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+## Import pyasn and csv
+import pyasn
+import csv
+# Lets go!
+print('start')
+## Open asnNumFile and read
+asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+# print(asnNum)
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Set asn to int
+    ## print("val of x: ", singleAsn)
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    ## print("This is x and it's prefix: ", singleAsn, asndb.get_as_prefixes(singleAsn))
+    ## Add subnets with
+    originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+    destDict.update(originAsnDict)
+    ## print("Value of destDict", destDict)
+# print("dict of asn/net-ranges from the las loop: ", originAsnDict)
+print("Print final dictionary: ", destDict)
+# print("last subnets returned: ", subnets)
+# Open file for writing
+resultsCsv = open("pyAsnOutput.csv", "w")
+# write to csv
+writer = csv.writer(resultsCsv)
+for key, value in destDict.items():
+    writer.writerow([key, value])
+## winner winner chicken dinner
+print('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+Print final dictionary:  {'216.87.87.0/24': '399549', '216.87.86.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.186.0/24': '399587', '193.8.185.0/24': '399587', '193.8.184.0/24': '399587', '193.3.54.0/24': '399587', '193.8.187.0/24': '399587'}
+end
+#+end_src
+Yip I conrimed the csv got generated and has the right content.
+* Add fault tolerance
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo") :results output
+## Import pyasn and csv
+import pyasn
+import csv
+# Lets go!
+print('start')
+## Set file path
+asnFile = "/home/ii/foo/asnNumbersOnlyTail10.txt"
+## Open asnNumFile and read
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+singleAsn = ""
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    ## Add checking to make sure we have subnets
+    ## TODO: insert asn with no routes place holder so we know which failed without having to do a lookup
+    if not subnets:
+        print("This ASN has no subnets", singleAsn)
+    else:
+        ## Add subnets to our dictionaries with
+        originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+        ## This is what lets us append each loop to the final destDict
+        destDict.update(originAsnDict)
+resultsCsv = open("pyAsnOutput.csv", "w")
+# write to csv
+writer = csv.writer(resultsCsv)
+for key, value in destDict.items():
+    writer.writerow([key, value])
+## winner winner chicken dinner
+print('end')
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+start
+This is x and it's prefix:  399549 {'216.87.87.0/24', '216.87.86.0/24'}
+This is x and it's prefix:  399553 {'108.165.228.0/22'}
+This is x and it's prefix:  399561 {'163.123.163.0/24'}
+This is x and it's prefix:  399564 {'205.178.171.0/24'}
+This is x and it's prefix:  399593 {'205.236.101.0/24'}
+This is x and it's prefix:  399588 {'172.110.143.0/24'}
+This is x and it's prefix:  399587 {'193.8.186.0/24', '193.8.187.0/24', '193.8.185.0/24', '193.3.54.0/24', '193.8.184.0/24'}
+This is x and it's prefix:  399724 None
+This ASN has no subnets 399724
+Print final dictionary:  {'216.87.87.0/24': '399549', '216.87.86.0/24': '399549', '108.165.228.0/22': '399553', '163.123.163.0/24': '399561', '205.178.171.0/24': '399564', '205.236.101.0/24': '399593', '172.110.143.0/24': '399588', '193.8.186.0/24': '399587', '193.8.187.0/24': '399587', '193.8.185.0/24': '399587', '193.3.54.0/24': '399587', '193.8.184.0/24': '399587'}
+end
+#+end_src
+* Final script
+
+#+BEGIN_SRC python :dir (concat (getenv "HOME") "/foo")
+## Import pyasn and csv
+import pyasn
+import csv
+
+## Set file path
+asnFile = "/home/ii/foo/asnNumbersOnly.txt"
+## Open asnNumFile and read
+asnNum = [line.rstrip() for line in open(asnFile, "r+")]
+
+## assign our dat file connection string
+asndb = pyasn.pyasn('ipasn_20140531_1.dat')
+## Declare empty dictionary
+destDict = {}
+singleAsn = ""
+
+## Loop through list of asns
+for singleAsn in asnNum:
+    ## Go look up the asn subnets (prefixes)
+    subnets = asndb.get_as_prefixes(singleAsn)
+    ## Add checking to make sure we have subnets
+    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
+    if not subnets:
+        print("This ASN has no subnets", singleAsn)
+    else:
+        ## Add subnets to our dictionaries with
+        originAsnDict = {sbnets : singleAsn for sbnets in subnets}
+        ## This is what lets us append each loop to the final destDict
+        destDict.update(originAsnDict)
+
+## Open handle to output file
+resultsCsv = open("pyAsnOutput.csv", "w")
+# write to csv
+writer = csv.writer(resultsCsv)
+for key, value in destDict.items():
+    writer.writerow([key, value])
+
+## winner winner chicken dinner
+#+END_SRC
+
+#+RESULTS:
+#+begin_src python
+None
+#+end_src
+* Push to bq (just testing)
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.py_asn_test /home/ii/foo/pyAsnOutput.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+It worked!
+#+end_example
+* Transform cidr to range using postgres
+** Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=ii postgres:12.2-alpine
+#+END_SRC
+Get ip for pg
+#+BEGIN_SRC shell
+echo $SHARINGIO_PAIR_LOAD_BALANCER_IP
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+147.75.109.30
+#+end_example
+
+#+BEGIN_SRC sql-mode
+\dn
+--SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+  List of schemas
+  Name  |  Owner
+--------+----------
+ public | postgres
+(1 row)
+
+#+end_SRC
+
+** Load csv into pg
+#+BEGIN_SRC sql-mode
+create table pyasn_ip_asn  (ip cidr, asn int);
+\COPY pyasn_ip_asn from '/home/ii/foo/pyAsnOutput.csv' DELIMITER ',' CSV;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+CREATE TABLE
+#+end_SRC
+
+Confirmation:
+#+BEGIN_SRC sql-mode
+select * from pyasn_ip_asn limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+        ip        | asn
+------------------+-----
+ 8.13.230.128/27  |   1
+ 63.215.96.16/29  |   1
+ 8.13.232.96/27   |   1
+ 207.227.228.0/22 |   1
+ 8.44.88.192/29   |   1
+ 8.13.231.128/27  |   1
+ 63.215.98.16/29  |   1
+ 8.45.87.176/29   |   1
+ 8.13.231.32/27   |   1
+ 8.13.227.32/27   |   1
+(10 rows)
+
+#+end_SRC
+
+** Split that into start and end
+#+BEGIN_SRC sql-mode
+select asn as asn,
+ip as ip,
+host(network(ip)::inet) as ip_start,
+host(broadcast(ip)::inet) as ip_end
+into table pyasn_ip_asn_extended
+from pyasn_ip_asn;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+SELECT 923058
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select * from pyasn_ip_asn_extended limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ asn |        ip        |   ip_start    |     ip_end
+-----+------------------+---------------+-----------------
+   1 | 8.13.230.128/27  | 8.13.230.128  | 8.13.230.159
+   1 | 63.215.96.16/29  | 63.215.96.16  | 63.215.96.23
+   1 | 8.13.232.96/27   | 8.13.232.96   | 8.13.232.127
+   1 | 207.227.228.0/22 | 207.227.228.0 | 207.227.231.255
+   1 | 8.44.88.192/29   | 8.44.88.192   | 8.44.88.199
+   1 | 8.13.231.128/27  | 8.13.231.128  | 8.13.231.159
+   1 | 63.215.98.16/29  | 63.215.98.16  | 63.215.98.23
+   1 | 8.45.87.176/29   | 8.45.87.176   | 8.45.87.183
+   1 | 8.13.231.32/27   | 8.13.231.32   | 8.13.231.63
+   1 | 8.13.227.32/27   | 8.13.227.32   | 8.13.227.63
+(10 rows)
+
+#+end_SRC
+
+** Export to csv and upload to bq
+#+begin_src sql-mode
+\copy (select * from pyasn_ip_asn_extended) to '/tmp/pyasn_expanded_ipv4.csv' csv header;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+COPY 923058
+#+end_SRC
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended /tmp/pyasn_expanded_ipv4.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+** Create table with asn, ips as ints
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql \
+'
+SELECT
+  asn as asn,
+  ip as cidr_ip,
+  ip_start as start_ip,
+  ip_end as end_ip,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_start)) AS start_ip_int,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_end)) AS end_ip
+  from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended`
+  WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
+'
+#+END_SRC

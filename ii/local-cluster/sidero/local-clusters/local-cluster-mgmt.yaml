@@ -1,0 +1,130 @@
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: Cluster
+metadata:
+  name: local-cluster-mgmt
+  namespace: local-clusters
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 10.244.0.0/16
+    services:
+      cidrBlocks:
+      - 10.96.0.0/12
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: local-cluster-mgmt-cp
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: MetalCluster
+    name: local-cluster-mgmt
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalCluster
+metadata:
+  name: local-cluster-mgmt
+  namespace: local-clusters
+spec:
+  controlPlaneEndpoint:
+    host: 192.168.1.31
+    port: 6443
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalMachineTemplate
+metadata:
+  name: local-cluster-mgmt-cp
+  namespace: local-clusters
+spec:
+  template:
+    spec:
+      serverClassRef:
+        apiVersion: metal.sidero.dev/v1alpha1
+        kind: ServerClass
+        name: raspberrypi4-servers
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: local-cluster-mgmt-cp
+  namespace: local-clusters
+spec:
+  controlPlaneConfig:
+    controlplane:
+      configPatches:
+      - op: add
+        path: /machine/network
+        value:
+          interfaces:
+          - dhcp: true
+            interface: eth0
+            vip:
+              ip: 192.168.1.31
+      generateType: controlplane
+      talosVersion: v1.11.0
+    init:
+      configPatches:
+      - op: add
+        path: /machine/network
+        value:
+          interfaces:
+          - dhcp: true
+            interface: eth0
+            vip:
+              ip: 192.168.1.31
+      generateType: init
+      talosVersion: v1.11.0
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: MetalMachineTemplate
+    name: local-cluster-mgmt-cp
+  replicas: 1
+  version: v1.21.2
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: local-cluster-mgmt-workers
+  namespace: local-clusters
+spec:
+  template:
+    spec:
+      generateType: join
+      talosVersion: v1.11.0
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineDeployment
+metadata:
+  name: local-cluster-mgmt-workers
+  namespace: local-clusters
+spec:
+  clusterName: local-cluster-mgmt
+  replicas: 5
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: TalosConfigTemplate
+          name: local-cluster-mgmt-workers
+      clusterName: local-cluster-mgmt
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+        kind: MetalMachineTemplate
+        name: local-cluster-mgmt-workers
+      version: v1.21.2
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: MetalMachineTemplate
+metadata:
+  name: local-cluster-mgmt-workers
+  namespace: local-clusters
+spec:
+  template:
+    spec:
+      serverClassRef:
+        apiVersion: metal.sidero.dev/v1alpha1
+        kind: ServerClass
+        name: raspberrypi4-servers

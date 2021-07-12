@@ -1,0 +1,127 @@
+#+TITLE: iiphone
+#+PROPERTY: header-args:diff+ :comments none
+#+PROPERTY: header-args:dockerfile+ :comments none
+#+PROPERTY: header-args:shell+ :prologue "( " :epilogue " ) 2>&1 ; :" :comments none
+#+PROPERTY: header-args:text+ :comments none
+#+PROPERTY: header-args:tmate+ :comments none
+#+PROPERTY: header-args:yaml+ :comments none
+
+Exploration into something that makes
+#+begin_quote
+Phones that create instant infrastructure.
+#+end_quote
+
+* Prologue
+We have PinePhones, these can run OSes like PostmarketOS.
+With PostmarketOS, we are able to run containerd and k8s.
+
+Through running software like this, we are able to enable the provisioning of local infra.
+
+* Downloading the OS
+PostmarketOS ships two images, a standard and an installer.
+As we want to be able to have the OS installed on our fast SD cards, we will use the standard image.
+
+Downloading an image
+#+begin_src shell
+VERSION=v21.06
+EDITION=phosh-9
+DATE=20210704-0528
+ASSET="${DATE}-postmarketOS-${VERSION}-${EDITION}-pine64-pinephone.img.xz"
+
+if [ ! -f "${HOME}/Downloads/${ASSET}" ]; then
+   curl -o "${HOME}/Downloads/${ASSET}" -L "https://images.postmarketos.org/bpo/${VERSION}/pine64-pinephone/phosh/${DATE}/${DATE}-postmarketOS-${VESRION}-phosh-9-pine64-pinephone.img.xz"
+fi
+if [ ! -f "${HOME}/Downloads/${ASSET//\.xz/}" ]; then
+   tar -xf "${HOME}/Downloads/${ASSET}" -C "${HOME}/Downloads"
+fi
+#+end_src
+
+* Flash the PostmarketOS image onto an SD card
+Using the best utility handy to flash the /.img/ file to the SD card.
+
+* Install repos
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+cat << EOF >> /etc/apk/repositories
+@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing/
+@community http://dl-cdn.alpinelinux.org/alpine/edge/community/
+EOF
+#+end_src
+
+Prepare repos
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+sudo apk add kubernetes@testing cni-plugins@testing
+#+end_src
+
+* Install a few packages onto the device
+Install system packages
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+sudo apk add containerd containerd-openrc bash curl file tmate@testing
+#+end_src
+
+Install kubeadm and such
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+sudo apk add kubelet@testing kubeadm@testing kubectl@testing
+#+end_src
+
+* Enable and start services
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+sudo rc-update add cgroups default
+sudo rc-update add containerd default
+sudo rc-update add kubelet default
+#+end_src
+
+* Reboot the device
+Ensure that /cgroups/ are enabled.
+
+* Set /sysctl/ settings
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+cat << EOF | sudo tee /etc/modules-load.d/k8s.conf
+br_netfilter
+EOF
+
+cat << EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+sudo sysctl
+#+end_src
+
+* Initialise Kubernetes
+Declare the /kubeadm/ configuration
+#+begin_src yaml
+---
+apiServer:
+apiVersion: kubeadm.k8s.io/v1beta1
+clusterName: ""
+controlPlaneEndpoint: ""
+dns: {}
+etcd: {}
+kind: ClusterConfiguration
+kubernetesVersion: v1.21.0
+networking:
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/12
+scheduler: {}
+
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: ""
+  bindPort: 0
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: cgroupfs
+#+end_src
+
+Let /kubeadm/ do it's thing
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+sudo kubeadm init --config kubeadm.yaml --ignore-preflight-errors=SystemVerification
+#+end_src
+
+Install /flannel/
+#+begin_src shell :dir /ssh:user@192.168.1.237:/ :async yes
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+#+end_src
+(TODO figure out the issue the /ip link/ config not being created, error as /Error registering network: operation not supported/)

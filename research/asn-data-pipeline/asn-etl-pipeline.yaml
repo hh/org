@@ -1,0 +1,71 @@
+# Running as a Kubernetes CronJob
+
+# Define the CronJob
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: asn-etl-pipeline
+  labels:
+    app: asn-etl-pipeline
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      name: asn-etl-pipeline
+    spec:
+      parallelism: 1
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: asn-etl-pipeline
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: asn-etl-pipeline
+              image: asn-etl-pipeline
+              imagePullPolicy: Never
+              # command:
+              #   - sleep
+              #   - +Inf
+              volumeMounts:
+                - name: gcp-app-creds
+                  mountPath: /etc/asn-etl-pipeline
+                # - name: gcp-user-account
+                #   mountPath: /tmp/gcp-user-account/.config/gcloud
+              env:
+                - name: POSTGRES_PASSWORD
+                  value: postgres
+                - name: GCP_PROJECT
+                  value: k8s-infra-ii-sandbox
+                - name: GCP_SERVICEACCOUNT
+                  value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+                - name: GCP_BIGQUERY_DATASET
+                  value: etl_script_generated_set
+                - name: GCP_BIGQUERY_DATASET_LOGS
+                  value: etl_script_generated_set_prod
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
+                - name: ASN_DATA_PIPELINE_RETAIN
+                  value: "false"
+                # - name: ASN_DATA_PIPELINE_PREINIT
+                #   value: |
+                #     mkdir -p /var/lib/postgresql/.config ;
+                #     cp -r /tmp/gcp-user-account/.config/gcloud/..data/ /var/lib/postgresql/.config/gcloud/ ;
+                #     mkdir -p /var/lib/postgresql/.config/gcloud/configurations/ ;
+                #     cat << EOF > ~/.config/gcloud/configurations/config_default
+                #     [core]
+                #     project = k8s-infra-ii-sandbox
+                #     account = bb@ii.coop
+                #     EOF
+                #     gsutil ls
+          volumes:
+            - name: gcp-app-creds
+              secret:
+                secretName: gcp-app-creds
+            # - name: gcp-user-account
+            #   secret:
+            #     secretName: gcp-user-account
+            #     defaultMode: 0777

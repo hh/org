@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boot-ii-nz
+  namespace: sidero-system
+spec:
+  rules:
+  - host: boot.ii.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: sidero-http
+            port:
+              number: 8081
+        path: /
+        pathType: ImplementationSpecific

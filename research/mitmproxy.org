@@ -39,4 +39,5 @@ Remove the CA from the ca-trust and update CA the trust cache:
 #+BEGIN_SRC tmate :window shell
 sudo rm /etc/pki/ca-trust/source/anchors/mitmproxy-ca.pem
 sudo update-ca-trust
+podman rm -f mitmproxy
 #+END_SRC

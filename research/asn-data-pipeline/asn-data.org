@@ -1,0 +1,108 @@
+#+TITLE: ASN DATA
+Process to document manually loading/transform gs bucket logs for report consumption
+* Make sure we are logged in and bq points to the right datasets
+
+#+begin_src tmate :window prepare
+gcloud auth login
+#+end_src
+
+#+begin_src shell :results silent
+gcloud config set project k8s-infra-ii-sandbox
+#+end_src
+
+#+begin_src shell
+gcloud auth list
+#+end_src
+
+#+RESULTS:
+#+begin_example
+           Credentialed Accounts
+ACTIVE             ACCOUNT
+,*                  caleb@ii.coop
+#+end_example
+
+Make sure the sandbox is our default project
+#+begin_src shell
+gcloud config list --format 'value(core.project)' 2>/dev/null
+#+end_src
+
+#+RESULTS:
+#+begin_example
+k8s-infra-ii-sandbox
+#+end_example
+
+* Load data
+Lets see what we have in the bucket
+tldr I can only put one wildcard on bq load and the bucket contains storage data we do not want
+I realize this is amateur hour, but to confirm I get all the logs I am wildcarding the load of each type
+#+begin_src tmate :window k8s-gslogs
+gsutil ls gs://k8s-artifacts-gcslogs
+#+end_src
+
+#+begin_example
+gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage_2021_05_25_18_00_00_0bc6b45a8e79fb5d51_v0
+gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage_2021_05_24_22_00_00_0317b35349b09ca5d5_v0
+gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage_2021_05_25_05_00_00_0ab0ee4ec3d7790965_v0
+gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage_2021_05_24_23_00_00_092fb34ad7a61a8037_v0
+gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage_2021_05_25_10_00_00_070d5ffe2f0e3dfc72_v0
+gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage_2021_05_24_22_00_00_0a72aa93793814a69b_v0
+gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage_2021_05_20_23_00_00_00c9c9dd0fd526a744_v0
+gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage_2021_05_20_23_00_00_09a4720ff9db2c8cd7_v0
+#+end_example
+
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
+#+end_src
+
+FAIL
+There appears to be about 15k out of 10 million bad rows, I do not know what causes the bad data
+I got around it by adding `--max_bad_records=20000` below
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect --max_bad_recprds=2000 k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
+#+end_src
+
+Done
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
+#+end_src
+
+Done
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
+#+end_src
+
+Done
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
+#+end_src
+
+DOne
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
+#+end_src
+
+
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
+#+end_src
+
+
+#+begin_src tmate :window k8s-gslogs
+bq load --autodetect k8s_artifacts_dataset_bb_test.usage_us_prod_kind_sci_cri_cni_asia_eu gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
+#+end_src
+* Transformations
+This gets all the columns
+TODO: add table output destination
+#+begin_src shell
+bq query {
+SELECT
+DATE(TIMESTAMP_MICROS(time_micros)) AS data_date,
+c_ip,
+sc_status,
+sc_bytes,
+cs_referer,
+REGEXP_EXTRACT_ALL(cs_referer,'^https://k8s.gcr.io/[^/]+/([^/]+)/' ) AS resource,
+REGEXP_EXTRACT_ALL(cs_referer, r'([^$:]+$)') AS hash_num
+FROM `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.usage_all`
+}
+#+end_src

@@ -1,0 +1,52 @@
+diff --git a/talos/controlplane.yaml b/talos/controlplane.yaml
+index bc87738..cf17a8a 100644
+--- a/talos/controlplane.yaml
++++ b/talos/controlplane.yaml
+@@ -35,7 +35,12 @@ machine:
+     #         - rw
+
+     # Provides machine specific network configuration options.
+-    network: {}
++    network:
++      interfaces:
++        - interface: eth0
++          dhcp: true
++          vip:
++            ip: 192.168.1.100
+     # # `interfaces` is used to define the network interface configuration.
+     # interfaces:
+     #     - interface: eth0 # The interface name.
+@@ -214,6 +219,7 @@ machine:
+     #               slot: 0 # Key slot number for luks2 encryption.
+ # Provides cluster specific configuration options.
+ cluster:
++    allowSchedulingOnMasters: true
+     # Provides control plane specific configuration options.
+     controlPlane:
+         endpoint: https://192.168.1.100:6443 # Endpoint is the canonical controlplane endpoint, which can be an IP address or a DNS hostname.
+diff --git a/talos/init.yaml b/talos/init.yaml
+index ad6d34e..46bdafd 100644
+--- a/talos/init.yaml
++++ b/talos/init.yaml
+@@ -35,7 +35,12 @@ machine:
+     #         - rw
+
+     # Provides machine specific network configuration options.
+-    network: {}
++    network:
++      interfaces:
++        - interface: eth0
++          dhcp: true
++          vip:
++            ip: 192.168.1.100
+     # # `interfaces` is used to define the network interface configuration.
+     # interfaces:
+     #     - interface: eth0 # The interface name.
+@@ -214,6 +219,7 @@ machine:
+     #               slot: 0 # Key slot number for luks2 encryption.
+ # Provides cluster specific configuration options.
+ cluster:
++    allowSchedulingOnMasters: true
+     # Provides control plane specific configuration options.
+     controlPlane:
+         endpoint: https://192.168.1.100:6443 # Endpoint is the canonical controlplane endpoint, which can be an IP address or a DNS hostname.

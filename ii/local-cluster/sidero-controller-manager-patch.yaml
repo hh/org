@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      volumes:
+        - name: tftp-folder
+          persistentVolumeClaim:
+            claimName: sidero-tftp
+      containers:
+      - name: manager
+        volumeMounts:
+          - mountPath: /var/lib/sidero/tftp
+            name: tftp-folder
