@@ -1,0 +1,65 @@
+#+TITLE: K8s Infra Custom Service Acct
+Working on:
+https://github.com/kubernetes/k8s.io/pull/2262#issuecomment-869854631
+Do not create service accounts in groups
+
+#+begin_src
+Given correct permissions the ii-service account can access production logs
+
+To achieve this I need to:
+ensure the role exists that has the needed permissions
+ensure the service account exists
+bind the service account to the role
+#+end_src
+
+Find the permissions needed for the role:
+https://github.com/kubernetes/k8s.io/blob/2cfeed5bacb9f82b3aff1722326e3bec5b5528fc/audit/projects/k8s-artifacts-prod/buckets/k8s-artifacts-gcslogs/iam.json
+shows me
+the group: k8s-infra-gcs-access-logs@kubernetes.io
+is assigned to the role: "roles/storage.objectViewer"
+Available GCS roles
+https://cloud.google.com/storage/docs/access-control/iam-roles
+This confirms roles/storage.objectViewer is the most appropriate role
+It contains:
+- resourcemanager.projects.get
+- resourcemanager.projects.list
+- storage.objects.get
+- storage.objects.list
+
+Create a custom roles
+https://cloud.google.com/iam/docs/understanding-custom-roles
+
+TODO: Create a custom role
+https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam_custom_role 
+#+begin_src :tf export to infra/gcp/clusters/projects/k8s-infra-ii-sandbox/roles.tf
+resource "google_project_iam_custom_role" "my-custom-role" {
+  role_id     = "myCustomRole"
+  title       = "My Custom Role"
+  description = "A description"
+  permissions = ["iam.roles.list", "iam.roles.create", "iam.roles.delete"]
+}
+#+end_src
+
+TODO: Create a service account
+https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account#example-usage
+#+begin_src :tf
+resource "google_service_account" "service_account" {
+  account_id   = "service-account-id"
+  display_name = "service Account"
+  description = "service-account-description"
+  project = "service-account-project"
+}
+#+end_src
+
+TODO: Bind service account to role
+https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam#google_project_iam_binding
+#+begin_src :tf
+resource "google_project_iam_binding" "project" {
+  project = "your-project-id"
+  role    = "roles/editor"
+
+  members = [
+    "user:jane@example.com",
+  ]
+}
+#+end_src
