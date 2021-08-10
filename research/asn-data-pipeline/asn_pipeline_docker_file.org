@@ -822,7 +822,7 @@ if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     #
     # here we wait for that state and attempt to exit cleanly, without error
     (
-        until [ "$(cat /proc/1/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
+        until [ "$(cat /proc/$PPID/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
             sleep 1s
         done
         # exit Postgres with a code of 0
