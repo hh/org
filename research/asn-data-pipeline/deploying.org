@@ -168,7 +168,11 @@ kubectl -n prow-workloads create secret generic gcp-app-creds \
     | kubectl apply -f -
 #+end_src
 
-Update the local cncf-infra/prow-config/.sharing.io/prow-config-template.yaml with the periodics contents above
+Update the local =cncf-infra/prow-config/.sharing.io/prow-config-template.yaml= with the periodics contents above, then
+rerunning the =cncf-infra/prow-config/.sharing.io/init= script,
+#+begin_src shell :results silent
+$INIT_DEFAULT_REPOS_FOLDER/cncf-infra/prow-config/.sharing.io/init
+#+end_src
 
 Restart Prow Components
 #+begin_src shell
