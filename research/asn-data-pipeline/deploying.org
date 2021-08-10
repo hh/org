@@ -122,70 +122,7 @@ kubectl delete -f ./asn-etl-pipeline.yaml
 #+end_src
 
 * Run as ProwJob
-Usually, this will be declared in a Prow /config/ style local file.
-The ProwJob resource is used here to get it working.
-
-#+begin_src yaml :tangle ./asn-etl-pipeline-prowjob.yaml
-apiVersion: prow.k8s.io/v1
-kind: ProwJob
-metadata:
-  annotations:
-    prow.k8s.io/context: ""
-    prow.k8s.io/job: asn-data-pipeline
-  labels:
-    created-by-prow: "true"
-    prow.k8s.io/context: ""
-    prow.k8s.io/job: asn-data-pipeline
-    prow.k8s.io/type: periodic
-  name: asn-data-pipeline
-  namespace: prow
-spec:
-  agent: kubernetes
-  cluster: default
-  decoration_config:
-    gcs_configuration:
-      bucket: s3://prow-logs
-      path_strategy: explicit
-    s3_credentials_secret: prow-s3-credentials
-    utility_images:
-      clonerefs: gcr.io/k8s-prow/clonerefs:v20210504-af1ac03335
-      entrypoint: gcr.io/k8s-prow/entrypoint:v20210504-af1ac03335
-      initupload: gcr.io/k8s-prow/initupload:v20210504-af1ac03335
-      sidecar: gcr.io/k8s-prow/sidecar:v20210504-af1ac03335
-  job: asn-data-pipeline
-  namespace: prow-workloads
-  pod_spec:
-    containers:
-      - name: asn-etl-pipeline
-        image: asn-etl-pipeline
-        imagePullPolicy: Never
-        volumeMounts:
-          - name: gcp-app-creds
-            mountPath: /etc/asn-etl-pipeline
-        env:
-          - name: POSTGRES_PASSWORD
-            value: postgres
-          - name: GCP_PROJECT
-            value: k8s-infra-ii-sandbox
-          - name: GCP_SERVICEACCOUNT
-            value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
-          - name: GCP_BIGQUERY_DATASET
-            value: etl_script_generated_set
-          - name: GCP_BIGQUERY_DATASET_LOGS
-            value: etl_script_generated_set_prod
-          - name: GOOGLE_APPLICATION_CREDENTIALS
-            value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
-          - name: ASN_DATA_PIPELINE_RETAIN
-            value: "false"
-    volumes:
-      - name: gcp-app-creds
-        secret:
-          secretName: gcp-app-creds
-  report: true
-  type: periodic
-#+end_src
-
-Or, in Prow config.yaml
+In Prow Config
 #+begin_src yaml
 periodics:
   - interval: 5m
@@ -225,18 +162,29 @@ periodics:
 Create the Secret
 #+begin_src shell :results silent
 kubectl -n prow-workloads create secret generic gcp-app-creds \
-    --from-file=asn-etl-pipeline-gcp-sa.json=/tmp/asn-etl-pipeline-gcp-sa.json \
+    --from-file=asn-etl-pipeline-gcp-sa.json=<(sudo cat /tmp/asn-etl-pipeline-gcp-sa.json) \
     --dry-run=client \
     -o yaml \
     | kubectl apply -f -
 #+end_src
 
-Create the ProwJob
-#+begin_src shell :results silent
-kubectl apply -f ./asn-etl-pipeline-prowjob.yaml
-#+end_src
+Update the local cncf-infra/prow-config/.sharing.io/prow-config-template.yaml with the periodics contents above
 
 Restart Prow Components
 #+begin_src shell
 kubectl -n prow rollout restart $(kubectl -n prow get deployments -o=jsonpath='{range .items[*]}{.kind}/{.metadata.name} {end}')
 #+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/prow-crier restarted
+deployment.apps/prow-deck restarted
+deployment.apps/prow-ghproxy restarted
+deployment.apps/prow-hook restarted
+deployment.apps/prow-horologium restarted
+deployment.apps/prow-minio restarted
+deployment.apps/prow-plank restarted
+deployment.apps/prow-sinker restarted
+deployment.apps/prow-statusreconciler restarted
+deployment.apps/prow-tide restarted
+#+end_example
