@@ -21,6 +21,7 @@ RUN apt-get update && \
   gcc \
   libc6-dev \
   gettext-base \
+  procps \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn

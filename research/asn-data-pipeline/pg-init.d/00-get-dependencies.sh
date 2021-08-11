@@ -8,6 +8,11 @@ set -x
 set -euo pipefail
 eval "${ASN_DATA_PIPELINE_PREINIT:-}"
 
+PARENTPID=$(ps -o ppid= -p $$)
+echo MY PID     :: $$
+echo PARENT PID :: $PARENTPID
+ps aux
+
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
 project_id = ${GCP_PROJECT}
@@ -28,13 +33,13 @@ gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGL
 
 bq ls
 # Remove the previous data set
-bq rm -r -f "${GCP_BIGQUERY_DATASET}"
+bq rm -r -f "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)" || true
 
 # initalise a new data set with the given name
 bq mk \
---dataset \
---description "etl pipeline dataset for ASN data from CNCF supporting vendors of k8s infrastructure" \
-"${GCP_PROJECT}:${GCP_BIGQUERY_DATASET}"
+    --dataset \
+    --description "etl pipeline dataset for ASN data from CNCF supporting vendors of k8s infrastructure" \
+    "${GCP_PROJECT}:${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 
 if [ ! -f "/tmp/potaroo_data.csv" ]; then
     gsutil cp gs://ii_bq_scratch_dump/potaroo_company_asn.csv  /tmp/potaroo_data.csv
@@ -53,12 +58,12 @@ cat /tmp/potaroo_data.csv | tail +2 | sed 's,^AS,,g' > /tmp/potaroo_asn_companyn
 ## full list of RIB files on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
 cd /tmp
 if [ ! -f "rib.latest.bz2" ]; then
-  pyasn_util_download.py --latest
-  mv rib.*.*.bz2 rib.latest.bz2
+    pyasn_util_download.py --latest
+    mv rib.*.*.bz2 rib.latest.bz2
 fi
 ## Convert rib file to .dat we can process
 if [ ! -f "ipasn_latest.dat" ]; then
-  pyasn_util_convert.py --single rib.latest.bz2 ipasn_latest.dat
+    pyasn_util_convert.py --single rib.latest.bz2 ipasn_latest.dat
 fi
 ## Run the py script we are including in the docker image
 python3 /app/ip-from-pyasn.py /tmp/potaroo_asn.txt ipasn_latest.dat /tmp/pyAsnOutput.csv

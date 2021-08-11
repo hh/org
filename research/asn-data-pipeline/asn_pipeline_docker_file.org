@@ -67,6 +67,7 @@ RUN apt-get update && \
   gcc \
   libc6-dev \
   gettext-base \
+  procps \
   google-cloud-sdk && \
   rm -rf /var/lib/apt/lists/*
 RUN pip3 install pyasn
@@ -415,6 +416,11 @@ set -x
 set -euo pipefail
 eval "${ASN_DATA_PIPELINE_PREINIT:-}"
 
+PARENTPID=$(ps -o ppid= -p $$)
+echo MY PID     :: $$
+echo PARENT PID :: $PARENTPID
+ps aux
+
 cat << EOF > $HOME/.bigqueryrc
 credential_file = ${GOOGLE_APPLICATION_CREDENTIALS}
 project_id = ${GCP_PROJECT}
@@ -435,13 +441,13 @@ gcloud auth activate-service-account "${GCP_SERVICEACCOUNT}" --key-file="${GOOGL
 
 bq ls
 # Remove the previous data set
-bq rm -r -f "${GCP_BIGQUERY_DATASET}"
+bq rm -r -f "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)" || true
 
 # initalise a new data set with the given name
 bq mk \
---dataset \
---description "etl pipeline dataset for ASN data from CNCF supporting vendors of k8s infrastructure" \
-"${GCP_PROJECT}:${GCP_BIGQUERY_DATASET}"
+    --dataset \
+    --description "etl pipeline dataset for ASN data from CNCF supporting vendors of k8s infrastructure" \
+    "${GCP_PROJECT}:${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 
 if [ ! -f "/tmp/potaroo_data.csv" ]; then
     gsutil cp gs://ii_bq_scratch_dump/potaroo_company_asn.csv  /tmp/potaroo_data.csv
@@ -460,12 +466,12 @@ cat /tmp/potaroo_data.csv | tail +2 | sed 's,^AS,,g' > /tmp/potaroo_asn_companyn
 ## full list of RIB files on ftp://archive.routeviews.org//bgpdata/2021.05/RIBS/
 cd /tmp
 if [ ! -f "rib.latest.bz2" ]; then
-  pyasn_util_download.py --latest
-  mv rib.*.*.bz2 rib.latest.bz2
+    pyasn_util_download.py --latest
+    mv rib.*.*.bz2 rib.latest.bz2
 fi
 ## Convert rib file to .dat we can process
 if [ ! -f "ipasn_latest.dat" ]; then
-  pyasn_util_convert.py --single rib.latest.bz2 ipasn_latest.dat
+    pyasn_util_convert.py --single rib.latest.bz2 ipasn_latest.dat
 fi
 ## Run the py script we are including in the docker image
 python3 /app/ip-from-pyasn.py /tmp/potaroo_asn.txt ipasn_latest.dat /tmp/pyAsnOutput.csv
@@ -545,21 +551,22 @@ SELECT
     ip_end as end_ip,
     NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_start)) AS start_ip_int,
     NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_end)) AS end_ip_int
-    FROM `k8s-infra-ii-sandbox.${GCP_BIGQUERY_DATASET}.pyasn_ip_asn_extended`
+    FROM `k8s-infra-ii-sandbox.${GCP_BIGQUERY_DATASET_WITH_DATE}.pyasn_ip_asn_extended`
     WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
 #+end_src
 
 Load vendor data with ASNs into BigQuery
 #+begin_src shell :tangle ./pg-init.d/03-load-into-a-bigquery-dataset.sh
 ## Load csv to bq
-bq load --autodetect "${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
+bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
 
 ## Load a copy of the potaroo_data to bq
 # https://github.com/ii/org/blob/main/research/asn-data-pipeline/match-ip-to-ip-range.org
-bq load --autodetect "${GCP_BIGQUERY_DATASET}.pyasn_ip_asn_extended" /tmp/pyasn_expanded_ipv4.csv asn:integer,ip:string,ip_start:string,ip_end:string
+bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).pyasn_ip_asn_extended" /tmp/pyasn_expanded_ipv4.csv asn:integer,ip:string,ip_start:string,ip_end:string
 
 ## Lets go convert the beginning and end into ints
-envsubst < /app/ext-ip-asn.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.vendor"
+export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
+envsubst < /app/ext-ip-asn.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).vendor"
 
 mkdir -p /tmp/vendor
 
@@ -583,7 +590,7 @@ for VENDOR in ${VENDORS[*]}; do
       | yq e . -j - \
       | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [. ,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' \
         > "/tmp/vendor/${VENDOR}_yaml.csv"
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn_yaml:integer,name_yaml:string,redirectsToRegistry:string,redirectsToArtifacts:string
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).vendor_yaml" "/tmp/vendor/${VENDOR}_yaml.csv" asn_yaml:integer,name_yaml:string,redirectsToRegistry:string,redirectsToArtifacts:string
 done
 
 ASN_VENDORS=(
@@ -608,7 +615,7 @@ curl 'https://ip-ranges.amazonaws.com/ip-ranges.json' \
 
 ## Load all the csv
 for VENDOR in ${ASN_VENDORS[*]}; do
-  bq load --autodetect "${GCP_BIGQUERY_DATASET}.vendor_json" "/tmp/vendor/${VENDOR}_raw_subnet_region.csv" ipprefix:string,service:string,region:string
+  bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).vendor_json" "/tmp/vendor/${VENDOR}_raw_subnet_region.csv" ipprefix:string,service:string,region:string
 done
 
 mkdir -p /tmp/peeringdb-tables
@@ -650,28 +657,28 @@ Load ASN data with company names into BigQuery
 ## Load output to bq
 tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
 
-bq load --autodetect "${GCP_BIGQUERY_DATASET}.metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
+bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
 #+end_src
 
 Load Logs
 #+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
 if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*
   ## Need to figure out why this ones fails
-  bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
-  bq load --autodetect ${GCP_BIGQUERY_DATASET}.usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
+  bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-prod_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-kind_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-csi_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cri-tools_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/k8s-artifacts-cni_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/asia.artifacts.k8s-artifacts-prod.appspot.com_usage*
+  bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/eu.artifacts.k8s-artifacts-prod.appspot.com_usage*
 fi
 #+end_src
 
 # Added a backup set so I can avoid pulling logs if re-running
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
-SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
+SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
 #+end_src
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count_logs.sql
 SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
@@ -679,43 +686,44 @@ SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_LO
 
 #+begin_src shell :tangle ./app/distinct_ip_int.sql
 ## Get single clientip as int.
-SELECT c_ip AS c_ip, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+SELECT c_ip AS c_ip, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
 #+begin_src shell :tangle ./app/distinct_ipint_only.sql
 ## Get single clientip as int.
-SELECT NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+SELECT NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
 #+begin_src shell :tangle ./app/potaroo_extra_yaml_name_column.sql
 ## Potaroo data with extra column for yaml name
-SELECT asn, companyname, name_yaml FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET}.potaroo_all_asn_name`) A LEFT OUTER JOIN ( SELECT asn_yaml, name_yaml FROM `${GCP_BIGQUERY_DATASET}.vendor_yaml`) B ON A.asn=B.asn_yaml
+SELECT asn, companyname, name_yaml FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.potaroo_all_asn_name`) A LEFT OUTER JOIN ( SELECT asn_yaml, name_yaml FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.vendor_yaml`) B ON A.asn=B.asn_yaml
 #+end_src
 
 
 #+begin_src shell :tangle ./app/potaroo_yaml_name_subbed.sql
 ## Potaroo with company names subbed out
-SELECT A.asn, A.companyname, case when name_yaml is not null then name_yaml  else B.companyname end as name_with_yaml_name FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column`) A LEFT JOIN ( SELECT asn, companyname, name_yaml FROM `${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column`) B ON A.asn=B.asn
+SELECT A.asn, A.companyname, case when name_yaml is not null then name_yaml  else B.companyname end as name_with_yaml_name FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.3_potaroo_with_yaml_name_column`) A LEFT JOIN ( SELECT asn, companyname, name_yaml FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.3_potaroo_with_yaml_name_column`) B ON A.asn=B.asn
 #+end_src
 
 #+begin_src shell :tangle ./app/vendor_with_company_name.sql
 ## Add company name to vendor
-SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml_name FROM ( SELECT asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int FROM `${GCP_BIGQUERY_DATASET}.vendor`) A LEFT OUTER JOIN ( SELECT asn, name_with_yaml_name FROM `${GCP_BIGQUERY_DATASET}..4_potaroo_with_yaml_name_subbed`) B ON A.asn=B.asn
+SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml_name FROM ( SELECT asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.vendor`) A LEFT OUTER JOIN ( SELECT asn, name_with_yaml_name FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}..4_potaroo_with_yaml_name_subbed`) B ON A.asn=B.asn
 #+end_src
 
 Run the above sql to do some more transformations
 #+begin_src shell :tangle ./pg-init.d/07_bq_usage_data_transformation.sh
 ## Get single clientip as int.
+export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
-    envsubst < /app/distinct_c_ip_count_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+    envsubst < /app/distinct_c_ip_count_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count"
 else
-    envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.1_ip_count"
+    envsubst < /app/distinct_c_ip_count.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count"
 fi
-envsubst < /app/distinct_ip_int.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2_ip_int"
-envsubst < /app/distinct_ipint_only.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.2a_ip_int"
-envsubst < /app/potaroo_extra_yaml_name_column.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.3_potaroo_with_yaml_name_column"
-envsubst < /app/potaroo_yaml_name_subbed.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.4_potaroo_with_yaml_name_subbed"
-envsubst < /app/vendor_with_company_name.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.5_vendor_with_company_name"
+envsubst < /app/distinct_ip_int.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.2_ip_int"
+envsubst < /app/distinct_ipint_only.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.2a_ip_int"
+envsubst < /app/potaroo_extra_yaml_name_column.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.3_potaroo_with_yaml_name_column"
+envsubst < /app/potaroo_yaml_name_subbed.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.4_potaroo_with_yaml_name_subbed"
+envsubst < /app/vendor_with_company_name.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.5_vendor_with_company_name"
 #+end_src
 
 Grab all distinct clientips
@@ -726,7 +734,7 @@ echo $TIMESTAMP > /tmp/my-timestamp.txt
 ## Dump the entire table to gcs
 bq extract \
 --destination_format CSV \
-${GCP_BIGQUERY_DATASET}.2a_ip_int \
+${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).2a_ip_int \
 gs://ii_bq_scratch_dump/2a_ip_inti-$TIMESTAMP-*.csv
 ## Download the files
 TIMESTAMP=$(cat /tmp/my-timestamp.txt | tr -d '\n')
@@ -747,7 +755,7 @@ echo $TIMESTAMP > /tmp/my-timestamp.txt
 ## Dump the entire table to gcs
 bq extract \
 --destination_format CSV \
-${GCP_BIGQUERY_DATASET}.5_vendor_with_company_name \
+${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).5_vendor_with_company_name \
 gs://ii_bq_scratch_dump/vendor-$TIMESTAMP-*.csv
 ## Download the files
 TIMESTAMP=$(cat /tmp/my-timestamp.txt | tr -d '\n')
@@ -775,11 +783,11 @@ copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
-bq load --autodetect ${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
+bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
 #+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all.sql
-SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
+SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
 
@@ -788,33 +796,42 @@ SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BI
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
+export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
-    envsubst < /app/add_c_ip_int_to_usage_all_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+    envsubst < /app/add_c_ip_int_to_usage_all_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw_int"
 else
-    envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.usage_all_raw_int"
+    envsubst < /app/add_c_ip_int_to_usage_all.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw_int"
 fi
 #+end_src
 
 
 #+begin_src shell :tangle ./app/join_all_the_things.sql
-SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
+SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET_WITH_DATE}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
 #+begin_src shell :tangle ./app/join_all_the_things_no_logs.sql
-SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
+SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET_WITH_DATE}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
 #+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
 ## Get single clientip as int.
+export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
-    envsubst < /app/join_all_the_things_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+    envsubst < /app/join_all_the_things_no_logs.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).7_asn_company_c_ip_lookup"
 else
-    envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}.7_asn_company_c_ip_lookup"
+    envsubst < /app/join_all_the_things.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).7_asn_company_c_ip_lookup"
 fi
 #+end_src
 
+#+begin_src shell :tangle ./pg-init.d/14-promote-bq-dataset-as-prod.sh
+# bq rm -r -f "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
+for TABLE in $(bq ls etl_script_generated_set_20210810 | awk '{print $1}' | tail +3 | xargs); do
+    bq cp -f "${GCP_BIGQUERY_DATASET}_20210810.$TABLE" "${GCP_BIGQUERY_DATASET}.$TABLE"
+done
+#+end_src
+
 Stop the database
-#+begin_src shell :tangle ./pg-init.d/14-stop-postgres.sh
+#+begin_src shell :tangle ./pg-init.d/15-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up
@@ -822,11 +839,19 @@ if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     #
     # here we wait for that state and attempt to exit cleanly, without error
     (
-        until [ "$(cat /proc/$PPID/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
+        PARENTPID=$(ps -o ppid= -p $$ | awk '{print $1}')
+        echo MY PID     :: $$
+        echo PARENT PID :: $PARENTPID
+        PID=$$
+        if [ ! "$(cat /proc/$PARENTPID/cmdline)" = "/tools/entrypoint" ] && [ ! $PARENTPID -eq 0 ]; then
+            PID=$PARENTPID
+        fi
+        ps aux
+        until [ "$(cat /proc/$PID/cmdline | tr '\0' '\n' | head -n 1)" = "postgres" ]; do
             sleep 1s
         done
         # exit Postgres with a code of 0
-        pg_ctl kill QUIT 1
+        pg_ctl kill QUIT $PID
     ) &
 fi
 #+end_src
