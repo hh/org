@@ -38,5 +38,3 @@ resultsCsv = open(pyAsnOutput, "w")
 writer = csv.writer(resultsCsv)
 for key, value in destDict.items():
     writer.writerow([key, value])
-
-## winner winner chicken dinner

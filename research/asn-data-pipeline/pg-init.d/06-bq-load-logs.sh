@@ -1,7 +1,3 @@
-
-
-# Load Logs
-
 ## Load logs to bq
 if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
   bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/us.artifacts.k8s-artifacts-prod.appspot.com_usage*

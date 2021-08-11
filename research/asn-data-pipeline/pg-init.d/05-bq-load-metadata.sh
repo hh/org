@@ -1,7 +1,3 @@
-
-
-# Load ASN data with company names into BigQuery
-
 ## Load output to bq
 tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
 

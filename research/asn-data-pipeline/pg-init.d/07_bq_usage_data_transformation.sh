@@ -1,7 +1,3 @@
-
-
-# Run the above sql to do some more transformations
-
 ## Get single clientip as int.
 export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then

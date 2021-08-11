@@ -29,3 +29,4 @@ WORKDIR /app
 COPY --from=godeps /go/bin/yq /usr/local/bin/yq
 COPY ./pg-init.d /docker-entrypoint-initdb.d
 COPY ./app .
+ENV POSTGRES_PASSWORD=postgres

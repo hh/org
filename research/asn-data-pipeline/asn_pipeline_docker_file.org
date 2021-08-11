@@ -1,5 +1,7 @@
 #+TITLE: Asn_pipeline_docker_file
 #+PROPERTY: header-args:sql-mode+ :comments none
+#+PROPERTY: header-args:shell+ :comments none
+#+PROPERTY: header-args:bash+ :comments none
 
 Goal: Create docker image we can ultimately run in a prow job.
 This document concerns itself with the docker file I will use to get an initial docker pipeline service working
@@ -39,7 +41,6 @@ k8s-infra-ii-sandbox:etl_staging.all_asn_company_outer_join
    converting string_ip to int uses bq to do the conversion, I do not want to over complicate the loading.
 
 * Lets get to it
-
 ** Container image
 
 Define the image
@@ -75,18 +76,8 @@ WORKDIR /app
 COPY --from=godeps /go/bin/yq /usr/local/bin/yq
 COPY ./pg-init.d /docker-entrypoint-initdb.d
 COPY ./app .
+ENV POSTGRES_PASSWORD=postgres
 #+end_src
-
-Set gcloud auth creds file we can use in the container
-#+begin_src tmate asn-etl
-export GOOGLE_APPLICATION_CREDENTIALS="./beCarefulDelete.json"
-#+end_src
-
-#+BEGIN_SRC tmate :window asn-etl
-export \
-    PGUSER=postgres \
-    PGPASSWORD=password
-#+END_SRC
 
 Build the image
 #+begin_src tmate :window asn-etl
@@ -107,11 +98,6 @@ docker build -t asn-etl-pipeline .
 
 
 
-* Next steps:
-** Create container image we will use for the job
-** Start converting org file into script we will be running on innit
-
-
 * Shell script
 ** Pre-condition for shell
 *** TODO
@@ -127,90 +113,16 @@ Log into gs cloud
 #+BEGIN_SRC tmate :window prepare
 gcloud auth login
 #+END_SRC
+
 Set default project
-#+BEGIN_SRC tmate :window prepare
+#+BEGIN_SRC shell :results silent
 gcloud config set project k8s-infra-ii-sandbox
 #+END_SRC
-Checking my csv still exists
-#+begin_src shell
-gsutil ls -al gs://ii_bq_scratch_dump/ | grep peeringdb_company_asn
-#+end_src
+
 I need to configure my application-default-credentials
 #+BEGIN_SRC tmate :window prepare
 gcloud auth application-default login
 #+END_SRC
-*** Set peeringdb user
-
-*** Python script we need for pyasn
-#+BEGIN_SRC python :dir  "./ii_pyasn.py")
-## Import pyasn and csv
-import pyasn
-import csv
-
-## Set file path
-asnFile = "/home/ii/foo/asnNumbersOnly.txt"
-## Open asnNumFile and read
-asnNum = [line.rstrip() for line in open(asnFile, "r+")]
-g
-## assign our dat file connection string
-asndb = pyasn.pyasn('ipasn_20140531_1.dat')
-## Declare empty dictionary
-destDict = {}
-singleAsn = ""
-
-## Loop through list of asns
-for singleAsn in asnNum:
-    ## Go look up the asn subnets (prefixes)
-    subnets = asndb.get_as_prefixes(singleAsn)
-    ## Add checking to make sure we have subnets
-    ## TODO: insert asn with no routes so we know which failed without having to do a lookup
-    if not subnets:
-        print("This ASN has no subnets", singleAsn)
-    else:
-        ## Add subnets to our dictionaries with
-        originAsnDict = {sbnets : singleAsn for sbnets in subnets}
-        ## This is what lets us append each loop to the final destDict
-        destDict.update(originAsnDict)
-
-## Open handle to output file
-resultsCsv = open("pyAsnOutput.csv", "w")
-# write to csv
-writer = csv.writer(resultsCsv)
-for key, value in destDict.items():
-    writer.writerow([key, value])
-
-## winner winner chicken dinner
-#+end_src
-
-*** Things we need in the docker file
-**** pyasn:
--    git clone https://github.com/hadiasghari/pyasn.git
--    pip install pyasn
-**** Peeringdb:
-- Clone https://git.2e8.dk/peeringdb-simplesync (git clone https://git.2e8.dk/peeringdb-simplesync)
-**** Set pg-sql creds so peeringdb can load csv into pg without needing to log in
-pip install psycopg2-binary
-**** Where do we run the peeringdb sync.py?
-For now I will accomodate it in the script
-*** Python config we need to set for peeringdb connections
-#+BEGIN_SRC python :tangle "/tmp/config.py")
-from requests.auth import HTTPBasicAuth
-import os
-
-host=os.environ['SHARINGIO_PAIR_LOAD_BALANCER_IP']
-user=os.environ['PEERINGDB_USER']
-password=os.environ['PEERINGDB_PASSWORD']
-
-def get_config():
-    return {
-        'db_conn_str': 'dbname=peeringdb host=%s user=postgres password=password' % host,
-        'db_schema': 'peeringdb',
-        'auth': HTTPBasicAuth(user, password)
-    }
-#+END_SRC
-*** Set the peeringdb creds
-- set PEERINGDB_USER
-- set PEERINGDB_PASSWORD
 
 ** Setting up an ServiceAccount in GCP for the pipeline
 Create the ServiceAccount
@@ -219,6 +131,7 @@ gcloud iam service-accounts create asn-etl \
     --display-name="asn-etl" \
     --description="A Service Account used for ETL with ASN data"
 #+end_src
+(this will/is be replaced by Terraform)
 
 Assign the role to the ServiceAccount
 #+begin_src shell :prologue "(\n" :epilogue ") 2>&1 ; :"
@@ -291,10 +204,6 @@ GCP_BUCKET_NAME=ii_bq_scratch_dump
 gsutil iam ch "serviceAccount:asn-etl@${GCP_PROJECT}.iam.gserviceaccount.com:legacyBucketWriter" "gs://${GCP_BUCKET_NAME}"
 #+end_src
 
-#+RESULTS:
-#+begin_example
-#+end_example
-
 ** Local testing
 Remove all existing keys
 #+begin_src shell :prologue "(\n" :epilogue ")\n2>&1 ; :" :results silent
@@ -302,8 +211,7 @@ for KEY in $(gcloud iam service-accounts keys list --iam-account=asn-etl@k8s-inf
     yes | gcloud iam service-accounts keys delete "${KEY}" --iam-account=asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
 done
 #+end_src
-
-There appears to be a limit of about 10 or so keys per service-account.
+(there appears to be a limit of about 10 or so keys per service-account)
 
 Generate a key file for ServiceAccount auth
 #+begin_src shell :results silent
@@ -398,14 +306,6 @@ resultsCsv = open(pyAsnOutput, "w")
 writer = csv.writer(resultsCsv)
 for key, value in destDict.items():
     writer.writerow([key, value])
-
-## winner winner chicken dinner
-#+end_src
-#+begin_src tmate :window test-gcloud
-gcloud auth list
-#+end_src
-#+begin_src tmate :window test-gcloud
-bq ls
 #+end_src
 
 Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
@@ -478,10 +378,6 @@ python3 /app/ip-from-pyasn.py /tmp/potaroo_asn.txt ipasn_latest.dat /tmp/pyAsnOu
 ## This will output pyasnOutput.csv
 #+END_SRC
 
-#+RESULTS:
-#+begin_example
-#+end_example
-
 SQL for migrating the database
 #+begin_src sql-mode :tangle ./pg-init.d/01-migrate-schemas.sql
 begin;
@@ -523,7 +419,7 @@ create table peeriingdbpoc (
 commit;
 #+end_src
 
-TODO: write description
+Load ASN data into local Postgrse for processing
 #+begin_src sql-mode :tangle ./pg-init.d/02-load-pyasn-output.sql
 copy company_asn from '/tmp/potaroo_data.csv' delimiter ',' csv;
 copy pyasn_ip_asn from '/tmp/pyAsnOutput.csv' delimiter ',' csv;
@@ -660,7 +556,7 @@ tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
 bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
 #+end_src
 
-Load Logs
+Load logs of usage data
 #+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
 if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
@@ -676,35 +572,41 @@ if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
 fi
 #+end_src
 
-# Added a backup set so I can avoid pulling logs if re-running
+Prepare BQ Query for distinct IP count
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
 SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
 #+end_src
+
+Prepare BQ Query for distinct IP count from logs
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count_logs.sql
 SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
 #+end_src
 
+Prepare BQ Query for distinct IPs as int64 with ip as string
 #+begin_src shell :tangle ./app/distinct_ip_int.sql
 ## Get single clientip as int.
 SELECT c_ip AS c_ip, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
+Prepare BQ Query for distinct IP count
 #+begin_src shell :tangle ./app/distinct_ipint_only.sql
 ## Get single clientip as int.
 SELECT NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.1_ip_count` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
+Prepare BQ Query for sourcing ASN data from the ASN provider Potaroo
 #+begin_src shell :tangle ./app/potaroo_extra_yaml_name_column.sql
 ## Potaroo data with extra column for yaml name
 SELECT asn, companyname, name_yaml FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.potaroo_all_asn_name`) A LEFT OUTER JOIN ( SELECT asn_yaml, name_yaml FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.vendor_yaml`) B ON A.asn=B.asn_yaml
 #+end_src
 
-
+Prepare BQ Query for sourcing ASN data from the ASN provider Potaroo without company name
 #+begin_src shell :tangle ./app/potaroo_yaml_name_subbed.sql
 ## Potaroo with company names subbed out
 SELECT A.asn, A.companyname, case when name_yaml is not null then name_yaml  else B.companyname end as name_with_yaml_name FROM ( SELECT asn, companyname FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.3_potaroo_with_yaml_name_column`) A LEFT JOIN ( SELECT asn, companyname, name_yaml FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.3_potaroo_with_yaml_name_column`) B ON A.asn=B.asn
 #+end_src
 
+Prepare BQ Query for identifying vendors with company names
 #+begin_src shell :tangle ./app/vendor_with_company_name.sql
 ## Add company name to vendor
 SELECT A.asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int,name_with_yaml_name FROM ( SELECT asn, cidr_ip, start_ip, end_ip, start_ip_int, end_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.vendor`) A LEFT OUTER JOIN ( SELECT asn, name_with_yaml_name FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}..4_potaroo_with_yaml_name_subbed`) B ON A.asn=B.asn
@@ -782,19 +684,22 @@ create index on cust_ip (c_ip);
 copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_expanded_int.end_ip, vendor_expanded_int.asn, vendor_expanded_int.name_with_yaml_name, cust_ip.c_ip FROM vendor_expanded_int, cust_ip WHERE cust_ip.c_ip >= vendor_expanded_int.start_ip_int AND cust_ip.c_ip <= vendor_expanded_int.end_ip_int) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
 #+end_src
 
+Load table for matching IP to IP range to BigQuery
 #+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
 bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
+Prepare BQ Query for assosiating IP count to usage data
 #+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all.sql
 SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
-
+Prepare BQ Query for assosiating IP count to usage data from logs
 #+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all_no_logs.sql
 SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
 #+end_src
 
+Perform creating of BQ table base on IP count and usage data assosiation
 #+begin_src shell :tangle ./pg-init.d/12_add_c_ip_int_to_usage_all.sh
 export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 if [ -n "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
@@ -804,15 +709,17 @@ else
 fi
 #+end_src
 
-
+Prepare BQ Query for connecting all the tables
 #+begin_src shell :tangle ./app/join_all_the_things.sql
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET_WITH_DATE}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
+Prepare BQ Query for connecting all the tables from logs
 #+begin_src shell :tangle ./app/join_all_the_things_no_logs.sql
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_LOGS}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET_WITH_DATE}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
 #+end_src
 
+Perform creating of BQ table based on connecting all the tables
 #+begin_src shell :tangle ./pg-init.d/13_prepare_final_table.sh
 ## Get single clientip as int.
 export GCP_BIGQUERY_DATASET_WITH_DATE="${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
@@ -823,6 +730,7 @@ else
 fi
 #+end_src
 
+Copy and promote tables in BQ dataset from current run to production
 #+begin_src shell :tangle ./pg-init.d/14-promote-bq-dataset-as-prod.sh
 # bq rm -r -f "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d)"
 for TABLE in $(bq ls etl_script_generated_set_20210810 | awk '{print $1}' | tail +3 | xargs); do

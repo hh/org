@@ -1,7 +1,3 @@
-
-
-# Load vendor data with ASNs into BigQuery
-
 ## Load csv to bq
 bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).potaroo_all_asn_name" /tmp/potaroo_asn_companyname.csv asn:integer,companyname:string
 

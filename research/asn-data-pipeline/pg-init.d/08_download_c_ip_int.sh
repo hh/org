@@ -1,7 +1,3 @@
-
-
-# Grab all distinct clientips
-
 ## Set a timestamp to work with
 TIMESTAMP=$(date +%Y%m%d%H%M)
 echo $TIMESTAMP > /tmp/my-timestamp.txt

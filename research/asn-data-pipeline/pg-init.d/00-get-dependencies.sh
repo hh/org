@@ -1,7 +1,3 @@
-
-
-# Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
-
 #!/bin/bash
 set -x
 

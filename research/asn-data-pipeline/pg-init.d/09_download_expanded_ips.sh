@@ -1,7 +1,3 @@
-
-
-# Download our expanded load_vendor for local processing
-
 ## Set a timestamp to work with
 TIMESTAMP=$(date +%Y%m%d%H%M)
 echo $TIMESTAMP > /tmp/my-timestamp.txt
