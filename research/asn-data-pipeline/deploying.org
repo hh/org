@@ -141,8 +141,6 @@ periodics:
             - name: gcp-app-creds
               mountPath: /etc/asn-etl-pipeline
           env:
-            - name: POSTGRES_PASSWORD
-              value: postgres
             - name: GCP_PROJECT
               value: k8s-infra-ii-sandbox
             - name: GCP_SERVICEACCOUNT
