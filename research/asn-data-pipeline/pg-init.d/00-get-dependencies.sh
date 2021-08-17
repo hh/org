@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-set -euo pipefail
+set -eo pipefail
 eval "${ASN_DATA_PIPELINE_PREINIT:-}"
 
 PARENTPID=$(ps -o ppid= -p $$)
