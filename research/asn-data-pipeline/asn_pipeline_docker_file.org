@@ -264,6 +264,7 @@ echo "${TMP_DIR_ETL}"
 
 ** Postgres init files
 
+*** IP from PyASN
 Given PyASN data, query the ASN data from the resulting /.dat/ file
 #+begin_src python :tangle ./app/ip-from-pyasn.py :comments none
 ## Import pyasn and csv
@@ -308,6 +309,7 @@ for key, value in destDict.items():
     writer.writerow([key, value])
 #+end_src
 
+*** Get Dependencies
 Create a dataset, ensure that the local data is ready for parsing (from Potaroo)
 #+BEGIN_SRC shell :tangle ./pg-init.d/00-get-dependencies.sh
 #!/bin/bash
@@ -378,6 +380,7 @@ python3 /app/ip-from-pyasn.py /tmp/potaroo_asn.txt ipasn_latest.dat /tmp/pyAsnOu
 ## This will output pyasnOutput.csv
 #+END_SRC
 
+*** Migrate Schemas
 SQL for migrating the database
 #+begin_src sql-mode :tangle ./pg-init.d/01-migrate-schemas.sql
 begin;
@@ -419,6 +422,7 @@ create table peeriingdbpoc (
 commit;
 #+end_src
 
+*** Load PyASN data into Postgres
 Load ASN data into local Postgrse for processing
 #+begin_src sql-mode :tangle ./pg-init.d/02-load-pyasn-output.sql
 copy company_asn from '/tmp/potaroo_data.csv' delimiter ',' csv;
@@ -438,6 +442,7 @@ from pyasn_ip_asn;
 copy (select * from pyasn_ip_asn_extended) to '/tmp/pyasn_expanded_ipv4.csv' csv header;
 #+end_src
 
+*** Load into BigQuery dataset and prepare vendor data
 Query for loading extended IP ASN ranges into BigQuery
 #+begin_src sql-mode :tangle ./app/ext-ip-asn.sql
 SELECT
@@ -528,6 +533,7 @@ done
 ## placeholder for sql we will need to import asn_only from
 #+end_src
 
+*** Load and combine PeeringDB + Potaroo ASN data
 Prepare ASN data with company names
 #+begin_src sql-mode :tangle ./pg-init.d/04-load-asn-data.sql
 copy asnproc from '/tmp/potaroo_asn.txt';
@@ -548,6 +554,7 @@ copy (
   order by email asc) to '/tmp/peeringdb_metadata_prepare.csv' csv header;
 #+end_src
 
+*** Load PeeringDB + Potaroo data into BigQuery
 Load ASN data with company names into BigQuery
 #+begin_src shell :tangle ./pg-init.d/05-bq-load-metadata.sh
 ## Load output to bq
@@ -556,6 +563,7 @@ tail +2 /tmp/peeringdb_metadata_prepare.csv > /tmp/peeringdb_metadata.csv
 bq load --autodetect "${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).metadata" /tmp/peeringdb_metadata.csv asn:integer,name:string,website:string,email:string
 #+end_src
 
+*** Load Kubernetes public artifact traffic logs into BigQuery from GCS bucket
 Load logs of usage data
 #+begin_src shell :tangle ./pg-init.d/06-bq-load-logs.sh
 ## Load logs to bq
@@ -573,6 +581,7 @@ if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
 fi
 #+end_src
 
+*** Create tables in BigQuery for use in DataStudio dashboard
 Prepare BQ Query for distinct IP count
 #+begin_src sql-mode :tangle ./app/distinct_c_ip_count.sql
 SELECT DISTINCT c_ip, COUNT(c_ip) AS Total_Count FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` GROUP BY c_ip ORDER BY Total_Count DESC
@@ -629,6 +638,7 @@ envsubst < /app/potaroo_yaml_name_subbed.sql | bq query --nouse_legacy_sql --rep
 envsubst < /app/vendor_with_company_name.sql | bq query --nouse_legacy_sql --replace --destination_table "${GCP_BIGQUERY_DATASET_WITH_DATE}.5_vendor_with_company_name"
 #+end_src
 
+*** Export unique IPs into a local file from BigQuery
 Grab all distinct clientips
 #+begin_src shell :tangle ./pg-init.d/08_download_c_ip_int.sh
 ## Set a timestamp to work with
@@ -650,6 +660,7 @@ cat /tmp/usage_all_ip_only/*.csv | tail +2 > /tmp/usage_all_ip_only_1.csv
 cat /tmp/usage_all_ip_only_1.csv | grep -v c_ip_int > /tmp/usage_all_ip_only.csv
 #+end_src
 
+*** Export ASN data with company names into local file from BigQuery
 Download our expanded load_vendor for local processing
 #+begin_src shell :tangle ./pg-init.d/09_download_expanded_ips.sh
 ## Set a timestamp to work with
@@ -671,6 +682,7 @@ cat /tmp/expanded_pyasn/*.csv | tail +2 > /tmp/expanded_pyasn_1.csv
 cat /tmp/expanded_pyasn_1.csv | grep -v cidr_ip > /tmp/expanded_pyasn.csv
 #+end_src
 
+*** Prepare local data of IP to IP range in Postgres
 Copy in the tables, add some indexes and create a dump based on cross join
 #+begin_src sql-mode :tangle ./pg-init.d/10-load-single-ip-int.sql
 -- Copy the customer ip in
@@ -685,11 +697,13 @@ create index on cust_ip (c_ip);
 copy ( SELECT vendor_expanded_int.cidr_ip, vendor_expanded_int.start_ip, vendor_expanded_int.end_ip, vendor_expanded_int.asn, vendor_expanded_int.name_with_yaml_name, cust_ip.c_ip FROM vendor_expanded_int, cust_ip WHERE cust_ip.c_ip >= vendor_expanded_int.start_ip_int AND cust_ip.c_ip <= vendor_expanded_int.end_ip_int) TO '/tmp/match-ip-to-iprange.csv' CSV HEADER;
 #+end_src
 
+*** Load the table that matches IP to IP range into BigQuery from local file
 Load table for matching IP to IP range to BigQuery
 #+begin_src shell :tangle ./pg-init.d/11-upload-ip-range-2-ip.sh
 bq load --autodetect ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).6_ip_range_2_ip_lookup /tmp/match-ip-to-iprange.csv
 #+end_src
 
+*** Create BigQuery table to pull out IP as integer from raw usage logs
 Prepare BQ Query for assosiating IP count to usage data
 #+begin_src shell :tangle ./app/add_c_ip_int_to_usage_all.sql
 SELECT *, NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS c_ip_int FROM `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw` WHERE REGEXP_CONTAINS(c_ip, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}")
@@ -710,6 +724,7 @@ else
 fi
 #+end_src
 
+*** Connect all the data in the dataset of BigQuery together
 Prepare BQ Query for connecting all the tables
 #+begin_src shell :tangle ./app/join_all_the_things.sql
 SELECT time_micros, A.c_ip, c_ip_type, c_ip_region, cs_method, cs_uri, sc_status, cs_bytes, sc_bytes, time_taken_micros, cs_host, cs_referer, cs_user_agent, s_request_id, cs_operation, cs_bucket, cs_object, asn, name_with_yaml_name FROM  `${GCP_BIGQUERY_DATASET_WITH_DATE}.usage_all_raw_int` AS A FULL OUTER JOIN `${GCP_BIGQUERY_DATASET_WITH_DATE}.6_ip_range_2_ip_lookup` B ON A.c_ip_int=B.c_ip
@@ -731,6 +746,7 @@ else
 fi
 #+end_src
 
+*** Override the existing data used in the DataStudio report
 Copy and promote tables in BQ dataset from current run to production
 #+begin_src shell :tangle ./pg-init.d/14-promote-bq-dataset-as-prod.sh
 for TABLE in $(bq ls ${GCP_BIGQUERY_DATASET}_$(date --date=yesterday +%Y%m%d) | awk '{print $1}' | tail +3 | xargs); do
@@ -741,15 +757,17 @@ for TABLE in $(bq ls ${GCP_BIGQUERY_DATASET}_$(date --date=yesterday +%Y%m%d) | 
 done
 #+end_src
 
-Stop the database
+*** Stop Postgres
+Complete the running job
 #+begin_src shell :tangle ./pg-init.d/15-stop-postgres.sh
 if [ ! "${ASN_DATA_PIPELINE_RETAIN:-}" = true ]; then
     # in the Postgres container image,
     # the command run changes to "postgres" once it's completed loading up
-    # and is in a ready state
+    # and is in a ready state and all of the init scripts have run
     #
     # here we wait for that state and attempt to exit cleanly, without error
     (
+        # discover where the postgres process is, even if Prow has injected a PID 1 process
         PARENTPID=$(ps -o ppid= -p $$ | awk '{print $1}')
         echo MY PID     :: $$
         echo PARENT PID :: $PARENTPID
