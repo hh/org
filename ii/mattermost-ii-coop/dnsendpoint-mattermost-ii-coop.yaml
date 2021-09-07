@@ -5,16 +5,16 @@
 apiVersion: externaldns.k8s.io/v1alpha1
 kind: DNSEndpoint
 metadata:
-  name: mattermosttest.a.sharing.io
+  name: mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}
 spec:
   endpoints:
-  - dnsName: ns1.mattermosttest.a.sharing.io
+  - dnsName: ns1.mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}
     recordTTL: 60
     recordType: A
     targets:
     - ${LOAD_BALANCER_IP}
-  - dnsName: mattermosttest.a.sharing.io
+  - dnsName: mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}
     recordTTL: 60
     recordType: NS
     targets:
-    - ns1.mattermosttest.a.sharing.io
+    - ns1.mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}
