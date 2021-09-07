@@ -261,6 +261,7 @@ docker run \
     -v "${TMP_DIR_ETL}:/tmp" \
     asn-etl-pipeline
 echo "${TMP_DIR_ETL}"
+    # -e GCP_BIGQUERY_DATASET_LOGS=etl_script_generated_set_prod \
 #+end_src
 
 ** Postgres init files
@@ -757,7 +758,7 @@ fi
 *** Override the existing data used in the DataStudio report
 Copy and promote tables in BQ dataset from current run to production
 #+begin_src shell :tangle ./pg-init.d/14-promote-bq-dataset-as-prod.sh
-for TABLE in $(bq ls ${GCP_BIGQUERY_DATASET}_$(date --date=yesterday +%Y%m%d) | awk '{print $1}' | tail +3 | xargs); do
+for TABLE in $(bq ls ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d) | awk '{print $1}' | tail +3 | xargs); do
     echo "Removing table '${GCP_BIGQUERY_DATASET}.$TABLE'"
     bq rm -f "${GCP_BIGQUERY_DATASET}.$TABLE";
     echo "Copying table '${GCP_BIGQUERY_DATASET}_20210810.$TABLE' to '${GCP_BIGQUERY_DATASET}.$TABLE'"
