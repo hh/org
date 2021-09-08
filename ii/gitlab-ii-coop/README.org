@@ -1,268 +1,219 @@
 #+TITLE: gitlabtest.ii.coop in K8s
 
-* Secret
-#+begin_src elisp :results none
-  (setenv "PACKET_PROJECT_ID" (read-from-minibuffer "PACKET_PROJECT_ID: "))
-  (setenv "PACKET_API_KEY" (read-from-minibuffer "PACKET_API_KEY: "))
+* Initialize the packet plugin for Cluster-API
+
+Export credentials for Cluster-API + Packet running in kind to use
+#+begin_src tmate :window gitlab :session packet-cluster-api :noweb yes
+read -p 'PACKET_PROJECT_ID: ' PACKET_PROJECT_ID && \
+export PACKET_PROJECT_ID && \
+read -p 'PACKET_API_KEY: ' PACKET_API_KEY && \
+export PACKET_API_KEY && \
+clusterctl init --infrastructure=packet
 #+end_src
 
-#+name: get-packet-project-id
-#+begin_src elisp :results silent
-  (getenv "PACKET_PROJECT_ID")
-#+end_src
-
-#+name: get-packet-auth-token
-#+begin_src elisp :results silent
-  (getenv "PACKET_API_KEY")
-#+end_src
 
 * Set up cluster
 #+NAME: Cluster-API manifests
 #+begin_src yaml :tangle ./gitlab-cluster-capi-template.yaml
-  kind: KubeadmControlPlane
-  apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
-  metadata:
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  version: ${KUBERNETES_VERSION}
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: PacketMachineTemplate
     name: "${CLUSTER_NAME}-control-plane"
-  spec:
-    version: ${KUBERNETES_VERSION}
-    replicas: ${CONTROL_PLANE_MACHINE_COUNT}
-    infrastructureTemplate:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-      kind: PacketMachineTemplate
-      name: "${CLUSTER_NAME}-control-plane"
-    kubeadmConfigSpec:
-      initConfiguration:
-        nodeRegistration:
-          criSocket: /var/run/containerd/containerd.sock
-          kubeletExtraArgs:
-            cloud-provider: external
-      clusterConfiguration:
-        apiServer:
-          extraArgs:
-            cloud-provider: external
-            audit-policy-file: /etc/kubernetes/pki/audit-policy.yaml
-            audit-log-path: "-"
-            audit-webhook-config-file: /etc/kubernetes/pki/audit-sink.yaml
-            v: '99'
-        controllerManager:
-          extraArgs:
-            cloud-provider: external
-      joinConfiguration:
-        nodeRegistration:
-          criSocket: /var/run/containerd/containerd.sock
-          kubeletExtraArgs:
-            cloud-provider: external
-      postKubeadmCommands:
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: external
+    clusterConfiguration:
+      apiServer:
+        extraArgs:
+          cloud-provider: external
+      controllerManager:
+        extraArgs:
+          cloud-provider: external
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: external
+    postKubeadmCommands:
       - |
-          cat <<EOF >> /etc/network/interfaces
-          auto lo:0
-          iface lo:0 inet static
-            address {{ .controlPlaneEndpoint }}
-            netmask 255.255.255.255
-          EOF
+        cat <<EOF >> /etc/network/interfaces
+        auto lo:0
+        iface lo:0 inet static
+          address {{ .controlPlaneEndpoint }}
+          netmask 255.255.255.255
+        EOF
       - systemctl restart networking
-      - mkdir -p /root/.kube;
-      - cp -i /etc/kubernetes/admin.conf /root/.kube/config
-      - export KUBECONFIG=/root/.kube/config
-      - 'kubectl create secret generic -n kube-system packet-cloud-config --from-literal=cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "${PACKET_PROJECT_ID}", "eipTag": "cluster-api-provider-packet:cluster-id:${CLUSTER_NAME}"}'''
-      - kubectl taint node --all node-role.kubernetes.io/master-
-      - kubectl apply -f https://github.com/packethost/packet-ccm/releases/download/v1.1.0/deployment.yaml
-      preKubeadmCommands:
-      - mkdir -p /etc/kubernetes/pki
-      - |
-          cat <<EOF > /etc/kubernetes/pki/audit-policy.yaml
-          apiVersion: audit.k8s.io/v1
-          kind: Policy
-          rules:
-            - level: RequestResponse
-          EOF
-      - |
-          cat <<EOF > /etc/kubernetes/pki/audit-sink.yaml
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - cluster:
-                server: http://10.96.96.96:9900/events
-              name: auditsink-cluster
-          contexts:
-            - context:
-                cluster: auditsink-cluster
-                user: ""
-              name: auditsink-context
-          current-context: auditsink-context
-          users: []
-          preferences: {}
-          EOF
+      - 'kubectl --kubeconfig /etc/kubernetes/admin.conf create secret generic -n kube-system packet-cloud-config --from-literal=cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "${PROJECT_ID}", "eipTag": "cluster-api-provider-packet:cluster-id:${CLUSTER_NAME}"}'''
+      - kubectl apply --kubeconfig /etc/kubernetes/admin.conf -f https://github.com/packethost/packet-ccm/releases/download/v2.0.0/deployment.yaml
+      - kubectl taint --kubeconfig /etc/kubernetes/admin.conf node --all node-role.kubernetes.io/master-
+    preKubeadmCommands:
       - sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
       - swapoff -a
       - mount -a
       - |
-        cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
+        cat <<EOF > /etc/modules-load.d/containerd.conf
         overlay
         br_netfilter
         EOF
       - modprobe overlay
       - modprobe br_netfilter
       - |
-        cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+        cat <<EOF > /etc/sysctl.d/99-kubernetes-cri.conf
         net.bridge.bridge-nf-call-iptables  = 1
         net.ipv4.ip_forward                 = 1
         net.bridge.bridge-nf-call-ip6tables = 1
         EOF
       - sysctl --system
-      - |
-          mkdir -p /etc/sudoers.d
-          echo "%sudo    ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/sudo
-          cp -a /root/.ssh /etc/skel/.ssh
-          useradd -m -G users,sudo -u 1000 -s /bin/bash ii
       - apt-get -y update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl
-      - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+      - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
       - echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
       - apt-get update -y
-      - TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/\./\\./g' | sed 's/^v//')
+      - TRIMMED_KUBERNETES_VERSION=$(echo {{ .kubernetesVersion }} | sed 's/\./\\./g' | sed 's/^v//')
       - RESOLVED_KUBERNETES_VERSION=$(apt-cache policy kubelet | awk -v VERSION=$${TRIMMED_KUBERNETES_VERSION} '$1~ VERSION { print $1 }' | head -n1)
-      - apt-get install -y ca-certificates socat jq ebtables apt-transport-https cloud-utils prips containerd kubelet=$${RESOLVED_KUBERNETES_VERSION} kubeadm=$${RESOLVED_KUBERNETES_VERSION} kubectl=$${RESOLVED_KUBERNETES_VERSION} lvm2
+      - apt-get install -y ca-certificates socat jq ebtables apt-transport-https cloud-utils prips containerd kubelet=$${RESOLVED_KUBERNETES_VERSION} kubeadm=$${RESOLVED_KUBERNETES_VERSION} kubectl=$${RESOLVED_KUBERNETES_VERSION}
       - systemctl daemon-reload
-      - systemctl enable --now containerd
-      - chgrp users /var/run/docker.sock
+      - systemctl enable containerd
+      - systemctl start containerd
       - ping -c 3 -q {{ .controlPlaneEndpoint }} && echo OK || ip addr add {{ .controlPlaneEndpoint }} dev lo
-      - echo "ListenAddress $(ip a show dev bond0 | grep -v ':' | head -1 | awk '{print $2}' | cut -d '/' -f1)" > /etc/ssh/sshd_config.d/listen_on_node_ip.conf
-      - systemctl restart sshd
-  ---
-  apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-  kind: PacketMachineTemplate
-  metadata:
-    name: "${CLUSTER_NAME}-control-plane"
-  spec:
-    template:
-      spec:
-        OS: "${NODE_OS}"
-        billingCycle: hourly
-        machineType: "${WORKER_NODE_TYPE}"
-        sshKeys:
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: PacketMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  template:
+    spec:
+      OS: "${NODE_OS:=ubuntu_18_04}"
+      billingCycle: hourly
+      machineType: "${CONTROLPLANE_NODE_TYPE}"
+      sshKeys:
         - "${SSH_KEY}"
-        tags: []
-  ---
-  apiVersion: cluster.x-k8s.io/v1alpha3
-  kind: Cluster
-  metadata:
+      tags: []
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - ${POD_CIDR:=192.168.0.0/16}
+    services:
+      cidrBlocks:
+        - ${SERVICE_CIDR:=172.26.0.0/16}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: PacketCluster
     name: "${CLUSTER_NAME}"
-  spec:
-    clusterNetwork:
-      pods:
-        cidrBlocks: ["${POD_CIDR}"]
-      services:
-        cidrBlocks: ["${SERVICE_CIDR}"]
-    infrastructureRef:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-      kind: PacketCluster
-      name: "${CLUSTER_NAME}"
-    controlPlaneRef:
-      apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
-      kind: KubeadmControlPlane
-      name: "${CLUSTER_NAME}-control-plane"
-  ---
-  apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-  kind: PacketCluster
-  metadata:
-    name: "${CLUSTER_NAME}"
-  spec:
-    projectID: "${PACKET_PROJECT_ID}"
-    facility: "${FACILITY}"
-    controlPlaneEndpoint:
-      host: gitlab.ii.coop
-      port: 6443
-  ---
-  apiVersion: cluster.x-k8s.io/v1alpha3
-  kind: MachineDeployment
-  metadata:
-    name: ${CLUSTER_NAME}-worker-a
-    labels:
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: KubeadmControlPlane
+    name: "${CLUSTER_NAME}-control-plane"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: PacketCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  projectID: "${PROJECT_ID}"
+  facility: "${FACILITY}"
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}-worker-a
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    pool: worker-a
+spec:
+  replicas: ${WORKER_MACHINE_COUNT}
+  clusterName: ${CLUSTER_NAME}
+  selector:
+    matchLabels:
       cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
       pool: worker-a
-  spec:
-    replicas: ${WORKER_MACHINE_COUNT}
-    clusterName: ${CLUSTER_NAME}
-    selector:
-      matchLabels:
+  template:
+    metadata:
+      labels:
         cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
         pool: worker-a
-    template:
-      metadata:
-        labels:
-          cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-          pool: worker-a
-      spec:
-        version: ${KUBERNETES_VERSION}
-        clusterName: ${CLUSTER_NAME}
-        bootstrap:
-          configRef:
-            name: ${CLUSTER_NAME}-worker-a
-            apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-            kind: KubeadmConfigTemplate
-        infrastructureRef:
+    spec:
+      version: ${KUBERNETES_VERSION}
+      clusterName: ${CLUSTER_NAME}
+      bootstrap:
+        configRef:
           name: ${CLUSTER_NAME}-worker-a
-          apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-          kind: PacketMachineTemplate
-  ---
-  apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-  kind: PacketMachineTemplate
-  metadata:
-    name: ${CLUSTER_NAME}-worker-a
-  spec:
-    template:
-      spec:
-        OS: "${NODE_OS}"
-        billingCycle: hourly
-        machineType: "${WORKER_NODE_TYPE}"
-        sshKeys:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: ${CLUSTER_NAME}-worker-a
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+        kind: PacketMachineTemplate
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: PacketMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-worker-a
+spec:
+  template:
+    spec:
+      OS: "${NODE_OS:=ubuntu_18_04}"
+      billingCycle: hourly
+      machineType: "${WORKER_NODE_TYPE}"
+      sshKeys:
         - "${SSH_KEY}"
-        tags: []
-  ---
-  kind: KubeadmConfigTemplate
-  apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-  metadata:
-    name: "${CLUSTER_NAME}-worker-a"
-  spec:
-    template:
-      spec:
-        preKubeadmCommands:
-          - sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
-          - swapoff -a
-          - mount -a
-          - |
-            cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
-            overlay
-            br_netfilter
-            EOF
-          - modprobe overlay
-          - modprobe br_netfilter
-          - |
-            cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
-            net.bridge.bridge-nf-call-iptables  = 1
-            net.ipv4.ip_forward                 = 1
-            net.bridge.bridge-nf-call-ip6tables = 1
-            EOF
-          - sysctl --system
-          - apt-get -y update
-          - DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl
-          - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-          - echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
-          - apt-get update -y
-          - TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/\./\\./g' | sed 's/^v//')
-          - RESOLVED_KUBERNETES_VERSION=$(apt-cache policy kubelet | awk -v VERSION=$${TRIMMED_KUBERNETES_VERSION} '$1~ VERSION { print $1 }' | head -n1)
-          - apt-get install -y ca-certificates socat jq ebtables apt-transport-https cloud-utils prips containerd kubelet=$${RESOLVED_KUBERNETES_VERSION} kubeadm=$${RESOLVED_KUBERNETES_VERSION} kubectl=$${RESOLVED_KUBERNETES_VERSION}
-          - systemctl daemon-reload
-          - systemctl enable containerd
-          - systemctl start containerd
-          - echo "ListenAddress $(ip a show dev bond0 | grep -v ':' | head -1 | awk '{print $2}' | cut -d '/' -f1)" > /etc/ssh/sshd_config.d/listen_on_node_ip.conf
-          - systemctl restart sshd
-        joinConfiguration:
-          nodeRegistration:
-            criSocket: /var/run/containerd/containerd.sock
-            kubeletExtraArgs:
-              cloud-provider: external
+      tags: []
+---
+kind: KubeadmConfigTemplate
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+metadata:
+  name: "${CLUSTER_NAME}-worker-a"
+spec:
+  template:
+    spec:
+      preKubeadmCommands:
+        - sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
+        - swapoff -a
+        - mount -a
+        - |
+          cat <<EOF > /etc/modules-load.d/containerd.conf
+          overlay
+          br_netfilter
+          EOF
+        - modprobe overlay
+        - modprobe br_netfilter
+        - |
+          cat <<EOF > /etc/sysctl.d/99-kubernetes-cri.conf
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.ipv4.ip_forward                 = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          EOF
+        - sysctl --system
+        - apt-get -y update
+        - DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl
+        - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+        - echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update -y
+        - TRIMMED_KUBERNETES_VERSION=$(echo {{ .kubernetesVersion }} | sed 's/\./\\./g' | sed 's/^v//')
+        - RESOLVED_KUBERNETES_VERSION=$(apt-cache policy kubelet | awk -v VERSION=$${TRIMMED_KUBERNETES_VERSION} '$1~ VERSION { print $1 }' | head -n1)
+        - apt-get install -y ca-certificates socat jq ebtables apt-transport-https cloud-utils prips containerd kubelet=$${RESOLVED_KUBERNETES_VERSION} kubeadm=$${RESOLVED_KUBERNETES_VERSION} kubectl=$${RESOLVED_KUBERNETES_VERSION}
+        - systemctl daemon-reload
+        - systemctl enable containerd
+        - systemctl start containerd
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-provider: external
 #+end_src
 
 #+NAME: Start a window
@@ -271,56 +222,68 @@
 
 #+NAME: Generate cluster-api manifests
 #+begin_src tmate :dir . :window gitlab :noweb yes
-  export CLUSTER_NAME="gitlab-ii-coop"
-  export PACKET_PROJECT_ID=<<get-packet-project-id()>>
-      export PACKET_API_KEY=<<get-packet-auth-token()>>
-  export FACILITY=sjc1
-  export KUBERNETES_VERSION=v1.20.0
-  export POD_CIDR=10.244.0.0/16
-  export SERVICE_CIDR=10.96.0.0/12
-  export NODE_OS=ubuntu_20_04
-  export CONTROLPLANE_NODE_TYPE=s3.xlarge.x86
-  export CONTROL_PLANE_MACHINE_COUNT=3
-  export WORKER_NODE_TYPE=s3.xlarge.x86
-  export WORKER_MACHINE_COUNT=0
-  export SSH_KEY=""
-  clusterctl config cluster "$CLUSTER_NAME" --from ./gitlab-cluster-capi-template.yaml -n "$CLUSTER_NAME" > "$CLUSTER_NAME"-cluster-capi.yaml
+export CLUSTER_NAME="gitlab-ii-coop"
+export FACILITY=sjc1
+export KUBERNETES_VERSION=v1.21.1
+export POD_CIDR=10.244.0.0/16
+export SERVICE_CIDR=10.96.0.0/12
+export NODE_OS=ubuntu_20_04
+export CONTROLPLANE_NODE_TYPE=s3.xlarge.x86
+export CONTROL_PLANE_MACHINE_COUNT=3
+export WORKER_NODE_TYPE=s3.xlarge.x86
+export WORKER_MACHINE_COUNT=0
+export SSH_KEY=""
+export PROJECT_ID=$PACKET_PROJECT_ID
+clusterctl config cluster "$CLUSTER_NAME" --from ./gitlab-cluster-capi-template.yaml -n "$CLUSTER_NAME" > "$CLUSTER_NAME"-cluster-capi.yaml
 #+end_src
 
 #+NAME: Create box
 #+begin_src tmate :dir . :window gitlab
-  kubectl create ns gitlab-ii-coop
-  kubectl -n gitlab-ii-coop apply -f ./gitlab-ii-coop-cluster-capi.yaml
+kubectl create ns gitlab-ii-coop
+kubectl -n gitlab-ii-coop apply -f ./gitlab-ii-coop-cluster-capi.yaml
 #+end_src
+
+The cluster will now be brought up, we can see the progress by taking a look at the resources:
+#+begin_src tmate
+kubectl -n gitlab-ii-coop get machines,clusters,packetmachines,packetclusters
+#+end_src
+
+Note that the nodes in the cluster will remain not ready until the CNI is applied.
 
 #+NAME: Get Kubeconfig
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab-ii-coop get secret gitlab-ii-coop-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config-gitlab-ii-coop
-  export KUBECONFIG=~/.kube/config-gitlab-ii-coop
+kubectl -n gitlab-ii-coop get secret gitlab-ii-coop-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config-gitlab-ii-coop
+export KUBECONFIG=~/.kube/config-gitlab-ii-coop
 #+end_src
 
 #+NAME: Ensure all nodes are scheduable
 #+begin_src tmate :dir . :window gitlab
-  kubectl taint node --all node-role.kubernetes.io/master-
+kubectl taint node --all node-role.kubernetes.io/master-
 #+end_src
 
 * CNI
 
 #+NAME: Weave CNI
 #+begin_src tmate :dir . :window gitlab
-  curl -o weave-net.yaml -L "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=192.168.0.0/16"
-  kubectl apply -f ./weave-net.yaml
+curl -o weave-net.yaml -L "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=192.168.0.0/16"
+kubectl apply -f ./weave-net.yaml
 #+end_src
 
 * Helm-Operator
-
 #+NAME: Helm-Operator
 #+begin_src tmate :dir . :window gitlab
-  kubectl create ns helm-operator
-  curl -o helm-operator-crds.yaml -L https://raw.githubusercontent.com/fluxcd/helm-operator/1.2.0/deploy/crds.yaml
-  kubectl apply -f helm-operator-crds.yaml
-  helm repo add fluxcd https://charts.fluxcd.io
-  helm upgrade -i helm-operator fluxcd/helm-operator --set helm.versions=v3 -n helm-operator
+curl -o ./helm-operator-crds.yaml -L https://raw.githubusercontent.com/fluxcd/helm-operator/1.4.0/deploy/crds.yaml
+
+helm repo add fluxcd https://charts.fluxcd.io
+helm template helm-operator --create-namespace fluxcd/helm-operator \
+    --version 1.4.0 \
+    --namespace helm-operator \
+    --set helm.versions=v3 > ./helm-operator.yaml
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+kubectl create namespace helm-operator
+kubectl apply -f ./helm-operator-crds.yaml -f ./helm-operator.yaml
 #+end_src
 
 * Rook + Ceph
@@ -328,273 +291,266 @@
 kubectl create ns rook-ceph
 #+end_src
 
-#+begin_src yaml :tangle ./rook-ceph-helm.yaml
-apiVersion: helm.fluxcd.io/v1
-kind: HelmRelease
-metadata:
-  name: rook-ceph
-spec:
-  releaseName: rook-ceph
-  chart:
-    repository: https://charts.rook.io/release
-    name: rook-ceph
-    version: 1.5.4
+#+begin_src shell :results silent
+curl -L -o ./rook-ceph-common.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/common.yaml
+curl -L -o ./rook-ceph-crds.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/crds.yaml
+curl -L -o ./rook-ceph-operator.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/operator.yaml
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
-kubectl -n rook-ceph apply -f rook-ceph-helm.yaml
+kubectl apply -f ./rook-ceph-crds.yaml -f ./rook-ceph-common.yaml -f ./rook-ceph-operator.yaml
 #+end_src
 
 #+begin_src yaml :tangle ./rook-ceph-cluster.yaml
-  #################################################################################################################
-  # Define the settings for the rook-ceph cluster with common settings for a production cluster.
-  # All nodes with available raw devices will be used for the Ceph cluster. At least three nodes are required
-  # in this example. See the documentation for more details on storage settings available.
+#################################################################################################################
+# Define the settings for the rook-ceph cluster with common settings for a production cluster.
+# All nodes with available raw devices will be used for the Ceph cluster. At least three nodes are required
+# in this example. See the documentation for more details on storage settings available.
 
-  # For example, to create the cluster:
-  #   kubectl create -f crds.yaml -f common.yaml -f operator.yaml
-  #   kubectl create -f cluster.yaml
-  #################################################################################################################
+# For example, to create the cluster:
+#   kubectl create -f crds.yaml -f common.yaml -f operator.yaml
+#   kubectl create -f cluster.yaml
+#################################################################################################################
 
-  apiVersion: ceph.rook.io/v1
-  kind: CephCluster
-  metadata:
-    name: rook-ceph
-    namespace: rook-ceph # namespace:cluster
-  spec:
-    cephVersion:
-      # The container image used to launch the Ceph daemon pods (mon, mgr, osd, mds, rgw).
-      # v13 is mimic, v14 is nautilus, and v15 is octopus.
-      # RECOMMENDATION: In production, use a specific version tag instead of the general v14 flag, which pulls the latest release and could result in different
-      # versions running within the cluster. See tags available at https://hub.docker.com/r/ceph/ceph/tags/.
-      # If you want to be more precise, you can always use a timestamp tag such ceph/ceph:v15.2.8-20201217
-      # This tag might not contain a new Ceph version, just security fixes from the underlying operating system, which will reduce vulnerabilities
-      image: ceph/ceph:v15.2.8
-      # Whether to allow unsupported versions of Ceph. Currently `nautilus` and `octopus` are supported.
-      # Future versions such as `pacific` would require this to be set to `true`.
-      # Do not set to true in production.
-      allowUnsupported: false
-    # The path on the host where configuration files will be persisted. Must be specified.
-    # Important: if you reinstall the cluster, make sure you delete this directory from each host or else the mons will fail to start on the new cluster.
-    # In Minikube, the '/data' directory is configured to persist across reboots. Use "/data/rook" in Minikube environment.
-    dataDirHostPath: /var/lib/rook
-    # Whether or not upgrade should continue even if a check fails
-    # This means Ceph's status could be degraded and we don't recommend upgrading but you might decide otherwise
-    # Use at your OWN risk
-    # To understand Rook's upgrade process of Ceph, read https://rook.io/docs/rook/master/ceph-upgrade.html#ceph-version-upgrades
-    skipUpgradeChecks: false
-    # Whether or not continue if PGs are not clean during an upgrade
-    continueUpgradeAfterChecksEvenIfNotHealthy: false
-    mon:
-      # Set the number of mons to be started. Must be an odd number, and is generally recommended to be 3.
-      count: 3
-      # The mons should be on unique nodes. For production, at least 3 nodes are recommended for this reason.
-      # Mons should only be allowed on the same node for test environments where data loss is acceptable.
-      allowMultiplePerNode: true
-    mgr:
-      modules:
-      # Several modules should not need to be included in this list. The "dashboard" and "monitoring" modules
-      # are already enabled by other settings in the cluster CR.
-      - name: pg_autoscaler
-        enabled: true
-    # enable the ceph dashboard for viewing cluster status
-    dashboard:
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph # namespace:cluster
+spec:
+  cephVersion:
+    # The container image used to launch the Ceph daemon pods (mon, mgr, osd, mds, rgw).
+    # v13 is mimic, v14 is nautilus, and v15 is octopus.
+    # RECOMMENDATION: In production, use a specific version tag instead of the general v14 flag, which pulls the latest release and could result in different
+    # versions running within the cluster. See tags available at https://hub.docker.com/r/ceph/ceph/tags/.
+    # If you want to be more precise, you can always use a timestamp tag such ceph/ceph:v15.2.8-20201217
+    # This tag might not contain a new Ceph version, just security fixes from the underlying operating system, which will reduce vulnerabilities
+    image: ceph/ceph:v15.2.8
+    # Whether to allow unsupported versions of Ceph. Currently `nautilus` and `octopus` are supported.
+    # Future versions such as `pacific` would require this to be set to `true`.
+    # Do not set to true in production.
+    allowUnsupported: false
+  # The path on the host where configuration files will be persisted. Must be specified.
+  # Important: if you reinstall the cluster, make sure you delete this directory from each host or else the mons will fail to start on the new cluster.
+  # In Minikube, the '/data' directory is configured to persist across reboots. Use "/data/rook" in Minikube environment.
+  dataDirHostPath: /var/lib/rook
+  # Whether or not upgrade should continue even if a check fails
+  # This means Ceph's status could be degraded and we don't recommend upgrading but you might decide otherwise
+  # Use at your OWN risk
+  # To understand Rook's upgrade process of Ceph, read https://rook.io/docs/rook/master/ceph-upgrade.html#ceph-version-upgrades
+  skipUpgradeChecks: false
+  # Whether or not continue if PGs are not clean during an upgrade
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+  mon:
+    # Set the number of mons to be started. Must be an odd number, and is generally recommended to be 3.
+    count: 3
+    # The mons should be on unique nodes. For production, at least 3 nodes are recommended for this reason.
+    # Mons should only be allowed on the same node for test environments where data loss is acceptable.
+    allowMultiplePerNode: true
+  mgr:
+    modules:
+    # Several modules should not need to be included in this list. The "dashboard" and "monitoring" modules
+    # are already enabled by other settings in the cluster CR.
+    - name: pg_autoscaler
       enabled: true
-      # serve the dashboard under a subpath (useful when you are accessing the dashboard via a reverse proxy)
-      # urlPrefix: /ceph-dashboard
-      # serve the dashboard at the given port.
-      # port: 8443
-      # serve the dashboard using SSL
-      ssl: true
-    # enable prometheus alerting for cluster
-    monitoring:
-      # requires Prometheus to be pre-installed
-      enabled: false
-      # namespace to deploy prometheusRule in. If empty, namespace of the cluster will be used.
-      # Recommended:
-      # If you have a single rook-ceph cluster, set the rulesNamespace to the same namespace as the cluster or keep it empty.
-      # If you have multiple rook-ceph clusters in the same k8s cluster, choose the same namespace (ideally, namespace with prometheus
-      # deployed) to set rulesNamespace for all the clusters. Otherwise, you will get duplicate alerts with multiple alert definitions.
-      rulesNamespace: rook-ceph
-    network:
-      # enable host networking
-      #provider: host
-      # EXPERIMENTAL: enable the Multus network provider
-      #provider: multus
-      #selectors:
-        # The selector keys are required to be `public` and `cluster`.
-        # Based on the configuration, the operator will do the following:
-        #   1. if only the `public` selector key is specified both public_network and cluster_network Ceph settings will listen on that interface
-        #   2. if both `public` and `cluster` selector keys are specified the first one will point to 'public_network' flag and the second one to 'cluster_network'
-        #
-        # In order to work, each selector value must match a NetworkAttachmentDefinition object in Multus
-        #
-        #public: public-conf --> NetworkAttachmentDefinition object name in Multus
-        #cluster: cluster-conf --> NetworkAttachmentDefinition object name in Multus
-      # Provide internet protocol version. IPv6, IPv4 or empty string are valid options. Empty string would mean IPv4
-      #ipFamily: "IPv6"
-    # enable the crash collector for ceph daemon crash collection
-    crashCollector:
-      disable: false
-    # enable log collector, daemons will log on files and rotate
-    # logCollector:
-    #   enabled: true
-    #   periodicity: 24h # SUFFIX may be 'h' for hours or 'd' for days.
-    # automate [data cleanup process](https://github.com/rook/rook/blob/master/Documentation/ceph-teardown.md#delete-the-data-on-hosts) in cluster destruction.
-    cleanupPolicy:
-      # Since cluster cleanup is destructive to data, confirmation is required.
-      # To destroy all Rook data on hosts during uninstall, confirmation must be set to "yes-really-destroy-data".
-      # This value should only be set when the cluster is about to be deleted. After the confirmation is set,
-      # Rook will immediately stop configuring the cluster and only wait for the delete command.
-      # If the empty string is set, Rook will not destroy any data on hosts during uninstall.
-      confirmation: ""
-      # sanitizeDisks represents settings for sanitizing OSD disks on cluster deletion
-      sanitizeDisks:
-        # method indicates if the entire disk should be sanitized or simply ceph's metadata
-        # in both case, re-install is possible
-        # possible choices are 'complete' or 'quick' (default)
-        method: quick
-        # dataSource indicate where to get random bytes from to write on the disk
-        # possible choices are 'zero' (default) or 'random'
-        # using random sources will consume entropy from the system and will take much more time then the zero source
-        dataSource: zero
-        # iteration overwrite N times instead of the default (1)
-        # takes an integer value
-        iteration: 1
-      # allowUninstallWithVolumes defines how the uninstall should be performed
-      # If set to true, cephCluster deletion does not wait for the PVs to be deleted.
-      allowUninstallWithVolumes: false
-    # To control where various services will be scheduled by kubernetes, use the placement configuration sections below.
-    # The example under 'all' would have all services scheduled on kubernetes nodes labeled with 'role=storage-node' and
-    # tolerate taints with a key of 'storage-node'.
-  #  placement:
-  #    all:
-  #      nodeAffinity:
-  #        requiredDuringSchedulingIgnoredDuringExecution:
-  #          nodeSelectorTerms:
-  #          - matchExpressions:
-  #            - key: role
-  #              operator: In
-  #              values:
-  #              - storage-node
-  #      podAffinity:
-  #      podAntiAffinity:
-  #      topologySpreadConstraints:
-  #      tolerations:
-  #      - key: storage-node
-  #        operator: Exists
-  # The above placement information can also be specified for mon, osd, and mgr components
-  #    mon:
-  # Monitor deployments may contain an anti-affinity rule for avoiding monitor
-  # collocation on the same node. This is a required rule when host network is used
-  # or when AllowMultiplePerNode is false. Otherwise this anti-affinity rule is a
-  # preferred rule with weight: 50.
-  #    osd:
-  #    mgr:
-  #    cleanup:
-    annotations:
-  #    all:
-  #    mon:
-  #    osd:
-  #    cleanup:
-  #    prepareosd:
-  # If no mgr annotations are set, prometheus scrape annotations will be set by default.
-  #    mgr:
-    labels:
-  #    all:
-  #    mon:
-  #    osd:
-  #    cleanup:
-  #    mgr:
-  #    prepareosd:
-    resources:
-  # The requests and limits set here, allow the mgr pod to use half of one CPU core and 1 gigabyte of memory
-  #    mgr:
-  #      limits:
-  #        cpu: "500m"
-  #        memory: "1024Mi"
-  #      requests:
-  #        cpu: "500m"
-  #        memory: "1024Mi"
-  # The above example requests/limits can also be added to the mon and osd components
-  #    mon:
-  #    osd:
-  #    prepareosd:
-  #    crashcollector:
-  #    logcollector:
-  #    cleanup:
-    # The option to automatically remove OSDs that are out and are safe to destroy.
-    removeOSDsIfOutAndSafeToRemove: false
-  #  priorityClassNames:
-  #    all: rook-ceph-default-priority-class
-  #    mon: rook-ceph-mon-priority-class
-  #    osd: rook-ceph-osd-priority-class
-  #    mgr: rook-ceph-mgr-priority-class
-    storage: # cluster level storage configuration and selection
-      useAllNodes: true
-      useAllDevices: false
-      deviceFilter: "^sd[c-n]"
-      #config:
-        # crushRoot: "custom-root" # specify a non-default root label for the CRUSH map
-        # metadataDevice: "md0" # specify a non-rotational storage so ceph-volume will use it as block db device of bluestore.
-        # databaseSizeMB: "1024" # uncomment if the disks are smaller than 100 GB
-        # journalSizeMB: "1024"  # uncomment if the disks are 20 GB or smaller
-        # osdsPerDevice: "1" # this value can be overridden at the node or device level
-        # encryptedDevice: "true" # the default value for this option is "false"
-  # Individual nodes and their config can be specified as well, but 'useAllNodes' above must be set to false. Then, only the named
-  # nodes below will be used as storage resources.  Each node's 'name' field should match their 'kubernetes.io/hostname' label.
-  #    nodes:
-  #    - name: "172.17.4.201"
-  #      devices: # specific devices to use for storage can be specified for each node
-  #      - name: "sdb"
-  #      - name: "nvme01" # multiple osds can be created on high performance devices
-  #        config:
-  #          osdsPerDevice: "5"
-  #      - name: "/dev/disk/by-id/ata-ST4000DM004-XXXX" # devices can be specified using full udev paths
-  #      config: # configuration can be specified at the node level which overrides the cluster level config
-  #        storeType: filestore
-  #    - name: "172.17.4.301"
-  #      deviceFilter: "^sd."
-    # The section for configuring management of daemon disruptions during upgrade or fencing.
-    disruptionManagement:
-      # If true, the operator will create and manage PodDisruptionBudgets for OSD, Mon, RGW, and MDS daemons. OSD PDBs are managed dynamically
-      # via the strategy outlined in the [design](https://github.com/rook/rook/blob/master/design/ceph/ceph-managed-disruptionbudgets.md). The operator will
-      # block eviction of OSDs by default and unblock them safely when drains are detected.
-      managePodBudgets: false
-      # A duration in minutes that determines how long an entire failureDomain like `region/zone/host` will be held in `noout` (in addition to the
-      # default DOWN/OUT interval) when it is draining. This is only relevant when  `managePodBudgets` is `true`. The default value is `30` minutes.
-      osdMaintenanceTimeout: 30
-      # A duration in minutes that the operator will wait for the placement groups to become healthy (active+clean) after a drain was completed and OSDs came back up.
-      # Operator will continue with the next drain if the timeout exceeds. It only works if `managePodBudgets` is `true`.
-      # No values or 0 means that the operator will wait until the placement groups are healthy before unblocking the next drain.
-      pgHealthCheckTimeout: 0
-      # If true, the operator will create and manage MachineDisruptionBudgets to ensure OSDs are only fenced when the cluster is healthy.
-      # Only available on OpenShift.
-      manageMachineDisruptionBudgets: false
-      # Namespace in which to watch for the MachineDisruptionBudgets.
-      machineDisruptionBudgetNamespace: openshift-machine-api
+  # enable the ceph dashboard for viewing cluster status
+  dashboard:
+    enabled: true
+    # serve the dashboard under a subpath (useful when you are accessing the dashboard via a reverse proxy)
+    # urlPrefix: /ceph-dashboard
+    # serve the dashboard at the given port.
+    # port: 8443
+    # serve the dashboard using SSL
+    ssl: true
+  # enable prometheus alerting for cluster
+  monitoring:
+    # requires Prometheus to be pre-installed
+    enabled: false
+    # namespace to deploy prometheusRule in. If empty, namespace of the cluster will be used.
+    # Recommended:
+    # If you have a single rook-ceph cluster, set the rulesNamespace to the same namespace as the cluster or keep it empty.
+    # If you have multiple rook-ceph clusters in the same k8s cluster, choose the same namespace (ideally, namespace with prometheus
+    # deployed) to set rulesNamespace for all the clusters. Otherwise, you will get duplicate alerts with multiple alert definitions.
+    rulesNamespace: rook-ceph
+  network:
+    # enable host networking
+    #provider: host
+    # EXPERIMENTAL: enable the Multus network provider
+    #provider: multus
+    #selectors:
+      # The selector keys are required to be `public` and `cluster`.
+      # Based on the configuration, the operator will do the following:
+      #   1. if only the `public` selector key is specified both public_network and cluster_network Ceph settings will listen on that interface
+      #   2. if both `public` and `cluster` selector keys are specified the first one will point to 'public_network' flag and the second one to 'cluster_network'
+      #
+      # In order to work, each selector value must match a NetworkAttachmentDefinition object in Multus
+      #
+      #public: public-conf --> NetworkAttachmentDefinition object name in Multus
+      #cluster: cluster-conf --> NetworkAttachmentDefinition object name in Multus
+    # Provide internet protocol version. IPv6, IPv4 or empty string are valid options. Empty string would mean IPv4
+    #ipFamily: "IPv6"
+  # enable the crash collector for ceph daemon crash collection
+  crashCollector:
+    disable: false
+  # enable log collector, daemons will log on files and rotate
+  # logCollector:
+  #   enabled: true
+  #   periodicity: 24h # SUFFIX may be 'h' for hours or 'd' for days.
+  # automate [data cleanup process](https://github.com/rook/rook/blob/master/Documentation/ceph-teardown.md#delete-the-data-on-hosts) in cluster destruction.
+  cleanupPolicy:
+    # Since cluster cleanup is destructive to data, confirmation is required.
+    # To destroy all Rook data on hosts during uninstall, confirmation must be set to "yes-really-destroy-data".
+    # This value should only be set when the cluster is about to be deleted. After the confirmation is set,
+    # Rook will immediately stop configuring the cluster and only wait for the delete command.
+    # If the empty string is set, Rook will not destroy any data on hosts during uninstall.
+    confirmation: ""
+    # sanitizeDisks represents settings for sanitizing OSD disks on cluster deletion
+    sanitizeDisks:
+      # method indicates if the entire disk should be sanitized or simply ceph's metadata
+      # in both case, re-install is possible
+      # possible choices are 'complete' or 'quick' (default)
+      method: quick
+      # dataSource indicate where to get random bytes from to write on the disk
+      # possible choices are 'zero' (default) or 'random'
+      # using random sources will consume entropy from the system and will take much more time then the zero source
+      dataSource: zero
+      # iteration overwrite N times instead of the default (1)
+      # takes an integer value
+      iteration: 1
+    # allowUninstallWithVolumes defines how the uninstall should be performed
+    # If set to true, cephCluster deletion does not wait for the PVs to be deleted.
+    allowUninstallWithVolumes: false
+  # To control where various services will be scheduled by kubernetes, use the placement configuration sections below.
+  # The example under 'all' would have all services scheduled on kubernetes nodes labeled with 'role=storage-node' and
+  # tolerate taints with a key of 'storage-node'.
+#  placement:
+#    all:
+#      nodeAffinity:
+#        requiredDuringSchedulingIgnoredDuringExecution:
+#          nodeSelectorTerms:
+#          - matchExpressions:
+#            - key: role
+#              operator: In
+#              values:
+#              - storage-node
+#      podAffinity:
+#      podAntiAffinity:
+#      topologySpreadConstraints:
+#      tolerations:
+#      - key: storage-node
+#        operator: Exists
+# The above placement information can also be specified for mon, osd, and mgr components
+#    mon:
+# Monitor deployments may contain an anti-affinity rule for avoiding monitor
+# collocation on the same node. This is a required rule when host network is used
+# or when AllowMultiplePerNode is false. Otherwise this anti-affinity rule is a
+# preferred rule with weight: 50.
+#    osd:
+#    mgr:
+#    cleanup:
+  annotations:
+#    all:
+#    mon:
+#    osd:
+#    cleanup:
+#    prepareosd:
+# If no mgr annotations are set, prometheus scrape annotations will be set by default.
+#    mgr:
+  labels:
+#    all:
+#    mon:
+#    osd:
+#    cleanup:
+#    mgr:
+#    prepareosd:
+  resources:
+# The requests and limits set here, allow the mgr pod to use half of one CPU core and 1 gigabyte of memory
+#    mgr:
+#      limits:
+#        cpu: "500m"
+#        memory: "1024Mi"
+#      requests:
+#        cpu: "500m"
+#        memory: "1024Mi"
+# The above example requests/limits can also be added to the mon and osd components
+#    mon:
+#    osd:
+#    prepareosd:
+#    crashcollector:
+#    logcollector:
+#    cleanup:
+  # The option to automatically remove OSDs that are out and are safe to destroy.
+  removeOSDsIfOutAndSafeToRemove: false
+#  priorityClassNames:
+#    all: rook-ceph-default-priority-class
+#    mon: rook-ceph-mon-priority-class
+#    osd: rook-ceph-osd-priority-class
+#    mgr: rook-ceph-mgr-priority-class
+  storage: # cluster level storage configuration and selection
+    useAllNodes: true
+    useAllDevices: false
+    deviceFilter: "^sd[c-n]"
+    #config:
+      # crushRoot: "custom-root" # specify a non-default root label for the CRUSH map
+      # metadataDevice: "md0" # specify a non-rotational storage so ceph-volume will use it as block db device of bluestore.
+      # databaseSizeMB: "1024" # uncomment if the disks are smaller than 100 GB
+      # journalSizeMB: "1024"  # uncomment if the disks are 20 GB or smaller
+      # osdsPerDevice: "1" # this value can be overridden at the node or device level
+      # encryptedDevice: "true" # the default value for this option is "false"
+# Individual nodes and their config can be specified as well, but 'useAllNodes' above must be set to false. Then, only the named
+# nodes below will be used as storage resources.  Each node's 'name' field should match their 'kubernetes.io/hostname' label.
+#    nodes:
+#    - name: "172.17.4.201"
+#      devices: # specific devices to use for storage can be specified for each node
+#      - name: "sdb"
+#      - name: "nvme01" # multiple osds can be created on high performance devices
+#        config:
+#          osdsPerDevice: "5"
+#      - name: "/dev/disk/by-id/ata-ST4000DM004-XXXX" # devices can be specified using full udev paths
+#      config: # configuration can be specified at the node level which overrides the cluster level config
+#        storeType: filestore
+#    - name: "172.17.4.301"
+#      deviceFilter: "^sd."
+  # The section for configuring management of daemon disruptions during upgrade or fencing.
+  disruptionManagement:
+    # If true, the operator will create and manage PodDisruptionBudgets for OSD, Mon, RGW, and MDS daemons. OSD PDBs are managed dynamically
+    # via the strategy outlined in the [design](https://github.com/rook/rook/blob/master/design/ceph/ceph-managed-disruptionbudgets.md). The operator will
+    # block eviction of OSDs by default and unblock them safely when drains are detected.
+    managePodBudgets: false
+    # A duration in minutes that determines how long an entire failureDomain like `region/zone/host` will be held in `noout` (in addition to the
+    # default DOWN/OUT interval) when it is draining. This is only relevant when  `managePodBudgets` is `true`. The default value is `30` minutes.
+    osdMaintenanceTimeout: 30
+    # A duration in minutes that the operator will wait for the placement groups to become healthy (active+clean) after a drain was completed and OSDs came back up.
+    # Operator will continue with the next drain if the timeout exceeds. It only works if `managePodBudgets` is `true`.
+    # No values or 0 means that the operator will wait until the placement groups are healthy before unblocking the next drain.
+    pgHealthCheckTimeout: 0
+    # If true, the operator will create and manage MachineDisruptionBudgets to ensure OSDs are only fenced when the cluster is healthy.
+    # Only available on OpenShift.
+    manageMachineDisruptionBudgets: false
+    # Namespace in which to watch for the MachineDisruptionBudgets.
+    machineDisruptionBudgetNamespace: openshift-machine-api
 
-    # healthChecks
-    # Valid values for daemons are 'mon', 'osd', 'status'
-    healthCheck:
-      daemonHealth:
-        mon:
-          disabled: false
-          interval: 45s
-        osd:
-          disabled: false
-          interval: 60s
-        status:
-          disabled: false
-          interval: 60s
-      # Change pod liveness probe, it works for all mon,mgr,osd daemons
-      livenessProbe:
-        mon:
-          disabled: false
-        mgr:
-          disabled: false
-        osd:
-          disabled: false
+  # healthChecks
+  # Valid values for daemons are 'mon', 'osd', 'status'
+  healthCheck:
+    daemonHealth:
+      mon:
+        disabled: false
+        interval: 45s
+      osd:
+        disabled: false
+        interval: 60s
+      status:
+        disabled: false
+        interval: 60s
+    # Change pod liveness probe, it works for all mon,mgr,osd daemons
+    livenessProbe:
+      mon:
+        disabled: false
+      mgr:
+        disabled: false
+      osd:
+        disabled: false
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -602,65 +558,65 @@ kubectl apply -f ./rook-ceph-cluster.yaml
 #+end_src
 
 #+begin_src yaml :tangle ./rook-ceph-pool-storageclass.yaml
-  apiVersion: ceph.rook.io/v1
-  kind: CephBlockPool
-  metadata:
-    name: replicapool
-    namespace: rook-ceph
-  spec:
-    failureDomain: host
-    replicated:
-      size: 3
-  ---
-  apiVersion: storage.k8s.io/v1
-  kind: StorageClass
-  metadata:
-     name: rook-ceph-block
-     annotations:
-       storageclass.kubernetes.io/is-default-class: "true"
-  # Change "rook-ceph" provisioner prefix to match the operator namespace if needed
-  provisioner: rook-ceph.rbd.csi.ceph.com
-  parameters:
-      # clusterID is the namespace where the rook cluster is running
-      clusterID: rook-ceph
-      # Ceph pool into which the RBD image shall be created
-      pool: replicapool
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  failureDomain: host
+  replicated:
+    size: 3
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: rook-ceph-block
+   annotations:
+     storageclass.kubernetes.io/is-default-class: "true"
+# Change "rook-ceph" provisioner prefix to match the operator namespace if needed
+provisioner: rook-ceph.rbd.csi.ceph.com
+parameters:
+    # clusterID is the namespace where the rook cluster is running
+    clusterID: rook-ceph
+    # Ceph pool into which the RBD image shall be created
+    pool: replicapool
 
-      # (optional) mapOptions is a comma-separated list of map options.
-      # For krbd options refer
-      # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
-      # For nbd options refer
-      # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
-      # mapOptions: lock_on_read,queue_depth=1024
+    # (optional) mapOptions is a comma-separated list of map options.
+    # For krbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+    # For nbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+    # mapOptions: lock_on_read,queue_depth=1024
 
-      # (optional) unmapOptions is a comma-separated list of unmap options.
-      # For krbd options refer
-      # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
-      # For nbd options refer
-      # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
-      # unmapOptions: force
+    # (optional) unmapOptions is a comma-separated list of unmap options.
+    # For krbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+    # For nbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+    # unmapOptions: force
 
-      # RBD image format. Defaults to "2".
-      imageFormat: "2"
+    # RBD image format. Defaults to "2".
+    imageFormat: "2"
 
-      # RBD image features. Available for imageFormat: "2". CSI RBD currently supports only `layering` feature.
-      imageFeatures: layering
+    # RBD image features. Available for imageFormat: "2". CSI RBD currently supports only `layering` feature.
+    imageFeatures: layering
 
-      # The secrets contain Ceph admin credentials.
-      csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
-      csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
-      csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
-      csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
-      csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
-      csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+    # The secrets contain Ceph admin credentials.
+    csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+    csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+    csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+    csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+    csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+    csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
 
-      # Specify the filesystem type of the volume. If not specified, csi-provisioner
-      # will set default as `ext4`. Note that `xfs` is not recommended due to potential deadlock
-      # in hyperconverged settings where the volume is mounted on the same node as the osds.
-      csi.storage.k8s.io/fstype: ext4
+    # Specify the filesystem type of the volume. If not specified, csi-provisioner
+    # will set default as `ext4`. Note that `xfs` is not recommended due to potential deadlock
+    # in hyperconverged settings where the volume is mounted on the same node as the osds.
+    csi.storage.k8s.io/fstype: ext4
 
-  # Delete the rbd volume when a PVC is deleted
-  reclaimPolicy: Delete
+# Delete the rbd volume when a PVC is deleted
+reclaimPolicy: Delete
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -687,54 +643,54 @@ kubectl -n default apply -f ./rook-ceph-pvc-test.yaml
 
 #+NAME: RWM storageClass
 #+begin_src yaml :tangle ./rook-ceph-shared-pool-storageclass.yaml
-  apiVersion: ceph.rook.io/v1
-  kind: CephFilesystem
-  metadata:
-    name: rook-ceph-shared
-    namespace: rook-ceph
-  spec:
-    metadataPool:
-      replicated:
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: rook-ceph-shared
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    replicated:
+      size: 3
+  dataPools:
+    - replicated:
         size: 3
-    dataPools:
-      - replicated:
-          size: 3
-    preservePoolsOnDelete: true
-    metadataServer:
-      activeCount: 1
-      activeStandby: true
-  ---
-  apiVersion: storage.k8s.io/v1
-  kind: StorageClass
-  metadata:
-    name: rook-ceph-shared
-  # Change "rook-ceph" provisioner prefix to match the operator namespace if needed
-  provisioner: rook-ceph.cephfs.csi.ceph.com
-  parameters:
-    # clusterID is the namespace where operator is deployed.
-    clusterID: rook-ceph
+  preservePoolsOnDelete: true
+  metadataServer:
+    activeCount: 1
+    activeStandby: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: rook-ceph-shared
+# Change "rook-ceph" provisioner prefix to match the operator namespace if needed
+provisioner: rook-ceph.cephfs.csi.ceph.com
+parameters:
+  # clusterID is the namespace where operator is deployed.
+  clusterID: rook-ceph
 
-    # CephFS filesystem name into which the volume shall be created
-    fsName: rook-ceph-shared
+  # CephFS filesystem name into which the volume shall be created
+  fsName: rook-ceph-shared
 
-    # Ceph pool into which the volume shall be created
-    # Required for provisionVolume: "true"
-    pool: rook-ceph-shared-data0
+  # Ceph pool into which the volume shall be created
+  # Required for provisionVolume: "true"
+  pool: rook-ceph-shared-data0
 
-    # Root path of an existing CephFS volume
-    # Required for provisionVolume: "false"
-    # rootPath: /absolute/path
+  # Root path of an existing CephFS volume
+  # Required for provisionVolume: "false"
+  # rootPath: /absolute/path
 
-    # The secrets contain Ceph admin credentials. These are generated automatically by the operator
-    # in the same namespace as the cluster.
-    csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
-    csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
-    csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
-    csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
-    csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
-    csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+  # The secrets contain Ceph admin credentials. These are generated automatically by the operator
+  # in the same namespace as the cluster.
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
 
-  reclaimPolicy: Delete
+reclaimPolicy: Delete
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -796,16 +752,16 @@ spec:
 
 #+NAME: Postgres operator
 #+begin_src yaml :tangle ./postgres-operator.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
-    name: postgres-operator
-  spec:
-    releaseName: postgres-operator
-    chart:
-      git: https://github.com/zalando/postgres-operator
-      ref: v1.6.0
-      path: charts/postgres-operator
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: postgres-operator
+spec:
+  releaseName: postgres-operator
+  chart:
+    git: https://github.com/zalando/postgres-operator
+    ref: v1.6.0
+    path: charts/postgres-operator
 #+end_src
 
 #+NAME: Install Postgres-Operator
@@ -823,67 +779,57 @@ spec:
   kubectl patch storageclasses.storage.k8s.io local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
 #+end_src
 
-#+NAME: CSI-Packet
-#+begin_src tmate :dir . :window gitlab
-  # curl -o csi-packet-setup.yaml -L https://github.com/packethost/csi-packet/raw/master/deploy/kubernetes/setup.yaml
-  # curl -o csi-packet-node.yaml -L https://github.com/packethost/csi-packet/raw/master/deploy/kubernetes/node.yaml
-  # curl -o csi-packet-controller.yaml -L https://github.com/packethost/csi-packet/raw/master/deploy/kubernetes/controller.yaml
-  # kubectl apply -f ./csi-packet-setup.yaml
-  # kubectl apply -f ./csi-packet-node.yaml
-  # kubectl apply -f ./csi-packet-controller.yaml
-#+end_src
-
 #+NAME: Cert-Manager
 #+begin_src tmate :dir . :window gitlab
-  curl -O -L https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.yaml
-  kubectl apply -f ./cert-manager.yaml
+curl -O -L https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.yaml
+kubectl apply -f ./cert-manager.yaml
 #+end_src
 
 #+NAME: MetalLB system config
 #+begin_src yaml :tangle ./metallb-system-config.yaml
-  apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    namespace: metallb-system
-    name: config
-  data:
-    config: |
-      address-pools:
-        - name: default
-          protocol: layer2
-          addresses:
-            - ${LOAD_BALANCER_IP}/32
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+      - name: default
+        protocol: layer2
+        addresses:
+          - ${LOAD_BALANCER_IP}/32
 #+end_src
 
 #+NAME: MetalLB
 #+begin_src tmate :dir . :window gitlab
-  kubectl get configmap kube-proxy -n kube-system -o yaml | sed -e "s/strictARP: false/strictARP: true/" | kubectl apply -f - -n kube-system
-  curl -o metallb-namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/namespace.yaml
-  curl -O -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/metallb.yaml
-  kubectl apply -f ./metallb-namespace.yaml
-  kubectl apply -f ./metallb.yaml
-  kubectl create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
-  envsubst < metallb-system-config.yaml | kubectl apply -f -
+kubectl get configmap kube-proxy -n kube-system -o yaml | sed -e "s/strictARP: false/strictARP: true/" | kubectl apply -f - -n kube-system
+curl -o metallb-namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/namespace.yaml
+curl -O -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/metallb.yaml
+kubectl apply -f ./metallb-namespace.yaml
+kubectl apply -f ./metallb.yaml
+kubectl create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
+envsubst < metallb-system-config.yaml | kubectl apply -f -
 #+end_src
 
 #+NAME: Metrics-Server
 #+begin_src yaml :tangle ./metrics-server.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  releaseName: metrics-server
+  chart:
+    repository: https://olemarkus.github.io/metrics-server
     name: metrics-server
-    namespace: kube-system
-  spec:
-    releaseName: metrics-server
-    chart:
-      repository: https://olemarkus.github.io/metrics-server
-      name: metrics-server
-      version: 2.11.2
-    values:
-      args:
-        - --logtostderr
-        - --kubelet-preferred-address-types=InternalIP
-        - --kubelet-insecure-tls
+    version: 2.11.2
+  values:
+    args:
+      - --logtostderr
+      - --kubelet-preferred-address-types=InternalIP
+      - --kubelet-insecure-tls
 #+end_src
 
 #+NAME: install metrics-server
@@ -893,43 +839,43 @@ spec:
 
 #+NAME: nginx-ingress
 #+begin_src yaml :tangle ./nginx-ingress.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
-    name: nginx-ingress
-    namespace: nginx-ingress
-  spec:
-    releaseName: nginx-ingress
-    chart:
-      repository: https://kubernetes.github.io/ingress-nginx
-      name: ingress-nginx
-      version: 2.16.0
-    values:
-      controller:
-        service:
-          externalTrafficPolicy: Local
-          annotations:
-            metallb.universe.tf/allow-shared-ip: nginx-ingress
-        publishService:
-          enabled: true
-        autoscaling:
-          enabled: true
-          minReplicas: 3
-          maxReplicas: 5
-          targetCPUUtilizationPercentage: 80
-        minAvailable: 3
-        metrics:
-          enabled: true
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/component
-                      operator: In
-                      values:
-                        - controller
-                topologyKey: "kubernetes.io/hostname"
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  releaseName: nginx-ingress
+  chart:
+    repository: https://kubernetes.github.io/ingress-nginx
+    name: ingress-nginx
+    version: 2.16.0
+  values:
+    controller:
+      service:
+        externalTrafficPolicy: Local
+        annotations:
+          metallb.universe.tf/allow-shared-ip: nginx-ingress
+      publishService:
+        enabled: true
+      autoscaling:
+        enabled: true
+        minReplicas: 3
+        maxReplicas: 5
+        targetCPUUtilizationPercentage: 80
+      minAvailable: 3
+      metrics:
+        enabled: true
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values:
+                      - controller
+              topologyKey: "kubernetes.io/hostname"
 #+end_src
 
 #+NAME: install nginx-ingress
@@ -940,112 +886,112 @@ spec:
 
 #+NAME: External-DNS manifests
 #+begin_src yaml :tangle ./external-dns.yaml
-  apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: external-dns
-  ---
-  apiVersion: rbac.authorization.k8s.io/v1beta1
-  kind: ClusterRole
-  metadata:
-    name: external-dns
-  rules:
-  - apiGroups:
-      - ""
-    resources:
-      - services
-      - endpoints
-      - pods
-    verbs:
-      - get
-      - watch
-      - list
-  - apiGroups:
-      - extensions
-      - networking.k8s.io
-    resources:
-      - ingresses
-    verbs:
-      - get
-      - watch
-      - list
-  - apiGroups:
-      - externaldns.k8s.io
-    resources:
-      - dnsendpoints
-    verbs:
-      - get
-      - watch
-      - list
-  - apiGroups:
-      - externaldns.k8s.io
-    resources:
-      - dnsendpoints/status
-    verbs:
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: external-dns
+rules:
+- apiGroups:
+    - ""
+  resources:
+    - services
+    - endpoints
+    - pods
+  verbs:
     - get
-    - update
-    - patch
-    - delete
-  ---
-  apiVersion: rbac.authorization.k8s.io/v1beta1
-  kind: ClusterRoleBinding
-  metadata:
-    name: external-dns-viewer
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: external-dns
-  subjects:
-  - kind: ServiceAccount
-    name: external-dns
-    namespace: external-dns
-  ---
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: external-dns
-  spec:
-    strategy:
-      type: Recreate
-    selector:
-      matchLabels:
+    - watch
+    - list
+- apiGroups:
+    - extensions
+    - networking.k8s.io
+  resources:
+    - ingresses
+  verbs:
+    - get
+    - watch
+    - list
+- apiGroups:
+    - externaldns.k8s.io
+  resources:
+    - dnsendpoints
+  verbs:
+    - get
+    - watch
+    - list
+- apiGroups:
+    - externaldns.k8s.io
+  resources:
+    - dnsendpoints/status
+  verbs:
+  - get
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: external-dns-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-dns
+subjects:
+- kind: ServiceAccount
+  name: external-dns
+  namespace: external-dns
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns
+  template:
+    metadata:
+      labels:
         app: external-dns
-    template:
-      metadata:
-        labels:
-          app: external-dns
-      spec:
-        serviceAccountName: external-dns
-        containers:
-        - name: external-dns
-          image: k8s.gcr.io/external-dns/external-dns:v0.7.4
-          args:
-          - --source=crd
-          - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
-          - --crd-source-kind=DNSEndpoint
-          - --provider=pdns
-          - --policy=sync
-          - --registry=txt
-          - --interval=10s
-          - --log-level=debug
-          env:
-            - name: EXTERNAL_DNS_TXT_OWNER_ID
-              valueFrom:
-                secretKeyRef:
-                  name: external-dns-pdns
-                  key: txt-owner-id
-            - name: EXTERNAL_DNS_PDNS_SERVER
-              valueFrom:
-                secretKeyRef:
-                  name: external-dns-pdns
-                  key: pdns-server
-            - name: EXTERNAL_DNS_PDNS_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: external-dns-pdns
-                  key: pdns-api-key
-            - name: EXTERNAL_DNS_PDNS_TLS_ENABLED
-              value: "0"
+    spec:
+      serviceAccountName: external-dns
+      containers:
+      - name: external-dns
+        image: k8s.gcr.io/external-dns/external-dns:v0.7.4
+        args:
+        - --source=crd
+        - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
+        - --crd-source-kind=DNSEndpoint
+        - --provider=pdns
+        - --policy=sync
+        - --registry=txt
+        - --interval=10s
+        - --log-level=debug
+        env:
+          - name: EXTERNAL_DNS_TXT_OWNER_ID
+            valueFrom:
+              secretKeyRef:
+                name: external-dns-pdns
+                key: txt-owner-id
+          - name: EXTERNAL_DNS_PDNS_SERVER
+            valueFrom:
+              secretKeyRef:
+                name: external-dns-pdns
+                key: pdns-server
+          - name: EXTERNAL_DNS_PDNS_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: external-dns-pdns
+                key: pdns-api-key
+          - name: EXTERNAL_DNS_PDNS_TLS_ENABLED
+            value: "0"
 #+end_src
 
 #+NAME: External-DNS
@@ -1062,53 +1008,53 @@ spec:
 
 #+NAME: PowerDNS
 #+begin_src yaml :tangle powerdns.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
-    name: powerdns
-  spec:
-    releaseName: powerdns
-    chart:
-      git: https://github.com/sharingio/helm-charts
-      ref: master
-      path: charts/powerdns
-    values:
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: powerdns
+spec:
+  releaseName: powerdns
+  chart:
+    git: https://github.com/sharingio/helm-charts
+    ref: master
+    path: charts/powerdns
+  values:
+    domain: gitlab2.ii.coop
+    default_soa_name: gitlab2.ii.coop
+    apikey: pairingissharing
+    powerdns:
+      default_ttl: 3600
+      soa_minimum_ttl: 3600
       domain: gitlab2.ii.coop
       default_soa_name: gitlab2.ii.coop
-      apikey: pairingissharing
-      powerdns:
-        default_ttl: 3600
-        soa_minimum_ttl: 3600
-        domain: gitlab2.ii.coop
-        default_soa_name: gitlab2.ii.coop
-        mysql_host: powerdns-service-db
-        mysql_user: powerdns
-        extraEnv:
-          - name: PDNS_dnsupdate
-            value: "yes"
-          - name: PDNS_allow_dnsupdate_from
-            value: "192.168.0.0/24"
-      service:
-        dns:
-          tcp:
-            enabled: true
-            annotations:
-              metallb.universe.tf/allow-shared-ip: nginx-ingress
-            externalIPs:
-              - ${LOAD_BALANCER_IP}
-          udp:
-            annotations:
-              metallb.universe.tf/allow-shared-ip: nginx-ingress
-            externalIPs:
-              - ${LOAD_BALANCER_IP}
-      mariadb:
-        mysql_pass: pairingissharing
-        mysql_rootpass: pairingissharing
-      admin:
+      mysql_host: powerdns-service-db
+      mysql_user: powerdns
+      extraEnv:
+        - name: PDNS_dnsupdate
+          value: "yes"
+        - name: PDNS_allow_dnsupdate_from
+          value: "192.168.0.0/24"
+    service:
+      dns:
+        tcp:
+          enabled: true
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          externalIPs:
+            - ${LOAD_BALANCER_IP}
+        udp:
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          externalIPs:
+            - ${LOAD_BALANCER_IP}
+    mariadb:
+      mysql_pass: pairingissharing
+      mysql_rootpass: pairingissharing
+    admin:
+      enabled: false
+      ingress:
         enabled: false
-        ingress:
-          enabled: false
-        secret: pairingissharing
+      secret: pairingissharing
 #+end_src
 
 #+NAME: install PowerDNS
@@ -1172,19 +1118,19 @@ spec:
 
 #+NAME: kubed
 #+begin_src yaml :tangle ./kubed.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: kubed
+  namespace: kube-system
+spec:
+  releaseName: kubed
+  chart:
+    repository: https://charts.appscode.com/stable/
     name: kubed
-    namespace: kube-system
-  spec:
-    releaseName: kubed
-    chart:
-      repository: https://charts.appscode.com/stable/
-      name: kubed
-      version: v0.12.0
-    values:
-      enableAnalytics: false
+    version: v0.12.0
+  values:
+    enableAnalytics: false
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -1214,40 +1160,40 @@ spec:
 
 #+NAME: Humacs
 #+begin_src yaml :tangle ./humacs.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
-    name: humacs
-    namespace: humacs
-  spec:
-    releaseName: humacs
-    chart:
-      git: https://github.com/humacs/humacs
-      ref: main
-      path: chart/humacs
-    values:
-      options:
-        hostDockerSocket: false
-        hostTmp: true
-        timezone: Pacific/Auckland
-        gitName: gitlab
-        gitEmail: humacs@ii.coop
-        profile: ii
-      image:
-        repository: registry.gitlab.com/humacs/humacs/ii
-        tag: 2020.12.03
-      extraEnvVars:
-        - name: HUMACS_DEBUG
-          value: "true"
-        - name: REINIT_HOME_FOLDER
-          value: "true"
-      extraVolumes:
-        - name: home-ii
-          persistentVolumeClaim:
-            claimName: humacs-home-ii
-      extraVolumeMounts:
-        - name: home-ii
-          mountPath: "/home/ii"
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: humacs
+  namespace: humacs
+spec:
+  releaseName: humacs
+  chart:
+    git: https://github.com/humacs/humacs
+    ref: main
+    path: chart/humacs
+  values:
+    options:
+      hostDockerSocket: false
+      hostTmp: true
+      timezone: Pacific/Auckland
+      gitName: gitlab
+      gitEmail: humacs@ii.coop
+      profile: ii
+    image:
+      repository: registry.gitlab.com/humacs/humacs/ii
+      tag: 2020.12.03
+    extraEnvVars:
+      - name: HUMACS_DEBUG
+        value: "true"
+      - name: REINIT_HOME_FOLDER
+        value: "true"
+    extraVolumes:
+      - name: home-ii
+        persistentVolumeClaim:
+          claimName: humacs-home-ii
+    extraVolumeMounts:
+      - name: home-ii
+        mountPath: "/home/ii"
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -1262,43 +1208,43 @@ kubectl create ns gitlab
 
 #+NAME: Certs
 #+begin_src yaml :tangle ./certs.yaml
-  apiVersion: cert-manager.io/v1
-  kind: ClusterIssuer
-  metadata:
-    name: letsencrypt-prod
-  spec:
-    acme:
-      server: https://acme-v02.api.letsencrypt.org/directory
-      email: letsencrypt@ii.coop
-      privateKeySecretRef:
-        name: letsencrypt-prod
-      solvers:
-      - dns01:
-          rfc2136:
-            tsigKeyName: pair
-            tsigAlgorithm: HMACMD5
-            tsigSecretSecretRef:
-              name: tsig-powerdns
-              key: powerdns
-            nameserver: ${LOAD_BALANCER_IP}
-        selector:
-          dnsNames:
-            - "*.gitlab2.ii.coop"
-            - "gitlab2.ii.coop"
-  ---
-  apiVersion: cert-manager.io/v1
-  kind: Certificate
-  metadata:
-    name: letsencrypt-prod
-  spec:
-    secretName: letsencrypt-prod
-    issuerRef:
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: letsencrypt@ii.coop
+    privateKeySecretRef:
       name: letsencrypt-prod
-      kind: ClusterIssuer
-    commonName: "*.gitlab2.ii.coop"
-    dnsNames:
-      - "*.gitlab2.ii.coop"
-      - "gitlab2.ii.coop"
+    solvers:
+    - dns01:
+        rfc2136:
+          tsigKeyName: pair
+          tsigAlgorithm: HMACMD5
+          tsigSecretSecretRef:
+            name: tsig-powerdns
+            key: powerdns
+          nameserver: ${LOAD_BALANCER_IP}
+      selector:
+        dnsNames:
+          - "*.gitlab2.ii.coop"
+          - "gitlab2.ii.coop"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: "*.gitlab2.ii.coop"
+  dnsNames:
+    - "*.gitlab2.ii.coop"
+    - "gitlab2.ii.coop"
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -1343,18 +1289,18 @@ kubectl -n gitlab apply -f gitlab-postgres.yaml
 
 #+NAME: .example.env
 #+begin_src bash :tangle ./.example.env
-  GITLAB_IMAP_PASSWORD=
-  GITLAB_SMTP_PASSWORD=
-  GITLAB_OMNIAUTH_GITHUB_APP_ID=
-  GITLAB_OMNIAUTH_GITHUB_APP_SECRET=
-  GITLAB_OMNIAUTH_GITLAB_APP_ID=
-  GITLAB_OMNIAUTH_GITLAB_APP_SECRET=
-  GITLAB_OMNIAUTH_GOOGLE_APP_ID=
-  GITLAB_OMNIAUTH_GOOGLE_APP_SECRET=
-  GITLAB_OMNIAUTH_FACEBOOK_APP_ID=
-  GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET=
-  GITLAB_OMNIAUTH_TWITTER_APP_ID=
-  GITLAB_OMNIAUTH_TWITTER_APP_SECRET=
+GITLAB_IMAP_PASSWORD=
+GITLAB_SMTP_PASSWORD=
+GITLAB_OMNIAUTH_GITHUB_APP_ID=
+GITLAB_OMNIAUTH_GITHUB_APP_SECRET=
+GITLAB_OMNIAUTH_GITLAB_APP_ID=
+GITLAB_OMNIAUTH_GITLAB_APP_SECRET=
+GITLAB_OMNIAUTH_GOOGLE_APP_ID=
+GITLAB_OMNIAUTH_GOOGLE_APP_SECRET=
+GITLAB_OMNIAUTH_FACEBOOK_APP_ID=
+GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET=
+GITLAB_OMNIAUTH_TWITTER_APP_ID=
+GITLAB_OMNIAUTH_TWITTER_APP_SECRET=
 #+end_src
 
 #+NAME: source .env
@@ -1374,190 +1320,190 @@ export $(cat .env | xargs)
 
 #+NAME: omniauth provider github
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-github --from-literal=provider="$(envsubst <<EOF
-  name: github
-  app_id: '${GITLAB_OMNIAUTH_GITHUB_APP_ID}'
-  app_secret: '${GITLAB_OMNIAUTH_GITHUB_APP_SECRET}'
-  url: https://gihub.com/
-  args:
-    scope: 'user:email'
-  EOF
-  )"
+kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-github --from-literal=provider="$(envsubst <<EOF
+name: github
+app_id: '${GITLAB_OMNIAUTH_GITHUB_APP_ID}'
+app_secret: '${GITLAB_OMNIAUTH_GITHUB_APP_SECRET}'
+url: https://gihub.com/
+args:
+  scope: 'user:email'
+EOF
+)"
 #+end_src
 
 #+NAME: omniauth provider gitlab
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-gitlab --from-literal=provider="$(envsubst <<EOF
-  name: gitlab
-  app_id: '${GITLAB_OMNIAUTH_GITLAB_APP_ID}'
-  app_secret: '${GITLAB_OMNIAUTH_GITLAB_APP_SECRET}'
-  args:
-    scope: 'api'
-  EOF
-  )"
+kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-gitlab --from-literal=provider="$(envsubst <<EOF
+name: gitlab
+app_id: '${GITLAB_OMNIAUTH_GITLAB_APP_ID}'
+app_secret: '${GITLAB_OMNIAUTH_GITLAB_APP_SECRET}'
+args:
+  scope: 'api'
+EOF
+)"
 #+end_src
 
 #+NAME: omniauth provider google_oauth2
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-google-oauth2 --from-literal=provider="$(envsubst <<EOF
-  name: google_oauth2
-  app_id: '${GITLAB_OMNIAUTH_GOOGLE_APP_ID}'
-  app_secret: '${GITLAB_OMNIAUTH_GOOGLE_APP_SECRET}'
-  args:
-    access_type: offline
-    approval_prompt: ''
-  EOF
-  )"
+kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-google-oauth2 --from-literal=provider="$(envsubst <<EOF
+name: google_oauth2
+app_id: '${GITLAB_OMNIAUTH_GOOGLE_APP_ID}'
+app_secret: '${GITLAB_OMNIAUTH_GOOGLE_APP_SECRET}'
+args:
+  access_type: offline
+  approval_prompt: ''
+EOF
+)"
 #+end_src
 
 #+NAME: omniauth provider facebook
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-facebook --from-literal=provider="$(envsubst <<EOF
-  name: facebook
-  app_id: '${GITLAB_OMNIAUTH_FACEBOOK_APP_ID}'
-  app_secret: '${GITLAB_OMNIAUTH_FACEBOOk_APP_SECRET}'
-  EOF
-  )"
+kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-facebook --from-literal=provider="$(envsubst <<EOF
+name: facebook
+app_id: '${GITLAB_OMNIAUTH_FACEBOOK_APP_ID}'
+app_secret: '${GITLAB_OMNIAUTH_FACEBOOk_APP_SECRET}'
+EOF
+)"
 #+end_src
 
 #+NAME: omniauth provider twitter
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-twitter --from-literal=provider="$(envsubst <<EOF
-  name: twitter
-  app_id: '${GITLAB_OMNIAUTH_TWITTER_APP_ID}'
-  app_secret: '${GITLAB_OMNIAUTH_TWITTER_APP_SECRET}'
-  EOF
-  )"
+kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-twitter --from-literal=provider="$(envsubst <<EOF
+name: twitter
+app_id: '${GITLAB_OMNIAUTH_TWITTER_APP_ID}'
+app_secret: '${GITLAB_OMNIAUTH_TWITTER_APP_SECRET}'
+EOF
+)"
 #+end_src
 
 #+NAME: GitLab
 #+begin_src yaml :tangle ./gitlab.yaml
-  apiVersion: helm.fluxcd.io/v1
-  kind: HelmRelease
-  metadata:
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: gitlab
+spec:
+  releaseName: gitlab
+  chart:
+    repository: https://charts.gitlab.io/
     name: gitlab
-  spec:
-    releaseName: gitlab
-    chart:
-      repository: https://charts.gitlab.io/
-      name: gitlab
-      version: 4.7.3
-    values:
-      postgresql:
-        install: false
-      global:
-        psql:
-          host: gitlab-db-pooler.gitlab
+    version: 4.7.3
+  values:
+    postgresql:
+      install: false
+    global:
+      psql:
+        host: gitlab-db-pooler.gitlab
+        password:
+          secret: gitlab.gitlab-db.credentials.postgresql.acid.zalan.do
+          key: password
+        port: 5432
+        database: gitlab
+        username: gitlab
+      email:
+        from: gitlab@ii.coop
+        reply_to: gitlab@ii.coop
+        display_name: gitlab.ii.coop
+      appConfig:
+        incomingEmail:
+          enabled: true
+          address: '%{key}@gitlab.ii.coop'
+          user: mailbot@ii.coop
+          host: imap.gmail.com
+          port: 993
+          ssl: true
+          startTls: false
+          idleTimeout: 60
           password:
-            secret: gitlab.gitlab-db.credentials.postgresql.acid.zalan.do
+            secret: gitlab-ii-coop-imap-password
             key: password
-          port: 5432
-          database: gitlab
-          username: gitlab
-        email:
-          from: gitlab@ii.coop
-          reply_to: gitlab@ii.coop
-          display_name: gitlab.ii.coop
-        appConfig:
-          incomingEmail:
-            enabled: true
-            address: '%{key}@gitlab.ii.coop'
-            user: mailbot@ii.coop
-            host: imap.gmail.com
-            port: 993
-            ssl: true
-            startTls: false
-            idleTimeout: 60
-            password:
-              secret: gitlab-ii-coop-imap-password
-              key: password
-          omniauth:
-            enabled: true
-            blockAutoCreatedUsers: true
-            allowSingleSignOn:
-              - twitter
-              - github
-              - google_oauth2
-              - gitlab
-              - facebook
-            providers:
-              - secret: gitlab-ii-coop-omniauth-github
-              - secret: gitlab-ii-coop-omniauth-gitlab
-              - secret: gitlab-ii-coop-omniauth-google-oauth2
-              - secret: gitlab-ii-coop-omniauth-facebook
-              - secret: gitlab-ii-coop-omniauth-twitter
-        smtp:
+        omniauth:
           enabled: true
-          address: smtp.gmail.com
-          authentication: login
-          openssl_verify_mode: peer
-          tls: false
-          starttls_auto: true
-          domain: gitlab2.ii.coop
-          port: 587
-          user_name: mailbot@ii.coop
-          password:
-            secret: gitlab-ii-coop-smtp-password
-            key: password
-        hosts:
-          domain: ii.coop
-          gitlab:
-            name: gitlab2.ii.coop
-        ingress:
-          configureCertmanager: false
-        pages:
-          enabled: true
-          global:
-            hosts:
-              domain: gitlab2.ii.coop
-          host: gitlab2.ii.coop
-          port: 443
-          https: true
-          apiSecret:
-            secret: gitlab-pages-api-secret
-            key: shared_secret
-        shell:
-          port: 22
-      certmanager:
-        install: false
-      gitlab:
-        ingress:
-          enabled: true
-        ingressclass: nginx
-        gitlab-shell:
-          enabled: true
-          service:
-            annotations:
-              metallb.universe.tf/allow-shared-ip: nginx-ingress
-            type: LoadBalancer
-        webservice:
-          ingress:
-            annotations:
-              kubernetes.io/ingress.class: nginx
-            tls:
-              secretName: letsencrypt-prod
-      gitlab-pages:
+          blockAutoCreatedUsers: true
+          allowSingleSignOn:
+            - twitter
+            - github
+            - google_oauth2
+            - gitlab
+            - facebook
+          providers:
+            - secret: gitlab-ii-coop-omniauth-github
+            - secret: gitlab-ii-coop-omniauth-gitlab
+            - secret: gitlab-ii-coop-omniauth-google-oauth2
+            - secret: gitlab-ii-coop-omniauth-facebook
+            - secret: gitlab-ii-coop-omniauth-twitter
+      smtp:
         enabled: true
+        address: smtp.gmail.com
+        authentication: login
+        openssl_verify_mode: peer
+        tls: false
+        starttls_auto: true
+        domain: gitlab2.ii.coop
+        port: 587
+        user_name: mailbot@ii.coop
+        password:
+          secret: gitlab-ii-coop-smtp-password
+          key: password
+      hosts:
+        domain: ii.coop
+        gitlab:
+          name: gitlab2.ii.coop
+      ingress:
+        configureCertmanager: false
+      pages:
+        enabled: true
+        global:
+          hosts:
+            domain: gitlab2.ii.coop
+        host: gitlab2.ii.coop
+        port: 443
+        https: true
+        apiSecret:
+          secret: gitlab-pages-api-secret
+          key: shared_secret
+      shell:
+        port: 22
+    certmanager:
+      install: false
+    gitlab:
+      ingress:
+        enabled: true
+      ingressclass: nginx
+      gitlab-shell:
+        enabled: true
+        service:
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          type: LoadBalancer
+      webservice:
         ingress:
-          enabled: true
           annotations:
             kubernetes.io/ingress.class: nginx
           tls:
             secretName: letsencrypt-prod
-      registry:
-        ingress:
-          annotations:
-            kubernetes.io/ingress.class: nginx
-          tls:
-            secretName: letsencrypt-prod
-      minio:
-        ingress:
-          annotations:
-            kubernetes.io/ingress.class: nginx
-          tls:
-            secretName: letsencrypt-prod
-      nginx-ingress:
-        enabled: false
+    gitlab-pages:
+      enabled: true
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    registry:
+      ingress:
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    minio:
+      ingress:
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        tls:
+          secretName: letsencrypt-prod
+    nginx-ingress:
+      enabled: false
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
