@@ -11,7 +11,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 4.7.3
+    version: 5.1.5
   values:
     postgresql:
       install: false
@@ -19,7 +19,7 @@ spec:
       psql:
         host: gitlab-db-pooler.gitlab
         password:
-          secret: gitlab.gitlab-db.credentials.postgresql.acid.zalan.do
+          secret: gitlab.gitlab-db.credentials
           key: password
         port: 5432
         database: gitlab
@@ -63,7 +63,7 @@ spec:
         openssl_verify_mode: peer
         tls: false
         starttls_auto: true
-        domain: gitlab2.ii.coop
+        domain: gitlab-staging.ii.coop
         port: 587
         user_name: mailbot@ii.coop
         password:
@@ -72,15 +72,19 @@ spec:
       hosts:
         domain: ii.coop
         gitlab:
-          name: gitlab2.ii.coop
+          name: gitlab-staging.ii.coop
+        minio:
+          name: minio.gitlab-staging.ii.coop
+        registry:
+          name: registry.gitlab-staging.ii.coop
       ingress:
         configureCertmanager: false
       pages:
         enabled: true
         global:
           hosts:
-            domain: gitlab2.ii.coop
-        host: gitlab2.ii.coop
+            domain: gitlab-staging.ii.coop
+        host: gitlab-staging.ii.coop
         port: 443
         https: true
         apiSecret:

@@ -13,14 +13,14 @@ spec:
     ref: master
     path: charts/powerdns
   values:
-    domain: gitlab2.ii.coop
-    default_soa_name: gitlab2.ii.coop
+    domain: gitlab-staging.ii.coop
+    default_soa_name: gitlab-staging.ii.coop
     apikey: pairingissharing
     powerdns:
       default_ttl: 3600
       soa_minimum_ttl: 3600
-      domain: gitlab2.ii.coop
-      default_soa_name: gitlab2.ii.coop
+      domain: gitlab-staging.ii.coop
+      default_soa_name: gitlab-staging.ii.coop
       mysql_host: powerdns-service-db
       mysql_user: powerdns
       extraEnv:

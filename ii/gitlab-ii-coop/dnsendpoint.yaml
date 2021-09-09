@@ -8,18 +8,18 @@ metadata:
   name: gitlab-ii-coop
 spec:
   endpoints:
-  - dnsName: 'gitlab2.ii.coop'
+  - dnsName: 'gitlab-staging.ii.coop'
     recordTTL: 3600
     recordType: A
     targets:
     - ${LOAD_BALANCER_IP}
-  - dnsName: '*.gitlab2.ii.coop'
+  - dnsName: '*.gitlab-staging.ii.coop'
     recordTTL: 3600
     recordType: A
     targets:
     - ${LOAD_BALANCER_IP}
-  - dnsName: gitlab2.ii.coop
+  - dnsName: gitlab-staging.ii.coop
     recordTTL: 3600
     recordType: SOA
     targets:
-    - 'ns1.gitlab2.ii.coop. hostmaster.gitlab2.ii.coop. 5 3600 3600 3600 3600'
+    - 'ns1.gitlab-staging.ii.coop. hostmaster.gitlab-staging.ii.coop. 5 3600 3600 3600 3600'

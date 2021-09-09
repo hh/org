@@ -13,18 +13,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    - dns01:
-        rfc2136:
-          tsigKeyName: pair
-          tsigAlgorithm: HMACMD5
-          tsigSecretSecretRef:
-            name: tsig-powerdns
-            key: powerdns
-          nameserver: ${LOAD_BALANCER_IP}
-      selector:
-        dnsNames:
-          - "*.gitlab2.ii.coop"
-          - "gitlab2.ii.coop"
+    - http01:
+        ingress:
+          class: nginx
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -35,7 +26,7 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: "*.gitlab2.ii.coop"
   dnsNames:
-    - "*.gitlab2.ii.coop"
-    - "gitlab2.ii.coop"
+    - "gitlab-staging.ii.coop"
+    - "minio.gitlab-staging.ii.coop"
+    - "registry.gitlab-staging.ii.coop"

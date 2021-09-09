@@ -222,15 +222,15 @@ spec:
 
 #+NAME: Generate cluster-api manifests
 #+begin_src tmate :dir . :window gitlab :noweb yes
-export CLUSTER_NAME="gitlab-ii-coop"
+export CLUSTER_NAME="ii-coop"
 export FACILITY=sjc1
 export KUBERNETES_VERSION=v1.21.1
 export POD_CIDR=10.244.0.0/16
 export SERVICE_CIDR=10.96.0.0/12
 export NODE_OS=ubuntu_20_04
-export CONTROLPLANE_NODE_TYPE=s3.xlarge.x86
+export CONTROLPLANE_NODE_TYPE=m1.xlarge.x86
 export CONTROL_PLANE_MACHINE_COUNT=3
-export WORKER_NODE_TYPE=s3.xlarge.x86
+export WORKER_NODE_TYPE=$CONTROLPLANE_NODE_TYPE
 export WORKER_MACHINE_COUNT=0
 export SSH_KEY=""
 export PROJECT_ID=$PACKET_PROJECT_ID
@@ -239,21 +239,21 @@ clusterctl config cluster "$CLUSTER_NAME" --from ./gitlab-cluster-capi-template.
 
 #+NAME: Create box
 #+begin_src tmate :dir . :window gitlab
-kubectl create ns gitlab-ii-coop
-kubectl -n gitlab-ii-coop apply -f ./gitlab-ii-coop-cluster-capi.yaml
+kubectl create ns ii-coop 2> /dev/null
+kubectl -n ii-coop apply -f ./ii-coop-cluster-capi.yaml
 #+end_src
 
 The cluster will now be brought up, we can see the progress by taking a look at the resources:
 #+begin_src tmate
-kubectl -n gitlab-ii-coop get machines,clusters,packetmachines,packetclusters
+kubectl -n ii-coop get machines,clusters,packetmachines,packetclusters
 #+end_src
 
 Note that the nodes in the cluster will remain not ready until the CNI is applied.
 
 #+NAME: Get Kubeconfig
 #+begin_src tmate :dir . :window gitlab
-kubectl -n gitlab-ii-coop get secret gitlab-ii-coop-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config-gitlab-ii-coop
-export KUBECONFIG=~/.kube/config-gitlab-ii-coop
+kubectl -n ii-coop get secret ii-coop-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config-ii-coop
+export KUBECONFIG=~/.kube/config-ii-coop
 #+end_src
 
 #+NAME: Ensure all nodes are scheduable
@@ -292,9 +292,9 @@ kubectl create ns rook-ceph
 #+end_src
 
 #+begin_src shell :results silent
-curl -L -o ./rook-ceph-common.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/common.yaml
-curl -L -o ./rook-ceph-crds.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/crds.yaml
-curl -L -o ./rook-ceph-operator.yaml https://github.com/rook/rook/raw/master/cluster/examples/kubernetes/ceph/operator.yaml
+curl -s -L -o ./rook-ceph-common.yaml https://github.com/rook/rook/raw/v1.7.2/cluster/examples/kubernetes/ceph/common.yaml
+curl -s -L -o ./rook-ceph-crds.yaml https://github.com/rook/rook/raw/v1.7.2/cluster/examples/kubernetes/ceph/crds.yaml
+curl -s -L -o ./rook-ceph-operator.yaml https://github.com/rook/rook/raw/v1.7.2/cluster/examples/kubernetes/ceph/operator.yaml
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -325,7 +325,7 @@ spec:
     # versions running within the cluster. See tags available at https://hub.docker.com/r/ceph/ceph/tags/.
     # If you want to be more precise, you can always use a timestamp tag such ceph/ceph:v15.2.8-20201217
     # This tag might not contain a new Ceph version, just security fixes from the underlying operating system, which will reduce vulnerabilities
-    image: ceph/ceph:v15.2.8
+    image: ceph/ceph:v16.2.5
     # Whether to allow unsupported versions of Ceph. Currently `nautilus` and `octopus` are supported.
     # Future versions such as `pacific` would require this to be set to `true`.
     # Do not set to true in production.
@@ -346,7 +346,7 @@ spec:
     count: 3
     # The mons should be on unique nodes. For production, at least 3 nodes are recommended for this reason.
     # Mons should only be allowed on the same node for test environments where data loss is acceptable.
-    allowMultiplePerNode: true
+    allowMultiplePerNode: false
   mgr:
     modules:
     # Several modules should not need to be included in this list. The "dashboard" and "monitoring" modules
@@ -489,8 +489,8 @@ spec:
   storage: # cluster level storage configuration and selection
     useAllNodes: true
     useAllDevices: false
-    deviceFilter: "^sd[c-n]"
-    #config:
+    deviceFilter: "^sd[c-f]"
+    # config:
       # crushRoot: "custom-root" # specify a non-default root label for the CRUSH map
       # metadataDevice: "md0" # specify a non-rotational storage so ceph-volume will use it as block db device of bluestore.
       # databaseSizeMB: "1024" # uncomment if the disks are smaller than 100 GB
@@ -635,10 +635,34 @@ spec:
     requests:
       storage: 500Gi
   storageClassName: rook-ceph-block
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rook-ceph-pvc-test
+spec:
+  nodeName: ii-coop-control-plane-nbvt9
+  containers:
+    - name: rook-ceph-pvc-test
+      image: alpine:3.12
+      command:
+        - sleep
+        - infinity
+      volumeMounts:
+        - name: rook-ceph-pvc-test
+          mountPath: /mnt
+  volumes:
+    - name: rook-ceph-pvc-test
+      persistentVolumeClaim:
+        claimName: rook-ceph-pvc-test
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
 kubectl -n default apply -f ./rook-ceph-pvc-test.yaml
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+kubectl -n default exec -it rook-ceph-pvc-test -- sh
 #+end_src
 
 #+NAME: RWM storageClass
@@ -719,64 +743,270 @@ kubectl -n default apply -f ./rook-ceph-pvc-shared-test.yaml
 kubectl -n default describe pvc rook-ceph-pvc-shared-test
 #+end_src
 
+#+begin_src yaml :tangle ./rook-ceph-dashboard.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rook-ceph-mgr-dashboard-external-https
+  namespace: rook-ceph
+  labels:
+    app: rook-ceph-mgr
+    rook_cluster: rook-ceph
+spec:
+  ports:
+  - name: dashboard
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: rook-ceph-mgr
+    rook_cluster: rook-ceph
+  sessionAffinity: None
+  type: NodePort
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+kubectl apply -f ./rook-ceph-dashboard.yaml
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+echo https://$(kubectl get node -o wide $(kubectl -n rook-ceph get pod -o wide | grep mgr | awk '{print $7}') | awk '{print $7}' | tail -1):$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard-external-https -o=jsonpath='{.spec.ports[0].nodePort}')
+echo admin :: $(kubectl -n rook-ceph get secrets rook-ceph-dashboard-password -o=jsonpath='{.data.password}' | base64 -d ; echo)
+#+end_src
+
+*** Debug
+#+begin_src yaml :tangle ./rook-ceph-toolbox.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rook-ceph-tools
+  namespace: rook-ceph
+  labels:
+    app: rook-ceph-tools
+spec:
+  selector:
+    matchLabels:
+      app: rook-ceph-tools
+  template:
+    metadata:
+      labels:
+        app: rook-ceph-tools
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: rook-ceph-tools
+        image: rook/ceph:v1.7.2
+        command: ["/tini"]
+        args: ["-g", "--", "/usr/local/bin/toolbox.sh"]
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: ROOK_CEPH_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: rook-ceph-mon
+                key: ceph-username
+          - name: ROOK_CEPH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: rook-ceph-mon
+                key: ceph-secret
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        volumeMounts:
+          - mountPath: /etc/ceph
+            name: ceph-config
+          - name: mon-endpoint-volume
+            mountPath: /etc/rook
+      volumes:
+        - name: mon-endpoint-volume
+          configMap:
+            name: rook-ceph-mon-endpoints
+            items:
+            - key: data
+              path: mon-endpoints
+        - name: ceph-config
+          emptyDir: {}
+      tolerations:
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 5
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+kubectl apply -f ./rook-ceph-toolbox.yaml
+#+end_src
+
+#+begin_src tmate :dir . :window gitlab
+kubectl -n rook-ceph exec -it daemonset/rook-ceph-tools -- bash
+#+end_src
+
 * Set up cluster apps
 
 #+NAME: Get LoadBalancer IP
 #+begin_src tmate :dir . :window gitlab
-  export LOAD_BALANCER_IP=$(kubectl -n kube-system get cm kubeadm-config -o=jsonpath='{.data.ClusterConfiguration}' | yq '.controlPlaneEndpoint' -cr | cut -d ':' -f1)
+export LOAD_BALANCER_IP=$(kubectl -n kube-system get cm kubeadm-config -o=jsonpath='{.data.ClusterConfiguration}' | yq e '.controlPlaneEndpoint' -P - | cut -d ':' -f1)
 #+end_src
 
-#+NAME: Assign DNS address
-#+begin_src yaml :tangle ./dnsendpoint-gitlab-ii-coop.yaml
-apiVersion: externaldns.k8s.io/v1alpha1
-kind: DNSEndpoint
-metadata:
-  name: ii.coop
-spec:
-  endpoints:
-  - dnsName: ns1.ii.coop
-    recordTTL: 3600
-    recordType: A
-    targets:
-    - ${LOAD_BALANCER_IP}
-  - dnsName: ii.coop
-    recordTTL: 3600
-    recordType: NS
-    targets:
-    - ns1.ii.coop
-#+end_src
-
-#+begin_src tmate :dir . :window gitlab
-  envsubst < dnsendpoint-gitlab-ii-coop.yaml | KUBECONFIG= kubectl -n gitlab-ii-coop apply -f -
+#+begin_src shell :results silent
+curl -s -o postgres-operator-crd.yaml -L https://github.com/zalando/postgres-operator/raw/v1.7.0/manifests/postgresql.crd.yaml
+curl -s -L https://github.com/zalando/postgres-operator/raw/v1.7.0/manifests/operator-service-account-rbac.yaml | sed 's/namespace: default/namespace: postgres-operator/g' > ./postgres-operator-serviceaccount.yaml
+curl -s -o postgres-operator-apiservice.yaml -L https://github.com/zalando/postgres-operator/raw/v1.7.0/manifests/api-service.yaml
+curl -s -o postgres-operator.yaml -L https://github.com/zalando/postgres-operator/raw/v1.7.0/manifests/postgres-operator.yaml
 #+end_src
 
 #+NAME: Postgres operator
-#+begin_src yaml :tangle ./postgres-operator.yaml
-apiVersion: helm.fluxcd.io/v1
-kind: HelmRelease
+#+begin_src yaml :tangle ./postgres-operator-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
 metadata:
   name: postgres-operator
-spec:
-  releaseName: postgres-operator
-  chart:
-    git: https://github.com/zalando/postgres-operator
-    ref: v1.6.0
-    path: charts/postgres-operator
+data:
+  # additional_pod_capabilities: "SYS_NICE"
+  # additional_secret_mount: "some-secret-name"
+  # additional_secret_mount_path: "/some/dir"
+  api_port: "8080"
+  aws_region: eu-central-1
+  cluster_domain: cluster.local
+  cluster_history_entries: "1000"
+  cluster_labels: application:spilo
+  cluster_name_label: cluster-name
+  # connection_pooler_default_cpu_limit: "1"
+  # connection_pooler_default_cpu_request: "500m"
+  # connection_pooler_default_memory_limit: 100Mi
+  # connection_pooler_default_memory_request: 100Mi
+  connection_pooler_image: "registry.opensource.zalan.do/acid/pgbouncer:master-18"
+  # connection_pooler_max_db_connections: 60
+  # connection_pooler_mode: "transaction"
+  # connection_pooler_number_of_instances: 2
+  # connection_pooler_schema: "pooler"
+  # connection_pooler_user: "pooler"
+  # custom_service_annotations: "keyx:valuez,keya:valuea"
+  # custom_pod_annotations: "keya:valuea,keyb:valueb"
+  db_hosted_zone: db.example.com
+  debug_logging: "true"
+  # default_cpu_limit: "1"
+  # default_cpu_request: 100m
+  # default_memory_limit: 500Mi
+  # default_memory_request: 100Mi
+  # delete_annotation_date_key: delete-date
+  # delete_annotation_name_key: delete-clustername
+  docker_image: registry.opensource.zalan.do/acid/spilo-13:2.1-p1
+  # downscaler_annotations: "deployment-time,downscaler/*"
+  # enable_admin_role_for_users: "true"
+  # enable_crd_validation: "true"
+  # enable_cross_namespace_secret: "false"
+  # enable_database_access: "true"
+  enable_ebs_gp3_migration: "false"
+  # enable_ebs_gp3_migration_max_size: "1000"
+  # enable_init_containers: "true"
+  # enable_lazy_spilo_upgrade: "false"
+  enable_master_load_balancer: "false"
+  enable_pgversion_env_var: "true"
+  enable_pod_antiaffinity: "true"
+  enable_pod_disruption_budget: "true"
+  # enable_postgres_team_crd: "false"
+  # enable_postgres_team_crd_superusers: "false"
+  enable_replica_load_balancer: "false"
+  # enable_shm_volume: "true"
+  # enable_sidecars: "true"
+  enable_spilo_wal_path_compat: "true"
+  enable_team_member_deprecation: "false"
+  # enable_team_superuser: "false"
+  enable_teams_api: "false"
+  # etcd_host: ""
+  external_traffic_policy: "Cluster"
+  # gcp_credentials: ""
+  # kubernetes_use_configmaps: "false"
+  # infrastructure_roles_secret_name: "postgresql-infrastructure-roles"
+  # infrastructure_roles_secrets: "secretname:monitoring-roles,userkey:user,passwordkey:password,rolekey:inrole"
+  # inherited_annotations: owned-by
+  # inherited_labels: application,environment
+  # kube_iam_role: ""
+  # log_s3_bucket: ""
+  logical_backup_docker_image: "registry.opensource.zalan.do/acid/logical-backup:v1.7.0"
+  # logical_backup_google_application_credentials: ""
+  logical_backup_job_prefix: "logical-backup-"
+  logical_backup_provider: "s3"
+  # logical_backup_s3_access_key_id: ""
+  logical_backup_s3_bucket: "my-bucket-url"
+  # logical_backup_s3_region: ""
+  # logical_backup_s3_endpoint: ""
+  # logical_backup_s3_secret_access_key: ""
+  logical_backup_s3_sse: "AES256"
+  logical_backup_schedule: "30 00 * * *"
+  major_version_upgrade_mode: "manual"
+  master_dns_name_format: "{cluster}.{team}.{hostedzone}"
+  # master_pod_move_timeout: 20m
+  # max_instances: "-1"
+  # min_instances: "-1"
+  # min_cpu_limit: 250m
+  # min_memory_limit: 250Mi
+  # minimal_major_version: "9.5"
+  # node_readiness_label: ""
+  # oauth_token_secret_name: postgresql-operator
+  # pam_configuration: |
+  #  https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees
+  # pam_role_name: zalandos
+  pdb_name_format: "postgres-{cluster}-pdb"
+  pod_antiaffinity_topology_key: "kubernetes.io/hostname"
+  pod_deletion_wait_timeout: 10m
+  # pod_environment_configmap: "default/my-custom-config"
+  # pod_environment_secret: "my-custom-secret"
+  pod_label_wait_timeout: 10m
+  pod_management_policy: "ordered_ready"
+  # pod_priority_class_name: "postgres-pod-priority"
+  pod_role_label: spilo-role
+  # pod_service_account_definition: ""
+  pod_service_account_name: "postgres-pod"
+  # pod_service_account_role_binding_definition: ""
+  pod_terminate_grace_period: 5m
+  # postgres_superuser_teams: "postgres_superusers"
+  # protected_role_names: "admin"
+  ready_wait_interval: 3s
+  ready_wait_timeout: 30s
+  repair_period: 5m
+  replica_dns_name_format: "{cluster}-repl.{team}.{hostedzone}"
+  replication_username: standby
+  resource_check_interval: 3s
+  resource_check_timeout: 10m
+  resync_period: 30m
+  ring_log_lines: "100"
+  role_deletion_suffix: "_deleted"
+  secret_name_template: "{username}.{cluster}.credentials"
+  # sidecar_docker_images: ""
+  # set_memory_request_to_limit: "false"
+  spilo_allow_privilege_escalation: "true"
+  # spilo_runasuser: 101
+  # spilo_runasgroup: 103
+  # spilo_fsgroup: 103
+  spilo_privileged: "false"
+  storage_resize_mode: "pvc"
+  super_username: postgres
+  # target_major_version: "13"
+  # team_admin_role: "admin"
+  # team_api_role_configuration: "log_statement:all"
+  # teams_api_url: http://fake-teams-api.default.svc.cluster.local
+  # toleration: ""
+  # wal_az_storage_account: ""
+  # wal_gs_bucket: ""
+  # wal_s3_bucket: ""
+  watched_namespace: "*"  # listen to all namespaces
+  workers: "8"
 #+end_src
 
 #+NAME: Install Postgres-Operator
 #+begin_src tmate :dir . :window gitlab
-  kubectl create ns postgres-operator
-  kubectl -n postgres-operator apply -f postgres-operator.yaml
-  kubectl -n postgres-operator wait pod --for=condition=Ready --selector=app.kubernetes.io/name=postgres-operator --timeout=200s
-  kubectl -n postgres-operator patch configmap postgres-operator -p '{"data":{"enabled_pod_antiaffinity": "true"}}'
-#+end_src
-
-#+NAME: Local-Path-Provisioner
-#+begin_src tmate :dir . :window gitlab
-  curl -L -O https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
-  kubectl apply -f ./local-path-storage.yaml
-  kubectl patch storageclasses.storage.k8s.io local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+kubectl create ns postgres-operator 2> /dev/null
+kubectl -n postgres-operator apply \
+    -f ./postgres-operator-crd.yaml \
+    -f ./postgres-operator-serviceaccount.yaml \
+    -f ./postgres-operator-configmap.yaml \
+    -f ./postgres-operator-apiservice.yaml \
+    -f ./postgres-operator.yaml
+kubectl -n postgres-operator wait pod --for=condition=Ready --selector=app.kubernetes.io/name=postgres-operator --timeout=200s
 #+end_src
 
 #+NAME: Cert-Manager
@@ -849,9 +1079,11 @@ spec:
   chart:
     repository: https://kubernetes.github.io/ingress-nginx
     name: ingress-nginx
-    version: 2.16.0
+    version: 4.0.1
   values:
     controller:
+      ingressClassResource:
+        default: true
       service:
         externalTrafficPolicy: Local
         annotations:
@@ -868,20 +1100,22 @@ spec:
         enabled: true
       affinity:
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
                 matchExpressions:
-                  - key: app.kubernetes.io/component
+                  - key: app.kubernetes.io/name
                     operator: In
                     values:
-                      - controller
+                      - ingress-nginx
               topologyKey: "kubernetes.io/hostname"
 #+end_src
 
 #+NAME: install nginx-ingress
 #+begin_src tmate :dir . :window gitlab
-  kubectl create ns nginx-ingress
-  kubectl -n nginx-ingress apply -f ./nginx-ingress.yaml
+kubectl create ns nginx-ingress
+kubectl -n nginx-ingress apply -f ./nginx-ingress.yaml
 #+end_src
 
 #+NAME: External-DNS manifests
@@ -1019,14 +1253,14 @@ spec:
     ref: master
     path: charts/powerdns
   values:
-    domain: gitlab2.ii.coop
-    default_soa_name: gitlab2.ii.coop
+    domain: gitlab-staging.ii.coop
+    default_soa_name: gitlab-staging.ii.coop
     apikey: pairingissharing
     powerdns:
       default_ttl: 3600
       soa_minimum_ttl: 3600
-      domain: gitlab2.ii.coop
-      default_soa_name: gitlab2.ii.coop
+      domain: gitlab-staging.ii.coop
+      default_soa_name: gitlab-staging.ii.coop
       mysql_host: powerdns-service-db
       mysql_user: powerdns
       extraEnv:
@@ -1066,20 +1300,20 @@ spec:
 #+NAME: PowerDNS configure
 #+begin_src tmate :dir . :window gitlab
   kubectl -n powerdns wait pod --for=condition=Ready --selector=app.kubernetes.io/name=powerdns --timeout=200s
-  until [ "$(dig A ns1.gitlab2.ii.coop +short)" = "${LOAD_BALANCER_IP}" ]; do
+  until [ "$(dig A ns1.gitlab-staging.ii.coop +short)" = "${LOAD_BALANCER_IP}" ]; do
     echo "BaseDNSName does not resolve to Instance IP yet"
     sleep 1
   done
   kubectl -n powerdns exec deployment/powerdns -- pdnsutil generate-tsig-key pair hmac-md5
-  kubectl -n powerdns exec deployment/powerdns -- pdnsutil activate-tsig-key gitlab2.ii.coop pair master
-  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab2.ii.coop TSIG-ALLOW-DNSUPDATE pair
-  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab2.ii.coop NOTIFY-DNSUPDATE 1
-  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab2.ii.coop SOA-EDIT-DNSUPDATE EPOCH
+  kubectl -n powerdns exec deployment/powerdns -- pdnsutil activate-tsig-key gitlab-staging.ii.coop pair master
+  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab-staging.ii.coop TSIG-ALLOW-DNSUPDATE pair
+  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab-staging.ii.coop NOTIFY-DNSUPDATE 1
+  kubectl -n powerdns exec deployment/powerdns -- pdnsutil set-meta gitlab-staging.ii.coop SOA-EDIT-DNSUPDATE EPOCH
   export POWERDNS_TSIG_SECRET="$(kubectl -n powerdns exec deployment/powerdns -- pdnsutil list-tsig-keys | grep pair | awk '{print $3}' | tr -d '\n')"
   nsupdate <<EOF
   server ${LOAD_BALANCER_IP} 53
-  zone gitlab2.ii.coop
-  update add gitlab2.ii.coop 60 NS ns1.gitlab2.ii.coop
+  zone gitlab-staging.ii.coop
+  update add gitlab-staging.ii.coop 60 NS ns1.gitlab-staging.ii.coop
   key pair ${POWERDNS_TSIG_SECRET}
   send
   EOF
@@ -1095,21 +1329,21 @@ metadata:
   name: gitlab-ii-coop
 spec:
   endpoints:
-  - dnsName: 'gitlab2.ii.coop'
+  - dnsName: 'gitlab-staging.ii.coop'
     recordTTL: 3600
     recordType: A
     targets:
     - ${LOAD_BALANCER_IP}
-  - dnsName: '*.gitlab2.ii.coop'
+  - dnsName: '*.gitlab-staging.ii.coop'
     recordTTL: 3600
     recordType: A
     targets:
     - ${LOAD_BALANCER_IP}
-  - dnsName: gitlab2.ii.coop
+  - dnsName: gitlab-staging.ii.coop
     recordTTL: 3600
     recordType: SOA
     targets:
-    - 'ns1.gitlab2.ii.coop. hostmaster.gitlab2.ii.coop. 5 3600 3600 3600 3600'
+    - 'ns1.gitlab-staging.ii.coop. hostmaster.gitlab-staging.ii.coop. 5 3600 3600 3600 3600'
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
@@ -1219,18 +1453,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    - dns01:
-        rfc2136:
-          tsigKeyName: pair
-          tsigAlgorithm: HMACMD5
-          tsigSecretSecretRef:
-            name: tsig-powerdns
-            key: powerdns
-          nameserver: ${LOAD_BALANCER_IP}
-      selector:
-        dnsNames:
-          - "*.gitlab2.ii.coop"
-          - "gitlab2.ii.coop"
+    - http01:
+        ingress:
+          class: nginx
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -1241,14 +1466,14 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: "*.gitlab2.ii.coop"
   dnsNames:
-    - "*.gitlab2.ii.coop"
-    - "gitlab2.ii.coop"
+    - "gitlab-staging.ii.coop"
+    - "minio.gitlab-staging.ii.coop"
+    - "registry.gitlab-staging.ii.coop"
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
-  envsubst < certs.yaml | kubectl -n gitlab apply -f -
+envsubst < certs.yaml | kubectl -n gitlab apply -f -
 #+end_src
 
 #+NAME: Postgres database
@@ -1288,34 +1513,35 @@ kubectl -n gitlab apply -f gitlab-postgres.yaml
 #+end_src
 
 #+NAME: .example.env
-#+begin_src bash :tangle ./.example.env
-GITLAB_IMAP_PASSWORD=
-GITLAB_SMTP_PASSWORD=
-GITLAB_OMNIAUTH_GITHUB_APP_ID=
-GITLAB_OMNIAUTH_GITHUB_APP_SECRET=
-GITLAB_OMNIAUTH_GITLAB_APP_ID=
-GITLAB_OMNIAUTH_GITLAB_APP_SECRET=
-GITLAB_OMNIAUTH_GOOGLE_APP_ID=
-GITLAB_OMNIAUTH_GOOGLE_APP_SECRET=
-GITLAB_OMNIAUTH_FACEBOOK_APP_ID=
-GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET=
-GITLAB_OMNIAUTH_TWITTER_APP_ID=
-GITLAB_OMNIAUTH_TWITTER_APP_SECRET=
+#+begin_src bash :tangle ./.example.env :comments none
+GITLAB_IMAP_PASSWORD=qH2<nNV%1
+GITLAB_SMTP_PASSWORD=qH2<nNV%1
+GITLAB_OMNIAUTH_GITHUB_APP_ID=d61849f167097d9bf567
+GITLAB_OMNIAUTH_GITHUB_APP_SECRET=a540a56ba3814900bab81f933aa05ea0bff59497
+GITLAB_OMNIAUTH_GITLAB_APP_ID=768737b5f18b775b485f48c240ee39d3813f401a25e92b74643faf917f3cb497
+GITLAB_OMNIAUTH_GITLAB_APP_SECRET=632f1b4e02f5c8aa0a9bb449c5f849029ba46cead70bbd8e09caf5f46c60ec6d
+GITLAB_OMNIAUTH_GOOGLE_APP_ID=916237797088-u95qjmq6h01fsicb2ohbek1n9a8apblr.apps.googleusercontent.com
+GITLAB_OMNIAUTH_GOOGLE_APP_SECRET=39-qRtDyh3lSEK7EDoy1Knio
+GITLAB_OMNIAUTH_FACEBOOK_APP_ID=615569595455763
+GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET=29e8832a35b6292e3c297d4a74c46948
+GITLAB_OMNIAUTH_TWITTER_APP_ID=Iz2SGoc7CKhwpb8z7EpEh6v6K
+GITLAB_OMNIAUTH_TWITTER_APP_SECRET=gh0PW1aSfpS2IyC9HBUNinETdKxOrQuCMOt7tba0ZoCCUfwusF
 #+end_src
 
 #+NAME: source .env
 #+begin_src tmate :dir . :window gitlab
+cp .example.env .env
 export $(cat .env | xargs)
 #+end_src
 
 #+NAME: imap password
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-imap-password --from-literal=password="$GITLAB_IMAP_PASSWORD"
+kubectl -n gitlab create secret generic gitlab-ii-coop-imap-password --from-literal=password="$GITLAB_IMAP_PASSWORD"
 #+end_src
 
 #+NAME: smtp password
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab create secret generic gitlab-ii-coop-smtp-password --from-literal=password="$GITLAB_SMTP_PASSWORD"
+kubectl -n gitlab create secret generic gitlab-ii-coop-smtp-password --from-literal=password="$GITLAB_SMTP_PASSWORD"
 #+end_src
 
 #+NAME: omniauth provider github
@@ -1387,7 +1613,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 4.7.3
+    version: 5.1.5
   values:
     postgresql:
       install: false
@@ -1395,7 +1621,7 @@ spec:
       psql:
         host: gitlab-db-pooler.gitlab
         password:
-          secret: gitlab.gitlab-db.credentials.postgresql.acid.zalan.do
+          secret: gitlab.gitlab-db.credentials
           key: password
         port: 5432
         database: gitlab
@@ -1439,7 +1665,7 @@ spec:
         openssl_verify_mode: peer
         tls: false
         starttls_auto: true
-        domain: gitlab2.ii.coop
+        domain: gitlab-staging.ii.coop
         port: 587
         user_name: mailbot@ii.coop
         password:
@@ -1448,15 +1674,19 @@ spec:
       hosts:
         domain: ii.coop
         gitlab:
-          name: gitlab2.ii.coop
+          name: gitlab-staging.ii.coop
+        minio:
+          name: minio.gitlab-staging.ii.coop
+        registry:
+          name: registry.gitlab-staging.ii.coop
       ingress:
         configureCertmanager: false
       pages:
         enabled: true
         global:
           hosts:
-            domain: gitlab2.ii.coop
-        host: gitlab2.ii.coop
+            domain: gitlab-staging.ii.coop
+        host: gitlab-staging.ii.coop
         port: 443
         https: true
         apiSecret:
@@ -1507,5 +1737,10 @@ spec:
 #+end_src
 
 #+begin_src tmate :dir . :window gitlab
-  kubectl -n gitlab apply -f ./gitlab.yaml
+kubectl -n gitlab apply -f ./gitlab.yaml
 #+end_src
+
+* Migration
+** References
+- https://docs.gitlab.com/charts/installation/migration/package_to_helm.html
+- https://docs.gitlab.com/ee/administration/object_storage.html#connection-settings
