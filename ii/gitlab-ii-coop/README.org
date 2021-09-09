@@ -1513,35 +1513,29 @@ kubectl -n gitlab apply -f gitlab-postgres.yaml
 #+end_src
 
 #+NAME: .example.env
-#+begin_src bash :tangle ./.example.env :comments none
-GITLAB_IMAP_PASSWORD=qH2<nNV%1
-GITLAB_SMTP_PASSWORD=qH2<nNV%1
-GITLAB_OMNIAUTH_GITHUB_APP_ID=d61849f167097d9bf567
-GITLAB_OMNIAUTH_GITHUB_APP_SECRET=a540a56ba3814900bab81f933aa05ea0bff59497
-GITLAB_OMNIAUTH_GITLAB_APP_ID=768737b5f18b775b485f48c240ee39d3813f401a25e92b74643faf917f3cb497
-GITLAB_OMNIAUTH_GITLAB_APP_SECRET=632f1b4e02f5c8aa0a9bb449c5f849029ba46cead70bbd8e09caf5f46c60ec6d
-GITLAB_OMNIAUTH_GOOGLE_APP_ID=916237797088-u95qjmq6h01fsicb2ohbek1n9a8apblr.apps.googleusercontent.com
-GITLAB_OMNIAUTH_GOOGLE_APP_SECRET=39-qRtDyh3lSEK7EDoy1Knio
-GITLAB_OMNIAUTH_FACEBOOK_APP_ID=615569595455763
-GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET=29e8832a35b6292e3c297d4a74c46948
-GITLAB_OMNIAUTH_TWITTER_APP_ID=Iz2SGoc7CKhwpb8z7EpEh6v6K
-GITLAB_OMNIAUTH_TWITTER_APP_SECRET=gh0PW1aSfpS2IyC9HBUNinETdKxOrQuCMOt7tba0ZoCCUfwusF
-#+end_src
-
-#+NAME: source .env
 #+begin_src tmate :dir . :window gitlab
-cp .example.env .env
-export $(cat .env | xargs)
+read -p 'GITLAB_IMAP_PASSWORD: ' GITLAB_IMAP_PASSWORD && export GITLAB_IMAP_PASSWORD \
+read -p 'GITLAB_SMTP_PASSWORD: ' GITLAB_SMTP_PASSWORD && export GITLAB_SMTP_PASSWORD \
+read -p 'GITLAB_OMNIAUTH_GITHUB_APP_ID: ' GITLAB_OMNIAUTH_GITHUB_APP_ID && export GITLAB_OMNIAUTH_GITHUB_APP_ID \
+read -p 'GITLAB_OMNIAUTH_GITHUB_APP_SECRET: ' GITLAB_OMNIAUTH_GITHUB_APP_SECRET && export GITLAB_OMNIAUTH_GITHUB_APP_SECRET \
+read -p 'GITLAB_OMNIAUTH_GITLAB_APP_ID: ' GITLAB_OMNIAUTH_GITLAB_APP_ID && export GITLAB_OMNIAUTH_GITLAB_APP_ID \
+read -p 'GITLAB_OMNIAUTH_GITLAB_APP_SECRET: ' GITLAB_OMNIAUTH_GITLAB_APP_SECRET && export GITLAB_OMNIAUTH_GITLAB_APP_SECRET \
+read -p 'GITLAB_OMNIAUTH_GOOGLE_APP_ID: ' GITLAB_OMNIAUTH_GOOGLE_APP_ID && export GITLAB_OMNIAUTH_GOOGLE_APP_ID \
+read -p 'GITLAB_OMNIAUTH_GOOGLE_APP_SECRET: ' GITLAB_OMNIAUTH_GOOGLE_APP_SECRET && export GITLAB_OMNIAUTH_GOOGLE_APP_SECRET \
+read -p 'GITLAB_OMNIAUTH_FACEBOOK_APP_ID: ' GITLAB_OMNIAUTH_FACEBOOK_APP_ID && export GITLAB_OMNIAUTH_FACEBOOK_APP_ID \
+read -p 'GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET: ' GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET && export GITLAB_OMNIAUTH_FACEBOOK_APP_SECRET \
+read -p 'GITLAB_OMNIAUTH_TWITTER_APP_ID: ' GITLAB_OMNIAUTH_TWITTER_APP_ID && export GITLAB_OMNIAUTH_TWITTER_APP_ID \
+read -p 'GITLAB_OMNIAUTH_TWITTER_APP_SECRET: ' GITLAB_OMNIAUTH_TWITTER_APP_SECRET
 #+end_src
 
 #+NAME: imap password
 #+begin_src tmate :dir . :window gitlab
-kubectl -n gitlab create secret generic gitlab-ii-coop-imap-password --from-literal=password="$GITLAB_IMAP_PASSWORD"
+kubectl -n gitlab create secret generic gitlab-ii-coop-imap-password --from-literal=password="$GITLAB_IMAP_PASSWORD" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: smtp password
 #+begin_src tmate :dir . :window gitlab
-kubectl -n gitlab create secret generic gitlab-ii-coop-smtp-password --from-literal=password="$GITLAB_SMTP_PASSWORD"
+kubectl -n gitlab create secret generic gitlab-ii-coop-smtp-password --from-literal=password="$GITLAB_SMTP_PASSWORD" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: omniauth provider github
@@ -1554,7 +1548,7 @@ url: https://gihub.com/
 args:
   scope: 'user:email'
 EOF
-)"
+)" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: omniauth provider gitlab
@@ -1566,7 +1560,7 @@ app_secret: '${GITLAB_OMNIAUTH_GITLAB_APP_SECRET}'
 args:
   scope: 'api'
 EOF
-)"
+)" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: omniauth provider google_oauth2
@@ -1579,17 +1573,7 @@ args:
   access_type: offline
   approval_prompt: ''
 EOF
-)"
-#+end_src
-
-#+NAME: omniauth provider facebook
-#+begin_src tmate :dir . :window gitlab
-kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-facebook --from-literal=provider="$(envsubst <<EOF
-name: facebook
-app_id: '${GITLAB_OMNIAUTH_FACEBOOK_APP_ID}'
-app_secret: '${GITLAB_OMNIAUTH_FACEBOOk_APP_SECRET}'
-EOF
-)"
+)" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: omniauth provider twitter
@@ -1599,7 +1583,7 @@ name: twitter
 app_id: '${GITLAB_OMNIAUTH_TWITTER_APP_ID}'
 app_secret: '${GITLAB_OMNIAUTH_TWITTER_APP_SECRET}'
 EOF
-)"
+)" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: GitLab
@@ -1656,7 +1640,6 @@ spec:
             - secret: gitlab-ii-coop-omniauth-github
             - secret: gitlab-ii-coop-omniauth-gitlab
             - secret: gitlab-ii-coop-omniauth-google-oauth2
-            - secret: gitlab-ii-coop-omniauth-facebook
             - secret: gitlab-ii-coop-omniauth-twitter
       smtp:
         enabled: true

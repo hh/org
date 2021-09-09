@@ -54,7 +54,6 @@ spec:
             - secret: gitlab-ii-coop-omniauth-github
             - secret: gitlab-ii-coop-omniauth-gitlab
             - secret: gitlab-ii-coop-omniauth-google-oauth2
-            - secret: gitlab-ii-coop-omniauth-facebook
             - secret: gitlab-ii-coop-omniauth-twitter
       smtp:
         enabled: true
