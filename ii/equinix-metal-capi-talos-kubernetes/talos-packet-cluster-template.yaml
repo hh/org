@@ -17,7 +17,7 @@ spec:
           path: /machine/install
           value:
             disk: /dev/sda
-            image: ghcr.io/talos-systems/installer:v0.8.1
+            image: ghcr.io/talos-systems/installer:v0.12.1
             bootloader: true
             wipe: false
             force: false
@@ -36,7 +36,7 @@ spec:
         - op: add
           path: /cluster/extraManifests
           value:
-          - https://github.com/packethost/packet-ccm/releases/download/v1.1.0/deployment.yaml
+          - https://github.com/equinix/cloud-provider-equinix-metal/releases/download/v3.2.2/deployment.yaml
         - op: add
           path: /cluster/allowSchedulingOnMasters
           value: true
@@ -47,7 +47,7 @@ spec:
           path: /machine/install
           value:
             disk: /dev/sda
-            image: ghcr.io/talos-systems/installer:v0.8.1
+            image: ghcr.io/talos-systems/installer:v0.12.1
             bootloader: true
             wipe: false
             force: false
