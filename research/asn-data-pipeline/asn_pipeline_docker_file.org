@@ -508,7 +508,7 @@ ASN_VENDORS=(
 ## https://github.com/ii/org/blob/main/research/asn-data-pipeline/asn_k8s_yaml.org
 ## TODO: Make this a loop that goes through dates to find a working URL
 ## curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_$(date --date='-2 days' +%Y%m%d).json" \
-curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210823.json" \
+curl "https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210906.json" \
     | jq -r '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' \
       > /tmp/vendor/microsoft_raw_subnet_region.csv
 curl 'https://www.gstatic.com/ipranges/cloud.json' \
@@ -585,7 +585,7 @@ if [ -z "${GCP_BIGQUERY_DATASET_LOGS:-}" ]; then
         us.artifacts.k8s-artifacts-prod.appspot.com
     )
     for BUCKET in ${BUCKETS[*]}; do
-            bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-artifacts-gcslogs/${BUCKET}_usage* || true
+            bq load --autodetect --max_bad_records=2000 ${GCP_BIGQUERY_DATASET}_$(date +%Y%m%d).usage_all_raw gs://k8s-infra-artifacts-gcslogs/${BUCKET}_usage* || true
     done
 fi
 #+end_src
