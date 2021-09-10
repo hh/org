@@ -131,3 +131,9 @@ spec:
           secretName: letsencrypt-prod
     nginx-ingress:
       enabled: false
+    task-runner:
+      enabled: true
+      replicas: 1
+      persistence:
+        enabled: true
+        size: '120Gi'

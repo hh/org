@@ -1719,6 +1719,12 @@ spec:
           secretName: letsencrypt-prod
     nginx-ingress:
       enabled: false
+    task-runner:
+      enabled: true
+      replicas: 1
+      persistence:
+        enabled: true
+        size: '120Gi'
 #+end_src
 
 #+begin_src tmate :dir . :window cluster
@@ -1726,8 +1732,159 @@ kubectl -n gitlab apply -f ./gitlab.yaml
 #+end_src
 
 ** Migration
-*** References
+Get MinIO Access and Secret keys
+#+begin_src tmate :window cluster
+(
+  echo 'ACCESSKEY | SECRETKEY'
+  echo $(kubectl -n gitlab get secret gitlab-minio-secret -o=jsonpath='{.data.accesskey}' | base64 -d ; echo) \| $(kubectl -n gitlab get secret gitlab-minio-secret -o=jsonpath='{.data.secretkey}' | base64 -d ); echo
+) | column -t
+#+end_src
+
+Configure =/etc/gitlab/gitlab.rb=
+#+begin_src ruby
+gitlab_rails['artifacts_object_store_enabled'] = true
+gitlab_rails['artifacts_object_store_remote_directory'] = "artifacts"
+gitlab_rails['artifacts_object_store_connection'] = {
+  'provider' => 'AWS',
+  'region' => 'us-east-1',
+  'aws_access_key_id' => '',
+  'aws_secret_access_key' => '',
+  'host' => 'minio.gitlab-staging.ii.coop',
+  'endpoint' => 'https://minio.gitlab-staging.ii.coop'
+}
+
+gitlab_rails['uploads_object_store_enabled'] = true
+gitlab_rails['uploads_object_store_remote_directory'] = "uploads"
+gitlab_rails['uploads_object_store_connection'] = {
+  'provider' => 'AWS',
+  'region' => 'us-east-1',
+  'aws_access_key_id' => '',
+  'aws_secret_access_key' => '',
+  'endpoint' => 'https://minio.gitlab-staging.ii.coop',
+  'host' => 'minio.gitlab-staging.ii.coop',
+}
+
+gitlab_rails['lfs_object_store_enabled'] = true
+gitlab_rails['lfs_object_store_remote_directory'] = "lfs-objects"
+gitlab_rails['lfs_object_store_connection'] = {
+  'provider' => 'AWS',
+  'region' => 'us-east-1',
+  'aws_access_key_id' => '',
+  'aws_secret_access_key' => '',
+  'endpoint' => 'https://minio.gitlab-staging.ii.coop',
+  'host' => 'minio.gitlab-staging.ii.coop',
+  'path_style' => true
+}
+#+end_src
+filling in the =aws_access_key_id= and =aws_secret_access_key= fields with the MinIO access keys
+
+#+begin_src shell
+# update the settings
+gitlab-ctl reconfigure
+
+# migrate LFS to new instance
+gitlab-rake gitlab:lfs:migrate
+
+# migrate all uploads to the new instance
+gitlab-rake gitlab:uploads:migrate:all
+
+# create a backup of all the data
+gitlab-rake gitlab:backup:create SKIP=artifacts,lfs,uploads
+#+end_src
+
+Prepare a /gitlab-rails-secret/
+#+begin_src tmate :window cluster
+read -p 'db_key_base: ' db_key_base && export db_key_base && \
+read -p 'secret_key_base: ' secret_key_base && export secret_key_base && \
+read -p 'otp_key_base: ' otp_key_base && export otp_key_base && \
+read -p 'encrypted_settings_key_base: ' encrypted_settings_key_base && export encrypted_settings_key_base && \
+echo "Place the existing 'openid_connect_signing_key' contents in the field" && \
+echo "Place the existing 'ci_jwt_signing_key' contents in the field" && \
+cat << EOF > /tmp/gitlab-rails-secrets.yml
+production:
+  db_key_base: $db_key_base
+  secret_key_base: $secret_key_base
+  otp_key_base: $otp_key_base
+  ci_jwt_signing_key: |
+
+  openid_connect_signing_key: |
+
+EOF
+#+end_src
+Edit //tmp/gitlab-rails-secrets.yml/ to include the remaining certificates
+
+Update the rails-secret
+#+begin_src tmate :window cluster
+kubectl -n gitlab create configmap gitlab-rails-secret --from-file=secrets.yml=/tmp/gitlab-rails-secrets.yml -o yaml --dry-run=client \
+  | kubectl apply -f -
+#+end_src
+
+Get new Pods that know about the secret
+#+begin_src tmate :window cluster
+kubectl -n gitlab rollout restart $(kubectl -n gitlab get deployment -o=jsonpath='{range .items[*]}deployment/{.metadata.name} {end}' | grep -E 'sidekiq|webservice|task-runner')
+#+end_src
+
+(on existing GitLab instance)
+#+begin_src shell
+docker-compose exec gitlab.ii.coop bash
+
+cd /var/opt/gitlab/backups/
+
+# find the latest backup file
+GITLAB_BACKUP_FILE=$(realpath $(ls /var/opt/gitlab/backups/ | grep $(date +%m_%d)))
+cp $GITLAB_BACKUP_FILE /tmp/gitlab_backup.tar
+
+exit
+
+# copy out of the container
+docker cp $(docker ps | grep gitlab.ii.coop | awk '{print $1}'):/tmp/gitlab_backup.tar /tmp/gitlab_backup.tar
+#+end_src
+
+Copy the backup onto this host
+#+begin_src tmate :window cluster
+scp root@147.75.69.207:/tmp/gitlab_backup.tar /tmp/gitlab_backup.tar
+#+end_src
+
+Copy the backup into the task-runner Pod
+#+begin_src tmate :window cluster
+export TASK_RUNNER_POD_NAME=$(kubectl -n gitlab get pods -l app=task-runner -o=jsonpath='{.items[0].metadata.name}')
+kubectl -n gitlab cp -c task-runner /tmp/gitlab_backup.tar $(kubectl -n gitlab get pods -l app=task-runner -o=jsonpath='{.items[0].metadata.name}'):/tmp/gitlab_backup.tar
+#+end_src
+
+Restore the backup
+#+begin_src tmate :window cluster
+kubectl -n gitlab exec -it $TASK_RUNNER_POD_NAME -- backup-utility --restore -f file:///tmp/gitlab_backup.tar
+#+end_src
+
+Enable Kubernetes features
+#+begin_src tmate :window cluster
+kubectl -n gitlab exec -it $TASK_RUNNER_POD_NAME -- gitlab-rails runner -e production /scripts/custom-instance-setup
+#+end_src
+
+Get new Pods, after restoring from the backup
+#+begin_src tmate :window cluster
+kubectl -n gitlab rollout restart $(kubectl -n gitlab get deployment -o=jsonpath='{range .items[*]}deployment/{.metadata.name} {end}' | tr ' ' '\n' | grep -E 'sidekiq|webservice')
+#+end_src
+
+** Debug
+Jump into the database
+#+begin_src tmate :window cluster
+POSTGRES_PASSWORD="$(kubectl -n gitlab get secret gitlab.gitlab-db.credentials -o=jsonpath='{.data.password}' | base64 -d)"
+kubectl -n gitlab exec -it deployment/gitlab-db-pooler -- psql "postgres://gitlab:$POSTGRES_PASSWORD@gitlab-db-pooler:5432/gitlab?sslmode=require"
+#+end_src
+
+View the rendered manifests
+#+begin_src tmate :window cluster
+helm template -n gitlab gitlab gitlab/gitlab --version 5.1.5 -f <(helm get values -n gitlab gitlab -o yaml | cat 2> /dev/null)
+#+end_src
+
+** TODO
+- ensure that the /gitlab-gitlab-shell/ Service in the /gitlab/ Namespace has the same LoadBalancerIP as the /nginx-ingress-ingress-nginx-controller/ in the /nginx-ingress/ Namespace
+  https://metallb.universe.tf/usage/
+
+** References
 - https://docs.gitlab.com/charts/installation/migration/package_to_helm.html
+- https://docs.gitlab.com/charts/backup-restore/restore.html
 - https://docs.gitlab.com/ee/administration/object_storage.html#connection-settings
 
 * Install Mattermost
@@ -2083,6 +2240,7 @@ mc cp --recursive /tmp/mattermost-data/data/ mattermost-minio/mattermost/data/
 #+end_src
 
 ** References
+- https://docs.gitlab.com/omnibus/gitlab-mattermost/#back-up-gitlab-mattermost
 - https://docs.mattermost.com/install/install-kubernetes.html
 
 * Finalise
