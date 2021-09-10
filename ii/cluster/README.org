@@ -1,16 +1,18 @@
-#+TITLE: gitlabtest.ii.coop in K8s
+#+TITLE: ii cluster
+
+#+begin_quote
+A cluster for things that ii uses both internally and externally
+#+end_quote
 
 * Initialize the packet plugin for Cluster-API
-
 Export credentials for Cluster-API + Packet running in kind to use
-#+begin_src tmate :window gitlab :session packet-cluster-api :noweb yes
+#+begin_src tmate :window cluster :session packet-cluster-api :noweb yes
 read -p 'PACKET_PROJECT_ID: ' PACKET_PROJECT_ID && \
 export PACKET_PROJECT_ID && \
 read -p 'PACKET_API_KEY: ' PACKET_API_KEY && \
 export PACKET_API_KEY && \
 clusterctl init --infrastructure=packet
 #+end_src
-
 
 * Set up cluster
 #+NAME: Cluster-API manifests
@@ -217,11 +219,11 @@ spec:
 #+end_src
 
 #+NAME: Start a window
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 #+end_src
 
 #+NAME: Generate cluster-api manifests
-#+begin_src tmate :dir . :window gitlab :noweb yes
+#+begin_src tmate :dir . :window cluster :noweb yes
 export CLUSTER_NAME="ii-coop"
 export FACILITY=sjc1
 export KUBERNETES_VERSION=v1.21.1
@@ -238,7 +240,7 @@ clusterctl config cluster "$CLUSTER_NAME" --from ./gitlab-cluster-capi-template.
 #+end_src
 
 #+NAME: Create box
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create ns ii-coop 2> /dev/null
 kubectl -n ii-coop apply -f ./ii-coop-cluster-capi.yaml
 #+end_src
@@ -251,27 +253,27 @@ kubectl -n ii-coop get machines,clusters,packetmachines,packetclusters
 Note that the nodes in the cluster will remain not ready until the CNI is applied.
 
 #+NAME: Get Kubeconfig
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n ii-coop get secret ii-coop-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config-ii-coop
 export KUBECONFIG=~/.kube/config-ii-coop
 #+end_src
 
 #+NAME: Ensure all nodes are scheduable
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl taint node --all node-role.kubernetes.io/master-
 #+end_src
 
 * CNI
 
 #+NAME: Weave CNI
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 curl -o weave-net.yaml -L "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=192.168.0.0/16"
 kubectl apply -f ./weave-net.yaml
 #+end_src
 
 * Helm-Operator
 #+NAME: Helm-Operator
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 curl -o ./helm-operator-crds.yaml -L https://raw.githubusercontent.com/fluxcd/helm-operator/1.4.0/deploy/crds.yaml
 
 helm repo add fluxcd https://charts.fluxcd.io
@@ -281,13 +283,13 @@ helm template helm-operator --create-namespace fluxcd/helm-operator \
     --set helm.versions=v3 > ./helm-operator.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create namespace helm-operator
 kubectl apply -f ./helm-operator-crds.yaml -f ./helm-operator.yaml
 #+end_src
 
 * Rook + Ceph
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create ns rook-ceph
 #+end_src
 
@@ -297,7 +299,7 @@ curl -s -L -o ./rook-ceph-crds.yaml https://github.com/rook/rook/raw/v1.7.2/clus
 curl -s -L -o ./rook-ceph-operator.yaml https://github.com/rook/rook/raw/v1.7.2/cluster/examples/kubernetes/ceph/operator.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-crds.yaml -f ./rook-ceph-common.yaml -f ./rook-ceph-operator.yaml
 #+end_src
 
@@ -553,7 +555,7 @@ spec:
         disabled: false
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-cluster.yaml
 #+end_src
 
@@ -619,7 +621,7 @@ parameters:
 reclaimPolicy: Delete
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-pool-storageclass.yaml
 #+end_src
 
@@ -657,11 +659,11 @@ spec:
         claimName: rook-ceph-pvc-test
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n default apply -f ./rook-ceph-pvc-test.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n default exec -it rook-ceph-pvc-test -- sh
 #+end_src
 
@@ -717,7 +719,7 @@ parameters:
 reclaimPolicy: Delete
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-shared-pool-storageclass.yaml
 #+end_src
 
@@ -735,11 +737,11 @@ spec:
   storageClassName: rook-ceph-shared
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n default apply -f ./rook-ceph-pvc-shared-test.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n default describe pvc rook-ceph-pvc-shared-test
 #+end_src
 
@@ -765,11 +767,11 @@ spec:
   type: NodePort
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-dashboard.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 echo https://$(kubectl get node -o wide $(kubectl -n rook-ceph get pod -o wide | grep mgr | awk '{print $7}') | awk '{print $7}' | tail -1):$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard-external-https -o=jsonpath='{.spec.ports[0].nodePort}')
 echo admin :: $(kubectl -n rook-ceph get secrets rook-ceph-dashboard-password -o=jsonpath='{.data.password}' | base64 -d ; echo)
 #+end_src
@@ -835,18 +837,18 @@ spec:
           tolerationSeconds: 5
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl apply -f ./rook-ceph-toolbox.yaml
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n rook-ceph exec -it daemonset/rook-ceph-tools -- bash
 #+end_src
 
 * Set up cluster apps
 
 #+NAME: Get LoadBalancer IP
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 export LOAD_BALANCER_IP=$(kubectl -n kube-system get cm kubeadm-config -o=jsonpath='{.data.ClusterConfiguration}' | yq e '.controlPlaneEndpoint' -P - | cut -d ':' -f1)
 #+end_src
 
@@ -998,7 +1000,7 @@ data:
 #+end_src
 
 #+NAME: Install Postgres-Operator
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create ns postgres-operator 2> /dev/null
 kubectl -n postgres-operator apply \
     -f ./postgres-operator-crd.yaml \
@@ -1010,7 +1012,7 @@ kubectl -n postgres-operator wait pod --for=condition=Ready --selector=app.kuber
 #+end_src
 
 #+NAME: Cert-Manager
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 curl -O -L https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.yaml
 kubectl apply -f ./cert-manager.yaml
 #+end_src
@@ -1032,7 +1034,7 @@ data:
 #+end_src
 
 #+NAME: MetalLB
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl get configmap kube-proxy -n kube-system -o yaml | sed -e "s/strictARP: false/strictARP: true/" | kubectl apply -f - -n kube-system
 curl -o metallb-namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/namespace.yaml
 curl -O -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/metallb.yaml
@@ -1063,7 +1065,7 @@ spec:
 #+end_src
 
 #+NAME: install metrics-server
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl apply -f ./metrics-server.yaml
 #+end_src
 
@@ -1113,7 +1115,7 @@ spec:
 #+end_src
 
 #+NAME: install nginx-ingress
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create ns nginx-ingress
 kubectl -n nginx-ingress apply -f ./nginx-ingress.yaml
 #+end_src
@@ -1229,7 +1231,7 @@ spec:
 #+end_src
 
 #+NAME: External-DNS
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl create ns external-dns
   curl -o external-dns-crd.yaml -L https://raw.githubusercontent.com/kubernetes-sigs/external-dns/master/docs/contributing/crd-source/crd-manifest.yaml
   kubectl apply -f ./external-dns-crd.yaml
@@ -1292,13 +1294,13 @@ spec:
 #+end_src
 
 #+NAME: install PowerDNS
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl create ns powerdns
   envsubst < ./powerdns.yaml | kubectl -n powerdns apply -f -
 #+end_src
 
 #+NAME: PowerDNS configure
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl -n powerdns wait pod --for=condition=Ready --selector=app.kubernetes.io/name=powerdns --timeout=200s
   until [ "$(dig A ns1.gitlab-staging.ii.coop +short)" = "${LOAD_BALANCER_IP}" ]; do
     echo "BaseDNSName does not resolve to Instance IP yet"
@@ -1346,7 +1348,7 @@ spec:
     - 'ns1.gitlab-staging.ii.coop. hostmaster.gitlab-staging.ii.coop. 5 3600 3600 3600 3600'
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   envsubst < dnsendpoint.yaml | kubectl -n powerdns apply -f -
 #+end_src
 
@@ -1367,7 +1369,7 @@ spec:
     enableAnalytics: false
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl apply -f ./kubed.yaml
 #+end_src
 
@@ -1387,7 +1389,7 @@ spec:
   storageClassName: rook-ceph-block
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl create ns humacs
   kubectl -n humacs apply -f ./humacs-pvc.yaml
 #+end_src
@@ -1430,13 +1432,13 @@ spec:
         mountPath: "/home/ii"
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
   kubectl apply -f ./humacs.yaml
 #+end_src
 
 * Install GitLab
 #+NAME: Create GitLab namespace
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl create ns gitlab
 #+end_src
 
@@ -1472,7 +1474,7 @@ spec:
     - "registry.gitlab-staging.ii.coop"
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 envsubst < certs.yaml | kubectl -n gitlab apply -f -
 #+end_src
 
@@ -1495,7 +1497,7 @@ spec:
         memory: 100Mi
   teamId: "gitlab"
   volume:
-    size: 3Gi
+    size: 50Gi
   numberOfInstances: 3
   users:
     gitlab:  # database owner
@@ -1508,12 +1510,12 @@ spec:
 #+end_src
 
 #+NAME: Install Postgres database
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab apply -f gitlab-postgres.yaml
 #+end_src
 
 #+NAME: .example.env
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 read -p 'GITLAB_IMAP_PASSWORD: ' GITLAB_IMAP_PASSWORD && export GITLAB_IMAP_PASSWORD \
 read -p 'GITLAB_SMTP_PASSWORD: ' GITLAB_SMTP_PASSWORD && export GITLAB_SMTP_PASSWORD \
 read -p 'GITLAB_OMNIAUTH_GITHUB_APP_ID: ' GITLAB_OMNIAUTH_GITHUB_APP_ID && export GITLAB_OMNIAUTH_GITHUB_APP_ID \
@@ -1529,17 +1531,17 @@ read -p 'GITLAB_OMNIAUTH_TWITTER_APP_SECRET: ' GITLAB_OMNIAUTH_TWITTER_APP_SECRE
 #+end_src
 
 #+NAME: imap password
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-imap-password --from-literal=password="$GITLAB_IMAP_PASSWORD" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: smtp password
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-smtp-password --from-literal=password="$GITLAB_SMTP_PASSWORD" -o yaml --dry-run | kubectl apply -f -
 #+end_src
 
 #+NAME: omniauth provider github
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-github --from-literal=provider="$(envsubst <<EOF
 name: github
 app_id: '${GITLAB_OMNIAUTH_GITHUB_APP_ID}'
@@ -1552,7 +1554,7 @@ EOF
 #+end_src
 
 #+NAME: omniauth provider gitlab
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-gitlab --from-literal=provider="$(envsubst <<EOF
 name: gitlab
 app_id: '${GITLAB_OMNIAUTH_GITLAB_APP_ID}'
@@ -1564,7 +1566,7 @@ EOF
 #+end_src
 
 #+NAME: omniauth provider google_oauth2
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-google-oauth2 --from-literal=provider="$(envsubst <<EOF
 name: google_oauth2
 app_id: '${GITLAB_OMNIAUTH_GOOGLE_APP_ID}'
@@ -1577,7 +1579,7 @@ EOF
 #+end_src
 
 #+NAME: omniauth provider twitter
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-twitter --from-literal=provider="$(envsubst <<EOF
 name: twitter
 app_id: '${GITLAB_OMNIAUTH_TWITTER_APP_ID}'
@@ -1719,11 +1721,372 @@ spec:
       enabled: false
 #+end_src
 
-#+begin_src tmate :dir . :window gitlab
+#+begin_src tmate :dir . :window cluster
 kubectl -n gitlab apply -f ./gitlab.yaml
 #+end_src
 
-* Migration
-** References
+** Migration
+*** References
 - https://docs.gitlab.com/charts/installation/migration/package_to_helm.html
 - https://docs.gitlab.com/ee/administration/object_storage.html#connection-settings
+
+* Install Mattermost
+
+#+begin_src tmate :dir . :window cluster
+kubectl create namespace mattermost -o yaml --dry-run=client | \
+    kubectl apply -f -
+#+end_src
+
+** Install Postgresql-HA
+#+name: postgres-database
+#+begin_src yaml :tangle ./mattermost-postgresql.yaml
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: mattermost-db
+spec:
+  enableConnectionPooler: true
+  connectionPooler:
+    mode: session
+    resources:
+      requests:
+        cpu: 250m
+        memory: 100Mi
+      limits:
+        cpu: "1"
+        memory: 100Mi
+  teamId: "mattermost"
+  volume:
+    size: 50Gi
+  numberOfInstances: 3
+  users:
+    mattermost:  # database owner
+    - superuser
+    - createdb
+  databases:
+    mattermost: mattermost  # dbname: owner
+  postgresql:
+    version: "13"
+#+end_src
+
+#+name: install-postgres-database
+#+begin_src tmate :dir . :window cluster
+kubectl -n mattermost apply -f ./mattermost-postgresql.yaml
+#+end_src
+
+** Install MinIO Operator
+Create the namespace:
+#+name: create-minio-namespace
+#+begin_src tmate :dir . :window cluster
+kubectl create ns minio-operator
+#+end_src
+
+Download the latest manifests:
+#+name: download-minio-operator-manifests
+#+begin_src tmate :dir . :window cluster
+curl -O -L https://raw.githubusercontent.com/mattermost/mattermost-operator/v1.14.0/docs/minio-operator/minio-operator.yaml
+#+end_src
+
+Install the operator:
+#+name: install-minio-operator
+#+begin_src tmate :dir . :window cluster
+kubectl -n minio-operator apply -f ./minio-operator.yaml
+#+end_src
+
+** Install Mattermost Operator
+Create the namespace:
+#+name: create-mattermost-operator-namespace
+#+begin_src tmate :dir . :window cluster
+kubectl create ns mattermost-operator
+#+end_src
+
+Download the latest manifests:
+#+name: download-mattermost-operator-manifests
+#+begin_src tmate :dir . :window cluster
+curl -O -L https://raw.githubusercontent.com/mattermost/mattermost-operator/v1.14.0/docs/mattermost-operator/mattermost-operator.yaml
+#+end_src
+
+Install the operator:
+#+name: install-mattermost-operator
+#+begin_src tmate :dir . :window cluster
+kubectl apply -n mattermost-operator -f ./mattermost-operator.yaml
+#+end_src
+
+** Install Mattermost
+*** Add OAuth secret
+#+begin_src tmate :window cluster
+read -p 'MM_GITLABSETTINGS_ID: ' MM_GITLABSETTINGS_ID && export MM_GITLABSETTINGS_ID && \
+read -p 'MM_GITLABSETTINGS_SECRET: ' MM_GITLABSETTINGS_SECRET && export MM_GITLABSETTINGS_SECRET && \
+read -p 'MM_GITLABSETTINGS_SCOPE: ' MM_GITLABSETTINGS_SCOPE && export MM_GITLABSETTINGS_SCOPE && \
+read -p 'MM_GITLABSETTINGS_AUTHENDPOINT: ' MM_GITLABSETTINGS_AUTHENDPOINT && export MM_GITLABSETTINGS_AUTHENDPOINT && \
+read -p 'MM_GITLABSETTINGS_TOKENENDPOINT: ' MM_GITLABSETTINGS_TOKENENDPOINT && export MM_GITLABSETTINGS_TOKENENDPOINT && \
+read -p 'MM_GITLABSETTINGS_USERAPIENDPOINT: ' MM_GITLABSETTINGS_USERAPIENDPOINT && export MM_GITLABSETTINGS_USERAPIENDPOINT && \
+read -p 'MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL: ' MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL && export MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL && \
+read -p 'MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME: ' MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME && export MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME && \
+read -p 'MM_EMAILSETTINGS_FEEDBACKNAME: ' MM_EMAILSETTINGS_FEEDBACKNAME && export MM_EMAILSETTINGS_FEEDBACKNAME && \
+read -p 'MM_EMAILSETTINGS_SMTPUSERNAME: ' MM_EMAILSETTINGS_SMTPUSERNAME && export MM_EMAILSETTINGS_SMTPUSERNAME && \
+read -p 'MM_EMAILSETTINGS_SMTPPASSWORD: ' MM_EMAILSETTINGS_SMTPPASSWORD && export MM_EMAILSETTINGS_SMTPPASSWORD && \
+read -p 'MM_EMAILSETTINGS_SMTPSERVER: ' MM_EMAILSETTINGS_SMTPSERVER && export MM_EMAILSETTINGS_SMTPSERVER && \
+read -p 'MM_EMAILSETTINGS_SMTPPORT: ' MM_EMAILSETTINGS_SMTPPORT && export MM_EMAILSETTINGS_SMTPPORT && \
+read -p 'MM_EMAILSETTINGS_CONNECTIONSECURITY: ' MM_EMAILSETTINGS_CONNECTIONSECURITY && export MM_EMAILSETTINGS_CONNECTIONSECURITY && \
+kubectl -n mattermost create secret generic mattermost-user-config \
+    --from-literal=MM_GITLABSETTINGS_ID="$MM_GITLABSETTINGS_ID" \
+    --from-literal=MM_GITLABSETTINGS_SECRET="$MM_GITLABSETTINGS_SECRET" \
+    --from-literal=MM_GITLABSETTINGS_AUTHENDPOINT="$MM_GITLABSETTINGS_AUTHENDPOINT" \
+    --from-literal=MM_GITLABSETTINGS_TOKENENDPOINT="$MM_GITLABSETTINGS_TOKENENDPOINT" \
+    --from-literal=MM_GITLABSETTINGS_USERAPIENDPOINT="$MM_GITLABSETTINGS_USERAPIENDPOINT" \
+    --from-literal=MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL="$MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL" \
+    --from-literal=MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME="$MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME" \
+    --from-literal=MM_EMAILSETTINGS_FEEDBACKNAME="$MM_EMAILSETTINGS_FEEDBACKNAME" \
+    --from-literal=MM_EMAILSETTINGS_SMTPUSERNAME="$MM_EMAILSETTINGS_SMTPUSERNAME" \
+    --from-literal=MM_EMAILSETTINGS_SMTPPASSWORD="$MM_EMAILSETTINGS_SMTPPASSWORD" \
+    --from-literal=MM_EMAILSETTINGS_SMTPSERVER="$MM_EMAILSETTINGS_SMTPSERVER" \
+    --from-literal=MM_EMAILSETTINGS_SMTPPORT="$MM_EMAILSETTINGS_SMTPPORT" \
+    --from-literal=MM_EMAILSETTINGS_CONNECTIONSECURITY="$MM_EMAILSETTINGS_CONNECTIONSECURITY" \
+    -o yaml --dry-run=client \
+    | kubectl apply -f -
+#+end_src
+
+*** Operator configuration
+#+name: mattermost-cluster-definition
+#+begin_src yaml :tangle ./mattermost.yaml
+apiVersion: installation.mattermost.com/v1beta1
+kind: Mattermost
+metadata:
+  name: mattermost # Name of your cluster as shown in Kubernetes.
+  namespace: mattermost
+spec:
+  database:
+    external:
+      secret: mattermost-database
+  elasticSearch: {}
+  fileStore:
+    operatorManaged:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 150m
+          memory: 512Mi
+      storageSize: 50Gi
+  image: mattermost/mattermost-enterprise-edition
+  imagePullPolicy: IfNotPresent
+  ingressAnnotations:
+    kubernetes.io/ingress.class: nginx
+  ingressName: mattermost.ii.coop
+  probes:
+    livenessProbe: {}
+    readinessProbe: {}
+  replicas: 2
+  scheduling:
+    affinity: {}
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 150m
+        memory: 256Mi
+  useIngressTLS: true
+  version: 5.34.2
+  mattermostEnv:
+    - name: MM_GITLABSETTINGS_ENABLE
+      value: "true"
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+      value: "true"
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+      value: "true"
+    - name: MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION
+      value: "false"
+    - name: MM_EMAILSETTINGS_FEEDBACKEMAIL
+      value: "mattermost@ii.coop"
+    - name: MM_EMAILSETTINGS_FEEDBACKORGANIZATION
+      value: "ii.coop"
+    - name: MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_SENDPUSHNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONSERVER
+      value: "http://push-test.mattermost.com"
+    - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONCONTENTS
+      value: "full"
+    - name: MM_EMAILSETTINGS_ENABLESMTPAUTH
+      value: "true"
+    - name: MM_GITLABSETTINGS_ID
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_ID
+    - name: MM_GITLABSETTINGS_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_SECRET
+    - name: MM_GITLABSETTINGS_AUTHENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_AUTHENDPOINT
+    - name: MM_GITLABSETTINGS_TOKENENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_TOKENENDPOINT
+    - name: MM_GITLABSETTINGS_USERAPIENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_USERAPIENDPOINT
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+    - name: MM_EMAILSETTINGS_FEEDBACKNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_FEEDBACKNAME
+    - name: MM_EMAILSETTINGS_SMTPUSERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPUSERNAME
+    - name: MM_EMAILSETTINGS_SMTPPASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPPASSWORD
+    - name: MM_EMAILSETTINGS_SMTPSERVER
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPSERVER
+    - name: MM_EMAILSETTINGS_SMTPPORT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPPORT
+    - name: MM_EMAILSETTINGS_CONNECTIONSECURITY
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_CONNECTIONSECURITY
+#+end_src
+
+#+name: wait-for-mattermost-db-creds
+#+begin_src tmate :dir . :window cluster
+until kubectl -n mattermost get secret/mattermost.mattermost-db.credentials; do
+  sleep 5s
+done
+#+end_src
+
+#+name: create-mattermost-database-connection-string
+#+begin_src tmate :dir . :window cluster
+POSTGRES_PASSWORD="$(kubectl -n mattermost get secret mattermost.mattermost-db.credentials -o=jsonpath='{.data.password}' | base64 -d)"
+kubectl -n mattermost create secret generic mattermost-database --from-literal=DB_CONNECTION_STRING="postgres://mattermost:$POSTGRES_PASSWORD@mattermost-db-pooler:5432/mattermost?sslmode=require" -o yaml --dry-run=client | \
+    kubectl apply -f -
+#+end_src
+
+#+name: install-mattermost-cluster
+#+begin_src tmate :dir . :window cluster
+envsubst < ./mattermost.yaml | kubectl -n mattermost apply -f -
+#+end_src
+
+** Certs
+#+begin_src yaml :tangle ./certs-mattermost.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod-mattermost
+  namespace: mattermost
+spec:
+  secretName: mattermost-ii-coop-tls-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: mattermost.ii.coop
+  dnsNames:
+    - mattermost.ii.coop
+#+end_src
+
+#+begin_src tmate :dir . :window cluster
+envsubst < ./certs-mattermost.yaml | kubectl apply -f -
+#+end_src
+
+** Migrating Mattermost
+#+begin_src shell
+# exec into the omnibus container
+docker-compose exec gitlab.ii.coop bash
+# become the gitlab-psql user
+su gitlab-psql -c bash
+# run the backup command
+/opt/gitlab/embedded/bin/pg_dump -U gitlab-psql -h /var/opt/gitlab/postgresql mattermost_production -w | gzip > /tmp/mattermost_dbdump_$(date --rfc-3339=date).sql.gz
+# return to the root user
+exit
+# include the mattermost data
+tar -zcvf /tmp/mattermost_data_$(date --rfc-3339=date).gz -C /var/opt/gitlab/mattermost data config.json
+exit
+# copy the back up out
+docker cp $(docker ps | grep gitlab.ii.coop | awk '{print $1}'):/tmp/mattermost_data_$(date --rfc-3339=date).gz /tmp/mattermost_data.gz
+docker cp $(docker ps | grep gitlab.ii.coop | awk '{print $1}'):/tmp/mattermost_dbdump_$(date --rfc-3339=date).sql.gz /tmp/mattermost_dbdump.sql.gz
+#+end_src
+
+Copy the databse
+#+begin_src tmate :window mmm
+scp root@147.75.69.207:/tmp/mattermost_dbdump.sql.gz /tmp/mattermost_dbdump.sql.gz
+#+end_src
+
+Copy the data
+#+begin_src tmate :window mmm
+scp root@147.75.69.207:/tmp/mattermost_data.gz /tmp/mattermost_data.gz
+#+end_src
+
+Port-forward the remote database
+#+begin_src tmate :window mmm
+export KUBECONFIG=~/.kube/config-ii-coop
+kubectl -n mattermost port-forward svc/mattermost-db-pooler 5432
+#+end_src
+
+Restore the database
+#+begin_src tmate :window cluster
+zcat /tmp/mattermost_dbdump.sql.gz | psql $(kubectl -n mattermost get secret mattermost-database -o=jsonpath='{.data.DB_CONNECTION_STRING}' | base64 -d | sed 's/mattermost-db-pooler/localhost/g')
+#+end_src
+
+Extract the data
+#+begin_src tmate :window cluster
+mkdir -p /tmp/mattermost-data
+tar -xzvf /tmp/mattermost_data.gz -C /tmp/mattermost-data
+#+end_src
+
+Port-forward the MinIO server
+#+begin_src tmate :window mmm
+export KUBECONFIG=~/.kube/config-ii-coop
+kubectl -n mattermost port-forward svc/mattermost-minio-hl-svc 9000
+#+end_src
+
+Configure the connection to the MinIO server
+#+begin_src tmate :window cluster
+mc alias set mattermost-minio-hl-svc http://localhost:9000 $(kubectl -n mattermost get secrets mattermost-minio -o=jsonpath='{.data.accesskey}' | base64 -d) $(kubectl -n mattermost get secrets mattermost-minio -o=jsonpath='{.data.secretkey}' | base64 -d)
+#+end_src
+
+Copy the data over to MinIO
+#+begin_src tmate :window cluster
+mc cp --recursive /tmp/mattermost-data/data/ mattermost-minio/mattermost/data/
+#+end_src
+
+** References
+- https://docs.mattermost.com/install/install-kubernetes.html
+
+* Finalise
+** Move ClusterAPI management
+#+begin_src tmate :window SHELL
+clusterctl move -n ii-coop --to-kubeconfig=$HOME/.kube/config-ii-coop
+#+end_src

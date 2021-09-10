@@ -1,11 +1,10 @@
-
-
-# #+NAME: Postgres database
+# Install Postgresql-HA
+# #+name: postgres-database
 
 apiVersion: "acid.zalan.do/v1"
 kind: postgresql
 metadata:
-  name: gitlab-db
+  name: mattermost-db
 spec:
   enableConnectionPooler: true
   connectionPooler:
@@ -17,15 +16,15 @@ spec:
       limits:
         cpu: "1"
         memory: 100Mi
-  teamId: "gitlab"
+  teamId: "mattermost"
   volume:
-    size: 3Gi
+    size: 50Gi
   numberOfInstances: 3
   users:
-    gitlab:  # database owner
+    mattermost:  # database owner
     - superuser
     - createdb
   databases:
-    gitlab: gitlab  # dbname: owner
+    mattermost: mattermost  # dbname: owner
   postgresql:
     version: "13"

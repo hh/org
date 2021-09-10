@@ -1,0 +1,16 @@
+# Certs
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod-mattermost
+  namespace: mattermost
+spec:
+  secretName: mattermost-ii-coop-tls-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: mattermost.ii.coop
+  dnsNames:
+    - mattermost.ii.coop
