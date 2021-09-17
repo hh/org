@@ -27,7 +27,7 @@ spec:
   probes:
     livenessProbe: {}
     readinessProbe: {}
-  replicas: 2
+  replicas: 1
   scheduling:
     affinity: {}
     resources:
@@ -59,7 +59,7 @@ spec:
     - name: MM_EMAILSETTINGS_SENDPUSHNOTIFICATIONS
       value: "true"
     - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONSERVER
-      value: "http://push-test.mattermost.com"
+      value: "https://push-test.mattermost.com"
     - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONCONTENTS
       value: "full"
     - name: MM_EMAILSETTINGS_ENABLESMTPAUTH

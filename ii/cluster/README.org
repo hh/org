@@ -53,9 +53,11 @@ spec:
           netmask 255.255.255.255
         EOF
       - systemctl restart networking
-      - 'kubectl --kubeconfig /etc/kubernetes/admin.conf create secret generic -n kube-system packet-cloud-config --from-literal=cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "${PROJECT_ID}", "eipTag": "cluster-api-provider-packet:cluster-id:${CLUSTER_NAME}"}'''
-      - kubectl apply --kubeconfig /etc/kubernetes/admin.conf -f https://github.com/packethost/packet-ccm/releases/download/v2.0.0/deployment.yaml
-      - kubectl taint --kubeconfig /etc/kubernetes/admin.conf node --all node-role.kubernetes.io/master-
+      - mkdir -p ~/.kube/
+      - cp /etc/kubernetes/admin.conf ~/.kube/config
+      - 'kubectl create secret generic -n kube-system metal-cloud-config --from-literal=cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "${PROJECT_ID}","loadbalancer":"metallb:///"}'''
+      - kubectl apply -f https://github.com/equinix/cloud-provider-equinix-metal/releases/download/v3.2.2/deployment.yaml
+      - kubectl taint node --all node-role.kubernetes.io/master-
     preKubeadmCommands:
       - sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
       - swapoff -a
@@ -1017,31 +1019,14 @@ curl -O -L https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cer
 kubectl apply -f ./cert-manager.yaml
 #+end_src
 
-#+NAME: MetalLB system config
-#+begin_src yaml :tangle ./metallb-system-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: metallb-system
-  name: config
-data:
-  config: |
-    address-pools:
-      - name: default
-        protocol: layer2
-        addresses:
-          - ${LOAD_BALANCER_IP}/32
-#+end_src
-
 #+NAME: MetalLB
 #+begin_src tmate :dir . :window cluster
 kubectl get configmap kube-proxy -n kube-system -o yaml | sed -e "s/strictARP: false/strictARP: true/" | kubectl apply -f - -n kube-system
-curl -o metallb-namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/namespace.yaml
-curl -O -L https://raw.githubusercontent.com/metallb/metallb/v0.9.3/manifests/metallb.yaml
+curl -o metallb-namespace.yaml -L https://raw.githubusercontent.com/metallb/metallb/v0.10.2/manifests/namespace.yaml
+curl -O -L https://raw.githubusercontent.com/metallb/metallb/v0.10.2/manifests/metallb.yaml
 kubectl apply -f ./metallb-namespace.yaml
 kubectl apply -f ./metallb.yaml
 kubectl create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
-envsubst < metallb-system-config.yaml | kubectl apply -f -
 #+end_src
 
 #+NAME: Metrics-Server
@@ -2033,7 +2018,7 @@ spec:
   probes:
     livenessProbe: {}
     readinessProbe: {}
-  replicas: 2
+  replicas: 1
   scheduling:
     affinity: {}
     resources:
@@ -2065,7 +2050,7 @@ spec:
     - name: MM_EMAILSETTINGS_SENDPUSHNOTIFICATIONS
       value: "true"
     - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONSERVER
-      value: "http://push-test.mattermost.com"
+      value: "https://push-test.mattermost.com"
     - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONCONTENTS
       value: "full"
     - name: MM_EMAILSETTINGS_ENABLESMTPAUTH
@@ -2243,8 +2228,180 @@ mc cp --recursive /tmp/mattermost-data/data/ mattermost-minio/mattermost/data/
 - https://docs.gitlab.com/omnibus/gitlab-mattermost/#back-up-gitlab-mattermost
 - https://docs.mattermost.com/install/install-kubernetes.html
 
+* Install Kanban
+** Prepare
+Create a namespace
+#+begin_src tmate :window kanban
+kubectl create ns kanban-ii-coop
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/kanban-ii-coop created
+#+end_example
+
+** Configure
+Certs
+#+begin_src yaml :tangle ./kanboard.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: kanban-ii-coop
+spec:
+  acme:
+    email: kanban@ii.coop
+    preferredChain: ""
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+      selector:
+        dnsNames:
+        - kanban.ii.coop
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kanban-ii-coop
+  namespace: kanban-ii-coop
+spec:
+  dnsNames:
+  - kanban.ii.coop
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: kanban-ii-coop
+  secretName: letsencrypt-prod
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: rook-ceph-block
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kanboard
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kanboard
+  template:
+    metadata:
+      labels:
+        app: kanboard
+    spec:
+      containers:
+      - image: kanboard/kanboard:latest
+        name: kanboard
+        ports:
+          - containerPort: 80
+        volumeMounts:
+          - name: kanboard
+            mountPath: /var/www/app/data
+      volumes:
+      - name: kanboard
+        persistentVolumeClaim:
+          claimName: kanboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kanboard
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: kanboard
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  rules:
+  - host: kanban.ii.coop
+    http:
+      paths:
+      - backend:
+          service:
+            name: kanboard
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - kanban.ii.coop
+    secretName: letsencrypt-prod
+#+end_src
+
+** Install
+Apply all the things
+#+begin_src tmate :window kanban
+kubectl apply -f kanboard.yaml
+#+end_src
+
+Waiting for cert
+#+begin_src shell
+kubectl -n kanban-ii-coop get challenges
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Checkout the ingress
+#+begin_src shell
+kubectl -n kanban-ii-coop get ing
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME       CLASS    HOSTS            ADDRESS          PORTS     AGE
+kanboard   <none>   kanban.ii.coop   139.178.68.219   80, 443   10m
+#+end_example
 * Finalise
 ** Move ClusterAPI management
 #+begin_src tmate :window SHELL
 clusterctl move -n ii-coop --to-kubeconfig=$HOME/.kube/config-ii-coop
+#+end_src
+
+
+* Extras
+** Move from Packet-CCM to Metal-CCM
+Move config over and use LoadBalancer configuration pointing to MetalLB
+#+begin_src tmate :window cluster
+kubectl -n kube-system create secret generic metal-cloud-config --from-file=cloud-sa.json=<(kubectl -n kube-system get secret packet-cloud-config -o=jsonpath='{.data.cloud-sa\.json}' | base64 -d | jq -cr '. | .loadbalancer = "metallb:///"')
+#+end_src
+
+Remove the older Packet-CCM
+#+begin_src tmate :window cluster
+kubectl delete -f https://github.com/packethost/packet-ccm/releases/download/v2.0.0/deployment.yaml
+#+end_src
+
+Install Metal-CCM
+#+begin_src tmate :window cluster
+kubectl apply -f https://github.com/equinix/cloud-provider-equinix-metal/releases/download/v3.2.2/deployment.yaml
 #+end_src
