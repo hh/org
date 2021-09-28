@@ -62,7 +62,7 @@ spec:
         openssl_verify_mode: peer
         tls: false
         starttls_auto: true
-        domain: gitlab-staging.ii.coop
+        domain: gitlab.ii.coop
         port: 587
         user_name: mailbot@ii.coop
         password:
@@ -71,19 +71,19 @@ spec:
       hosts:
         domain: ii.coop
         gitlab:
-          name: gitlab-staging.ii.coop
+          name: gitlab.ii.coop
         minio:
-          name: minio.gitlab-staging.ii.coop
+          name: minio.gitlab.ii.coop
         registry:
-          name: registry.gitlab-staging.ii.coop
+          name: registry.gitlab.ii.coop
       ingress:
         configureCertmanager: false
       pages:
         enabled: true
         global:
           hosts:
-            domain: gitlab-staging.ii.coop
-        host: gitlab-staging.ii.coop
+            domain: gitlab.ii.coop
+        host: gitlab.ii.coop
         port: 443
         https: true
         apiSecret:

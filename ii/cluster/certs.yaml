@@ -27,6 +27,6 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - "gitlab-staging.ii.coop"
-    - "minio.gitlab-staging.ii.coop"
-    - "registry.gitlab-staging.ii.coop"
+    - "gitlab.ii.coop"
+    - "minio.gitlab.ii.coop"
+    - "registry.gitlab.ii.coop"

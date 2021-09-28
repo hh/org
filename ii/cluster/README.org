@@ -1105,6 +1105,12 @@ kubectl create ns nginx-ingress
 kubectl -n nginx-ingress apply -f ./nginx-ingress.yaml
 #+end_src
 
+Due to issues with Equinix Metal [CCM] + BGP IP addressing issues, the IP of the first node is used as the Ingress IP
+#+begin_src tmate :dir . :window cluster
+export K8S_NODE_IP=$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[1].address}')
+kubectl -n nginx-ingress patch svc nginx-ingress-ingress-nginx-controller --type='json' -p="[{\"op\": \"replace\", \"path\": \"/spec/externalIPs/0\", \"value\":\"${K8S_NODE_IP}\"}]"
+#+end_src
+
 #+NAME: External-DNS manifests
 #+begin_src yaml :tangle ./external-dns.yaml
 apiVersion: v1
@@ -1454,9 +1460,9 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - "gitlab-staging.ii.coop"
-    - "minio.gitlab-staging.ii.coop"
-    - "registry.gitlab-staging.ii.coop"
+    - "gitlab.ii.coop"
+    - "minio.gitlab.ii.coop"
+    - "registry.gitlab.ii.coop"
 #+end_src
 
 #+begin_src tmate :dir . :window cluster
@@ -1532,7 +1538,7 @@ kubectl -n gitlab create secret generic gitlab-ii-coop-omniauth-github --from-li
 name: github
 app_id: '${GITLAB_OMNIAUTH_GITHUB_APP_ID}'
 app_secret: '${GITLAB_OMNIAUTH_GITHUB_APP_SECRET}'
-url: https://gihub.com/
+url: https://github.com/
 args:
   scope: 'user:email'
 EOF
@@ -1636,7 +1642,7 @@ spec:
         openssl_verify_mode: peer
         tls: false
         starttls_auto: true
-        domain: gitlab-staging.ii.coop
+        domain: gitlab.ii.coop
         port: 587
         user_name: mailbot@ii.coop
         password:
@@ -1645,19 +1651,19 @@ spec:
       hosts:
         domain: ii.coop
         gitlab:
-          name: gitlab-staging.ii.coop
+          name: gitlab.ii.coop
         minio:
-          name: minio.gitlab-staging.ii.coop
+          name: minio.gitlab.ii.coop
         registry:
-          name: registry.gitlab-staging.ii.coop
+          name: registry.gitlab.ii.coop
       ingress:
         configureCertmanager: false
       pages:
         enabled: true
         global:
           hosts:
-            domain: gitlab-staging.ii.coop
-        host: gitlab-staging.ii.coop
+            domain: gitlab.ii.coop
+        host: gitlab.ii.coop
         port: 443
         https: true
         apiSecret:
@@ -1721,6 +1727,13 @@ spec:
 
 #+begin_src tmate :dir . :window cluster
 kubectl -n gitlab apply -f ./gitlab.yaml
+#+end_src
+
+** Finalising
+Due to issues with Equinix Metal [CCM] + BGP IP addressing issues, the IP of the first node is used as the Ingress IP
+#+begin_src tmate :dir . :window cluster
+export K8S_NODE_IP=$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[1].address}')
+kubectl -n gitlab patch svc gitlab-gitlab-shell --type='json' -p="[{\"op\": \"replace\", \"path\": \"/spec/externalIPs/0\", \"value\":\"${K8S_NODE_IP}\"}]"
 #+end_src
 
 ** Migration
