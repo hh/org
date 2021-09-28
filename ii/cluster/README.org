@@ -1469,6 +1469,7 @@ apiVersion: "acid.zalan.do/v1"
 kind: postgresql
 metadata:
   name: gitlab-db
+  namespace: gitlab
 spec:
   enableConnectionPooler: true
   connectionPooler:
@@ -1584,7 +1585,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 5.1.5
+    version: 4.7.2
   values:
     postgresql:
       install: false
@@ -1682,6 +1683,12 @@ spec:
             kubernetes.io/ingress.class: nginx
           tls:
             secretName: letsencrypt-prod
+      task-runner:
+        enabled: true
+        replicas: 1
+        persistence:
+          enabled: true
+          size: '120Gi'
     gitlab-pages:
       enabled: true
       ingress:
@@ -1717,6 +1724,16 @@ kubectl -n gitlab apply -f ./gitlab.yaml
 #+end_src
 
 ** Migration
+
+[[https://docs.gitlab.com/charts/installation/version_mappings.html][Helm migration path]] ([[https://docs.gitlab.com/ee/update/#upgrade-paths][Upgrade path]]):
+- Helm Chart v4.7.2 (GitLab v13.7.2)
+- Helm Chart v4.8.8 (GitLab v13.8.8)
+- Helm Chart v4.12.12 (GitLab v13.12.12)
+- Helm Chart v5.1.5 (GitLab v14.1.5)
+- Helm Chart v5.1.6 (GitLab v14.1.6)
+- Helm Chart v5.2.0 (GitLab v14.2.0)
+- Helm Chart v5.2.4 (GitLab v14.2.4)
+
 Get MinIO Access and Secret keys
 #+begin_src tmate :window cluster
 (
@@ -1777,7 +1794,7 @@ gitlab-rake gitlab:uploads:migrate:all
 gitlab-rake gitlab:backup:create SKIP=artifacts,lfs,uploads
 #+end_src
 
-Prepare a /gitlab-rails-secret/
+Prepare a /gitlab-rails-secret/ based off of the =/etc/gitlab/gitlab-secrets.rb= file
 #+begin_src tmate :window cluster
 read -p 'db_key_base: ' db_key_base && export db_key_base && \
 read -p 'secret_key_base: ' secret_key_base && export secret_key_base && \
@@ -1790,6 +1807,7 @@ production:
   db_key_base: $db_key_base
   secret_key_base: $secret_key_base
   otp_key_base: $otp_key_base
+  encrypted_settings_key_base: $encrypted_settings_key_base
   ci_jwt_signing_key: |
 
   openid_connect_signing_key: |
@@ -1800,7 +1818,7 @@ Edit //tmp/gitlab-rails-secrets.yml/ to include the remaining certificates
 
 Update the rails-secret
 #+begin_src tmate :window cluster
-kubectl -n gitlab create configmap gitlab-rails-secret --from-file=secrets.yml=/tmp/gitlab-rails-secrets.yml -o yaml --dry-run=client \
+kubectl -n gitlab create secret generic gitlab-rails-secret --from-file=secrets.yml=/tmp/gitlab-rails-secrets.yml -o yaml --dry-run=client \
   | kubectl apply -f -
 #+end_src
 
@@ -1836,14 +1854,20 @@ export TASK_RUNNER_POD_NAME=$(kubectl -n gitlab get pods -l app=task-runner -o=j
 kubectl -n gitlab cp -c task-runner /tmp/gitlab_backup.tar $(kubectl -n gitlab get pods -l app=task-runner -o=jsonpath='{.items[0].metadata.name}'):/tmp/gitlab_backup.tar
 #+end_src
 
+Drop the /pg_stat_statements/ extension
+#+begin_src tmate :window cluster
+POSTGRES_PASSWORD="$(kubectl -n gitlab get secret gitlab.gitlab-db.credentials -o=jsonpath='{.data.password}' | base64 -d)"
+kubectl -n gitlab exec -it deployment/gitlab-db-pooler -- psql "postgres://gitlab:$POSTGRES_PASSWORD@gitlab-db-pooler:5432/gitlab?sslmode=require" -c 'drop extension pg_stat_statements cascade;'
+#+end_src
+
 Restore the backup
 #+begin_src tmate :window cluster
-kubectl -n gitlab exec -it $TASK_RUNNER_POD_NAME -- backup-utility --restore -f file:///tmp/gitlab_backup.tar
+kubectl -n gitlab exec -c task-runner -it $TASK_RUNNER_POD_NAME -- backup-utility --restore -f file:///tmp/gitlab_backup.tar
 #+end_src
 
 Enable Kubernetes features
 #+begin_src tmate :window cluster
-kubectl -n gitlab exec -it $TASK_RUNNER_POD_NAME -- gitlab-rails runner -e production /scripts/custom-instance-setup
+kubectl -n gitlab exec -c task-runner -it $TASK_RUNNER_POD_NAME -- gitlab-rails runner -e production /scripts/custom-instance-setup
 #+end_src
 
 Get new Pods, after restoring from the backup
@@ -1860,6 +1884,8 @@ kubectl -n gitlab exec -it deployment/gitlab-db-pooler -- psql "postgres://gitla
 
 View the rendered manifests
 #+begin_src tmate :window cluster
+helm repo add gitlab https://charts.gitlab.io/
+helm repo update
 helm template -n gitlab gitlab gitlab/gitlab --version 5.1.5 -f <(helm get values -n gitlab gitlab -o yaml | cat 2> /dev/null)
 #+end_src
 

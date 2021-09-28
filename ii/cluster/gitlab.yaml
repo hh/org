@@ -11,7 +11,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 5.1.5
+    version: 4.7.2
   values:
     postgresql:
       install: false
@@ -109,6 +109,12 @@ spec:
             kubernetes.io/ingress.class: nginx
           tls:
             secretName: letsencrypt-prod
+      task-runner:
+        enabled: true
+        replicas: 1
+        persistence:
+          enabled: true
+          size: '120Gi'
     gitlab-pages:
       enabled: true
       ingress:

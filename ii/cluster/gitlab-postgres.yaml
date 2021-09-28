@@ -6,6 +6,7 @@ apiVersion: "acid.zalan.do/v1"
 kind: postgresql
 metadata:
   name: gitlab-db
+  namespace: gitlab
 spec:
   enableConnectionPooler: true
   connectionPooler:
