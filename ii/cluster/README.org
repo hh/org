@@ -1585,7 +1585,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 4.7.2
+    version: 5.1.6
   values:
     postgresql:
       install: false
@@ -1729,10 +1729,11 @@ kubectl -n gitlab apply -f ./gitlab.yaml
 - Helm Chart v4.7.2 (GitLab v13.7.2)
 - Helm Chart v4.8.8 (GitLab v13.8.8)
 - Helm Chart v4.12.12 (GitLab v13.12.12)
-- Helm Chart v5.1.5 (GitLab v14.1.5)
+- Helm Chart v5.0.0 (GitLab v14.0.0)
 - Helm Chart v5.1.6 (GitLab v14.1.6)
 - Helm Chart v5.2.0 (GitLab v14.2.0)
 - Helm Chart v5.2.4 (GitLab v14.2.4)
+- Helm Chart v5.3.0 (GitLab v14.3.0)
 
 Get MinIO Access and Secret keys
 #+begin_src tmate :window cluster
@@ -1887,6 +1888,17 @@ View the rendered manifests
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm template -n gitlab gitlab gitlab/gitlab --version 5.1.5 -f <(helm get values -n gitlab gitlab -o yaml | cat 2> /dev/null)
+#+end_src
+
+If Helm-Operator is not liking upgrading, very occasionally manual upgrading is needed
+#+begin_src tmate :window cluster
+helm upgrade --install -n gitlab gitlab gitlab/gitlab --version 5.0.0 -f <(helm get values -n gitlab gitlab -o yaml | cat 2> /dev/null)
+#+end_src
+
+Ensure that background jobs have completed before continuing in a migration
+#+begin_src tmate :window cluster
+export TASK_RUNNER_POD_NAME=$(kubectl -n gitlab get pods -l app=task-runner -o=jsonpath='{.items[0].metadata.name}')
+kubectl -n gitlab exec -c task-runner -it $TASK_RUNNER_POD_NAME -- gitlab-rake gitlab:background_migrations:finalize[CopyColumnUsingBackgroundMigrationJob,push_event_payloads,event_id,'[["event_id"]\, ["event_id_convert_to_bigint"]]']
 #+end_src
 
 ** TODO

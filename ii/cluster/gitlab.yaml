@@ -11,7 +11,7 @@ spec:
   chart:
     repository: https://charts.gitlab.io/
     name: gitlab
-    version: 4.7.2
+    version: 5.1.6
   values:
     postgresql:
       install: false
