@@ -45,7 +45,6 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: rook-ceph-block
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -63,9 +62,10 @@ spec:
     metadata:
       labels:
         app: kanboard
+        ii: kanban
     spec:
       containers:
-      - image: kanboard/kanboard:latest
+      - image: kanboard/kanboard:v1.2.20
         name: kanboard
         ports:
           - containerPort: 80
@@ -97,6 +97,8 @@ kind: Ingress
 metadata:
   name: kanboard
   namespace: kanban-ii-coop
+  annotations:
+    kubernetes.io/ingress.class: nginx
 spec:
   rules:
   - host: kanban.ii.coop
