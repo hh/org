@@ -552,7 +552,7 @@ kubectl apply -f ./rook-ceph-dashboard.yaml
 
 Show the credentials and access point for the dashboard
 #+begin_src tmate :dir . :window community-infra
-echo https://$(kubectl get node -o wide $(kubectl -n rook-ceph get pod -o wide | grep mgr | awk '{print $7}') | awk '{print $7}' | tail -1):$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard-external-https -o=jsonpath='{.spec.ports[0].nodePort}')
+echo https://$(kubectl get node -o wide $(kubectl -n rook-ceph get pod -o wide | grep mgr | awk '{print $7}') | awk '{print $6}' | tail -1):$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard-external-https -o=jsonpath='{.spec.ports[0].nodePort}')
 echo admin :: $(kubectl -n rook-ceph get secrets rook-ceph-dashboard-password -o=jsonpath='{.data.password}' | base64 -d ; echo)
 #+end_src
 
