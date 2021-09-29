@@ -92,6 +92,25 @@ for i in {1..3}; do
 done
 #+end_src
 
+PROCEED WITH CAUTION: Scrub drives
+#+begin_src tmate :window community-infra
+for NODE in $(kubectl get nodes -o=jsonpath='{.items[*].metadata.name}'); do
+    NODE_INTERNAL_IP=$(kubectl get node "${NODE}" -o=jsonpath='{.status.addresses[?(@.type == "InternalIP")].address}')
+    for DEV in b {d..f}; do
+        echo "${NODE} (${NODE_INTERNAL_IP}) /dev/sd${DEV}"
+        ssh -p 2222 root@${NODE_INTERNAL_IP} env DEV=$DEV bash << \EOF
+set -x
+hostname
+for VG in $(lvs | grep osd | awk  '{print $2}'); do
+    lvm vgremove $VG --force
+done
+wipefs --all /dev/sd${DEV}
+lsblk -f /dev/sd${DEV}
+EOF
+    done
+done
+#+end_src
+
 ** Install
 *** Srv1
 Connect
