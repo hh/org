@@ -1,0 +1,183 @@
+#+TITLE: Community Infra
+
+#+begin_quote
+ii's local Bay of Plenty community infrastucture for learning, developing, and pairing with locals.
+#+end_quote
+
+* Plan
+Provide local infrastructure, through servers that run Kubernetes; For an automated, reproducable, and accessible way to those in the local community.
+
+We will begin using Kubeadm for setting up Kubernetes, but will end up using Talos as the way to bring up Kubernetes.
+
+* Network
+There are currently three servers installed, their IPs are:
+- 10.8.11.201
+- 10.8.11.202
+- 10.8.11.203
+
+* Set up Kubernetes
+** Prepare
+The set of commands to prepare the Ubuntu installs for Kubernetes
+#+begin_src shell :tangle ./preKubeadmCommands.sh
+#!/bin/bash
+KUBERNETES_VERSION='1.21.2'
+
+PACKAGES=(
+  apt-transport-https
+  ca-certificates
+  cloud-utils
+  containerd
+  dnsutils
+  ebtables
+  gettext-base
+  git
+  jq
+  kitty-terminfo
+  prips
+  socat
+)
+
+pwd
+cd $(dirname $0)
+
+# ensure mounts
+sed -ri '/\\sswap\\s/s/^#?/#/' /etc/fstab
+swapoff -a
+mount -a
+
+# install required packages
+apt-get -y update
+DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl software-properties-common
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+apt-get update -y
+TRIMMED_KUBERNETES_VERSION=$(echo $KUBERNETES_VERSION | sed 's/\./\\./g' | sed 's/^v//')
+RESOLVED_KUBERNETES_VERSION=$(apt-cache policy kubelet | awk -v VERSION=${TRIMMED_KUBERNETES_VERSION} '$1~ VERSION { print $1 }' | head -n1)
+apt-get install -y ${PACKAGES[*]} \
+  kubelet=${RESOLVED_KUBERNETES_VERSION} \
+  kubeadm=${RESOLVED_KUBERNETES_VERSION} \
+  kubectl=${RESOLVED_KUBERNETES_VERSION}
+systemctl daemon-reload
+
+# configure container runtime
+cat <<EOF | tee /etc/modules-load.d/containerd.conf
+overlay
+br_netfilter
+EOF
+modprobe overlay
+modprobe br_netfilter
+mkdir -p /etc/containerd
+rm /etc/containerd/config.toml
+systemctl restart containerd
+systemctl enable --now containerd
+export CONTAINER_RUNTIME_ENDPOINT=/var/run/containerd/containerd.sock
+echo $HOME
+export HOME=$(getent passwd $(id -u) | cut -d ':' -f6)
+
+# configure sysctls for Kubernetes
+cat <<EOF | tee /etc/sysctl.d/99-kubernetes-cri.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.ipv4.ip_forward                 = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+EOF
+sysctl --system
+systemctl enable --now systemd-resolved
+systemctl disable snapd.service snapd.socket
+#+end_src
+
+Copy the script
+#+begin_src tmate :window community-infra
+for i in {1..3}; do
+  scp -P 2222 ./preKubeadmCommands.sh root@10.8.11.20${i}:~
+done
+#+end_src
+
+** Install
+*** Srv1
+Connect
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.201 -p 2222
+#+end_src
+
+Prepare
+#+begin_src tmate :window community-infra
+bash -x ./preKubeadmCommands.sh
+#+end_src
+
+Init
+#+begin_src tmate :window community-infra
+kubeadm init \
+    --pod-network-cidr 10.244.0.0/16 \
+    --service-cidr 10.96.0.0/12
+#+end_src
+
+Exit with
+#+begin_src tmate :window community-infra
+exit
+#+end_src
+
+** Export variables
+Get the CA cert hash from the first server
+#+begin_src tmate :window community-infra
+export CA_CERT_HASH=$(ssh root@10.8.11.201 -p 2222 openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //')
+#+end_src
+
+#+begin_src tmate :window community-infra
+export JOIN_TOKEN=$(ssh root@10.8.11.201 -p 2222 kubeadm token list -o=jsonpath='{.token}')
+#+end_src
+
+** Srv2
+Prepare
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.202 -p 2222 bash -x ./preKubeadmCommands.sh
+#+end_src
+
+Join
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.202 -p 2222 kubeadm join 10.8.11.201:6443 \
+    --token "${JOIN_TOKEN}" \
+    --discovery-token-ca-cert-hash "sha256:${CA_CERT_HASH}"
+#+end_src
+
+** Srv3
+Prepare
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.203 -p 2222 bash -x ./preKubeadmCommands.sh
+#+end_src
+
+Init
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.203 -p 2222 \
+    kubeadm join 10.8.11.201:6443 \
+    --token "${JOIN_TOKEN}" \
+    --discovery-token-ca-cert-hash "sha256:${CA_CERT_HASH}"
+#+end_src
+
+* Finalising
+** Get the Kubeconfig
+#+begin_src tmate :window community-infra
+ssh root@10.8.11.201 -p 2222 cat /etc/kubernetes/admin.conf > ~/.kube/config-ii-community-infra
+#+end_src
+
+** Use the Kubeconfig
+#+begin_src tmate :window community-infra
+export KUBECONFIG=~/.kube/config-ii-community-infra
+#+end_src
+
+** Install a CNI
+Prepare cilium
+#+begin_src shell :results silent
+helm repo add cilium https://helm.cilium.io/
+helm template cilium cilium/cilium --version 1.10.4 \
+  --namespace kube-system > ./cilium.yaml
+#+end_src
+
+Install cilium
+#+begin_src tmate :window community-infra
+kubectl apply -f cilium.yaml
+#+end_src
+
+** Untaint master for scheduling
+#+begin_src tmate :window community-infra
+kubectl taint node --all node-role.kubernetes.io/master-
+#+end_src
