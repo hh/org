@@ -1,0 +1,96 @@
+# Configure
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: humacs-home-ii
+  namespace: humacs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+---
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: humacs
+  namespace: humacs
+spec:
+  releaseName: humacs
+  chart:
+    git: https://github.com/humacs/humacs
+    ref: eaf562e067faa086d3165aba659fa52b727662d8
+    path: chart/humacs
+  values:
+    initContainers:
+      - name: humacs-home-ii-fix-permissions
+        image: alpine:3.12
+        command:
+          - sh
+          - -c
+          - chown 1000:1000 -R /home/ii && chown 1000 /run/containerd/containerd.sock
+        volumeMounts:
+          - mountPath: /home/ii
+            name: home-ii
+          - name: run-containerd-containerd-sock
+            mountPath: /run/containerd/containerd.sock
+    image:
+      repository: registry.gitlab.com/humacs/humacs/ii
+      tag: 2021.09.10.1346
+    options:
+      hostDockerSocket: false
+      hostTmp: true
+      timezone: Pacific/Auckland
+      gitName: CloudNative.NZ
+      gitEmail: cloudnativenz-humacs-test@ii.coop
+      profile: ""
+      repos:
+        - https://github.com/ii/org
+        - https://gitlab.com/ii/nz
+      preinitScript: |
+        git clone "https://github.com/sharingio/.sharing.io" || \
+          git clone https://github.com/sharingio/.sharing.io
+        . /home/ii/.sharing.io/sharingio-pair-preinit-script.sh
+    extraEnvVars:
+      - name: SHARINGIO_PAIR_NAME
+        value: "community-infra"
+      - name: SHARINGIO_PAIR_USER
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_USER"
+      - name: SHARINGIO_PAIR_GUEST_NAMES
+      - name: SHARINGIO_PAIR_KUBERNETES_CONTROLPLANE_ENDPOINT
+      - name: SHARINGIO_PAIR_LOAD_BALANCER_IP
+      - name: HUMACS_DEBUG
+        value: "true"
+      - name: REINIT_HOME_FOLDER
+        value: "true"
+      - name: SHARINGIO_PAIR_BASE_DNS_NAME
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_BASEDNSNAME"
+      - name: GITHUB_TOKEN
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_GITHUBOAUTHTOKEN"
+      - name: CONTAINER_RUNTIME_ENDPOINT
+        value: unix:///run/containerd/containerd.sock
+      - name: CONTAINER_ADDRESS
+        value: /run/containerd/containerd.sock
+      - name: CONTAINERD_NAMESPACE
+        value: k8s.io
+      - name: K8S_NODE
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    extraVolumes:
+      - name: home-ii
+        hostPath:
+          path: /home/ii
+      - name: host
+        hostPath:
+          path: /
+      - name: run-containerd-containerd-sock
+        hostPath:
+          path: /run/containerd/containerd.sock
+    extraVolumeMounts:
+      - name: home-ii
+        mountPath: /home/ii
+      - name: host
+        mountPath: /var/run/host

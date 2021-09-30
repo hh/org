@@ -96,14 +96,16 @@ PROCEED WITH CAUTION: Scrub drives
 #+begin_src tmate :window community-infra
 for NODE in $(kubectl get nodes -o=jsonpath='{.items[*].metadata.name}'); do
     NODE_INTERNAL_IP=$(kubectl get node "${NODE}" -o=jsonpath='{.status.addresses[?(@.type == "InternalIP")].address}')
-    for DEV in b {d..f}; do
+    for DEV in {b..f}; do
         echo "${NODE} (${NODE_INTERNAL_IP}) /dev/sd${DEV}"
         ssh -p 2222 root@${NODE_INTERNAL_IP} env DEV=$DEV bash << \EOF
 set -x
 hostname
+rm -rf /var/lib/rook
 for VG in $(lvs | grep osd | awk  '{print $2}'); do
     lvm vgremove $VG --force
 done
+lvs
 wipefs --all /dev/sd${DEV}
 lsblk -f /dev/sd${DEV}
 EOF
@@ -113,26 +115,16 @@ done
 
 ** Install
 *** Srv1
-Connect
-#+begin_src tmate :window community-infra
-ssh root@10.8.11.201 -p 2222
-#+end_src
-
 Prepare
 #+begin_src tmate :window community-infra
-bash -x ./preKubeadmCommands.sh
+ssh root@10.8.11.202 -p 2222 bash -x ./preKubeadmCommands.sh
 #+end_src
 
 Init
 #+begin_src tmate :window community-infra
-kubeadm init \
+ssh root@10.8.11.202 -p 2222 kubeadm init \
     --pod-network-cidr 10.244.0.0/16 \
     --service-cidr 10.96.0.0/12
-#+end_src
-
-Exit with
-#+begin_src tmate :window community-infra
-exit
 #+end_src
 
 ** Export variables
@@ -572,10 +564,15 @@ kubectl apply -f ./rook-ceph-dashboard.yaml
 Show the credentials and access point for the dashboard
 #+begin_src tmate :dir . :window community-infra
 echo https://$(kubectl get node -o wide $(kubectl -n rook-ceph get pod -o wide | grep mgr | awk '{print $7}') | awk '{print $6}' | tail -1):$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard-external-https -o=jsonpath='{.spec.ports[0].nodePort}')
-echo admin :: $(kubectl -n rook-ceph get secrets rook-ceph-dashboard-password -o=jsonpath='{.data.password}' | base64 -d ; echo)
+echo admin :: $(kubectl -n rook-ceph get secrets rook-ceph-dashboard-password -o=jsonpath='{.data.password}' | base64 -d)
 #+end_src
 
 *** Debug
+Logs for rook-ceph-operator
+#+begin_src tmate :dir . :window community-infra
+kubectl -n rook-ceph logs -l app=rook-ceph-operator -f --tail=100
+#+end_src
+
 #+begin_src yaml :tangle ./rook-ceph-toolbox.yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -657,33 +654,59 @@ spec:
       storage: 500Gi
   storageClassName: rook-ceph-block
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: rook-ceph-pvc-test
 spec:
-  nodeName: ii-coop-control-plane-nbvt9
-  containers:
-    - name: rook-ceph-pvc-test
-      image: alpine:3.12
-      command:
-        - sleep
-        - infinity
-      volumeMounts:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      name: rook-ceph-pvc-test
+  template:
+    metadata:
+      labels:
+        name: rook-ceph-pvc-test
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: name
+                    operator: In
+                    values:
+                      - rook-ceph-pvc-test
+              topologyKey: "kubernetes.io/hostname"
+      containers:
         - name: rook-ceph-pvc-test
-          mountPath: /mnt
-  volumes:
-    - name: rook-ceph-pvc-test
-      persistentVolumeClaim:
-        claimName: rook-ceph-pvc-test
+          image: alpine:3.12
+          command:
+            - sleep
+            - infinity
+          volumeMounts:
+            - name: rook-ceph-pvc-test
+              mountPath: /mnt
+      volumes:
+        - name: rook-ceph-pvc-test
+          persistentVolumeClaim:
+            claimName: rook-ceph-pvc-test
 #+end_src
 
+Add the test PVC and Deployment
 #+begin_src tmate :dir . :window community-infra
 kubectl -n default apply -f ./rook-ceph-pvc-test.yaml
 #+end_src
 
+Schedule to a new node
 #+begin_src tmate :dir . :window community-infra
-kubectl -n default exec -it rook-ceph-pvc-test -- sh
+kubectl -n default rollout restart deployment rook-ceph-pvc-test
+#+end_src
+
+Get a shell
+#+begin_src tmate :dir . :window community-infra
+kubectl -n default exec -it deployment/rook-ceph-pvc-test -- sh
 #+end_src
 
 #+begin_src yaml :tangle ./rook-ceph-pvc-shared-test.yaml
@@ -706,4 +729,150 @@ kubectl -n default apply -f ./rook-ceph-pvc-shared-test.yaml
 
 #+begin_src tmate :dir . :window community-infra
 kubectl -n default describe pvc rook-ceph-pvc-shared-test
+#+end_src
+
+** Helm-Operator
+*** Prepare
+#+begin_src tmate :window community-infra
+kubectl create namespace helm-operator --dry-run=client -o yaml | \
+    kubectl apply -f -
+#+end_src
+*** Install
+#+begin_src tmate :window community-infra
+kubectl apply \
+    -f https://github.com/sharingio/.sharing.io/raw/main/cluster-api/manifests/helm-operator-crds.yaml \
+    -f https://github.com/sharingio/.sharing.io/raw/main/cluster-api/manifests/helm-operator.yaml
+#+end_src
+* Install apps
+** Humacs
+*** Prepare
+#+begin_src tmate :window community-infra
+kubectl create namespace humacs --dry-run=client -o yaml | \
+    kubectl apply -f -
+#+end_src
+
+*** Configure
+#+begin_src yaml :tangle ./humacs.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: humacs-home-ii
+  namespace: humacs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+---
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: humacs
+  namespace: humacs
+spec:
+  releaseName: humacs
+  chart:
+    git: https://github.com/humacs/humacs
+    ref: eaf562e067faa086d3165aba659fa52b727662d8
+    path: chart/humacs
+  values:
+    initContainers:
+      - name: humacs-home-ii-fix-permissions
+        image: alpine:3.12
+        command:
+          - sh
+          - -c
+          - chown 1000:1000 -R /home/ii && chown 1000 /run/containerd/containerd.sock
+        volumeMounts:
+          - mountPath: /home/ii
+            name: home-ii
+          - name: run-containerd-containerd-sock
+            mountPath: /run/containerd/containerd.sock
+    image:
+      repository: registry.gitlab.com/humacs/humacs/ii
+      tag: 2021.09.10.1346
+    options:
+      hostDockerSocket: false
+      hostTmp: true
+      timezone: Pacific/Auckland
+      gitName: CloudNative.NZ
+      gitEmail: cloudnativenz-humacs-test@ii.coop
+      profile: ""
+      repos:
+        - https://github.com/ii/org
+        - https://gitlab.com/ii/nz
+      preinitScript: |
+        git clone "https://github.com/sharingio/.sharing.io" || \
+          git clone https://github.com/sharingio/.sharing.io
+        . /home/ii/.sharing.io/sharingio-pair-preinit-script.sh
+    extraEnvVars:
+      - name: SHARINGIO_PAIR_NAME
+        value: "community-infra"
+      - name: SHARINGIO_PAIR_USER
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_USER"
+      - name: SHARINGIO_PAIR_GUEST_NAMES
+      - name: SHARINGIO_PAIR_KUBERNETES_CONTROLPLANE_ENDPOINT
+      - name: SHARINGIO_PAIR_LOAD_BALANCER_IP
+      - name: HUMACS_DEBUG
+        value: "true"
+      - name: REINIT_HOME_FOLDER
+        value: "true"
+      - name: SHARINGIO_PAIR_BASE_DNS_NAME
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_BASEDNSNAME"
+      - name: GITHUB_TOKEN
+        value: "$SHARINGIO_PAIR_INSTANCE_SETUP_GITHUBOAUTHTOKEN"
+      - name: CONTAINER_RUNTIME_ENDPOINT
+        value: unix:///run/containerd/containerd.sock
+      - name: CONTAINER_ADDRESS
+        value: /run/containerd/containerd.sock
+      - name: CONTAINERD_NAMESPACE
+        value: k8s.io
+      - name: K8S_NODE
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    extraVolumes:
+      - name: home-ii
+        hostPath:
+          path: /home/ii
+      - name: host
+        hostPath:
+          path: /
+      - name: run-containerd-containerd-sock
+        hostPath:
+          path: /run/containerd/containerd.sock
+    extraVolumeMounts:
+      - name: home-ii
+        mountPath: /home/ii
+      - name: host
+        mountPath: /var/run/host
+#+end_src
+
+*** Install
+#+begin_src tmate :window community-infra
+kubectl -n humacs apply -f humacs.yaml
+#+end_src
+
+* Tear down
+#+begin_src tmate :window community-infra
+for NODE in $(kubectl get nodes -o=jsonpath='{.items[*].metadata.name}'); do
+    NODE_INTERNAL_IP=$(kubectl get node "${NODE}" -o=jsonpath='{.status.addresses[?(@.type == "InternalIP")].address}')
+    for DEV in {b..f}; do
+        echo "${NODE} (${NODE_INTERNAL_IP}) /dev/sd${DEV}"
+        ssh -p 2222 root@${NODE_INTERNAL_IP} env DEV=$DEV bash << \EOF
+set -x
+hostname
+yes | kubeadm reset
+rm /etc/cni/net.d/*
+rm -rf /var/lib/rook
+for VG in $(lvs | grep osd | awk  '{print $2}'); do
+    lvm vgremove $VG --force
+done
+lvs
+wipefs --all /dev/sd${DEV}
+lsblk -f /dev/sd${DEV}
+EOF
+    done
+done
 #+end_src
