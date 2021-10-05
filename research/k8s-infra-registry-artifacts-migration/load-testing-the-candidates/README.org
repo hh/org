@@ -1,5 +1,13 @@
 #+TITLE: Load testing the candidates
 
+Pair instance settings
+
+| Env                                      | Value         |
+|------------------------------------------+---------------|
+| __SHARINGIO_NO_GITHUB_TOKEN              | false         |
+| __SHARINGIO_PAIR_NODE_SIZE               | m1.xlarge.x86 |
+| __SHARINGIO_PAIR_KUBERNETES_WORKER_NODES | 2             |
+
 * Preparing
 ** ArtifactServer
 Prepare a container image
