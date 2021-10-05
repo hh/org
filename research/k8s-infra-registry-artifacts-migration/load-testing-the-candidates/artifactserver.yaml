@@ -1,0 +1,109 @@
+
+
+# Configure the Kubernetes deployment
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: artifactserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: artifactserver
+  name: artifactserver
+  labels:
+    app: artifactserver
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: artifactserver
+  template:
+    metadata:
+      labels:
+        app: artifactserver
+      annotations:
+        lastcfg: |
+          ${ARTIFACTSERVER_LAST_CFG}
+    spec:
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - artifactserver
+                topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: artifactserver
+          image: artifactserver:latest
+          imagePullPolicy: Never
+          args:
+            - --config=/etc/artifactserver/config.yaml
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/artifactserver
+          resources:
+            requests:
+              cpu: 0.1
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /_/healthz
+              port: 8080
+            initialDelaySeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 2
+      volumes:
+        - name: config
+          configMap:
+            name: artifactserver
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: artifactserver
+  name: artifactserver
+  labels:
+    app: artifactserver
+spec:
+  selector:
+    app: artifactserver
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: artifactserver
+  namespace: artifactserver
+spec:
+  rules:
+  - host: artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    http:
+      paths:
+      - backend:
+          service:
+            name: artifactserver
+            port:
+              number: 8080
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    secretName: letsencrypt-prod

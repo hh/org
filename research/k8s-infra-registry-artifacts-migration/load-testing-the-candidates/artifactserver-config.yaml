@@ -1,0 +1,24 @@
+
+
+# #+RESULTS:
+# #+begin_example
+# 139.178.91.9 :: Loaded image: artifactserver:latest
+# 145.40.90.131 :: Loaded image: artifactserver:latest
+# #+end_example
+
+# Configure ArtifactServer
+
+backends:
+  kops:
+    host: kubeupv2.s3.amazonaws.com
+    conditions:
+      paths:
+        - /kops/
+  local-distribution:
+    host: registry-1.docker.io
+    conditions:
+      headers:
+        X-Real-Ip:
+          - ${HUMACS_POD_IP}
+  k8s.gcr.io:
+    host: k8s.gcr.io
