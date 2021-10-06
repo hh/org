@@ -2,8 +2,8 @@
 
 # #+RESULTS:
 # #+begin_example
-# 139.178.91.9 :: Loaded image: reg-host-authority:latest
-# 145.40.90.131 :: Loaded image: reg-host-authority:latest
+# 139.178.68.221 :: Loaded image: reg-host-authority:latest
+# 147.75.70.139 :: Loaded image: reg-host-authority:latest
 # #+end_example
 # Prepare the envoy configuration
 

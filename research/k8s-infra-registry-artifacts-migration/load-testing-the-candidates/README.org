@@ -57,8 +57,8 @@ done
 
 #+RESULTS:
 #+begin_example
-139.178.91.9 :: Loaded image: artifactserver:latest
-145.40.90.131 :: Loaded image: artifactserver:latest
+139.178.68.221 :: Loaded image: artifactserver:latest
+147.75.70.139 :: Loaded image: artifactserver:latest
 #+end_example
 
 Configure ArtifactServer
@@ -85,6 +85,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: artifactserver
+  labels:
+    cert-manager-tls: sync
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -201,34 +203,10 @@ kubectl -n artifactserver create configmap artifactserver \
 
 #+RESULTS:
 #+begin_example
-namespace/artifactserver unchanged
+namespace/artifactserver configured
 deployment.apps/artifactserver configured
 service/artifactserver unchanged
 ingress.networking.k8s.io/artifactserver unchanged
-
-
-# #+RESULTS:
-# #+begin_example
-# 139.178.91.9 :: Loaded image: artifactserver:latest
-# 145.40.90.131 :: Loaded image: artifactserver:latest
-# #+end_example
-
-# Configure ArtifactServer
-
-backends:
-  kops:
-    host: kubeupv2.s3.amazonaws.com
-    conditions:
-      paths:
-        - /kops/
-  local-distribution:
-    host: registry-1.docker.io
-    conditions:
-      headers:
-        X-Real-Ip:
-          - 192.168.0.11
-  k8s.gcr.io:
-    host: k8s.gcr.io
 configmap/artifactserver configured
 #+end_example
 
@@ -241,9 +219,9 @@ curl -v http://artifactserver.artifactserver:8080 2>&1
 #+begin_example
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.98.249.158:8080...
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.111.53.122:8080...
 ,* TCP_NODELAY set
-,* Connected to artifactserver.artifactserver (10.98.249.158) port 8080 (#0)
+,* Connected to artifactserver.artifactserver (10.111.53.122) port 8080 (#0)
 > GET / HTTP/1.1
 > Host: artifactserver.artifactserver:8080
 > User-Agent: curl/7.68.0
@@ -252,14 +230,14 @@ curl -v http://artifactserver.artifactserver:8080 2>&1
 ,* Mark bundle as not supporting multiuse
 < HTTP/1.1 302 Found
 < Content-Type: text/html; charset=utf-8
-< Location: https://k8s.gcr.io/
-< Date: Tue, 05 Oct 2021 03:39:09 GMT
-< Content-Length: 42
+< Location: https://registry-1.docker.io/
+< Date: Tue, 05 Oct 2021 20:32:52 GMT
+< Content-Length: 52
 < 
-{ [42 bytes data]
-100    42  100    42    0     0   7000      0 --:--:-- --:--:-- --:--:--  7000
+{ [52 bytes data]
+100    52  100    52    0     0  10400      0 --:--:-- --:--:-- --:--:-- 10400
 ,* Connection #0 to host artifactserver.artifactserver left intact
-<a href="https://k8s.gcr.io/">Found</a>.
+<a href="https://registry-1.docker.io/">Found</a>.
 
 #+end_example
 
@@ -311,8 +289,8 @@ done
 
 #+RESULTS:
 #+begin_example
-139.178.91.9 :: Loaded image: reg-host-authority:latest
-145.40.90.131 :: Loaded image: reg-host-authority:latest
+139.178.68.221 :: Loaded image: reg-host-authority:latest
+147.75.70.139 :: Loaded image: reg-host-authority:latest
 #+end_example
 Prepare the envoy configuration
 #+begin_src yaml :tangle ./envoy-config.yaml
@@ -450,6 +428,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: envoy
+  labels:
+    cert-manager-tls: sync
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -542,12 +522,12 @@ kubectl -n envoy create configmap envoy-config --from-file=envoy\.yaml=envoy-con
 
 #+RESULTS:
 #+begin_example
-namespace/envoy unchanged
-deployment.apps/registry-k8s-io-envoy unchanged
-service/registry-k8s-io-envoy unchanged
-ingress.networking.k8s.io/registry-k8s-io-envoy unchanged
-deployment.apps/reg-host-authority unchanged
-service/reg-host-authority unchanged
+namespace/envoy created
+deployment.apps/registry-k8s-io-envoy created
+service/registry-k8s-io-envoy created
+ingress.networking.k8s.io/registry-k8s-io-envoy created
+deployment.apps/reg-host-authority created
+service/reg-host-authority created
 configmap/envoy-config created
 #+end_example
 
@@ -560,9 +540,9 @@ curl -v http://reg-host-authority.envoy:8080 2>&1
 #+begin_example
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.101.208.142:8080...
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.101.125.4:8080...
 ,* TCP_NODELAY set
-,* Connected to reg-host-authority.envoy (10.101.208.142) port 8080 (#0)
+,* Connected to reg-host-authority.envoy (10.101.125.4) port 8080 (#0)
 > GET / HTTP/1.1
 > Host: reg-host-authority.envoy:8080
 > User-Agent: curl/7.68.0
@@ -570,12 +550,12 @@ curl -v http://reg-host-authority.envoy:8080 2>&1
 > 
 ,* Mark bundle as not supporting multiuse
 < HTTP/1.1 200 OK
-< Date: Tue, 05 Oct 2021 03:38:45 GMT
+< Date: Tue, 05 Oct 2021 20:34:55 GMT
 < Content-Length: 20
 < Content-Type: text/plain; charset=utf-8
 < 
 { [20 bytes data]
-100    20  100    20    0     0   4000      0 --:--:-- --:--:-- --:--:--  4000
+100    20  100    20    0     0   3333      0 --:--:-- --:--:-- --:--:--  3333
 ,* Connection #0 to host reg-host-authority.envoy left intact
 registry-1.docker.io
 #+end_example
@@ -588,9 +568,9 @@ curl -v http://registry-k8s-io-envoy.envoy:10000 2>&1
 #+begin_example
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.108.83.136:10000...
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.101.17.25:10000...
 ,* TCP_NODELAY set
-,* Connected to registry-k8s-io-envoy.envoy (10.108.83.136) port 10000 (#0)
+,* Connected to registry-k8s-io-envoy.envoy (10.101.17.25) port 10000 (#0)
 > GET / HTTP/1.1
 > Host: registry-k8s-io-envoy.envoy:10000
 > User-Agent: curl/7.68.0
@@ -602,7 +582,7 @@ curl -v http://registry-k8s-io-envoy.envoy:10000 2>&1
 < location: https://registry-1.docker.io/
 < content-type: text/html; charset=utf-8
 < content-length: 49
-< date: Tue, 05 Oct 2021 03:38:41 GMT
+< date: Tue, 05 Oct 2021 20:35:01 GMT
 < server: envoy
 < 
 { [49 bytes data]
@@ -610,3 +590,21 @@ curl -v http://registry-k8s-io-envoy.envoy:10000 2>&1
 ,* Connection #0 to host registry-k8s-io-envoy.envoy left intact
 <a href="https://registry-1.docker.io/">302</a>.
 #+end_example
+
+* Load Testing
+#+begin_src javascript :tangle ./k6-artifactserver.js
+import http from "k6/http";
+import { check, sleep } from "k6";
+
+export let options = {
+  stages: [{ duration: "10m", target: 1 * 1000 * 1000 }],
+  maxRedirects: 0,
+};
+
+export default function () {
+  let res = http.get("https://artifactserver.bobymcbobs.pair.sharing.io");
+  check(res, { "status was 302": (r) => r.status == 302 });
+  // console.log(JSON.stringify(res));
+  sleep(1);
+}
+#+end_src
