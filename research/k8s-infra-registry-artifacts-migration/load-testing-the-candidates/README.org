@@ -43,23 +43,17 @@ ENTRYPOINT ["/app/bin/artifactserver"]
 #+end_src
 
 Build the container image
-#+begin_src tmate :window registry :dir ~/kubernetes/k8s.io/artifactserver/
+#+begin_src tmate :window registry-a :dir ~/kubernetes/k8s.io/artifactserver/
 docker build -t artifactserver .
 #+end_src
 
 Push the image out to the other nodes
-#+begin_src shell
+#+begin_src tmate :window registry-a
 for NODE_IP in $(kubectl get nodes -l node-role.kubernetes.io/control-plane!='' -o=jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'); do
     printf "${NODE_IP} :: "
     docker save artifactserver:latest | ssh "root@${NODE_IP}" docker load
 done
 #+end_src
-
-#+RESULTS:
-#+begin_example
-139.178.68.221 :: Loaded image: artifactserver:latest
-147.75.70.139 :: Loaded image: artifactserver:latest
-#+end_example
 
 Configure ArtifactServer
 #+begin_src yaml :tangle artifactserver-config.yaml
@@ -139,13 +133,6 @@ spec:
               memory: 256Mi
             limits:
               memory: 256Mi
-          livenessProbe:
-            httpGet:
-              path: /_/healthz
-              port: 8080
-            initialDelaySeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 2
       volumes:
         - name: config
           configMap:
@@ -161,7 +148,7 @@ metadata:
 spec:
   selector:
     app: artifactserver
-  type: ClusterIP
+  type: NodePort
   ports:
     - name: http
       port: 8080
@@ -203,7 +190,7 @@ kubectl -n artifactserver create configmap artifactserver \
 
 #+RESULTS:
 #+begin_example
-namespace/artifactserver configured
+namespace/artifactserver unchanged
 deployment.apps/artifactserver configured
 service/artifactserver unchanged
 ingress.networking.k8s.io/artifactserver unchanged
@@ -289,8 +276,7 @@ done
 
 #+RESULTS:
 #+begin_example
-139.178.68.221 :: Loaded image: reg-host-authority:latest
-147.75.70.139 :: Loaded image: reg-host-authority:latest
+145.40.67.1 :: Loaded image: reg-host-authority:latest
 #+end_example
 Prepare the envoy configuration
 #+begin_src yaml :tangle ./envoy-config.yaml
@@ -487,7 +473,7 @@ spec:
     targetPort: 10000
   selector:
     app: registry-k8s-io-envoy
-  type: ClusterIP
+  type: NodePort
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

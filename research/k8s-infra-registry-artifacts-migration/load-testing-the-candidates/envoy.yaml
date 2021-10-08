@@ -61,7 +61,7 @@ spec:
     targetPort: 10000
   selector:
     app: registry-k8s-io-envoy
-  type: ClusterIP
+  type: NodePort
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

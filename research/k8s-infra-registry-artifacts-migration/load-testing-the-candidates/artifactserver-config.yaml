@@ -1,11 +1,5 @@
 
 
-# #+RESULTS:
-# #+begin_example
-# 139.178.68.221 :: Loaded image: artifactserver:latest
-# 147.75.70.139 :: Loaded image: artifactserver:latest
-# #+end_example
-
 # Configure ArtifactServer
 
 backends:

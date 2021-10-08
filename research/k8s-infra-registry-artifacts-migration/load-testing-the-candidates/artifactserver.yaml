@@ -60,13 +60,6 @@ spec:
               memory: 256Mi
             limits:
               memory: 256Mi
-          livenessProbe:
-            httpGet:
-              path: /_/healthz
-              port: 8080
-            initialDelaySeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 2
       volumes:
         - name: config
           configMap:
@@ -82,7 +75,7 @@ metadata:
 spec:
   selector:
     app: artifactserver
-  type: ClusterIP
+  type: NodePort
   ports:
     - name: http
       port: 8080
