@@ -10,6 +10,14 @@ Pair instance settings
 
 * Preparing
 ** ArtifactServer
+#+begin_src tmate :window registry-a-prepare
+git-clone-structured https://github.com/kubernetes/k8s.io
+cd ~/kubernetes/k8s.io
+git remote add ii https://github.com/ii/k8s.io
+git fetch ii
+git checkout update-artifactserver-with-conditions-and-config-file
+#+end_src
+
 Prepare a container image
 #+begin_src dockerfile :tangle ~/kubernetes/k8s.io/artifactserver/Dockerfile
 FROM golang:1.17.0-alpine3.14 AS build
