@@ -189,25 +189,19 @@ docker \
 * Deploying in Kubernetes
 Create container image
 #+begin_src dockerfile :tangle Dockerfile
+FROM tinygo/tinygo:0.20.0 AS build
+WORKDIR /app
+COPY go.* *.go /app/
+RUN tinygo build -o wasm.wasm -scheduler=none -target=wasi /app/main.go
+
 FROM envoyproxy/envoy-distroless:v1.20.0
-COPY ./wasm.wasm /etc/envoy/wasm.wasm
+COPY --from=build /app/wasm.wasm /etc/envoy/wasm.wasm
 #+end_src
 
 Build the container image
-#+begin_src shell
+#+begin_src tmate :window build-wasm
 docker build -t envoy-with-registry-k8s-io-wasm .
 #+end_src
-
-#+RESULTS:
-#+begin_example
-Sending build context to Docker daemon  316.4kB
-Step 1/2 : FROM envoyproxy/envoy-distroless:v1.20.0
- ---> 317325746ae0
-Step 2/2 : COPY ./wasm.wasm /etc/envoy/wasm.wasm
- ---> 340eb00ce9fa
-Successfully built 340eb00ce9fa
-Successfully tagged envoy-with-registry-k8s-io-wasm:latest
-#+end_example
 
 Push the image out to the other nodes
 #+begin_src shell
@@ -216,10 +210,6 @@ for NODE_IP in $(kubectl get nodes -l node-role.kubernetes.io/control-plane!='' 
     docker save envoy-with-registry-k8s-io-wasm:latest | ssh "root@${NODE_IP}" docker load
 done
 #+end_src
-
-#+RESULTS:
-#+begin_example
-#+end_example
 
 Create a namespace
 #+begin_src shell
