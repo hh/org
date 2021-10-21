@@ -60,20 +60,24 @@ docker \
 * Deploying in Kubernetes
 Create a namespace
 #+begin_src shell
-kubectl create namespace nginx-njs -o yaml --dry-run=client | \
+kubectl create namespace k8s-reg-nginx-njs -o yaml --dry-run=client | \
     kubectl apply -f -
-kubectl label namespace nginx-njs cert-manager-tls=sync --overwrite
+kubectl label namespace k8s-reg-nginx-njs cert-manager-tls=sync --overwrite
 #+end_src
 
 #+RESULTS:
 #+begin_example
-namespace/nginx-njs created
-namespace/nginx-njs labeled
+namespace/k8s-reg-nginx-njs created
+namespace/k8s-reg-nginx-njs labeled
 #+end_example
 
 Create a ConfigMap for the config
 #+BEGIN_SRC shell :results silent
-kubectl -n nginx-njs create configmap config --from-file=nginx\.conf=./nginx.conf --from-file=http\.js=./http.js --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n k8s-reg-nginx-njs \
+    create configmap config \
+    --from-file=nginx\.conf=./nginx.conf \
+    --from-file=http\.js=./http.js \
+    --dry-run=client -o yaml | kubectl apply -f -
 #+END_SRC
 
 Configure the nginx deployment
@@ -85,20 +89,20 @@ metadata:
     lastcfg: |
       ${NGINX_LAST_CFG}
   labels:
-    app: nginx-njs
-  name: nginx-njs
+    app: k8s-reg-nginx-njs
+  name: k8s-reg-nginx-njs
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: nginx-njs
+      app: k8s-reg-nginx-njs
   template:
     metadata:
       annotations:
         lastcfg: |
           ${NGINX_LAST_CFG}
       labels:
-        app: nginx-njs
+        app: k8s-reg-nginx-njs
     spec:
       containers:
       - name: nginx
@@ -130,37 +134,37 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: nginx-njs
-  name: nginx-njs
+    app: k8s-reg-nginx-njs
+  name: k8s-reg-nginx-njs
 spec:
   ports:
-  - name: nginx-njs
+  - name: k8s-reg-nginx-njs
     port: 8012
     protocol: TCP
     targetPort: 8012
   selector:
-    app: nginx-njs
+    app: k8s-reg-nginx-njs
   type: ClusterIP
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: nginx-njs
+  name: k8s-reg-nginx-njs
 spec:
   rules:
-  - host: nginx-njs.${SHARINGIO_PAIR_BASE_DNS_NAME}
+  - host: k8s-reg-nginx-njs.${SHARINGIO_PAIR_BASE_DNS_NAME}
     http:
       paths:
       - backend:
           service:
-            name: nginx-njs
+            name: k8s-reg-nginx-njs
             port:
               number: 8012
         path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - nginx-njs.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    - k8s-reg-nginx-njs.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod
 #+end_src
 
@@ -168,7 +172,7 @@ spec:
 export \
   NGINX_LAST_CFG=$(cat nginx.conf http.js | sha256sum) \
   MATCH_IP="$(kubectl -n "${SHARINGIO_PAIR_NAME}" get pod "${SHARINGIO_PAIR_NAME}-humacs-0" -o=jsonpath='{.status.podIP}')"
-envsubst < nginx.yaml | kubectl -n nginx-njs apply -f -
+envsubst < nginx.yaml | kubectl -n k8s-reg-nginx-njs apply -f -
 #+END_SRC
 
 * Notes and links
