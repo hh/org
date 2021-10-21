@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: envoy
+  name: k8s-reg-envoy-lua-go
   labels:
     cert-manager-tls: sync
 ---
@@ -12,21 +12,21 @@ metadata:
     lastcfg: |
       ${ENVOY_LAST_CFG}
   labels:
-    app: registry-k8s-io-envoy
-  name: registry-k8s-io-envoy
-  namespace: envoy
+    app: k8s-reg-envoy-lua-go
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: registry-k8s-io-envoy
+      app: k8s-reg-envoy-lua-go
   template:
     metadata:
       annotations:
         lastcfg: |
           ${ENVOY_LAST_CFG}
       labels:
-        app: registry-k8s-io-envoy
+        app: k8s-reg-envoy-lua-go
     spec:
       containers:
       - name: envoy
@@ -55,9 +55,9 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: registry-k8s-io-envoy
-  name: registry-k8s-io-envoy
-  namespace: envoy
+    app: k8s-reg-envoy-lua-go
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   ports:
   - name: registry-k8s-io
@@ -65,14 +65,14 @@ spec:
     protocol: TCP
     targetPort: 10000
   selector:
-    app: registry-k8s-io-envoy
+    app: k8s-reg-envoy-lua-go
   type: NodePort
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: registry-k8s-io-envoy
-  namespace: envoy
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   rules:
   - host: envoy.${SHARINGIO_PAIR_BASE_DNS_NAME}
@@ -80,12 +80,12 @@ spec:
       paths:
       - backend:
           service:
-            name: registry-k8s-io-envoy
+            name: k8s-reg-envoy-lua-go
             port:
               number: 10000
         path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - envoy.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    - k8s-reg-envoy-lua-go.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod

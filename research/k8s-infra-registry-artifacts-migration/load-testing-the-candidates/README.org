@@ -366,6 +366,7 @@ metadata:
   labels:
     app: reg-host-authority
   name: reg-host-authority
+  namespace: k8s-reg-envoy-lua-go
 spec:
   replicas: 4
   selector:
@@ -395,6 +396,7 @@ metadata:
   labels:
     app: reg-host-authority
   name: reg-host-authority
+  namespace: k8s-reg-envoy-lua-go
 spec:
   type: ClusterIP
   ports:
@@ -409,7 +411,7 @@ spec:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: envoy
+  name: k8s-reg-envoy-lua-go
   labels:
     cert-manager-tls: sync
 ---
@@ -420,21 +422,21 @@ metadata:
     lastcfg: |
       ${ENVOY_LAST_CFG}
   labels:
-    app: registry-k8s-io-envoy
-  name: registry-k8s-io-envoy
-  namespace: envoy
+    app: k8s-reg-envoy-lua-go
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: registry-k8s-io-envoy
+      app: k8s-reg-envoy-lua-go
   template:
     metadata:
       annotations:
         lastcfg: |
           ${ENVOY_LAST_CFG}
       labels:
-        app: registry-k8s-io-envoy
+        app: k8s-reg-envoy-lua-go
     spec:
       containers:
       - name: envoy
@@ -463,9 +465,9 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: registry-k8s-io-envoy
-  name: registry-k8s-io-envoy
-  namespace: envoy
+    app: k8s-reg-envoy-lua-go
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   ports:
   - name: registry-k8s-io
@@ -473,14 +475,14 @@ spec:
     protocol: TCP
     targetPort: 10000
   selector:
-    app: registry-k8s-io-envoy
+    app: k8s-reg-envoy-lua-go
   type: NodePort
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: registry-k8s-io-envoy
-  namespace: envoy
+  name: k8s-reg-envoy-lua-go
+  namespace: k8s-reg-envoy-lua-go
 spec:
   rules:
   - host: envoy.${SHARINGIO_PAIR_BASE_DNS_NAME}
@@ -488,14 +490,14 @@ spec:
       paths:
       - backend:
           service:
-            name: registry-k8s-io-envoy
+            name: k8s-reg-envoy-lua-go
             port:
               number: 10000
         path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - envoy.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    - k8s-reg-envoy-lua-go.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod
 #+end_src
 
@@ -503,78 +505,78 @@ Apply the Envoy manifests
 #+BEGIN_SRC shell
 export ENVOY_LAST_CFG=$(cat envoy-config.yaml | sha256sum)
 envsubst < envoy.yaml | kubectl apply -f -
-kubectl -n envoy apply -f envoy-reg-host-authority.yaml
-kubectl -n envoy create configmap envoy-config --from-file=envoy\.yaml=envoy-config.yaml --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n k8s-reg-envoy-lua-go apply -f envoy-reg-host-authority.yaml
+kubectl -n k8s-reg-envoy-lua-go create configmap envoy-config --from-file=envoy\.yaml=envoy-config.yaml --dry-run=client -o yaml | kubectl apply -f -
 #+END_SRC
 
 #+RESULTS:
 #+begin_example
-namespace/envoy unchanged
-deployment.apps/registry-k8s-io-envoy configured
-service/registry-k8s-io-envoy unchanged
-ingress.networking.k8s.io/registry-k8s-io-envoy unchanged
-deployment.apps/reg-host-authority configured
-service/reg-host-authority unchanged
-configmap/envoy-config configured
+namespace/k8s-reg-envoy-lua-go unchanged
+deployment.apps/k8s-reg-envoy-lua-go unchanged
+service/k8s-reg-envoy-lua-go unchanged
+ingress.networking.k8s.io/k8s-reg-envoy-lua-go unchanged
+deployment.apps/reg-host-authority created
+service/reg-host-authority created
+configmap/envoy-config created
 #+end_example
 
 Test it from the Service
 #+begin_src shell
-curl -v http://reg-host-authority.envoy:8080 2>&1
+curl -v http://reg-host-authority.k8s-reg-envoy-lua-go:8080 2>&1
 #+end_src
 
 #+RESULTS:
 #+begin_example
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.101.125.4:8080...
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.106.186.118:8080...
 ,* TCP_NODELAY set
-,* Connected to reg-host-authority.envoy (10.101.125.4) port 8080 (#0)
+,* Connected to reg-host-authority.k8s-reg-envoy-lua-go (10.106.186.118) port 8080 (#0)
 > GET / HTTP/1.1
-> Host: reg-host-authority.envoy:8080
+> Host: reg-host-authority.k8s-reg-envoy-lua-go:8080
 > User-Agent: curl/7.68.0
 > Accept: */*
 > 
 ,* Mark bundle as not supporting multiuse
 < HTTP/1.1 200 OK
-< Date: Tue, 05 Oct 2021 20:34:55 GMT
+< Date: Thu, 21 Oct 2021 19:58:13 GMT
 < Content-Length: 20
 < Content-Type: text/plain; charset=utf-8
 < 
 { [20 bytes data]
-100    20  100    20    0     0   3333      0 --:--:-- --:--:-- --:--:--  3333
-,* Connection #0 to host reg-host-authority.envoy left intact
+100    20  100    20    0     0   6666      0 --:--:-- --:--:-- --:--:--  6666
+,* Connection #0 to host reg-host-authority.k8s-reg-envoy-lua-go left intact
 registry-1.docker.io
 #+end_example
 
 #+begin_src shell
-curl -v http://registry-k8s-io-envoy.envoy:10000 2>&1
+curl -v http://k8s-reg-envoy-lua-go.k8s-reg-envoy-lua-go:10000 2>&1
 #+end_src
 
 #+RESULTS:
 #+begin_example
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.101.17.25:10000...
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.105.25.30:10000...
 ,* TCP_NODELAY set
-,* Connected to registry-k8s-io-envoy.envoy (10.101.17.25) port 10000 (#0)
+,* Connected to k8s-reg-envoy-lua-go.k8s-reg-envoy-lua-go (10.105.25.30) port 10000 (#0)
 > GET / HTTP/1.1
-> Host: registry-k8s-io-envoy.envoy:10000
+> Host: k8s-reg-envoy-lua-go.k8s-reg-envoy-lua-go:10000
 > User-Agent: curl/7.68.0
 > Accept: */*
 > 
 ,* Mark bundle as not supporting multiuse
 < HTTP/1.1 302 Found
 < host: web_service
-< location: https://registry-1.docker.io/
 < content-type: text/html; charset=utf-8
+< location: https://registry-1.docker.io/
 < content-length: 49
-< date: Tue, 05 Oct 2021 20:35:01 GMT
+< date: Thu, 21 Oct 2021 19:58:39 GMT
 < server: envoy
 < 
 { [49 bytes data]
-100    49  100    49    0     0   4900      0 --:--:-- --:--:-- --:--:--  4900
-,* Connection #0 to host registry-k8s-io-envoy.envoy left intact
+100    49  100    49    0     0   8166      0 --:--:-- --:--:-- --:--:--  8166
+,* Connection #0 to host k8s-reg-envoy-lua-go.k8s-reg-envoy-lua-go left intact
 <a href="https://registry-1.docker.io/">302</a>.
 #+end_example
 

@@ -8,6 +8,7 @@ metadata:
   labels:
     app: reg-host-authority
   name: reg-host-authority
+  namespace: k8s-reg-envoy-lua-go
 spec:
   replicas: 4
   selector:
@@ -37,6 +38,7 @@ metadata:
   labels:
     app: reg-host-authority
   name: reg-host-authority
+  namespace: k8s-reg-envoy-lua-go
 spec:
   type: ClusterIP
   ports:
