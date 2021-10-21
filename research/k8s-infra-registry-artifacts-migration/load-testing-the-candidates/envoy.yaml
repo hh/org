@@ -30,6 +30,11 @@ spec:
     spec:
       containers:
       - name: envoy
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         args:
         - -c
         - /etc/envoy/envoy.yaml

@@ -395,6 +395,11 @@ spec:
     spec:
       containers:
       - name: envoy
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         image: reg-host-authority:latest
         imagePullPolicy: Never
         ports:
@@ -450,6 +455,11 @@ spec:
     spec:
       containers:
       - name: envoy
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         args:
         - -c
         - /etc/envoy/envoy.yaml
@@ -516,13 +526,13 @@ kubectl -n envoy create configmap envoy-config --from-file=envoy\.yaml=envoy-con
 
 #+RESULTS:
 #+begin_example
-namespace/envoy created
-deployment.apps/registry-k8s-io-envoy created
-service/registry-k8s-io-envoy created
-ingress.networking.k8s.io/registry-k8s-io-envoy created
-deployment.apps/reg-host-authority created
-service/reg-host-authority created
-configmap/envoy-config created
+namespace/envoy unchanged
+deployment.apps/registry-k8s-io-envoy configured
+service/registry-k8s-io-envoy unchanged
+ingress.networking.k8s.io/registry-k8s-io-envoy unchanged
+deployment.apps/reg-host-authority configured
+service/reg-host-authority unchanged
+configmap/envoy-config configured
 #+end_example
 
 Test it from the Service
