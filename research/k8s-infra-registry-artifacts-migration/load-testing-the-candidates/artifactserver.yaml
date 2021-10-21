@@ -46,6 +46,11 @@ spec:
         - name: artifactserver
           image: artifactserver:latest
           imagePullPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
           args:
             - --config=/etc/artifactserver/config.yaml
           ports:
