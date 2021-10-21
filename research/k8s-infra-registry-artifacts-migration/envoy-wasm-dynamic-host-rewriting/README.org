@@ -318,3 +318,8 @@ export \
     MATCH_IP="$(kubectl -n "${SHARINGIO_PAIR_NAME}" get pod "${SHARINGIO_PAIR_NAME}-humacs-0" -o=jsonpath='{.status.podIP}')"
 envsubst < envoy.yaml | kubectl -n envoy-wasm apply -f -
 #+END_SRC
+
+* Notes and references
+- https://tufin.medium.com/extending-envoy-proxy-with-golang-webassembly-e51202809ba6
+- https://github.com/mstrYoda/envoy-proxy-wasm-filter-golang/blob/master/main.go
+- https://github.com/tetratelabs/proxy-wasm-go-sdk/blob/main/examples/http_routing/main.go
