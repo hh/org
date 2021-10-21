@@ -205,7 +205,7 @@ spec:
         args:
         - -c
         - /etc/envoy/envoy.yaml
-        image: getenvoy/envoy:stable
+        image: envoyproxy/envoy-distroless:v1.20.0
         volumeMounts:
           - name: config
             mountPath: /etc/envoy/envoy.yaml
