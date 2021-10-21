@@ -32,9 +32,6 @@ spec:
           runAsGroup: 101
           readOnlyRootFilesystem: false
           allowPrivilegeEscalation: false
-        # command:
-        #   - sleep
-        #   - +Inf
         env:
           - name: MATCH_IP
             value: "${MATCH_IP}"
