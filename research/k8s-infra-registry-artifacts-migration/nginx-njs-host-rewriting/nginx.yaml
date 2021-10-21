@@ -26,12 +26,12 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:stable
+        image: nginxinc/nginx-unprivileged:1.20
         securityContext:
-          # runAsUser: 101
-          # runAsGroup: 101
-          # readOnlyRootFilesystem: false
-          # allowPrivilegeEscalation: false
+          runAsUser: 101
+          runAsGroup: 101
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
         # command:
         #   - sleep
         #   - +Inf
