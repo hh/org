@@ -22,10 +22,10 @@ http {
     js_set $upstream_host fetch_upstream_host;
     server {
       listen 8012;
-      rewrite ^/(.*)$ https://$upstream_host permanent;
+      rewrite ^/(.*)$ https://$upstream_host/$1 permanent;
       location / {
         resolver 8.8.8.8;
-        proxy_pass https://$upstream_host;
+        proxy_pass https://$upstream_host/$1;
       }
     }
 }
@@ -38,7 +38,7 @@ function fetch_upstream_host(r) {
   if (r.remoteAddress === process.env.MATCH_IP) {
     reg = "registry-1.docker.io"
   }
-  r.error(reg)
+  r.error(`registry: ${reg}`)
   return reg
 }
 #+end_src
@@ -67,8 +67,8 @@ kubectl label namespace nginx-njs cert-manager-tls=sync --overwrite
 
 #+RESULTS:
 #+begin_example
-namespace/nginx-njs configured
-namespace/nginx-njs not labeled
+namespace/nginx-njs created
+namespace/nginx-njs labeled
 #+end_example
 
 Create a ConfigMap for the config
@@ -169,8 +169,8 @@ spec:
 
 #+BEGIN_SRC shell :results silent
 export \
-  NGINX_LAST_CFG=$(cat nginx.conf | sha256sum) \
-  MATCH_IP="192.168.0.13"
+  NGINX_LAST_CFG=$(cat nginx.conf http.js | sha256sum) \
+  MATCH_IP="$(kubectl -n "${SHARINGIO_PAIR_NAME}" get pod "${SHARINGIO_PAIR_NAME}-humacs-0" -o=jsonpath='{.status.podIP}')"
 envsubst < nginx.yaml | kubectl -n nginx-njs apply -f -
 #+END_SRC
 

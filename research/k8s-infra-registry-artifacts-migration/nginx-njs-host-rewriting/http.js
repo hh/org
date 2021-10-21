@@ -7,6 +7,6 @@ function fetch_upstream_host(r) {
   if (r.remoteAddress === process.env.MATCH_IP) {
     reg = "registry-1.docker.io"
   }
-  r.error(reg)
+  r.error(`registry: ${reg}`)
   return reg
 }
