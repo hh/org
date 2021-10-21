@@ -168,7 +168,7 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: ii.coop
+                address: k8s.io
                 port_value: 443
 #+end_src
 
@@ -314,7 +314,7 @@ spec:
 
 #+BEGIN_SRC shell :results silent
 export \
-    ENVOY_LAST_CFG=$(cat main.go envoy-config.yaml wasm.wasm | sha256sum) \
+    ENVOY_LAST_CFG=$(cat Dockerfile main.go envoy-config.yaml wasm.wasm | sha256sum) \
     MATCH_IP="$(kubectl -n "${SHARINGIO_PAIR_NAME}" get pod "${SHARINGIO_PAIR_NAME}-humacs-0" -o=jsonpath='{.status.podIP}')"
 envsubst < envoy.yaml | kubectl -n envoy-wasm apply -f -
 #+END_SRC

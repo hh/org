@@ -62,5 +62,5 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: ii.coop
+                address: k8s.io
                 port_value: 443
