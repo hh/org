@@ -255,6 +255,11 @@ spec:
     spec:
       containers:
       - name: envoy
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         env:
           - name: MATCH_IP
             value: ${MATCH_IP}
