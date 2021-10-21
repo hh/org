@@ -213,20 +213,20 @@ done
 
 Create a namespace
 #+begin_src shell
-kubectl create namespace envoy-wasm -o yaml --dry-run=client | \
+kubectl create namespace k8s-reg-envoy-wasm -o yaml --dry-run=client | \
     kubectl apply -f -
-kubectl label namespace envoy-wasm cert-manager-tls=sync --overwrite
+kubectl label namespace k8s-reg-envoy-wasm cert-manager-tls=sync --overwrite
 #+end_src
 
 #+RESULTS:
 #+begin_example
-namespace/envoy-wasm created
-namespace/envoy-wasm labeled
+namespace/k8s-reg-envoy-wasm created
+namespace/k8s-reg-envoy-wasm labeled
 #+end_example
 
 Create a ConfigMap for the config
 #+BEGIN_SRC shell :results silent
-kubectl -n envoy-wasm create configmap config --from-file=envoy\.yaml=./envoy-config.yaml --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n k8s-reg-envoy-wasm create configmap config --from-file=envoy\.yaml=./envoy-config.yaml --dry-run=client -o yaml | kubectl apply -f -
 #+END_SRC
 
 Configuring Envoy
@@ -238,20 +238,20 @@ metadata:
     lastcfg: |
       ${ENVOY_LAST_CFG}
   labels:
-    app: envoy-wasm
-  name: envoy-wasm
+    app: k8s-reg-envoy-wasm
+  name: k8s-reg-envoy-wasm
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: envoy-wasm
+      app: k8s-reg-envoy-wasm
   template:
     metadata:
       annotations:
         lastcfg: |
           ${ENVOY_LAST_CFG}
       labels:
-        app: envoy-wasm
+        app: k8s-reg-envoy-wasm
     spec:
       containers:
       - name: envoy
@@ -267,6 +267,7 @@ spec:
         - -c
         - /etc/envoy/envoy.yaml
         image: envoy-with-registry-k8s-io-wasm:latest
+        imagePullPolicy: Never
         volumeMounts:
           - name: config
             mountPath: /etc/envoy/envoy.yaml
@@ -283,8 +284,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: envoy-wasm
-  name: envoy-wasm
+    app: k8s-reg-envoy-wasm
+  name: k8s-reg-envoy-wasm
 spec:
   ports:
   - name: wasm
@@ -292,28 +293,28 @@ spec:
     protocol: TCP
     targetPort: 10000
   selector:
-    app: envoy-wasm
+    app: k8s-reg-envoy-wasm
   type: ClusterIP
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: envoy-wasm
+  name: k8s-reg-envoy-wasm
 spec:
   rules:
-  - host: envoy-wasm.${SHARINGIO_PAIR_BASE_DNS_NAME}
+  - host: k8s-reg-envoy-wasm.${SHARINGIO_PAIR_BASE_DNS_NAME}
     http:
       paths:
       - backend:
           service:
-            name: envoy-wasm
+            name: k8s-reg-envoy-wasm
             port:
               number: 10000
         path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - envoy-wasm.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    - k8s-reg-envoy-wasm.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod
 #+END_SRC
 
@@ -321,7 +322,7 @@ spec:
 export \
     ENVOY_LAST_CFG=$(cat Dockerfile main.go envoy-config.yaml wasm.wasm | sha256sum) \
     MATCH_IP="$(kubectl -n "${SHARINGIO_PAIR_NAME}" get pod "${SHARINGIO_PAIR_NAME}-humacs-0" -o=jsonpath='{.status.podIP}')"
-envsubst < envoy.yaml | kubectl -n envoy-wasm apply -f -
+envsubst < envoy.yaml | kubectl -n k8s-reg-envoy-wasm apply -f -
 #+END_SRC
 
 * Notes and references
