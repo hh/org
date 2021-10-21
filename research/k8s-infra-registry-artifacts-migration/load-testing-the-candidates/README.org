@@ -86,26 +86,26 @@ Configure the Kubernetes deployment
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: artifactserver
+  name: k8s-reg-artifactserver
   labels:
     cert-manager-tls: sync
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: artifactserver
-  name: artifactserver
+  namespace: k8s-reg-artifactserver
+  name: k8s-reg-artifactserver
   labels:
-    app: artifactserver
+    app: k8s-reg-artifactserver
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: artifactserver
+      app: k8s-reg-artifactserver
   template:
     metadata:
       labels:
-        app: artifactserver
+        app: k8s-reg-artifactserver
       annotations:
         lastcfg: |
           ${ARTIFACTSERVER_LAST_CFG}
@@ -124,7 +124,7 @@ spec:
                         - artifactserver
                 topologyKey: "kubernetes.io/hostname"
       containers:
-        - name: artifactserver
+        - name: k8s-reg-artifactserver
           image: artifactserver:latest
           imagePullPolicy: Never
           securityContext:
@@ -149,18 +149,18 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: artifactserver
+            name: k8s-reg-artifactserver
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: artifactserver
-  name: artifactserver
+  namespace: k8s-reg-artifactserver
+  name: k8s-reg-artifactserver
   labels:
-    app: artifactserver
+    app: k8s-reg-artifactserver
 spec:
   selector:
-    app: artifactserver
+    app: k8s-reg-artifactserver
   type: NodePort
   ports:
     - name: http
@@ -170,23 +170,23 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: artifactserver
-  namespace: artifactserver
+  name: k8s-reg-artifactserver
+  namespace: k8s-reg-artifactserver
 spec:
   rules:
-  - host: artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
+  - host: k8s-reg-artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
     http:
       paths:
       - backend:
           service:
-            name: artifactserver
+            name: k8s-reg-artifactserver
             port:
               number: 8080
         path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    - k8s-reg-artifactserver.${SHARINGIO_PAIR_BASE_DNS_NAME}
     secretName: letsencrypt-prod
 #+end_src
 
@@ -195,7 +195,7 @@ Apply the manifests
 export ARTIFACTSERVER_LAST_CFG=$(cat artifactserver-config.yaml | sha256sum)
 envsubst < ./artifactserver.yaml | kubectl apply -f -
 export HUMACS_POD_IP=$(kubectl get pods $(hostname) -o=jsonpath='{.status.podIP}')
-kubectl -n artifactserver create configmap artifactserver \
+kubectl -n k8s-reg-artifactserver create configmap k8s-reg-artifactserver \
     --from-file=config\.yaml=<(envsubst < artifactserver-config.yaml) \
     -o yaml --dry-run=client \
       | kubectl apply -f -
@@ -203,42 +203,20 @@ kubectl -n artifactserver create configmap artifactserver \
 
 #+RESULTS:
 #+begin_example
-namespace/artifactserver unchanged
-deployment.apps/artifactserver configured
-service/artifactserver unchanged
-ingress.networking.k8s.io/artifactserver unchanged
-configmap/artifactserver configured
+namespace/k8s-reg-artifactserver created
+deployment.apps/k8s-reg-artifactserver created
+service/k8s-reg-artifactserver created
+ingress.networking.k8s.io/k8s-reg-artifactserver created
+configmap/k8s-reg-artifactserver created
 #+end_example
 
 Test it from the Service
 #+begin_src shell
-curl -v http://artifactserver.artifactserver:8080 2>&1
+curl -v http://k8s-reg-artifactserver.artifactserver:8080 2>&1
 #+end_src
 
 #+RESULTS:
 #+begin_example
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 10.111.53.122:8080...
-,* TCP_NODELAY set
-,* Connected to artifactserver.artifactserver (10.111.53.122) port 8080 (#0)
-> GET / HTTP/1.1
-> Host: artifactserver.artifactserver:8080
-> User-Agent: curl/7.68.0
-> Accept: */*
-> 
-,* Mark bundle as not supporting multiuse
-< HTTP/1.1 302 Found
-< Content-Type: text/html; charset=utf-8
-< Location: https://registry-1.docker.io/
-< Date: Tue, 05 Oct 2021 20:32:52 GMT
-< Content-Length: 52
-< 
-{ [52 bytes data]
-100    52  100    52    0     0  10400      0 --:--:-- --:--:-- --:--:-- 10400
-,* Connection #0 to host artifactserver.artifactserver left intact
-<a href="https://registry-1.docker.io/">Found</a>.
-
 #+end_example
 
 ** Envoy
