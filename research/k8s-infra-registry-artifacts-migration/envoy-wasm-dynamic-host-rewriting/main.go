@@ -68,21 +68,13 @@ func (ctx *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPlu
 
 // Override types.DefaultHttpContext.
 func (ctx *httpRouting) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
-	fmt.Println("Starting request headers")
-	hs, err := proxywasm.GetHttpRequestHeaders()
-	if err != nil {
-		proxywasm.LogCriticalf("failed to get request headers: %v", err)
-	}
-	fmt.Println(authority, hs)
 	host := defaultHost
 	remoteAddr, err := proxywasm.GetHttpRequestHeader(realIPKey)
 	if err != nil {
-		proxywasm.LogCritical(fmt.Sprintf("failed to get request header: '%v'", realIPKey))
+		proxywasm.LogCritical(fmt.Sprintf("Error: getting request header: '%v'", realIPKey))
 	}
-	fmt.Printf("remoteAddr: %v\n", remoteAddr)
 	if matchIP == remoteAddr {
 		host = rewriteHost
-		fmt.Printf("Set host to %v\n", host)
 	}
 
 	path, _ := proxywasm.GetHttpRequestHeader(pathKey)
@@ -93,7 +85,7 @@ func (ctx *httpRouting) OnHttpRequestHeaders(numHeaders int, endOfStream bool) t
 		{statusKey, fmt.Sprintf("%s", statusCode)},
 		{pathKey, path},
 	}, []byte(body)); err != nil {
-		proxywasm.LogErrorf("failed to send local response: %v", err)
+		proxywasm.LogErrorf("Error: sending http response: %v", err)
 		proxywasm.ResumeHttpRequest()
 	}
 	return types.ActionPause
