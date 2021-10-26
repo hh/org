@@ -1,0 +1,50 @@
+#+TITLE: Diagram of k8s infra
+
+#+begin_src dot :file diagram.png
+digraph G {
+    label="registry.k8s.io"
+    labelloc="t"
+    graph [compound=true]
+    node [shape=record]
+
+    RegistryK8sIo [label="registry.k8s.io"]
+
+    Request -> RegistryK8sIo [color="orange"]
+    RegistryK8sIo -> "k8s.gcr.io" [color="orange"]
+    "GCP to GCP request" -> RegistryK8sIo [color="blue"]
+    RegistryK8sIo -> "k8s.gcr.io" [color="blue"]
+    "CP to CP request" -> RegistryK8sIo [color="green"]
+    RegistryK8sIo -> "CP's registry" [color="green"]
+
+    subgraph cluster_0 {
+      node [style=filled];
+      label = "Google Cloud Platform";
+      "k8s.gcr.io"; "GCP to GCP request" [label="Request"]
+      color=blue;
+    }
+
+    subgraph cluster_1 {
+      node [style=dotted];
+      label = "Credit Provider's cloud service (such as AWS or Azure)";
+      "CP's registry"; "CP to CP request" [label="Request"]
+      color=green;
+    }
+
+    subgraph cluster_2 {
+      node [style=filled];
+      label = "Anywhere"
+      Request
+      color=orange;
+    }
+}
+#+end_src
+
+#+RESULTS:
+#+begin_src dot
+[[file:diagram.png]]
+#+end_src
+
+#+begin_src shell :results silent
+cp ./diagram.png ~/public_html/diagram.png
+#+end_src
+
