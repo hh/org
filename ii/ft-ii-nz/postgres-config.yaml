@@ -1,0 +1,18 @@
+# Configure
+# This configuration:
+# - log using the public IP in the /X-Real-Ip/ header
+# - ensure that one Pod is not disrupted
+# - prefer each Pod to be scheduled on a different node
+
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-configuration
+  namespace: ft-ii-nz
+stringData:
+  POSTGRES_DB: flattrack
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  PGDATABASE: flattrack
+  PGUSER: postgres

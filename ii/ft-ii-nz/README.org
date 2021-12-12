@@ -1,0 +1,245 @@
+#+TITLE: ft.ii.nz
+#+PROPERTY: header-args:yaml+ :comments none
+
+#+begin_quote
+A FlatTrack instance for ii.nz
+#+end_quote
+
+* Postgres
+This is a simple and locked-down Postgres deployment that it'll be reusing, until [[https://github.com/zalando/postgres-operator][Postgres-Operator]] runs in my cluster. At the moment it's quite a challenge and seems uncertain.
+
+#+begin_src yaml :tangle ./postgres.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  serviceName: "postgres"
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: postgres
+        image: docker.io/postgres:12.7-alpine
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsUser: 70
+          runAsGroup: 70
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - name: var-lib-postgresql
+            mountPath: /var/lib/postgresql/data
+          - name: var-run-postgresql
+            mountPath: /var/run/postgresql
+          - name: tmp
+            mountPath: /tmp
+        ports:
+        - containerPort: 5432
+        livenessProbe:
+          exec:
+            command:
+            - "sh"
+            - "-c"
+            - "pg_isready"
+            - "-U"
+            - "$POSTGRES_USER"
+          failureThreshold: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: POSTGRES_PASSWORD
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: PGDATABASE
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-configuration
+              key: PGUSER
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      initContainers:
+        - name: postgres-db-permissions-fix
+          image: alpine:3.12
+          command:
+            - /bin/sh
+            - -c
+            - "/bin/chown -R 70:70 /var/lib/postgresql/data"
+          volumeMounts:
+          - name: var-lib-postgresql
+            mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: var-lib-postgresql
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: var-run-postgresql
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: beta.kubernetes.io/arch
+                  operator: In
+                  values:
+                    - amd64
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: "5432"
+    port: 5432
+    targetPort: 5432
+#+end_src
+* Deploy a FlatTrack instance
+** Prepare
+#+begin_src shell :results silent
+kubectl create namespace ft-ii-nz --dry-run=client -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+** Configure
+This configuration:
+- log using the public IP in the /X-Real-Ip/ header
+- ensure that one Pod is not disrupted
+- prefer each Pod to be scheduled on a different node
+
+#+begin_src yaml :tangle ./postgres-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-configuration
+  namespace: ft-ii-nz
+stringData:
+  POSTGRES_DB: flattrack
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  PGDATABASE: flattrack
+  PGUSER: postgres
+#+end_src
+#+begin_src yaml :tangle ./flattrack.yaml
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: ft-ii-nz
+  namespace: ft-ii-nz
+spec:
+  releaseName: ft-ii-nz
+  chart:
+    git: https://gitlab.com/flattrack/flattrack.git
+    ref: 0.0.1-alpha14
+    path: deployments/flattrack
+  values:
+    realIPHeader: X-Real-Ip
+    timezone: "Pacific/Auckland"
+
+    image:
+      tag: latest
+    # run one on each node
+    replicaCount: 3
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    # connect to an existing postgres database
+    postgres:
+      enabled: true
+      username: postgres
+      host: postgres
+      database: flattrack
+      passwordSecretRef:
+        name: postgres-configuration
+        key: POSTGRES_PASSWORD
+
+    ingress:
+      enabled: true
+      certmanager:
+        enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+      hosts:
+        - host: ft.ii.nz
+          paths:
+            - "/"
+      tls:
+        - hosts:
+            - "ft.ii.nz"
+          secretName: letsencrypt-prod
+
+    # affinity:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #         - matchExpressions:
+    #           - key: beta.kubernetes.io/arch
+    #             operator: In
+    #             values:
+    #               - amd64
+#+end_src
+
+** Install
+#+begin_src shell
+kubectl apply -f ./postgres-config.yaml
+kubectl -n ft-ii-nz apply -f ./postgres.yaml
+until kubectl -n ft-ii-nz wait --for=condition=ready pod --selector=app=postgres --timeout=90s 2>&1 > /dev/null; do
+    sleep 1s;
+done
+sleep 3;
+kubectl apply -f ./flattrack.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+secret/postgres-configuration configured
+persistentvolumeclaim/postgres-pvc unchanged
+statefulset.apps/postgres unchanged
+service/postgres unchanged
+helmrelease.helm.fluxcd.io/ft-ii-nz configured
+#+end_example
+
+** Observe
+#+begin_src shell :wrap "SRC shell"
+kubectl -n ft-ii-nz get pods,ingress -o wide
+#+end_src
