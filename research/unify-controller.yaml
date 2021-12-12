@@ -1,0 +1,129 @@
+# Deploy in Kubernetes
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unify-controller
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+  storageClassName: local-path
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unify-controller
+  template:
+    metadata:
+      labels:
+        app: unify-controller
+    spec:
+      hostNetwork: true
+      containers:
+        - name: unify-controller
+          image: lscr.io/linuxserver/unifi-controller:6.5.54
+          # image: alpine:3.14
+          # command:
+          #   - sleep
+          #   - infinity
+          ports:
+            - containerPort: 8443
+          env:
+            - name: TZ
+              value: Pacific/Auckland
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          volumeMounts:
+            - name: unify-controller
+              mountPath: /config
+      volumes:
+        - name: unify-controller
+          persistentVolumeClaim:
+            claimName: unify-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8443
+      targetPort: 8443
+      protocol: TCP
+  selector:
+    app: unify-controller
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/whitelist-source-range: 192.168.1.0/24
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  rules:
+  - host: unify.hackbach.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: unify-controller
+            port:
+              number: 8443
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - unify.hackbach.nz
+    secretName: letsencrypt-prod
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-hackbach
+spec:
+  acme:
+    email: hackbach-nz@ii.coop
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod-hackbach
+  namespace: unify-controller
+spec:
+  dnsNames:
+  - unify.hackbach.nz
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod-hackbach
+  secretName: letsencrypt-prod

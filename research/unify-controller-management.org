@@ -1,0 +1,189 @@
+#+TITLE: Unify Controller Management
+
+* Running the management container locally in Podman
+#+begin_src tmate :window unify
+podman run \
+  -it \
+  --rm \
+  -v $HOME/work/ii/unify-controller:/config:Z \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=Pacific/Auckland \
+  --network host \
+  --name unify-controller \
+  lscr.io/linuxserver/unifi-controller:6.5.54
+#+end_src
+
+* Deploy in Kubernetes
+#+begin_src yaml :tangle ./unify-controller.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unify-controller
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+  storageClassName: local-path
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unify-controller
+  template:
+    metadata:
+      labels:
+        app: unify-controller
+    spec:
+      hostNetwork: true
+      containers:
+        - name: unify-controller
+          image: lscr.io/linuxserver/unifi-controller:6.5.54
+          ports:
+            - containerPort: 8443
+          env:
+            - name: TZ
+              value: Pacific/Auckland
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          volumeMounts:
+            - name: unify-controller
+              mountPath: /config
+      volumes:
+        - name: unify-controller
+          persistentVolumeClaim:
+            claimName: unify-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8443
+      targetPort: 8443
+      protocol: TCP
+  selector:
+    app: unify-controller
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/whitelist-source-range: 192.168.1.0/24
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  name: unify-controller
+  namespace: unify-controller
+spec:
+  rules:
+  - host: unify.hackbach.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: unify-controller
+            port:
+              number: 8443
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - unify.hackbach.nz
+    secretName: letsencrypt-prod
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-hackbach
+spec:
+  acme:
+    email: hackbach-nz@ii.coop
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod-hackbach
+  namespace: unify-controller
+spec:
+  dnsNames:
+  - unify.hackbach.nz
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod-hackbach
+  secretName: letsencrypt-prod
+#+end_src
+
+Install Unify-Controller
+#+begin_src shell
+kubectl apply -f ./unify-controller.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/unify-controller unchanged
+persistentvolumeclaim/unify-controller unchanged
+deployment.apps/unify-controller unchanged
+service/unify-controller unchanged
+ingress.networking.k8s.io/unify-controller configured
+clusterissuer.cert-manager.io/letsencrypt-prod-hackbach unchanged
+certificate.cert-manager.io/letsencrypt-prod-hackbach configured
+#+end_example
+
+* Resetting a password
+For some reason the Unify Controller container exposes an insecure MongoDB port for accessing the database.
+
+** Installing MongoDB cli
+Tangle in the repo file
+#+begin_src conf :tangle /tmp/mongodb-org-4.4.repo
+[Mongodb]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/4.4/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-4.4.asc
+#+end_src
+
+Copy the repo file to the repos folder
+#+begin_src shell
+sudo cp /tmp/mongodb-org-4.4.repo /etc/yum.repos.d/.
+#+end_src
+
+Install MongoDB
+#+begin_src shell
+sudo dnf install -y mongodb-org
+#+end_src
+
+** Performing the reset
+The following command runs against Unify Controller MongoDB a command, in the ace db, under the admin collection, to set the x_shadow field for the password; setting it to a hash of password123.
+#+begin_src shell
+MONGODB_IP=localhost
+mongo $MONGODB_IP:27117/ace < <(echo 'db.admin.update({"name": "hackbach"},{$set:{"x_shadow":"$6$OzJJ0heL$XyD5qt4pviLieuj8CMFbnSc9VYvxDyzYpH7dHC8wmaLwKv9xwyDxBiMx3GcT8nEdIa7XJbqlZo39jhfbQBXRM/"}} )')
+#+end_src
