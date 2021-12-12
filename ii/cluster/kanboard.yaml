@@ -62,7 +62,6 @@ spec:
     metadata:
       labels:
         app: kanboard
-        ii: kanban
     spec:
       containers:
       - image: kanboard/kanboard:v1.2.20
