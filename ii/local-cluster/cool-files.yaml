@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cool-files-are-here-ii-nz
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cool-files-are-here-ii-nz-letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: letsencrypt@ii.coop
+    privateKeySecretRef:
+      name: cool-files-are-here-ii-nz-letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cool-files-are-here-ii-nz-letsencrypt-prod
+  namespace: cool-files-are-here-ii-nz
+spec:
+  secretName: cool-files-are-here-ii-nz-letsencrypt-prod
+  issuerRef:
+    name: cool-files-are-here-ii-nz-letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - cool-files-are-here.ii.nz
+---
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: cool-files-are-here-ii-nz
+  namespace: cool-files-are-here-ii-nz
+spec:
+  releaseName: cool-files-are-here-ii-nz
+  chart:
+    git: https://gitlab.com/safesurfer/go-http-server
+    ref: 1.4.0
+    path: deployments/go-http-server
+  values:
+    securityContext:
+      readOnlyRootFilesystem: false
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+    service:
+      port: 80
+    image:
+      repository: docker.io/nginx
+      tag: stable
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - ii-thinkpad-p70
+    ingress:
+      enabled: true
+      hosts:
+        - host: cool-files-are-here.ii.nz
+          paths:
+            - /
+      # tls:
+      #   - secretName: letsencrypt-prod
+      #     hosts:
+      #       - cool-files-are-here.ii.nz
+    extraVolumeMounts:
+      - name: humacs-home-ii
+        mountPath: /usr/share/nginx/html
+    extraVolumes:
+      - name: humacs-home-ii
+        hostPath:
+          path: /home/ii/Downloads/videos
