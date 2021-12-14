@@ -265,6 +265,11 @@ export KUBECONFIG=~/.kube/config-ii-coop
 kubectl taint node --all node-role.kubernetes.io/master-
 #+end_src
 
+* Export KUBECONFIG to ii-coop
+#+begin_src tmate :window cluster
+export KUBECONFIG=~/.kube/config-ii-coop
+#+end_src
+
 * CNI
 
 #+NAME: Weave CNI
