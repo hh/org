@@ -2434,6 +2434,121 @@ kubectl -n kanban-ii-coop get ing
 NAME       CLASS    HOSTS            ADDRESS          PORTS     AGE
 kanboard   <none>   kanban.ii.coop   139.178.68.219   80, 443   10m
 #+end_example
+
+* Install Wireguard
+** Prepare
+#+begin_src tmate :window cluster
+kubectl create namespace wireguard --dry-run=client -o yaml | \
+    kubectl apply -f -
+#+end_src
+** Configure
+#+begin_src yaml :tangle ./wireguard.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  namespace: wireguard
+  name: wireguard-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wireguard-config
+  namespace: wireguard
+data:
+  PUID: "1000"
+  PGID: "1000"
+  TZ: "Pacific/Auckland"
+  SERVERPORT: "51820"
+  SERVERURL: "wg.ii.coop"
+  PEERS: "30"
+  # PEERDNS: "10.43.0.30"
+  PEERDNS: "auto"
+  ALLOWEDIPS: "0.0.0.0/0, ::/0"
+  INTERNAL_SUBNET: "10.13.13.0"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireguard
+  namespace: wireguard
+  labels:
+    app: wireguard
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wireguard
+  template:
+    metadata:
+      labels:
+        app: wireguard
+    spec:
+      containers:
+      - name: wireguard
+        image: docker.io/linuxserver/wireguard:v1.0.20210424-ls36
+        envFrom:
+        - configMapRef:
+            name: wireguard-config
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+              - SYS_MODULE
+          privileged: true
+        volumeMounts:
+          - name: wg-config
+            mountPath: /config
+          - name: host-volumes
+            mountPath: /lib/modules
+        ports:
+        - containerPort: 51820
+          protocol: UDP
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+        - name: wg-config
+          persistentVolumeClaim:
+            claimName: wireguard-pvc
+        - name: host-volumes
+          hostPath:
+            path: /lib/modules
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireguard
+  namespace: wireguard
+spec:
+  selector:
+    app: wireguard
+  ports:
+    - name: wireguard
+      port: 51820
+      targetPort: 51820
+      protocol: UDP
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+#+end_src
+
+** Install
+#+begin_src tmate :window cluster
+kubectl apply -f ./wireguard.yaml
+#+end_src
+
 * Finalise
 ** Move ClusterAPI management
 #+begin_src tmate :window SHELL
