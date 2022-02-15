@@ -2269,7 +2269,7 @@ spec:
                 - sh
                 - -c
                 - date +%Y%m%d%H%M > /tmp/date.txt
-              volumeMount:
+              volumeMounts:
                 - name: tmp
                   mountPath: /tmp
             - name: dump-database
@@ -2284,7 +2284,7 @@ spec:
                   pg_dump "${DB_CONNECTION_STRING}" > /tmp/mattermost-db-$(cat date.txt).sql && \
                   cd /tmp && \
                   tar cvf ./mattermost-db-$(cat date.txt).sql.tar.gz /tmp/mattermost-db-$(cat date.txt).sql
-              volumeMount:
+              volumeMounts:
                 - name: tmp
                   mountPath: /tmp
             - name: dump-minio
@@ -2312,7 +2312,7 @@ spec:
                   mc cp --recursive mattermostminio/mattermost /tmp/mattermost-minio-$(cat date.txt)/ && \
                   cd /tmp/mattermost-minio-$(cat date.txt)/ && \
                   tar cvf ../mattermost-minio-$(cat date.txt).tar.gz .
-              volumeMount:
+              volumeMounts:
                 - name: tmp
                   mountPath: /tmp
             - name: dump-config
@@ -2326,7 +2326,7 @@ spec:
                   kubectl -n mattermost exec -it deployment/mattermost -- cat /mattermost/config/config.json > /tmp/mattermost-config-$(cat date.txt).json && \
                   cd /tmp && \
                   tar cvf /tmp/mattermost-config-$(cat date.txt).json.tar.gz /tmp/mattermost-config-$(cat date.txt).json
-              volumeMount:
+              volumeMounts:
                 - name: tmp
                   mountPath: /tmp
           containers:
@@ -2346,7 +2346,7 @@ spec:
                 aws configure set aws_secret_access_key "${AWS_SECRET_KEY}" && \
                 aws configure set default.region ap-southeast-2 && \
                 aws s3 cp /tmp/mattermost-*.tar.gz "${S3_BUCKET}":/
-            volumeMount:
+            volumeMounts:
               - name: tmp
                 mountPath: /tmp
           restartPolicy: OnFailure
@@ -2356,6 +2356,10 @@ spec:
 TODO:
 - add IAM account with Bucket access role
 - test the CronJob
+
+#+begin_src shell
+kubectl apply --dry-run=server -f ./mattermost-backup.yaml
+#+end_src
 
 ** Certs
 #+begin_src yaml :tangle ./certs-mattermost.yaml
