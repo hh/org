@@ -2353,6 +2353,10 @@ spec:
   schedule: 45 8 * * 0
 #+end_src
 
+TODO:
+- add IAM account with Bucket access role
+- test the CronJob
+
 ** Certs
 #+begin_src yaml :tangle ./certs-mattermost.yaml
 apiVersion: cert-manager.io/v1
