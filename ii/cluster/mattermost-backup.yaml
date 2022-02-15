@@ -1,0 +1,156 @@
+
+
+# Backup CronJob for Mattermost, storing [Postgres, MinIO, Config] all to a s3 bucket each week at 8:45 on a Tuesday
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mattermost-backup
+  namespace: mattermost
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: mattermost-backup
+  namespace: mattermost
+rules:
+- apiGroups:
+    - ""
+  resources:
+    - pods
+  verbs:
+    - get
+    - list
+- apiGroups:
+    - apps
+  resources:
+    - deployment
+  verbs:
+    - get
+    - list
+- apiGroups:
+    - ""
+  resources:
+    - pods/exec
+  verbs:
+    - post
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: mattermost-backup
+  namespace: mattermost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mattermost-backup
+subjects:
+- kind: ServiceAccount
+  name: mattermost-backup
+  namespace: mattermost
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mattermost-backup
+  namespace: mattermost
+spec:
+  jobTemplate:
+    metadata:
+      name: mattermost-backup
+    spec:
+      template:
+        spec:
+          serviceAccountName: mattermost-backup
+          volumes:
+            - name: tmp
+              emptyDir: {}
+          initContainers:
+            - name: get-date
+              image: alpine:3.15
+              command:
+                - sh
+                - -c
+                - date +%Y%m%d%H%M > /tmp/date.txt
+              volumeMount:
+                - name: tmp
+                  mountPath: /tmp
+            - name: dump-database
+              image: postgres:12.7-alpine
+              envFrom:
+                - secretRef:
+                    name: mattermost-database
+              command:
+                - sh
+                - -c
+                - |
+                  pg_dump "${DB_CONNECTION_STRING}" > /tmp/mattermost-db-$(cat date.txt).sql && \
+                  cd /tmp && \
+                  tar cvf ./mattermost-db-$(cat date.txt).sql.tar.gz /tmp/mattermost-db-$(cat date.txt).sql
+              volumeMount:
+                - name: tmp
+                  mountPath: /tmp
+            - name: dump-minio
+              image: minio/minio:RELEASE.2022-02-01T18-00-14Z
+              env:
+                - name: MINIO_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mattermost-minio
+                      key: accesskey
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mattermost-minio
+                      key: secretkey
+                - name: MINIO_HOST
+                  value: mattermost-minio-hl-svc.mattermost:9000
+                - name: MINIO_BUCKET
+                  value: mattermost
+              command:
+                - sh
+                - -c
+                - |
+                  mc config host add mattermostminio http://mattermost-minio-hl-svc.mattermost:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} && \
+                  mc cp --recursive mattermostminio/mattermost /tmp/mattermost-minio-$(cat date.txt)/ && \
+                  cd /tmp/mattermost-minio-$(cat date.txt)/ && \
+                  tar cvf ../mattermost-minio-$(cat date.txt).tar.gz .
+              volumeMount:
+                - name: tmp
+                  mountPath: /tmp
+            - name: dump-config
+              image: alpine:3.15
+              command:
+                - sh
+                - -c
+                - |
+                  apk add --no-cache curl && \
+                  curl -o /usr/local/bin/kubectl https://dl.k8s.io/v1.23.3/bin/linux/amd64/kubectl && \
+                  kubectl -n mattermost exec -it deployment/mattermost -- cat /mattermost/config/config.json > /tmp/mattermost-config-$(cat date.txt).json && \
+                  cd /tmp && \
+                  tar cvf /tmp/mattermost-config-$(cat date.txt).json.tar.gz /tmp/mattermost-config-$(cat date.txt).json
+              volumeMount:
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+          - name: mattermost-backup
+            image: amazon/aws-cli:2.4.18
+            envFrom:
+              - secretRef:
+                  name: aws-serviceaccount-secret
+            env:
+              - name: S3_BUCKET
+                value: ii.nz
+            command:
+              - sh
+              - -c
+              - |
+                aws configure set aws_access_key_id "${AWS_ACCESS_KEY}" && \
+                aws configure set aws_secret_access_key "${AWS_SECRET_KEY}" && \
+                aws configure set default.region ap-southeast-2 && \
+                aws s3 cp /tmp/mattermost-*.tar.gz "${S3_BUCKET}":/
+            volumeMount:
+              - name: tmp
+                mountPath: /tmp
+          restartPolicy: OnFailure
+  schedule: 45 8 * * 0
