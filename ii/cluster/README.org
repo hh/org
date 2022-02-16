@@ -2205,7 +2205,7 @@ metadata:
   name: mattermost-backup
   namespace: mattermost
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: mattermost-backup
@@ -2221,7 +2221,7 @@ rules:
 - apiGroups:
     - apps
   resources:
-    - deployment
+    - deployments
   verbs:
     - get
     - list
@@ -2230,9 +2230,9 @@ rules:
   resources:
     - pods/exec
   verbs:
-    - post
+    - create
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: mattermost-backup
@@ -2257,6 +2257,9 @@ spec:
       name: mattermost-backup
     spec:
       template:
+        metadata:
+          labels:
+            app: mattermost-backup
         spec:
           serviceAccountName: mattermost-backup
           volumes:
@@ -2267,28 +2270,48 @@ spec:
               image: alpine:3.15
               command:
                 - sh
+                - -x
                 - -c
-                - date +%Y%m%d%H%M > /tmp/date.txt
+                - date +%Y%m%d%H%M | tee /tmp/date.txt
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+            - name: dump-config
+              image: alpine:3.15
+              command:
+                - sh
+                - -x
+                - -c
+                - |
+                  DATE="$(cat /tmp/date.txt)" && \
+                  apk add --no-cache curl && \
+                  curl -L -o /usr/local/bin/kubectl https://dl.k8s.io/v1.23.3/bin/linux/amd64/kubectl && \
+                  chmod +x /usr/local/bin/kubectl && \
+                  kubectl -n mattermost exec -it -c mattermost deployment/mattermost -- cat /mattermost/config/config.json > /tmp/mattermost-config-${DATE}.json && \
+                  cd /tmp && \
+                  tar cvf /tmp/mattermost-config-${DATE}.json.tar.gz /tmp/mattermost-config-${DATE}.json
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
             - name: dump-database
-              image: postgres:12.7-alpine
+              image: postgres:13.6-alpine
               envFrom:
                 - secretRef:
                     name: mattermost-database
               command:
                 - sh
+                - -x
                 - -c
                 - |
-                  pg_dump "${DB_CONNECTION_STRING}" > /tmp/mattermost-db-$(cat date.txt).sql && \
+                  DATE="$(cat /tmp/date.txt)" && \
+                  pg_dump "${DB_CONNECTION_STRING}" -f /tmp/mattermost-db-${DATE}.sql && \
                   cd /tmp && \
-                  tar cvf ./mattermost-db-$(cat date.txt).sql.tar.gz /tmp/mattermost-db-$(cat date.txt).sql
+                  tar cvf ./mattermost-db-${DATE}.sql.tar.gz /tmp/mattermost-db-${DATE}.sql
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
             - name: dump-minio
-              image: minio/minio:RELEASE.2022-02-01T18-00-14Z
+              image: minio/mc:RELEASE.2022-02-13T23-26-13Z
               env:
                 - name: MINIO_ACCESS_KEY
                   valueFrom:
@@ -2306,26 +2329,15 @@ spec:
                   value: mattermost
               command:
                 - sh
+                - -x
                 - -c
                 - |
+                  DATE="$(cat /tmp/date.txt)" && \
+                  microdnf install tar && \
                   mc config host add mattermostminio http://mattermost-minio-hl-svc.mattermost:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} && \
-                  mc cp --recursive mattermostminio/mattermost /tmp/mattermost-minio-$(cat date.txt)/ && \
-                  cd /tmp/mattermost-minio-$(cat date.txt)/ && \
-                  tar cvf ../mattermost-minio-$(cat date.txt).tar.gz .
-              volumeMounts:
-                - name: tmp
-                  mountPath: /tmp
-            - name: dump-config
-              image: alpine:3.15
-              command:
-                - sh
-                - -c
-                - |
-                  apk add --no-cache curl && \
-                  curl -o /usr/local/bin/kubectl https://dl.k8s.io/v1.23.3/bin/linux/amd64/kubectl && \
-                  kubectl -n mattermost exec -it deployment/mattermost -- cat /mattermost/config/config.json > /tmp/mattermost-config-$(cat date.txt).json && \
-                  cd /tmp && \
-                  tar cvf /tmp/mattermost-config-$(cat date.txt).json.tar.gz /tmp/mattermost-config-$(cat date.txt).json
+                  mc cp --recursive mattermostminio/mattermost /tmp/mattermost-minio-${DATE}/ && \
+                  cd /tmp/mattermost-minio-${DATE}/ && \
+                  tar cvf ../mattermost-minio-${DATE}.tar.gz .
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
@@ -2337,28 +2349,46 @@ spec:
                   name: aws-serviceaccount-secret
             env:
               - name: S3_BUCKET
-                value: ii.nz
+                value: ii-nz
             command:
               - sh
+              - -x
               - -c
               - |
+                DATE="$(cat /tmp/date.txt)" && \
                 aws configure set aws_access_key_id "${AWS_ACCESS_KEY}" && \
                 aws configure set aws_secret_access_key "${AWS_SECRET_KEY}" && \
                 aws configure set default.region ap-southeast-2 && \
-                aws s3 cp /tmp/mattermost-*.tar.gz "${S3_BUCKET}":/
+                cd /tmp && \
+                for FILE in mattermost*.tar.gz; do
+                  aws s3 cp "${FILE}" "s3://${S3_BUCKET}/mattermost-backup/${DATE}/${FILE}"
+                done
+              # - sleep 100000
             volumeMounts:
               - name: tmp
                 mountPath: /tmp
           restartPolicy: OnFailure
   schedule: 45 8 * * 0
+  # schedule: "*/30 * * * *"
 #+end_src
 
 TODO:
 - add IAM account with Bucket access role
 - test the CronJob
 
-#+begin_src shell
-kubectl apply --dry-run=server -f ./mattermost-backup.yaml
+Apply the CronJob
+#+begin_src tmate :window cluster
+kubectl apply -f ./mattermost-backup.yaml
+#+end_src
+
+Watch the mattermost-backup pod
+#+begin_src tmate :window cluster
+kubectl -n mattermost get pods -l app=mattermost-backup -w
+#+end_src
+
+Get logs
+#+begin_src tmate :window cluster
+kubectl -n mattermost logs -l app=mattermost-backup --tail=10 -f
 #+end_src
 
 ** Certs
