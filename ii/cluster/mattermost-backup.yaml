@@ -171,5 +171,5 @@ spec:
               - name: tmp
                 mountPath: /tmp
           restartPolicy: OnFailure
-  schedule: 45 8 * * 0
+  schedule: 45 8 * * 2
   # schedule: "*/30 * * * *"
