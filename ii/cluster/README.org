@@ -2771,3 +2771,55 @@ Install Metal-CCM
 #+begin_src tmate :window cluster
 kubectl apply -f https://github.com/equinix/cloud-provider-equinix-metal/releases/download/v3.2.2/deployment.yaml
 #+end_src
+
+** cncf.ci redirect
+#+NAME: Certs
+#+begin_src yaml :tangle ./cncf-ci-redirect.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cncf-ci-redirect
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-prod
+  namespace: cncf-ci-redirect
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - cncf.ci
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cncf-ci-redirect
+  namespace: cncf-ci-redirect
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      rewrite ^/(.*) https://github.com/cncf-ci permanent;
+spec:
+  rules:
+  - host: cncf.ci
+    http:
+      paths:
+      - backend:
+          service:
+            name: cncf-ci-redirect
+            port:
+              number: 8080
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - cncf.ci
+    secretName: letsencrypt-prod
+#+end_src
+
+#+begin_src tmate :dir . :window cluster
+envsubst < cncf-ci-redirect.yaml | kubectl apply -f -
+#+end_src
