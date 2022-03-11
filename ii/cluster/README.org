@@ -2823,3 +2823,246 @@ spec:
 #+begin_src tmate :dir . :window cluster
 envsubst < cncf-ci-redirect.yaml | kubectl apply -f -
 #+end_src
+
+** ii-nz-temp
+*** multiplex
+**** Configure
+#+begin_src yaml :tangle ./ii-nz-temp/multiplex.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ii-nz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: multiplex-ii-nz-letsencrypt-prod
+  namespace: ii-nz
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "multiplex.ii.nz"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reveal-multiplex
+  template:
+    metadata:
+      labels:
+        app: reveal-multiplex
+    spec:
+      containers:
+      - name: reveal-multiplex
+        image: registry.gitlab.com/ii/nz/reveal-multiplex
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 1948
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  ports:
+  - name: http
+    port: 1948
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: reveal-multiplex
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  rules:
+  - host: multiplex.ii.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: reveal-multiplex
+            port:
+              number: 1948
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - multiplex.ii.nz
+    secretName: letsencrypt-prod
+#+end_src
+
+**** Install
+#+begin_src tmate :dir . :window cluster
+kubectl apply -f ./ii-nz-temp/multiplex.yaml
+#+end_src
+
+*** expo-prezzo
+**** Configure
+#+begin_src yaml :tangle ./ii-nz-temp/expo-prezzo.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: careers-expo-ii-nz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: careers-expo-ii-nz-letsencrypt-prod
+  namespace: careers-expo-ii-nz
+spec:
+  secretName: careers-expo-ii-nz-letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "careers-expo.ii.nz"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: careers-expo-ii-nz
+  namespace: careers-expo-ii-nz
+  labels:
+    environment: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: careers-expo-ii-nz
+  template:
+    metadata:
+      labels:
+        app: careers-expo-ii-nz
+        environment: production
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: careers-expo-ii-nz
+        image: registry.gitlab.com/ii/expo-prezzo:2021.08.12.1642
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8101
+        env:
+          - name: TZ
+            value: "Pacific/Auckland"
+        readinessProbe:
+          tcpSocket:
+            port: 8101
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 8101
+          initialDelaySeconds: 2
+          periodSeconds: 10
+          failureThreshold: 10
+        resources:
+          requests:
+            memory: "400Mi"
+            cpu: "1"
+          limits:
+            memory: "400Mi"
+            cpu: "1"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: careers-expo-ii-nz
+  namespace: careers-expo-ii-nz
+  labels:
+    environment: production
+spec:
+  ports:
+    - port: 8101
+      targetPort: 8101
+  selector:
+    app: careers-expo-ii-nz
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: careers-expo-ii-nz
+  namespace: careers-expo-ii-nz
+  labels:
+    environment: production
+  annotations:
+    cert-manager.io/cluster-issuer: careers-expo-ii-nz-letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+spec:
+  tls:
+    - hosts:
+        - "careers-expo.ii.nz"
+      secretName: careers-expo-ii-nz-letsencrypt-prod
+  rules:
+    - host: "careers-expo.ii.nz"
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: careers-expo-ii-nz
+                port:
+                  number: 8101
+#+end_src
+
+**** Install
+#+begin_src tmate :dir . :window cluster
+kubectl apply -f ./ii-nz-temp/expo-prezzo.yaml
+#+end_src

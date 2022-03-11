@@ -1,0 +1,104 @@
+# Configure
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ii-nz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: multiplex-ii-nz-letsencrypt-prod
+  namespace: ii-nz
+spec:
+  secretName: letsencrypt-prod
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "multiplex.ii.nz"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reveal-multiplex
+  template:
+    metadata:
+      labels:
+        app: reveal-multiplex
+    spec:
+      containers:
+      - name: reveal-multiplex
+        image: registry.gitlab.com/ii/nz/reveal-multiplex
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 1948
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  ports:
+  - name: http
+    port: 1948
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: reveal-multiplex
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: reveal-multiplex
+  name: reveal-multiplex
+  namespace: ii-nz
+spec:
+  rules:
+  - host: multiplex.ii.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: reveal-multiplex
+            port:
+              number: 1948
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - multiplex.ii.nz
+    secretName: letsencrypt-prod
