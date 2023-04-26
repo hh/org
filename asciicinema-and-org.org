@@ -1,0 +1,110 @@
+#+title: Asciicinema And Org
+
+* Introduction
+There is an [[https://github.com/asciinema/asciinema-server/issues/84][open ticket]] in ii/doom-config titled "display recorded input in an overlay".
+It is about using asciicinema with org and tmux to create screencasts.
+
+This org file is meant to track current thoughts around the ticket, its purpose, and where
+it fits into the doom-config.
+
+* Using asciicinema
+
+asciinema([[https://asciinema.org/][homepage]]) is a tool for recording your terminal sessions, with a
+mechanism for playing back or sharing these sessions when done. It is useful for
+recording demos or recording help videos displaying the steps to enter into a
+terminal.
+
+The output of running asciicenma is a ~.cast~ file, which can then be uploaded to asciinema's
+cast repository at asciicinema.org or saved and played locally using the asciinema-player.
+** asciinema.org
+you can upload the cast you made with the command
+: asciinema upload file.cast
+
+this returns a prival archive.org url with your playback.  It ends up looking a bit like youtube, but only with terminal casts.
+** asciinema player
+Alternately, you can embed the cast into your own website using [[https://github.com/asciinema/asciinema-player][asciinema-player.]]  This is a combo of css and javascript that
+you add to your own page and then display the cast file without having to upload it anywhere else.
+
+the css and js can be downloaded from their repo, or you could host them somewhere and then link to them externally.
+
+A simple version of the html page would look like so
+
+#+begin_src html
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="https://link.to/asciinema-player.css" />
+  </head>
+  <body>
+  <div id="cast"></div>
+  </body>
+  <script src="https://link.to/asciinema-player.min.js"></script>
+  <script>
+    AsciinemaPlayer.create('/example.cast', document.getElementById('cast'));
+  </script>
+</html>
+#+end_src
+
+In the above, you would have ~example.cast~ in the same root folder as this ~index.html~, and it combined with the css and js would create an embedded screencast in the #cast div.  You coudl then style it further as you see fit.
+
+** asciinema to svg
+There is also a cast-to-svg tool you can use so that you can embed the recording without needing additional CSS and javascript.
+
+https://github.com/marionebl/svg-term-cli
+
+this tool takes a cast file as input and outputs a named svg.  Then you'd end up with html like so:
+
+#+begin_src html
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <img src='/example-cast.svg' />
+  </body>
+</html>
+#+end_src
+
+the longer the session, the bigger the file, and so if we are meaning to do incredibly long sessions, or having multiple casts on a page, this
+may not be the best option, but it could be useful for including asciinema output into an org file's exported html.
+
+For example, you could have an org file with a tmux block of
+
+#+begin_example
+docker run busybox/helloworld
+#+end_example
+
+and then below it as "results" you'd see the terminal session of /just/ this
+command, showing docker pulling the file and printing out hello.
+
+* Capturing keyboard input.
+
+You can capture your key input during an asciicinema session by passing in the --stdin flag at the start of the session.
+The resulting file will include a data map with the unicode characters pressed.  You can then add some additional javascript to
+translate that unicode to their correct symbols and then paste it somewhere on that embedded webpage.  Abby does a great
+breakdown of that, with an demo site, in the repo [[https://github.com/abdabTheCreator/Asciinema-keydisplay/blob/main/index.html][abdabthecreator/asciinema-keydisplay]] .
+
+In the demo site, the keys display above the embedded cast. Overlaying the keys onto the cast, in semi-transparent font, is just a
+matter of some CSS.  Essentially, you'd put both in a wrapper div, and then give the <p> tag showing the inputs an absolute positioning.
+
+* How does this fit into the doom config?
+To be honest, I am not sure yet! From the start of the ticket, it seemed like we were wanting to incorporate asciinema into tmux blocks.  When we run the blocks, we do it inside an asciinema session.  This would be handy for saving the resulting work as a playback video of sorts in the end.
+
+However, there aren't really keypresses we need to catpure here.  All the work is being piped in from tmux.  Some of the examples seemed to imply we'd open up emacs in the tmux session, that is connected to another emacs client, and then use that parent client to pipe in keypresses via tmux to the second client.  This seems unecessarily convoluted, and I'm not sure the use case.
+
+If we are trying to show a playback of the tmux command being run in some final html, then it feels like we'd want to wrap each tmux command in an asciicinema invocation, with the resulting file name and path being passed in from the src block.  We could then just put an img tag beneath each block that has that name, using some elisp triggers and such.  Is that what we are trying to achieve here?
+
+As it relates to the doom-config, I imagine we'd likely figure out the exact elisp we'd want to run and then add that to our existing ob-tmux library as an additional option to pass in.  This seems the cleanest way.
+
+* Capturing key presses in an emacs org file
+
+The other intention I can see here is to capture our keypresses in the org file itself.  We want to show how you can navigate from code block to code block and hit ctrl-c ctrl-c to trigger that codeblock.  The idea being that we can create cooperation templates for learning labs, that come with our emacs and some file you are meant to read through and excute the scripts as you approach them.  In this case, the person isn't trying to use emacs, emacs is more of a executable document viewer.
+
+If that is the case, I think it'd be better to record a screencast separate from the org file, since it is intended to show the keypresses for any org file.  We could then link to that screencst in our documentation. Alternately, it is possible to present elisp functions as a link.  So we could hae a link above each code block that, when clicked, runs the command "excute this code block".  The person reading through the document only needs to know how to scroll and click.
+
+At that point, though, it might be more useful to think about a rendered website that has these links as buttons that pass the info to the emacs server which then runs the command.  Then, when someone is starting up their lab, they just navigate to a given page, read the instructions, click where they're meant to, and see the output in a tmux window open on another tab.  this is approaching katacode and other online labs connected to VM's...which is maybe what we want?
+
+In either case, this seems like work that would happen outside the doom-config, and wouldn't require recording keyboard presses in tmux blocks.
+
+* Current thoughts
+At the moment, I would like to discuss what our hoped-for goal is, and where that work is best done.  The ticket is open in doom-config, but this may not be where the work is needed?
