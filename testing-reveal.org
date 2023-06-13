@@ -1,0 +1,16 @@
+#+title: Testing Reveal
+#+REVEAL_ROOT: ./revealjs
+
+* Intro
+We noticed that exporting an org file to a reveal presentation did not work.  Why not?
+* Steps
+** Make sure i have reveal enabled
+on your doom config, you want ot make sure org has the +present plugin
+so in yr init.el, the org line should be  at least:
+#+begin_src elisp
+(org + present)
+#+end_src
+** Export and see results
+When I first exported, I had an unstyled presentation.  Looking into the sourc,e it was trying to grab the CSS and JS from my emacs local packages.
+In the latest version of doom, your emacs config is now placed in ~\~/.config/emacs/.local/straight/repos/revealjs~.  This path will cause permission issues, as it's nested within directories with restricted permissions.  I didn't want to change all of this, and pulling from a local directory wouldn't work long-term online, and so I copied down the src to
+this org directory, under revealjs
