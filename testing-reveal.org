@@ -1,10 +1,11 @@
 #+title: Testing Reveal
 #+REVEAL_ROOT: ./revealjs
-#+REVEAL_MULTIPLEX_ID: 8538b3b727bb662c
-#+REVEAL_MULTIPLEX_SECRET: 16866537960948350483
-#+REVEAL_MULTIPLEX_URL: https://reveal-multiplex.glitch.me
+#+REVEAL_MULTIPLEX_ID: 3b7afa99cd46faa2
+#+REVEAL_MULTIPLEX_SECRET: 16866565060231465087
+#+REVEAL_MULTIPLEX_URL: https://multiplex.ii.nz
 #+REVEAL_MULTIPLEX_SOCKETIO_URL: http://cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.10/socket.io.min.js
 #+REVEAL_PLUGINS: (multiplex)
+
 
 * Intro
 We noticed that exporting an org file to a reveal presentation did not work.  Why not?
@@ -21,7 +22,7 @@ In the latest version of doom, your emacs config is now placed in ~\~/.config/em
 this org directory, under revealjs
 
 ** Second export
-Underneath the hood, doom's present plugin is using [[ https://github.com/emacsmirror/org-re-reveal][org-re-reveal]]. According to its documentation, you just add headers to the top of the org file pointing to the right multiplex server with an id and secret.  They have a demo server up that I used, and generated a token with something like:
+Underneath the hood, doom's present plugin is using [[https://github.com/emacsmirror/org-re-reveal][org-re-reveal]]. According to its documentation, you just add headers to the top of the org file pointing to the right multiplex server with an id and secret.  They have a demo server up that I used, and generated a token with something like:
 
 #+begin_src sh
 curl https://reveal-multiplex.glitch.me/token
@@ -68,3 +69,17 @@ from a person with a working site, but that site does not use multiplex.
 Instead, it is using a new plugin called
 SEMINAR(https://github.com/rajgoel/reveal.js-plugins/tree/master/seminar), whose
 demo site...also doesn't work.
+** My current suspicion
+I think that the multiplex server on glitch may not be the most up-to-date
+version of reveal or multiplex, or that there is some other similar mismatch
+between org,doom,org-re-reveal,revealjs, and reveal-multiplex.
+
+So then I tried using our own multiplex server at multiplex.ii.nz. I created a
+token at https://multiplex.ii.nz/token and updated this org file. But I am
+getting the same error.
+
+We may need to update the socket.io script that it's using, or try to just get a
+working multiplex example up in a new server that can be run on the fly. I think
+my next step would be to work from the reveal-multiplex repo and get a working
+slide going, then use that as a base for our new presentation app or some such.
+To be honest, at this point, i am a bit stuck.
