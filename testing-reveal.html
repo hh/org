@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Testing Reveal</title>
+<meta name="author" content="Zach Mandeville"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="./revealjs/dist/reveal.css"/>
+
+<link rel="stylesheet" href="./revealjs/dist/theme/black.css" id="theme"/>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide">
+<h1 class="title">Testing Reveal</h1><h2 class="author">Zach Mandeville</h2><p class="date">Created: 2023-06-13 Tue 22:57</p>
+</section>
+<section id="table-of-contents-section">
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#/slide-1">1. I want multiple support!</a></li>
+<li><a href="#/slide-2">2. First time</a></li>
+</ul>
+</div>
+</div>
+</section>
+
+
+<section>
+<section id="slide-1">
+<h2 id="1"><span class="section-number-2">1.</span> I want multiple support!</h2>
+<p>
+first off, is it added to this emacs?
+in the init.el, you want to make sure it is something like
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-elisp"><span style="color: #528b8b;">(</span>org +present<span style="color: #528b8b;">)</span>
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-2">
+<h2 id="2"><span class="section-number-2">2.</span> First time</h2>
+<p>
+now, I export!
+</p>
+</section>
+</section>
+</div>
+</div>
+<script src="./revealjs/dist/reveal.js"></script>
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: true,
+progress: true,
+history: false,
+center: true,
+slideNumber: 'c',
+rollingLinks: false,
+keyboard: true,
+mouseWheel: false,
+fragmentInURL: false,
+hashOneBasedIndex: false,
+pdfSeparateFragments: true,
+overview: true,
+
+transition: 'convex',
+transitionSpeed: 'default',
+multiplex: {
+    secret: '16866537960948350483', // null if client
+    id: '8538b3b727bb662c', // id, obtained from socket.io server
+    url: 'https://reveal-multiplex.glitch.me' // Location of socket.io server
+},
+
+// Plugins with reveal.js 4.x
+plugins: [  ],
+
+// Optional libraries used to extend reveal.js
+dependencies: [
+ { src: 'http://cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.10/socket.io.min.js', async: true },
+ { src: 'https://reveal-multiplex.glitch.me/master.js', async: true }]
+
+});
+</script>
+</body>
+</html>

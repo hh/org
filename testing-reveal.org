@@ -30,4 +30,41 @@ curl https://reveal-multiplex.glitch.me/token
 #+RESULTS:
 | {"secret":"16866553331224800045" | socketId:"9a93b9b862bc2ec4"} |
 
-Upon export, it still did not work.  It was looking for a script that it assumed was in our revealjs folder that was not there.  I grabbed the script from our own multiplex.ii.nz and added it to our revealjs folder.
+Upon export, it still did not work. It was looking for a script that it assumed
+was in our revealjs folder that was not there. I grabbed the script from our own
+multiplex.ii.nz and added it to our revealjs folder.
+** Research into tickets
+Since the out of the box experience doesn't relaly work, i wanted to doublecheck
+if any issues were in the doom emacs repo around this.
+
+the closest is this ticket:
+https://github.com/doomemacs/doomemacs/issues/3595
+
+which is old, and likely not it---though this PR results in doom just pulling
+down the revealjs code locally...however, according to revealjs's docs,
+multiplex is no longer included in it:
+
+https://revealjs.com/multiplex/
+
+And in that multiplex repo, it points out a demo on reveal-multiplex.glitch.me
+that is no longer working. No matter, I pulled in the latest code to our
+revealjs folder and got a /new/ error, that I cannot explain. When I load up the
+exported html, i see this message:
+
+#+begin_src
+XHR GET https://reveal-multiplex.glitch.me/socket.io/1/?t=1686655944730 [HTTP/2 BAD REQUEST 400]
+#+end_src
+
+This seems like i't sproviding a token, but it's not the tokenn in the org file
+or our exported html file. I could not figure out where that ?t=16866... token
+was coming from.
+
+The issues in the multiplex repo are not encouraging.
+https://github.com/reveal/multiplex/issues/14
+
+Here is one where he is trying the site on glitch and using the demo and the
+slides don't move in the client, the same error I am having. The only answer is
+from a person with a working site, but that site does not use multiplex.
+Instead, it is using a new plugin called
+SEMINAR(https://github.com/rajgoel/reveal.js-plugins/tree/master/seminar), whose
+demo site...also doesn't work.
