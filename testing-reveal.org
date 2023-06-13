@@ -1,5 +1,10 @@
 #+title: Testing Reveal
 #+REVEAL_ROOT: ./revealjs
+#+REVEAL_MULTIPLEX_ID: 8538b3b727bb662c
+#+REVEAL_MULTIPLEX_SECRET: 16866537960948350483
+#+REVEAL_MULTIPLEX_URL: https://reveal-multiplex.glitch.me
+#+REVEAL_MULTIPLEX_SOCKETIO_URL: http://cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.10/socket.io.min.js
+#+REVEAL_PLUGINS: (multiplex)
 
 * Intro
 We noticed that exporting an org file to a reveal presentation did not work.  Why not?
@@ -14,3 +19,15 @@ so in yr init.el, the org line should be  at least:
 When I first exported, I had an unstyled presentation.  Looking into the sourc,e it was trying to grab the CSS and JS from my emacs local packages.
 In the latest version of doom, your emacs config is now placed in ~\~/.config/emacs/.local/straight/repos/revealjs~.  This path will cause permission issues, as it's nested within directories with restricted permissions.  I didn't want to change all of this, and pulling from a local directory wouldn't work long-term online, and so I copied down the src to
 this org directory, under revealjs
+
+** Second export
+Underneath the hood, doom's present plugin is using [[ https://github.com/emacsmirror/org-re-reveal][org-re-reveal]]. According to its documentation, you just add headers to the top of the org file pointing to the right multiplex server with an id and secret.  They have a demo server up that I used, and generated a token with something like:
+
+#+begin_src sh
+curl https://reveal-multiplex.glitch.me/token
+#+end_src
+
+#+RESULTS:
+| {"secret":"16866553331224800045" | socketId:"9a93b9b862bc2ec4"} |
+
+Upon export, it still did not work.  It was looking for a script that it assumed was in our revealjs folder that was not there.  I grabbed the script from our own multiplex.ii.nz and added it to our revealjs folder.
