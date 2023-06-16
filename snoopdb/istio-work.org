@@ -44,7 +44,7 @@ commit;
 #+RESULTS:
 #+begin_SRC example
 BEGIN
-apisnoop=*# DELETE 0
+apisnoop=*# DELETE 22156
 apisnoop=*# COMMIT
 #+end_SRC
 
@@ -102,7 +102,7 @@ if custom_release == 'incluster':
   req = Request('https://kubernetes/openapi/v2')
   req.add_header('Authorization','Bearer ' + token)
 
-  open_api = json.loads(urlopen(req).read().decode('utf-8'))
+  open_api = json.loads(urlopen(req).kead().decode('utf-8'))
   release =  '1.28.1'
   release_date = time.mktime(datetime.datetime.now().timetuple())
   open_api_url = 'incluster'
@@ -209,7 +209,7 @@ apisnoop=*# NOTICE:  in the custom release branch
 
 apisnoop=*#  count
 -------
-  1209
+  1458
 (1 row)
 
 apisnoop=*# COMMIT
@@ -219,8 +219,8 @@ And now, we should have our open_api table loaded up, but only with the spec bei
 
 #+begin_src sql-mode
 begin;
-select * from  zload_open_api('incluster');
-select count(*) from open_api;
+-- select * from  zload_open_api('incluster');
+-- select count(*) from open_api;
 select * from  zload_open_api();
 select count(*) from open_api;
 commit;
@@ -229,18 +229,7 @@ commit;
 #+RESULTS:
 #+begin_SRC example
 BEGIN
-apisnoop=*# NOTICE:  in the custom release branch
-      zload_open_api
----------------------------
- 1.28.1 open api is loaded
-(1 row)
-
-apisnoop=*#  count
--------
-  1209
-(1 row)
-
-apisnoop=*# NOTICE:  we should not see this
+apisnoop=*# apisnoop=*# apisnoop=*# NOTICE:  we should not see this
       zload_open_api
 ---------------------------
  1.28.0 open api is loaded
@@ -248,11 +237,12 @@ apisnoop=*# NOTICE:  we should not see this
 
 apisnoop=*#  count
 -------
-  2052
+  2301
 (1 row)
 
 apisnoop=*# COMMIT
 #+end_SRC
+
 
 #+begin_src sql-mode
 \d open_api
@@ -265,10 +255,11 @@ select spec,release, count(*)
 
 #+RESULTS:
 #+begin_SRC example
-   spec    | release | count
------------+---------+-------
- incluster | 1.28.1  |  1209
-(1 row)
+                                             spec                                             | release | count
+----------------------------------------------------------------------------------------------+---------+-------
+ incluster                                                                                    | 1.28.1  |  1458
+ https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json | 1.28.0  |   843
+(2 rows)
 
 #+end_SRC
 
@@ -347,7 +338,7 @@ select count(*) from incluster_endpoints;
 #+begin_SRC example
  count
 -------
-   486
+   735
 (1 row)
 
 #+end_SRC
@@ -395,20 +386,23 @@ select category,k8s_group
 
 #+RESULTS:
 #+begin_SRC example
-           category            |            k8s_group
--------------------------------+----------------------------------
- ciliumIo                      | cilium.io
- networkingInternalKnativeDev  | networking.internal.knative.dev
- networkingIstioIo             | networking.istio.io
- autoscalingInternalKnativeDev | autoscaling.internal.knative.dev
- servingKnativeDev             | serving.knative.dev
- telemetryIstioIo              | telemetry.istio.io
- cachingInternalKnativeDev     | caching.internal.knative.dev
- installIstioIo                | install.istio.io
- networking                    | networking.k8s.io
- extensionsIstioIo             | extensions.istio.io
- securityIstioIo               | security.istio.io
-(11 rows)
+          category           |           k8s_group
+-----------------------------+--------------------------------
+ ciliumIo                    | cilium.io
+ notificationToolkitFluxcdIo | notification.toolkit.fluxcd.io
+ networkingIstioIo           | networking.istio.io
+ acmeCertManagerIo           | acme.cert-manager.io
+ certManagerIo               | cert-manager.io
+ telemetryIstioIo            | telemetry.istio.io
+ sourceToolkitFluxcdIo       | source.toolkit.fluxcd.io
+ kustomizeToolkitFluxcdIo    | kustomize.toolkit.fluxcd.io
+ installIstioIo              | install.istio.io
+ helmToolkitFluxcdIo         | helm.toolkit.fluxcd.io
+ networking                  | networking.k8s.io
+ extensionsIstioIo           | extensions.istio.io
+ securityIstioIo             | security.istio.io
+ gatewayNetworking           | gateway.networking.k8s.io
+(14 rows)
 
 #+end_SRC
 
@@ -529,11 +523,90 @@ where category = 'resource' and level != 'alpha';
 #+end_SRC
 
 So it makes a bit of sense for there to be endpoints that aren't in this cluster, if this cluster is a version behind the alpha, dev version of kubernetes.
+** Syncing with auditlogger
+When we look into the audit events coming from the auditlogger, we can see some requests being made ot istio but, not the correct endpoints.
+This is due to how endpoints are added when coming from the auditlogger.
 
-* Next up
-** double check auditlogger and how it connects endpoints
-** come up with working release to set for the incluster stuff
-** test that auditlogger works
+Specifically, we have a trigger for every time a new endpoint is added:
+
+#+begin_src sql
+create trigger add_endpoint
+before insert on testing.audit_event
+for each row
+execute procedure determine_endpoint();
+#+end_src
+
+which calls the function determine_endpoint, defined as:
+
+#+begin_src sql
+create or replace function determine_endpoint() RETURNS TRIGGER as $$
+   import json
+   from snoopUtils import load_openapi_spec, find_operation_id
+   CURRENT_SWAGGER_URL = "https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json"
+   if "spec" not in GD:
+       GD["spec"] = load_openapi_spec(CURRENT_SWAGGER_URL)
+   spec = GD["spec"]
+   event = json.loads(TD["new"]["data"])
+   if TD["new"]["endpoint"] is None:
+       TD["new"]["endpoint"] = find_operation_id(spec, event);
+   return "modify";
+$$ language plpython3u;
+#+end_src
+
+So this is, by default, grabbing the master swagger.json and mapping endpoints according to that.  We want to do it from the cluste rinstead.
+
+We pass in a url to the load_openapi_spec, which then does a ~requests.get(url)~.
+We could just put in the kubernetes url, but we need to make sure that auth is handled correctly and that we ignore ssl.  I wonder if we
+could just add those headers no matter what...and so we would adjust this function to say: if the env vars say you are in cluster, then the
+url we want is ~https://kubernetes/openapi/v2~.  And then adjust the load_openapi_spec's request to add the auth and ssl verification.
+
+We can test the function with a random url.
+#+begin_src python :results output
+import requests
+url = 'https://jsonplaceholder.typicode.com/comments/1'
+res = requests.get(url)
+authres = requests.get(url, headers={'Authorization': 'Bearer dummytoken'}, verify=False)
+print('no auth response: \n',res.json())
+print('with auth response: \n',authres.json())
+
+#+end_src
+
+#+RESULTS:
+: no auth response:
+:  {'postId': 1, 'id': 1, 'name': 'id labore ex et quam laborum', 'email': 'Eliseo@gardner.biz', 'body': 'laudantium enim quasi est quidem magnam voluptate ipsam eos\ntempora quo necessitatibus\ndolor quam autem quasi\nreiciendis et nam sapiente accusantium'}
+: with auth response:
+:  {'postId': 1, 'id': 1, 'name': 'id labore ex et quam laborum', 'email': 'Eliseo@gardner.biz', 'body': 'laudantium enim quasi est quidem magnam voluptate ipsam eos\ntempora quo necessitatibus\ndolor quam autem quasi\nreiciendis et nam sapiente accusantium'}
+
+They identical...so I think this would work.
+
+Oh, we also need to pass in the token though...so we could adjust the function to grab a token if in cluster and pass that along, and ajdust our openapi_spec to
+take a token, but by defualt by an empty string.
+
+In any case, we will need to adjust our snooputils slightly, which is going to mean pushing a new image. so i am going to pause and make some changes to aisnoop and then come back to here.
+* Issues with the token
+I am ending up having issues with the token. It is expected that postgres
+(specifically plpython3u, the python engine inside postgres) is able to read the
+token value from its machine. but it cannot do it, as we are in a read-only
+filesystem in root and the permissions are denied.
+
+If we want this to work cleanly, then ideally we could have this file readable at the start.
+
+I attempted to change the chart for snoopdb so that it was no longer a readonly filesystem, but that did not work.
+Furthermore, it made it so that new workspaces no longer loaded auditlogger or snoopdb, but with no clear indication why.
+
+I reverted that change, and then changed the location our program looks for to be '/token.txt'.  This will make auditlogger
+fail to insert items at the start, but we can then manually copy the token to that location, where we can ajdust the permissions,
+and then from that point forward the auditlogger should work.
+
+I tried to do this, but could not get the workspaces to create snoopdb anymore.  It also is no longer loading istio for some reason.
+
+* What's next...
+If we can get the workspaces to load up with the latest chart from apisnoop, then we should have the latest auditlogger.
+Then, we would want to exec into the snoopdb pod and copy the token to '/token.txt'.
+
+Then, watch ~testing.audit_event~ and see if there are any istio endpoints that appear.  If so, we got ourselves something that is kinda working!
+
+
 * coder.ii.nz notices
 things that came up while working
 ** use ii instead of root in scp and ssh commands
