@@ -1,0 +1,68 @@
+#+TITLE: Sharing.io Planning Docs
+* Goal
+  Have a POC ready in one week that shows how we can create boxes, and clusters, for pairing super simply and elegantly.
+  This setup should be flexible enough that we could deploy envoy to a cluster and then create a pairing environment in this cluster with minimal steps.
+  This does not need to be stable enough to be used outside of our team, it is a proof of concept.
+* Context/Current Setup
+  There is a program called syme that will create an aws machine with your and your invitees credentials on it, making it simple to ssh in and share a tmux session.
+  We forked this program, the fork is the repo we are in currently.
+  We also created a cluster-api object, and a setup shell script, that can make a machine and cluster on packet that has all our apisnoop/ii-testing related needs _and_ gets emacs up inside a tmate session.
+
+  Our current plan is to customize syme to utilize this cluster-api object so that we can fill out a form with some invitees, and have them now in a shared environment on packet ready to work.
+* Questions
+** What work is required to create on packet with cluster-api v. AWS
+Reworking 70% (or more) of the code, which happens to be in a single file (src/syme/instance.clj).
+
+** After that work is done, how much of syme remains?
+A lot less
+
+** How new to us is this work?
+   Is it just adjusting some configs and some basic string manipulation to make stuff on packet instead?  Or will we be writing new libraries in new languages?
+
+   We could potentially do a shell call that passes along some env var, but it's def bad practice...we'd be creating stateful containers and inviting messiness, and those may not be good if we are using htis as a demo for other devop infra teams.
+
+   To do this cleanly, it would require figuring out the java libraries for packet and kubernetes well enough to know how to transpose it into clojure (it wouldn't be a cut and paste but a translation) and then re-write all the instance functions to use our setup instead.  This is an unknown unknown for the amount of work and time.
+
+** Is this work faster to implement in golang?
+   Yes. Go libraries for what we're trying to do (Cluster-API) already exist, unlike the Java -> Clojure equivalents.  The core of syme would need to be rewritten, and the other stuff (like the oauth form) can be detached from the core instance-creating.  In other words, we don't think we are bound to the entirety of syme and could potentially take what works well without having to rewrite it.
+
+** What are the pro/cons of syme v. new thing in golang?
+*** Pro of using golang
+- Cluster-API stuff will have 100% less cruft and will require no generating of a file which lands on the filesystem.
+*** Con of using golang
+ - we would have to write everything, though it'd likely be less code and cleaner.
+*** Pro of using syme
+ - it's already written
+ - clojure is elegant
+*** cons
+    - the core part is not written, we'd still be having to do a lot of brand-new code
+    - there's a lot of transposing (Java->Clojure->Kubernetes)
+    - much of the new code would have to be written in java, which is not a comfortable language for any of us.
+** Can we use both?
+   don't rewrite everything, but rewrite the hard stuff in go...like have our form post to a diff. server so that the logic is being handled in golang but everything else is already written?
+
+Possibly, the state and stuff can be stored as a CRD in Kubernetes which is accessed through the golang portion.
+The golang portion is responsible for managing the boxes via Cluster-API.
+The clojure portion is responsible for OAuth and the UI.
+This would potentially be the quickest solution, that lets us retain the most code and the new stuff can be written in a language with existing libraries for this exact usecase.
+
+* Notes
+- using Cluster-API, there is a current known problem (at least within ii) for boxes not deleting when resources are being requested to be deleted
+
+* [1/1] Tasks
+** DONE Answer these questions
+   CLOSED: [2020-09-28 Mon 16:37]
+
+** TODO Get sign off for hybrid approach
+** TODO Create golang api server
+*** TODO retention
+- delete after 1 day
+*** TODO limits
+**** instances
+- 2 max
+**** misc
+- IPs
+** TODO Create golang instance creator
+** TODO write syme /launch to post to golang api server
+** TODO write syme /delete to post to golang api server
+** TODO test and celebrate

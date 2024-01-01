@@ -1,0 +1,199 @@
+#+TITLE: Session 01
+#+HTML_HEAD_EXTRA: <link rel="preconnect" href="https://fonts.gstatic.com">
+#+HTML_HEAD_EXTRA: <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+#+HTML_HEAD_EXTRA: <link rel='stylesheet' href='aesthetic/main.css' />
+
+* Introduction
+Welcome to part one of our "New Contributor Summit" guide. In this series we will learn how to run, customize, test, and contribute to [[dfn:Kubernetes][Kubernetes]].
+
+This first part assumes you are getting started on this path, and have little to no knowledge of running Kubernetes.  You will want some familiarity with the [[dfn:Terminal][terminal]] though.
+
+* Agenda
+In this session, we tackle:
+- hardware and OS requirements to run Kubernetes
+- Setting up your environment
+- github and your git configuration
+- forking and cloning Kubernetes
+- the workflow for contributing changes back to Kubernetes.
+* Hardware and OS Requirements
+Kubernetes can run on linux, mac, windows, or within [[dfn:Docker][Docker]].
+# [[mn:1][If using Docker for Mac (or Windows), dedicate the Docker system multiple CPU cores and 6GB RAM]]
+It is a large project, and will require a lot of computing power. Whichever system you use, ensure that it has at least:
+- 8GB of RAM
+- 50gb or more of free disk space
+- multiple cores
+* Setting up your environment
+To get started, you will want to configure your computer to be able to build and run Kubernetes.  The way you configure it will change depending on if you are using Linux, Mac, or Windows.
+** On linux
+This one is easy, there's no additional configuration needed!
+** On Mac
+Kubernetes assumes you have a set of GNU command line tools installed, which don't come natively with the Mac.  So you will want to install a package manager, called Brew, then use this to install the GNU tools.
+***  Install Brew
+The easiest way to install is from the [[https://brew.sh][brew homepage]]
+
+After installed, you should be able to run this command in the terminal:
+
+#+BEGIN_SRC shell
+brew -v
+#+END_SRC
+
+And see output similar to:
+
+#+RESULTS:
+#+begin_example
+Homebrew 2.7.5
+Homebrew/homebrew-core (git revision 33c47; last commit 2021-01-17)
+Homebrew/homebrew-cask (git revision 4dc8d; last commit 2021-01-17)
+#+end_example
+
+*** Install GNU tools
+Kubernetes expects to find a set of GNU command line tools.
+
+Install them now by entering this command in the terminal:
+
+#+begin_src shell
+brew install coreutils ed findutils gawk gnu-sed gnu-tar grep make
+#+end_src
+*** Check which shell you're using
+We want to add a code snippet to your shell's initialization script, the name of which changes depending on your shell.
+
+type:
+#+BEGIN_SRC shell
+echo $SHELL
+#+END_SRC
+
+You will likely see either
+
+#+RESULTS:
+#+begin_example
+/bin/bash
+#+end_example
+or
+#+RESULTS:
+#+begin_example
+/bin/zsh
+#+end_example
+*** Add code snippet to init script
+Add the below script to the bottom of your ~\~/.bashrc~ or ~\~/.zshrc~ file, depending on if you're using ~bash~ or ~zsh~ respectively.
+
+#+begin_src
+GNUBINS="$(find /usr/local/opt -type d -follow -name gnubin -print)"
+
+for bindir in ${GNUBINS[@]}
+do
+  export PATH=$bindir:$PATH
+done
+
+export PATH
+#+end_src
+
+This scripts ensure your computer can find the tools we just installed.
+
+With all this set, you're reading to move forward!
+*** Check out official docs
+You can find them here: [[https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos][k8s/community/development.md]]
+
+** Windows
+For windows, you basically want to run Linux from within windows, which is simple to do on Windows 10 onward
+
+If you're on Windows 10, you want ot set up the linux subsystem.  This has more steps than can fit in this guide, but
+there are good installation instructions [[https://docs.microsoft.com/en-us/windows/wsl/install-win10][read the installaction instructions]]
+
+If youa re not on windows 10, then you'll want to run this all on a virtual machine.  Vagrant is a good option for this, and the instructions for installing it can be read here: [[https://www.vagrantup.com/docs/installation][install vagrant]]
+* Software Prerequisites
+With your environment setup, you can now install the software we'll use for working with kubernetes: Docker, Git, SSH, and Go.
+** Docker
+First, check if you have Docker already installed, by running the command:
+#+BEGIN_SRC shell
+docker info
+#+END_SRC
+
+If it says ~docker command not found~, you will want to install docker desktop from their[[https://www.docker.com/products/docker-desktop][ homepage]].
+** Git
+In a terminal window run
+`git --version`
+If it is installed you will get a message like `git version 2.25.1`
+Otherwise, you will want to install it!:
+- [[https://github.com/git-guides/install-git#install-git-on-mac][Installing on macOS]]
+- [[https://github.com/git-guides/install-git#install-git-on-linux][Installing on Linux]]
+- [[https://github.com/git-guides/install-git#install-git-on-windows][Installing on Windows]]
+** Go
+*** Installing go
+We want to make check is Go is installed and what version.
+Open Command Prompt / CMD ot Terminal window, execute the command to check the Go version. Make sure you have the latest version of Go.
+$ go version
+
+If you need to install Go the [[https://golang.org/doc/install][official installation page]] have struction for Linux, Mac and Windows
+
+*** Adding go to your path
+and knowing how to find your $GOPATH -- We can look here: https://golang.org/doc/gopath_code.html
+** SSH Keys
+*** what is ssh
+SSH is a secure protocol used as the primary means of connecting to Linux servers remotely.
+It provides a text-based interface by spawning a remote shell.
+After connecting, all commands you type in your local terminal are sent to the remote server and executed there.
+SSH keys are a matching set of cryptographic keys which can be used for authentication. Each set contains a public and a private key.
+The public key can be shared freely without concern, while the private key must be vigilantly guarded and never exposed to anyone.
+*** creating a new ssh key
+To generate an RSA key pair on your local computer, type:
+- ssh-keygen
+This will create to files in the .ssh directory. Your private key id_rsa. and public key id_rsa.pub
+
+* Github configuration
+** Signing up for github account
+** Configure git
+To use get you need a Github account.
+If you do not have an account yet go to the [[https://github.com/][Github]] website to sign up.
+You'll need:
+- name
+- email
+- password
+
+preparing for working with the k8s repo.
+** Uploading your SSH Key
+** Signing the CNCF CLA
+* Forking and Cloning K8s
+** brief tour of k8s repo
+** forking to your own repo
+** cloning k8s down to your own computer
+* The Kubernetes git workflow
+** k8s/k8s is 'upstream'
+** you create a branch on your fork, and push and make changes.
+** then open a pr in upstream, comparing across forks.
+* Getting Additional Help
+We won't be doing this live, but are there other resources we can offer for help?  perhaps a slack channel that we'd be moderating during NCW times?  A repo in which they can open issues for their questions?
+* What's Next?
+Outline of session 2.  You have all the requirements, now we will build and hack on kubernetes!
+
+* Footnotes
+
+#+REVEAL_ROOT: https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.2
+# #+REVEAL_TITLE_SLIDE:
+#+NOREVEAL_DEFAULT_FRAG_STYLE: YY
+#+NOREVEAL_EXTRA_CSS: YY
+#+NOREVEAL_EXTRA_JS: YY
+#+REVEAL_HLEVEL: 2
+#+REVEAL_MARGIN: 0.1
+#+REVEAL_WIDTH: 1000
+#+REVEAL_HEIGHT: 600
+#+REVEAL_MAX_SCALE: 5.5
+#+REVEAL_MIN_SCALE: 0.2
+#+REVEAL_PLUGINS: (markdown notes highlight multiplex)
+#+REVEAL_SLIDE_NUMBER: ""
+#+REVEAL_SPEED: 1
+#+REVEAL_THEME: blood
+#+REVEAL_THEME_OPTIONS: beige|black|blood|league|moon|night|serif|simple|sky|solarized|white
+#+REVEAL_TRANS: cube
+#+REVEAL_TRANS_OPTIONS: none|cube|fade|concave|convex|page|slide|zoom
+
+#+OPTIONS: num:nil
+#+OPTIONS: toc:nil
+#+OPTIONS: mathjax:Y
+#+OPTIONS: reveal_single_file:nil
+#+OPTIONS: reveal_control:t
+#+OPTIONS: reveal-progress:t
+#+OPTIONS: reveal_history:nil
+#+OPTIONS: reveal_center:t
+#+OPTIONS: reveal_rolling_links:nil
+#+OPTIONS: reveal_keyboard:t
+#+OPTIONS: reveal_overview:t

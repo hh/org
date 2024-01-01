@@ -1,0 +1,302 @@
+#+TITLE: Asn K8s Yaml
+Goal: Parse yaml from https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/infra/meta/asns/
+to allow 302, redirects relationship with company to asn
+
+* Parsing our own yaml
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j -
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{
+  "name": "microsoft",
+  "redirectsTo": {
+    "registry": "kubernetes.acr.io",
+    "artifacts": "k8s-artifacts.acr.io"
+  },
+  "asns": [
+    12076,
+    8075,
+    8068,
+    8069,
+    16550
+  ]
+}
+#+end_example
+
+Create section per vendor so we can render the yamls 
+* Microsoft
+#+begin_src yaml tangle (concat (getenv "HOME") "/tmp/microsoft.yaml") 
+name: microsoft
+contacts:
+- email@microsoft.com # This needs to be email we can use to raise issues with redirect.
+redirectsTo:
+  registry: kubernetes.acr.io
+  artifacts: k8s-artifacts.acr.io
+metadata:
+  ipRanges: 
+    datasource: # link to json url
+    jqReformatFilter: |
+      . ## This will be the query to parse the above url  
+asns:
+- 12076
+- 8075
+- 8068
+- 8069
+- 16550
+#+end_src
+** Parsing k8s.io yaml
+*** microsoft
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/microsoft.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/microsoft_yaml.csv
+#+end_src
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/microsoft_yaml.csv
+#+end_src
+
+*** google
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/google.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/google_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/google_yaml.csv
+#+end_src
+
+*** amazon
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/amazon.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/amazon_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/amazon_yaml.csv
+#+end_src
+
+*** alibabagroup
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/alibabagroup.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/alibabagroup_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/alibabagroup_yaml.csv
+#+end_src
+
+*** baidu
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/baidu.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/baidu_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/baidu_yaml.csv
+#+end_src
+
+*** digitalocean
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/digitalocean.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/digitalocean_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/digitalocean_yaml.csv
+#+end_src
+
+*** equinixmetal
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/equinixmetal.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/equinixmetal_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/equinixmetal_yaml.csv
+#+end_src
+
+*** huawei
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/huawei.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/huawei_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/huawei_yaml.csv
+#+end_src
+
+*** tencentcloud
+#+begin_src shell
+curl -s https://raw.githubusercontent.com/kubernetes/k8s.io/main/registry.k8s.io/infra/meta/asns/tencentcloud.yaml | yq e . -j - \
+    | jq -r '.name as $name | .redirectsTo.registry as $redirectsToRegistry | .redirectsTo.artifacts as $redirectsToArtifacts | .asns[] | [.,$name, $redirectsToRegistry, $redirectsToArtifacts] | @csv' > /tmp/tencentcloud_yaml.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+#+begin_src tmate :window bq_results
+bq load --autodetect k8s_artifacts_dataset_bb_test.k8s_repo_json /tmp/tencentcloud_yaml.csv
+#+end_src
+
+** Parsing mirosoft json
+Still in progress
+#+begin_src shell
+curl 'https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20210607.json' | jq -r \
+    '.values[] | .properties.platform as $service | .properties.region as $region | .properties.addressPrefixes[] | [., $service, $region] | @csv' > /tmp/microsoft_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+* Google
+#+begin_src yaml tangle (concat (getenv "HOME") "/tmp/google.yaml")  
+name: google
+contacts:
+- email@google.com # This needs to be email we can use to raise issues with redirect.
+redirectsTo:
+  registry: k8s.gcr.io
+  artifacts: kubernetes-release.storage.googleapis.com
+metadata:
+  ipRanges: 
+    # link to json url
+    datasource: https://www.gstatic.com/ipranges/cloud.json 
+    # This will be the query to parse the above url  
+    jqReformatFilter: |
+      '.prefixes[] | [.ipv4Prefix, .service, .scope] | @csv'
+asns:
+- 39190
+- 139070
+- 45566
+- 15169
+- 19527
+- 36040
+- 43515
+- 16550
+#+end_src
+** jq to get company name, ipRanges and region from amazon
+The jq below is what will need to go into the yaml
+#+begin_src shell
+curl 'https://www.gstatic.com/ipranges/cloud.json' | jq -r '.prefixes[] | [.ipv4Prefix, .service, .scope] | @csv' > /tmp/google_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+#+begin_src shell
+ls -al /tmp/google_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+-rw-r--r-- 1 ii ii 19947 Jun  8 10:04 /tmp/google_raw_subnet_region.csv
+#+end_example
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.google_raw_subnet_region /tmp/google_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+* Amazon
+#+begin_src yaml
+name: amazon
+contacts:
+- email@amazon.com # This needs to be email we can use to raise issues with redirect.
+redirectsTo:
+  registry: kubernetes.ecr.io
+  artifacts: kubernetes.s3.amazon.com
+metadata:
+  ipRanges: 
+    # link to json url
+    datasource: https://ip-ranges.amazonaws.com/ip-ranges.json
+    # This will be the query to parse the above url  
+    jqReformatFilter: |
+      '.prefixes[] |  [.ip_prefix, .service, .region] | @csv'   
+asns:
+- 16509
+#+end_src
+** additional amazon asns?
+Ask about:
+#+begin_example
+"AS7224", "AMAZON-AS, US"
+"AS8987", "AMAZON EXPANSION, IE"
+"AS10124", "AMAZON-AP-RESOURCES-AS-AP-NRT Amazon Data Services Japan KK, JP"
+"AS14618", "AMAZON-AES, US"
+"AS16509", "AMAZON-02, US"
+"AS17493", "AMAZON-AP-RESOURCES-AS-AP-SIN Amazon Asia-Pacific Resources Private Limited, SG"
+"AS38895", "AMAZON-AS-AP Amazon.com Tech Telecom, JP"
+"AS52994", "SODECAM - Soc de Desenv. Cultural do Amazonas S/A, BR"
+"AS58588", "AMAZON-AU Amazon Corporate Services, AU"
+"AS61577", "AMAZONTEL TELECOMUNICACOES LTDA, BR"
+"AS62785", "AMAZON-FC, US"
+"AS135630", "AMAZON-CN Amazon Connection Technology Services (Beijing) Co., LTD, CN"
+"AS262486", "PRODAM Processamento de Dados Amazonas S.A, BR"
+"AS262772", "Amazonia Publicidade Ltda, BR"
+"AS263639", "AMAZONAS TRIBUNAL DE JUSTICA, BR"
+"AS264167", "Amazon Wifi Servicos de Internet Ltda, BR"
+"AS264344", "AMAZONET TELECOMUNICACOES LTDA, BR"
+"AS264509", "CONECTA AMAZONIA TELECOM LTDA. - ME, BR"
+"AS266122", "Banco da Amazonia S/A, BR"
+"AS266194", "AMAZONET 1 TELECOM LTDA, BR"
+"AS267242", "AMAZONIA TELECOMUNICACOES LTDA, BR"
+"AS269848", "UNIVERSIDAD REGIONAL AMAZONICA IKIAM, EC"
+"AS271017", "AMAZONFIBER SERVICOS DE COMUNICACAO LTDA, BR"
+"AS271047", "MPAM - Procuradoria-Geral de Justica do Amazonas, BR"
+#+end_example
+** jq to get company name, ipRanges and region from amazon provided json
+#+begin_src shell
+curl 'https://ip-ranges.amazonaws.com/ip-ranges.json' | jq -r '.prefixes[] | [.ip_prefix, .service, .region] | @csv' > /tmp/amazon_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+#+begin_src shell
+ls -al /tmp/amazon_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+-rw-r--r-- 1 ii ii 183495 Jun  8 10:02 /tmp/amazon_raw_subnet_region.csv
+#+end_example
+Load raw to bq
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.amazon_raw_subnet_region /tmp/amazon_raw_subnet_region.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example

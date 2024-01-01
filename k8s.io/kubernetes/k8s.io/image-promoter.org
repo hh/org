@@ -121,6 +121,5 @@ https://github.com/kubernetes/test-infra/pull/11414
 # eval: (xclip-mode 1) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

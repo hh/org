@@ -1,0 +1,478 @@
+#+TITLE: Pi Server
+#+AUTHOR: Stephen Heywood
+#+DATE: 12 December, 2019
+
+
+* Overview
+
+This document will cover the process of setting up a Raspberry Pi 4 as a network server. The server will provide support for a number of Raspberry Pi clients, these clients will PXE boot from the server.
+
+The documentation uses the ~192.168.1.0/24~ network as a reference. Please update the setting to match your current requirements.
+
+* Key Software
+** Operating System & Kernel
+
+  #+begin_src shell :eval never
+    lsb_release -irc
+  #+end_src
+
+  #+begin_example
+    Distributor ID: Ubuntu
+    Release:        19.10
+    Codename:       eoan
+  #+end_example
+
+  #+begin_src shell :eval never
+  ubuntu@rpi0:~$ uname -a
+  #+end_src
+
+  #+begin_example
+  Linux rpi0 5.3.0-1014-raspi2 #16-Ubuntu SMP Tue Nov 26 11:18:23 UTC 2019 aarch64 aarch64 aarch64 GNU/Linux
+  #+end_example
+
+** Network Services
+
+| *Software*       | *Version* | *Role*      |
+|------------------+-----------+-------------|
+| ~dnsmasq~        |      2.80 | TFTP Server |
+| ~nfs-ganesha~    |   2.7.6-1 | NFS Server  |
+| ~openssh-server~ |     8.0p1 | SSH Server  |
+
+* Installation
+** Install Image
+
+Check the Ubuntu web site for details about the latest [[https://ubuntu.com/download/raspberry-pi][Raspberry Pi image]], the server will be using the [[http://cdimage.ubuntu.com/releases/19.10.1/release/ubuntu-19.10.1-preinstalled-server-arm64+raspi3.img.xz][64bit image]]. Make sure that the downloaded version is for ~arm64~.
+Follow the instructions on the website for trasfering the image to a SD card based on your operating system.
+A simple to way to trasfering the image to the SD card is with [[https://www.balena.io/etcher/][Etcher]].
+
+** First Boot
+
+When booting the Raspberry Pi with the new SD card make sure that everything has finished initialising before trying to login to the server. If not, this can cause issues when trying to login with the credentials listed below.
+
+- User ID: ~ubuntu~
+- Password: ~ubuntu~
+
+You will be required to change the default password when logging in for the first time.
+
+** Hostname
+
+The default hostname for the image is /ubuntu/. The following will let you rename the server to something that fits your environment more.
+After updating and saving changes the server will need a reboot.
+
+#+begin_src shell :eval never
+sudo vi /etc/hostname
+sudo reboot
+#+end_src
+
+* Networking
+
+There are two options for setting the IP address for the server, either static or dynamic addressing. This project will be using dynamic addressing that will /reserve/ a dynamic address from the DHCP server.
+
+Use the following command to locate the MAC address of the Pi
+
+#+begin_src shell :eval never
+ip a
+#+end_src
+
+The address will be listed after ~link/ether~
+
+#+begin_example
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether dc:a6:32:1c:2b:8a brd ff:ff:ff:ff:ff:ff
+#+end_example
+
+Your DHCP server will most likely be running on your local router. The manual for the router should explain how to /reserve/ or /bind/ an IP address to a MAC address.
+Confirm that the address has been reserved on the DHCP server by rebooting the server. Using the MAC address of this Pi as a reference we reserved the IP address ~192.168.1.200~.
+
+#+begin_src shell :eval never
+sudo reboot
+#+end_src
+
+* TFTP Server
+** Installation
+
+To install the TFTP Server run the following command.
+
+  #+begin_src shell :eval never
+sudo apt install dnsmasq
+  #+end_src
+
+Note that the ~dnsmasq.service~ will fail to start on after the installation has completed due to ~dnsmasq~ conflicting with ~systemd-resolv~ which will be addressed in the next section.
+
+** Configuration
+
+Let's add some settings to ~dnsmasq.conf~ that support our project.
+
+   #+begin_src shell :eval never
+   sudo vi /etc/dnsmasq.conf
+   #+end_src
+
+Add the following to the start of the file. You can find each item commented out at some point within the file if you prefer to do it that way.
+
+   #+begin_example
+   port=0
+   dhcp-range=192.168.1.0,proxy
+   pxe-service=0,"Raspberry Pi Boot"
+   enable-tftp
+   tftp-root=/tftpboot
+   #+end_example
+
+We need to setup the TFTP folder with the files that will start the boot process.
+
+   #+begin_src shell :eval never
+   cd ~
+   git clone --depth 1 https://github.com/Hexxeh/rpi-firmware.git
+   sudo mv rpi-firmware /tftpboot
+   #+end_src
+
+Next, lets check the current status of ~dnsmasq~ before starting it. Then check that the service has start without any errors. If there are any problems then recheck ~/etc/dnsmasq.conf~ before restarting ~dnsmasq~. For more help review the logs from ~journalctl -xe~.
+
+   #+begin_example
+   sudo systemctl status dnsmasq
+   sudo systemctl start dnsmasq
+   sudo systemctl status dnsmasq
+   #+end_example
+
+To check that the server is listening for TFTP clients run the following command.
+
+#+begin_src shell :eval never
+sudo ss -ulp
+#+end_src
+
+Which should give a result similar to the following
+
+#+begin_example
+State     Recv-Q    Send-Q            Local Address:Port           Peer Address:Port
+UNCONN    0         0                 127.0.0.53%lo:domain              0.0.0.0:*        users:(("systemd-resolve",pid=1151,fd=12))
+UNCONN    0         0            192.168.1.104%eth0:bootpc              0.0.0.0:*        users:(("systemd-network",pid=1108,fd=15))
+UNCONN    0         0                       0.0.0.0:tftp                0.0.0.0:*        users:(("dnsmasq",pid=2307,fd=4))
+UNCONN    0         0                          [::]:tftp                   [::]:*        users:(("dnsmasq",pid=2307,fd=5))
+#+end_example
+
+** Contents
+
+~/tftpboot~ will hold the kernel and other supporting files for the Pi to complete it's initial boot. Core operating system files and the desktop will load via the NFS server.
+
+*** Per Pi Config
+
+To load a configuration for each Pi on the network we need to create a directory under ~/tftpboot~ from the Pi's serial number, which is the last 8 characters from the output of the command below.
+
+#+begin_src shell :eval never
+grep Serial /proc/cpuinfo
+#+end_src
+
+~start4.elf~ is the first file that the client will want to download from the server. It will test to see if this file can be found in /serial/ sub folder.
+Unless it's found all files will be searched from the root ~/tftpboot~ folder.
+
+| *File*                      | *Purpose*                                       |
+|-----------------------------+-------------------------------------------------|
+| ~start4.elf~                | Firmware file specific to Pi 4                  |
+| ~config.txt~                | Raspberry Pi configuration file                 |
+| ~fixup4.dat~                | Linker file, matches ~start4.elf~               |
+| ~bcm2711-rpi-4-b.dtb~       | Hardware definitions                            |
+| ~overlay/vc4-fkms-v3d.dtbo~ | Hardware definitions referenced in ~config.txt~ |
+| ~cmdline.txt~               | Read for kernel command line string             |
+| ~kernel7l.img~              | Default kernel for the Pi 4                     |
+
+The best way to manage each serial Pi folder is to symlink all files other than ~config.txt~ and ~cmdline.txt~ to the master file in either ~/tftpboot~ or ~/tftpboot/overlay~.
+
+*** ~config.txt~
+
+This file can be found on the Raspbian ~/boot~ folder. Depending on the monitor connected to the Pi client it may need to be updated.
+
+*** ~cmdline.txt~
+
+This file provides the kernel with settings that enable it to boot the core operating system files which in turn will load the desktop for the end user.
+
+#+begin_src text
+otg.lpm_enable=0 console=serial0,115200 console=tty1 root=/dev/nfs nfsroot=192.168.1.200:/nfs/client6,udp,nfsvers=3 rw ip=dhcp rootwait elevator=deadline
+#+end_src
+
+There are a number of setting that are all linked to the configuration of the Pi server
+
+- ~root=/dev/nfs~ defines the location of the root filesystem. This is a /pseudo-NFS-device/ that tells the kernel to use NFS instead of a real device.
+- ~nfsroot~ defines where the root of the NFS which is the IP of the Pi server (~192.168.1.200~ in this example) before setting the root directory, which is ~/nfs/client6~ in this example
+
+The last part of the ~nfsroot~ is for various NFS options
+
+* NFS Server
+
+The current connection between the Pi client and server is NFSv3 using UID/GID. This will be reviewed when the file permissions for NFSv4 which use ~imapd.conf~ can be resolved.
+
+#+begin_src shell :eval never
+sudo apt install nfs-ganesha
+#+end_src
+
+Each Pi client will need an IP address reserved on the network by the DHCP server so that it can be linked to the NFS folder on the server.
+Update the ~ganesha.conf~ to match your requirements. Note: The NFS server will have issues if all NFS paths arn't on the server.
+
+Copy ~ganesha.conf~ to the server folder ~/etc/ganesha/~
+
+#+begin_src shell text :tangle ./conf/ganesha.conf
+EXPORT
+{
+  Export_Id = 101;
+  Path = /nfs/client1;
+  Pseudo = /nfs/client1;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.101;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 102;
+  Path = /nfs/client2;
+  Pseudo = /nfs/client2;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.102;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 103;
+  Path = /nfs/client3;
+  Pseudo = /nfs/client3;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.103;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 104;
+  Path = /nfs/client4;
+  Pseudo = /nfs/client4;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.104;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 105;
+  Path = /nfs/client5;
+  Pseudo = /nfs/client5;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.105;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 106;
+  Path = /nfs/client6;
+  Pseudo = /nfs/client6;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.106;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 107;
+  Path = /nfs/client7;
+  Pseudo = /nfs/client7;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.107;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 108;
+  Path = /nfs/client8;
+  Pseudo = /nfs/client8;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.108;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+EXPORT
+{
+  Export_Id = 109;
+  Path = /nfs/client9;
+  Pseudo = /nfs/client9;
+  Access_Type = RW;
+  Protocols = "3";
+
+  FSAL {
+    Name = VFS;
+  }
+
+  CLIENT {
+    Clients = 192.168.1.109;
+    Access_Type = "RW";
+    Squash = No_Root_Squash;
+  }
+}
+
+LOG
+{
+  COMPONENTS {
+    EXPORT = INFO;
+  }
+}
+#+end_src
+
+* Storage
+
+The Pi server is using /ext4/ for the root filesystem. The Pi client folders will be via an external drive using /ZFS/. This will give us the ability to /snapshot/ each Pi as required. Also, these /snapshots/ will provide fast deployment and/or recovery points.
+
+| *Filesystem*     | *Type* | Mounted on |
+|------------------+--------+------------|
+| ~/dev/mmcblk0p2~ | ext4   | /          |
+| ~nfs~            | zfs    | /nfs       |
+
+** Installation
+
+Please note that the CPU load for installing the ZFS packages is high and can cause the Pi to overheat if it doesn't have suitable cooling.
+Also, the build time for the kernel modules will take some time. While this is happing we will use ~htop~ to monitor the load and processes running on the Pi.
+
+#+begin_src shell :eval never
+tmux
+htop
+#+end_src
+
+To split the tmux pane use /Ctl-B/ "
+
+#+begin_src shell :eval never
+sudo apt install zfsutils-linux zfs-dkms
+#+end_src
+
+After the installation reboot the server and check that the kernel modules for ZFS are all loaded.
+
+#+begin_src shell :eval never
+lsmod | grep zfs
+#+end_src
+
+** Create ZFS Storage
+
+*Warning: This section will destroy any data on the external drive. Please make sure you have a tested backup of any data that is on the drive before starting this section.*
+
+The size of the USB external drive will determine how much data we can store. Initial setup of six Pi clients requires ~50GB.
+Depending on the external USB drive you connect to the Pi, the "labels" for this drive can vary a lot.
+
+#+begin_src shell :eval never
+lsblk
+ls -l /dev/disk/by-id/
+#+end_src
+
+Most likely, the drive is ~sda~ in the first output, we need to find the ~by-id~ for this drive in the second output listing.
+
+Replace the last part of the following command to match your drive. ~/nfs~ will be folder on the server which will be referenced by ZFS as ~nfs~ for the storage pool name.
+
+#+begin_src shell :eval never
+sudo zpool create -f -m /nfs nfs scsi-SStoreJet__61006325770FB5262136
+#+end_src
+
+Check that the ZFS pool has been create with the following
+
+#+begin_src shell :eval never
+zpool list
+#+end_src
+
+The /FREE/ column should be close to the size of the external drive.
+
+** Snapshot client folder
+
+Let's create a snapshot before we create extra clients connection points
+
+#+begin_src shell :eval never
+sudo zfs snapshot nfs/client1@now
+#+end_src
+
+** Create extra clients
+
+Repeat the following for as many clients as required.
+
+   #+begin_src shell :eval never
+     sudo zfs clone nfs/client1@now nfs/client2
+   #+end_src
+
+* Update client /etc
+
+We need to update the hostname for each client so the DHCP server will register the name for every Pi.
+
+#+begin_src shell :eval never
+sudo vi /nfs/client2/etc/hostname
+#+end_src
+
+Update the hostname reference with the IP 127.0.1.1
+
+#+begin_src shell :eval never
+sudo vi /nfs/client2/etc/hosts
+#+end_src

@@ -149,6 +149,5 @@ As soon as you load this file, create a new terminal and paste to create target 
 # eval: (gui-select-text start-tmate-command)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

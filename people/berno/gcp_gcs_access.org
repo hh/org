@@ -1,0 +1,235 @@
+#+TITLE: Gcp Gcs Access
+* check gsutil auth
+#+BEGIN_SRC shell
+gcloud auth list 2>&1
+:
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+         Credentialed Accounts
+ACTIVE             ACCOUNT
+,*                  bb@ii.coop
+
+To set the active account, run:
+    $ gcloud config set account `ACCOUNT`
+
+#+end_example
+* set default project
+#+BEGIN_SRC shell
+gcloud config set project apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+* create bucket for logs
+#+BEGIN_SRC shell
+gsutil mb gs://bb-apisnoop-logs 2>&1
+:
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Creating gs://bb-apisnoop-logs/...
+#+end_example
+
+* set pormissions to allow gcs permissions to the bucket
+https://download.huihoo.com/google/gdgdevkit/DVD1/developers.google.com/storage/docs/accesslogs.html
+
+#+BEGIN_SRC shell
+gsutil acl ch -g cloud-storage-analytics@google.com:W gs://bb-apisnoop-logs/ 2>&1
+:
+#+END_SRC
+
+#+RESULTS: Initial sans OWNER-role
+#+begin_example
+CommandException: Failed to set acl for gs://apisnoop-logs/. Please ensure you have OWNER-role access to this resource.
+#+end_example
+
+** get logging
+#+BEGIN_SRC shell
+gsutil logging get gs://apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+{"logBucket": "bb-apisnoop-logs", "logObjectPrefix": "accessLog"}
+#+end_example
+
+#+RESULTS: Initial
+#+begin_example
+gs://apisnoop/ has no logging configuration.
+#+end_example
+* Enableg logging on the bucket to the bucket
+This was the first pass
+#+BEGIN_SRC tmate
+gsutil logging set on -b gs://bb-apisnoop-logs gs://apisnoop
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Pointing it to artifact.apisnoop.appspot.com
+#+BEGIN_SRC tmate
+gsutil logging set on -b gs://bb-apisnoop-logs -o accessLog gs://artifacts.apisnoop.appspot.com
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+#+end_example
+* Do a docker pull
+#+BEGIN_SRC tmate
+docker pull gcr.io/apisnoop/iimacs:0.9.15
+#+END_SRC
+* Look for logs
+#+BEGIN_SRC tmate
+gsutil ls -la gs://bb-apisnoop-logs/
+#+END_SRC
+
+#+BEGIN_SRC tmate
+gsutil cp -r gs://bb-apisnoop-logs/ .
+#+END_SRC
+Manually load one of the logs so we can look at it in bigQuery
+#+BEGIN_SRC tmate
+bq load --skip_leading_rows=1 storageanalysis.usage gs://bb-apisnoop-logs/*
+#+END_SRC
+
+#+BEGIN_SRC tmate
+bq shell
+#+END_SRC
+
+#+BEGIN_SRC tmate
+SELECT cs_user_agent, count(*) as count FROM [storageanalysis.usage] GROUP BY cs_user_agent
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+apisnoop> SELECT cs_user_agent, count(*) as count FROM [storageanalysis.usage] GROUP BY cs_user_agent
+Waiting on bqjob_r56b6fb5ec7f3e7bf_00000178ce711e86_1 ... (0s) Current status: DONE
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+|                                                          cs_user_agent                                                           | count |
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+| Google-API-Java-Client Google-HTTP-Java-Client/1.26.0-SNAPSHOT (gzip)                                                            |     3 |
+| apitools gsutil/4.35 Python/2.7.13 (linux2) google-cloud-sdk/230.0.0 analytics/disabled,gzip(gfe)                                |     9 |
+| Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36,gzip(gfe)               |     6 |
+| apitools Python/3.8.5 gsutil/4.61 (linux) analytics/disabled interactive/True command/logging google-cloud-sdk/336.0.0,gzip(gfe) |     2 |
+| curl/7.52.1,gzip(gfe)                                                                                                            |     4 |
+| Helm/2.11.0,gzip(gfe)                                                                                                            |  4280 |
+| apitools gsutil/4.35 Python/2.7.13 (linux2) google-cloud-sdk/230.0.0 analytics/disabled                                          |     2 |
+| cloud_storage_cookieauth Google-API-Java-Client Google-HTTP-Java-Client/1.26.0-SNAPSHOT (gzip)                                   |     2 |
++----------------------------------------------------------------------------------------------------------------------------------+-------+
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs_object="containers/images/sha256:f91914f4e2b0beff949c98a78c5103a496ae185cbc2996ad7e1f307f7d13e771"
+#+END_SRC
+#+BEGIN_SRC tmate
+SELECT time_micros as timestamp, cs_method FROM [storageanalysis.usage] where cs_object like "containers/images/sha256"
+#+END_SRC
+
+* Auth as service account
+https://cloud.google.com/sdk/gcloud/reference/auth/activate-service-account
+#+BEGIN_SRC tmate
+gcloud auth activate-service-account reporting@apisnoop.iam.gserviceaccount.com --key-file=/home/ii/bb-reporting-key20210415.json --project=apisnoop
+#+END_SRC
+
+* Now I test if I can get the logs
+Lets try a quick copy with gsutil cp
+#+BEGIN_SRC tmate
+gsutil cp -r gs://bb-apisnoop-logs/ .
+#+END_SRC
+This gives me:
+#+BEGIN_EXAMPLE
+Satus': '403'}>, content <reporting@apisnoop.iam.gserviceaccount.com does not have storage.objects.get access to the Google Clo....
+#+END_EXAMPLE
+Lets see if we can query the user permissions
+#+BEGIN_SRC tmate
+gcloud iam service-accounts add-iam-policy-binding reporting@apisnoop.iam.gserviceaccount.com --role=projects/apisnoop/roles/LogAccess  --member=allAuthenticatedUsers
+#+END_SRC
+I Still get the same result
+Lets query the account to see what permissions it has
+#+BEGIN_SRC tmate
+gcloud iam service-accounts get-iam-policy reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+#+BEGIN_EXAMPLE
+bindings:
+- members:
+  - allAuthenticatedUsers
+  role: projects/apisnoop/roles/LogAccess
+- members:
+  - user:bb@ii.coop
+  - user:caleb@ii.coop
+  - user:hh@ii.coop
+  - user:riaan@ii.coop
+  - user:stephen@ii.coop
+  - user:zz@ii.coop
+  role: roles/iam.serviceAccountAdmin
+- members:
+  - user:bb@ii.coop
+  - user:caleb@ii.coop
+  - user:hh@ii.coop
+  - user:riaan@ii.coop
+  - user:stephen@ii.coop
+  - user:zz@ii.coop
+  role: roles/iam.serviceAccountUser
+etag: BwW_85ezwWE=
+version: 1
+#+END_EXAMPLE
+O Caleb pointed out I now need to give my permission now changed to needing. storage.object.get
+Lets go look what permissions the role has
+#+BEGIN_SRC tmate
+gcloud iam roles describe LogAccess  --project=apisnoop
+#+END_SRC
+#+BEGIN_EXAMPLE
+description: 'Created on: 2021-04-15'
+etag: BwW_84ZEjfc=
+includedPermissions:
+- storage.buckets.get
+- storage.objects.list
+name: projects/apisnoop/roles/LogAccess
+stage: ALPHA
+title: log-access
+#+END_EXAMPLE
+
+#+BEGIN_SRC tmate
+gcloud iam service-accounts roles update LogAccess --project=apisnoop --add-permissions=storage.objects.get
+#+END_SRC
+That gave it the permission, but the cp still gives me:
+#+BEGIN_EXAMPLE
+Exporting@apisnoop.iam.gserviceaccount.com does not have storage.objects.get access
+#+END_EXAMPLE
+#+BEGIN_EXAMPLE
+gcloud iam roles describe LogAccess  --project=apisnoop
+description: 'Created on: 2021-04-15'
+etag: BwW_-sLGKeo=
+includedPermissions:
+- storage.buckets.get
+- storage.objects.get
+- storage.objects.list
+name: projects/apisnoop/roles/LogAccess
+stage: ALPHA
+title: log-access
+#+END_EXAMPLE
+
+mmmm, does my service account still have logAccess
+#+BEGIN_SRC tmate
+gcloud iam service-accounts get-iam-policy reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+It does, lets go describe it:
+#+BEGIN_SRC tmate
+gcloud iam service-accounts describe reporting@apisnoop.iam.gserviceaccount.com
+#+END_SRC
+<#+begin_example
+description: Reports for APISnoop
+displayName: reporting
+email: reporting@apisnoop.iam.gserviceaccount.com
+etag: MDEwMjE5MjA=
+name: projects/apisnoop/serviceAccounts/reporting@apisnoop.iam.gserviceaccount.com
+oauth2ClientId: '107647515244251504832'
+projectId: apisnoop
+uniqueId: '107647515244251504832'
+#+end_example
+Nothing new.
+Is it because it is a not an authenticated user? I think when it was added it potentially should not have had allAuthenticatedUsers added.

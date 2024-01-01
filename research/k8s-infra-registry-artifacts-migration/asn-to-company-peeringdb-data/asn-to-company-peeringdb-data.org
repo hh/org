@@ -1,0 +1,1497 @@
+#+TITLE: K8s Reg Asn Magic
+#+PROPERTY: header-args:sql-mode+ :eval never-export :exports both :session none
+
+Login to gcloud
+#+BEGIN_SRC tmate :window prepare
+gcloud auth login
+#+END_SRC
+
+Set the project
+#+BEGIN_SRC tmate :window prepare
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+
+* Parse from API
+Save the data to a bucket
+#+BEGIN_SRC tmate :window prepare
+bq extract --destination_format NEWLINE_DELIMITED_JSON k8s_artifacts_gcslogs_appspot.riaan_ipv4_asn_ip_name_over_2500 gs://ii_bq_scratch_dump/ip-and-asn.json
+#+END_SRC
+
+Download the data from the bucket
+#+BEGIN_SRC tmate :window prepare
+mkdir ~/ip_and_asn_jason
+cd ~/ip_and_asn_jason
+gsutil cp gs://ii_bq_scratch_dump/ip-and-asn.json ip-and-asn.json
+#+END_SRC
+
+Store only the ASN
+#+BEGIN_SRC tmate :window prepare
+cat ip-and-asn.json | jq -r '.asn' | sort | uniq > asns.txt
+#+END_SRC
+
+Formatting the data
+#+BEGIN_SRC shell :tangle ./asn-data-processor.sh :results silent
+#!/bin/bash
+
+SKIP_TO=$1
+READ_FROM=asns.txt
+WRITE_TO=asn-data.csv
+
+TMPDIR=$(mktemp -d)
+echo "Temp folder: $TMPDIR"
+
+ALLOWED_RETRIES=5
+
+count=0
+while IFS= read -r asn; do
+    count=$((count+=1))
+    retries=0
+    echo "ASN[$count]: $asn"
+    if [ $asn -eq 0 ] || ( [ ! -z $SKIP_TO ] && [ $count -lt $SKIP_TO ] ); then
+        echo "Skipping [$count] $asn"
+        continue
+    fi
+    until curl "https://api.bgpview.io/asn/$asn" 2> /dev/null > $TMPDIR/$asn.json && cat $TMPDIR/$asn.json | jq .data.name 2>&1 > /dev/null; do
+        retries=$((retries+=1))
+        if [ $retries -eq $ALLOWED_RETRIES ]; then
+            echo "Skipping [$count] $asn"
+            retries= 0
+            continue 2
+        fi
+        echo "Failed [$retries/$ALLOWED_RETRIES]. Retrying '$asn' in 3 seconds"
+        sleep 3s
+    done
+    cat $TMPDIR/$asn.json | jq -r '.data | (.email_contacts | join(";")) as $contacts | .description_short as $name | [.asn, $name, $contacts] | @csv' 2> /dev/null \
+        | tee -a $WRITE_TO 2>&1 > /dev/null
+    sleep 1s
+done < $READ_FROM
+#+END_SRC
+
+Run the script
+#+BEGIN_SRC tmate :window prepare
+chmod +x ./asn-data-processor.sh
+time ./asn-data-processor.sh
+#+END_SRC
+
+Upload to the bucket
+#+BEGIN_SRC shell :results silent
+gsutil cp ./asn-data.csv gs://ii_bq_scratch_dump/asn-data.csv
+gsutil ls $_
+#+END_SRC
+
+Load into big query
+#+BEGIN_SRC shell :results silent
+bq load --autodetect --source_format=CSV k8s_artifacts_gcslogs_appspot.asn_company_lookup gs://ii_bq_scratch_dump/asn-data.csv
+#+END_SRC
+
+* Parse from Postgres
+
+Bring up Postgres
+
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=peeringdb postgres:12.2-alpine
+#+END_SRC
+
+Clone https://git.2e8.dk/peeringdb-simplesync
+
+#+BEGIN_SRC tmate :window prepare :dir (getenv "HOME")
+git clone https://git.2e8.dk/peeringdb-simplesync
+cd peeringdb-simplesync
+#+END_SRC
+
+Enter PeeringDB creds
+
+#+BEGIN_SRC tmate :window prepare :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+read -p 'PEERINGDB_USER    : ' PEERINGDB_USER
+read -p 'PEERINGDB_PASSWORD: ' PEERINGDB_PASSWORD
+#+END_SRC
+
+Write the config for sync.py
+
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
+from requests.auth import HTTPBasicAuth
+import os
+
+host=os.environ['SHARINGIO_PAIR_LOAD_BALANCER_IP']
+user=os.environ['PEERINGDB_USER']
+password=os.environ['PEERINGDB_PASSWORD']
+
+def get_config():
+    return {
+        'db_conn_str': 'dbname=peeringdb host=%s user=postgres password=password' % host,
+        'db_schema': 'peeringdb',
+        'auth': HTTPBasicAuth('%s' % user, '%s' % password),
+    }
+#+END_SRC
+
+Dump all of the data
+
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+./sync
+#+END_SRC
+
+Set env vars to not prompt for Postgres username and password
+
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+export \
+    PGUSER=postgres \
+    PGPASSWORD=password
+#+END_SRC
+
+** Create a new dump
+Dump the database
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+pg_dump -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP > peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+
+Upload the dump
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp peeringdb-dump-$(date +%Y%m%d).sql gs://ii_bq_scratch_dump/peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+
+** With pre-prepared dump
+
+Download from the bucket
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp gs://ii_bq_scratch_dump/peeringdb-dump-20210512.sql ./peeringdb-dump-20210512.sql
+#+END_SRC
+
+Load the data from the dump into a new/separate Postgres instance
+#+BEGIN_SRC tmate :window peeringdb-sync
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < ./peeringdb-dump-20210512.sql
+#+END_SRC
+
+** Explore
+
+Connect with psql
+#+BEGIN_SRC tmate :window peeringdb-sync
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id |         name         | asn | website
+----+----------------------+-----+---------
+ 46 | XS4ALL Internet B.V. |     |
+ 17 | DALnet IRC Network   |     |
+ 90 | Plushosting B.V.     |     |
+ 91 | YellowBrix           |     |
+ 92 | NYCX                 |     |
+(5 rows)
+
+#+end_SRC
+
+See the tables
+#+BEGIN_SRC sql-mode :eval never-export :exports both :session none :sql-user postgres :sql-database peeringdb :sql-server (getenv "SHARINGIO_PAIR_LOAD_BALANCER_IP") :sql-password password
+SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ schemaname | tablename
+------------+-----------
+ peeringdb  | fac
+ peeringdb  | ix
+ peeringdb  | ixfac
+ peeringdb  | ixlan
+ peeringdb  | ixpfx
+ peeringdb  | net
+ peeringdb  | netfac
+ peeringdb  | netixlan
+ peeringdb  | org
+ peeringdb  | poc
+(10 rows)
+
+#+end_SRC
+
+Find data from peeringdb.org table
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.org where 'website' is not null limit 5;
+#+END_SRC
+#+BEGIN_SRC sql-mode
+\d+
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                        List of relations
+  Schema   |   Name   | Type  |  Owner   |  Size   | Description
+-----------+----------+-------+----------+---------+-------------
+ peeringdb | fac      | table | postgres | 3888 kB |
+ peeringdb | ix       | table | postgres | 1288 kB |
+ peeringdb | ixfac    | table | postgres | 960 kB  |
+ peeringdb | ixlan    | table | postgres | 624 kB  |
+ peeringdb | ixpfx    | table | postgres | 640 kB  |
+ peeringdb | net      | table | postgres | 22 MB   |
+ peeringdb | netfac   | table | postgres | 15 MB   |
+ peeringdb | netixlan | table | postgres | 25 MB   |
+ peeringdb | org      | table | postgres | 10 MB   |
+ peeringdb | poc      | table | postgres | 3536 kB |
+(10 rows)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+\d+ fac
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                                            Table "peeringdb.fac"
+ Column  |           Type           | Collation | Nullable | Default | Storage  | Stats target | Description
+---------+--------------------------+-----------+----------+---------+----------+--------------+-------------
+ id      | integer                  |           | not null |         | plain    |              |
+ org_id  | integer                  |           | not null |         | plain    |              |
+ status  | text                     |           | not null |         | extended |              |
+ data    | jsonb                    |           | not null |         | extended |              |
+ created | timestamp with time zone |           | not null |         | plain    |              |
+ updated | timestamp with time zone |           | not null |         | plain    |              |
+ deleted | timestamp with time zone |           |          |         | plain    |              |
+Indexes:
+    "fac_pkey" PRIMARY KEY, btree (id)
+Access method: heap
+
+#+end_SRC
+
+#+begin_src sql-mode
+\d peeringdb.
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                        Table "peeringdb.fac"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ org_id  | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "fac_pkey" PRIMARY KEY, btree (id)
+
+      Index "peeringdb.fac_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.fac"
+
+                        Table "peeringdb.ix"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ org_id  | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "ix_pkey" PRIMARY KEY, btree (id)
+
+      Index "peeringdb.ix_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.ix"
+
+                       Table "peeringdb.ixfac"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ ix_id   | integer                  |           | not null |
+ fac_id  | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "ixfac_pkey" PRIMARY KEY, btree (id)
+
+     Index "peeringdb.ixfac_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.ixfac"
+
+                       Table "peeringdb.ixlan"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ ix_id   | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "ixlan_pkey" PRIMARY KEY, btree (id)
+
+     Index "peeringdb.ixlan_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.ixlan"
+
+                       Table "peeringdb.ixpfx"
+  Column  |           Type           | Collation | Nullable | Default
+----------+--------------------------+-----------+----------+---------
+ id       | integer                  |           | not null |
+ ixlan_id | integer                  |           | not null |
+ status   | text                     |           | not null |
+ data     | jsonb                    |           | not null |
+ created  | timestamp with time zone |           | not null |
+ updated  | timestamp with time zone |           | not null |
+ deleted  | timestamp with time zone |           |          |
+Indexes:
+    "ixpfx_pkey" PRIMARY KEY, btree (id)
+
+     Index "peeringdb.ixpfx_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.ixpfx"
+
+                        Table "peeringdb.net"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ org_id  | integer                  |           | not null |
+ asn     | bigint                   |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "net_pkey" PRIMARY KEY, btree (id)
+
+      Index "peeringdb.net_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.net"
+
+                      Table "peeringdb.netfac"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ net_id  | integer                  |           | not null |
+ fac_id  | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "netfac_pkey" PRIMARY KEY, btree (id)
+
+    Index "peeringdb.netfac_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.netfac"
+
+                      Table "peeringdb.netixlan"
+  Column  |           Type           | Collation | Nullable | Default
+----------+--------------------------+-----------+----------+---------
+ id       | integer                  |           | not null |
+ net_id   | integer                  |           | not null |
+ ix_id    | integer                  |           | not null |
+ ixlan_id | integer                  |           | not null |
+ status   | text                     |           | not null |
+ data     | jsonb                    |           | not null |
+ created  | timestamp with time zone |           | not null |
+ updated  | timestamp with time zone |           | not null |
+ deleted  | timestamp with time zone |           |          |
+Indexes:
+    "netixlan_pkey" PRIMARY KEY, btree (id)
+
+   Index "peeringdb.netixlan_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.netixlan"
+
+                        Table "peeringdb.org"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "org_pkey" PRIMARY KEY, btree (id)
+
+      Index "peeringdb.org_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.org"
+
+                        Table "peeringdb.poc"
+ Column  |           Type           | Collation | Nullable | Default
+---------+--------------------------+-----------+----------+---------
+ id      | integer                  |           | not null |
+ net_id  | integer                  |           | not null |
+ status  | text                     |           | not null |
+ data    | jsonb                    |           | not null |
+ created | timestamp with time zone |           | not null |
+ updated | timestamp with time zone |           | not null |
+ deleted | timestamp with time zone |           |          |
+Indexes:
+    "poc_pkey" PRIMARY KEY, btree (id)
+
+      Index "peeringdb.poc_pkey"
+ Column |  Type   | Key? | Definition
+--------+---------+------+------------
+ id     | integer | yes  | id
+primary key, btree, for table "peeringdb.poc"
+
+#+end_SRC
+
+Find data from peeringdb.net table
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'website' as "website" from peeringdb.net limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id |         name         |  asn  |            website
+----+----------------------+-------+--------------------------------
+ 83 | Cable&Wireless UK    | 5388  | http://www.cw.com/uk
+ 24 | DSLExtreme           | 19817 | http://www.dslextreme.com
+ 28 | New Edge Networks    | 19029 | http://www.newedgenetworks.com
+ 97 | Netservices Plc      | 15444 | http://www.netservicesplc.com
+ 36 | GrafiX Internet B.V. | 16131 | http://www.grafix.nl/
+(5 rows)
+
+#+end_SRC
+
+Getting fields with emails
+#+BEGIN_SRC sql-mode
+select id, data::jsonb ->> 'name' as name, data::jsonb ->> 'email' as email, net_id from peeringdb.poc where status = 'ok' limit 5;
+#+END_SRC
+
+Connect ASNs with emails by joining names between tables
+#+BEGIN_SRC sql-mode
+select net.id,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'asn') as "asn",
+       (net.data ->> 'website') as website,
+       (poc.data ->> 'email') as email
+       from peeringdb.net net
+       left join peeringdb.poc on ((peeringdb.poc.data ->> 'name') = net.data ->> 'name')
+       where (net.data ->>'website') is not null
+       order by email asc
+       limit 5;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+\d peeringdb.net
+#+END_SRC
+** schema exploration:
+*** peeringdb.ixpfx -- has cidr, but only 2.5k
+MAIN issue? this table only has 2500 rows, what we found in ip2asn is over 400k
+#+BEGIN_SRC sql-mode
+select * from peeringdb.ixpfx limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | ixlan_id | status  |                                                                                         data                                                                                          |        created         |        updated         |        deleted
+----+----------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+------------------------
+  1 |        1 | deleted | {"id": 1, "in_dfz": true, "prefix": "206.223.115.0/24", "status": "deleted", "created": "2010-07-29T00:00:00Z", "updated": "2020-08-26T05:23:06Z", "ixlan_id": 1, "protocol": "IPv4"} | 2010-07-29 00:00:00+00 | 2020-08-26 05:23:06+00 | 2020-08-26 05:23:06+00
+(1 row)
+
+#+end_SRC
+
+
+
+#+BEGIN_SRC sql-mode
+select id, ixlan_id, status, data::jsonb ->> 'name' as name, data::jsonb ->> 'prefix' as prefix from peeringdb.ixpfx limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | ixlan_id | status  | name |      prefix
+----+----------+---------+------+-------------------
+  1 |        1 | deleted |      | 206.223.115.0/24
+  2 |        1 | ok      |      | 2001:504:0:2::/64
+  3 |        2 | ok      |      | 208.115.136.0/23
+  4 |        2 | ok      |      | 2001:504:0:4::/64
+  5 |        3 | ok      |      | 206.223.118.0/23
+(5 rows)
+
+#+end_SRC
+
+
+#+BEGIN_SRC sql-mode
+select count(data) from peeringdb.ixpfx;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+  2275
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.ixpfx limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+              jsonb_pretty
+----------------------------------------
+ {                                     +
+     "id": 1,                          +
+     "in_dfz": true,                   +
+     "prefix": "206.223.115.0/24",     +
+     "status": "deleted",              +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2020-08-26T05:23:06Z",+
+     "ixlan_id": 1,                    +
+     "protocol": "IPv4"                +
+ }
+ {                                     +
+     "id": 2,                          +
+     "in_dfz": true,                   +
+     "prefix": "2001:504:0:2::/64",    +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2020-08-26T05:23:08Z",+
+     "ixlan_id": 1,                    +
+     "protocol": "IPv6"                +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.fac
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.fac limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+----+--------+---------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+------------------------
+  3 |      7 | deleted | {"id": 3, "aka": "", "city": "New York", "clli": "NYCMNY", "name": "Telehouse New York Broadway", "floor": "", "notes": "", "state": "NY", "suite": "", "npanxx": "212-785", "org_id": 7, "status": "deleted", "country": "US", "created": "2010-07-29T00:00:00Z", "rencode": "", "updated": "2016-11-01T04:16:24Z", "website": "http://www.telehouse.net", "zipcode": "10004-1010", "address1": "25 Broadway", "address2": "", "latitude": null, "org_name": "Telehouse - Global Data Centers", "longitude": null, "name_long": "", "net_count": 0, "tech_email": "", "tech_phone": "", "sales_email": "", "sales_phone": ""} | 2010-07-29 00:00:00+00 | 2016-11-01 04:16:24+00 | 2016-11-01 04:16:24+00
+(1 row)
+
+#+end_SRC
+No sign of ip ranges, gonna try the next one
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.fac limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                    jsonb_pretty
+-----------------------------------------------------
+ {                                                  +
+     "id": 3,                                       +
+     "aka": "",                                     +
+     "city": "New York",                            +
+     "clli": "NYCMNY",                              +
+     "name": "Telehouse New York Broadway",         +
+     "floor": "",                                   +
+     "notes": "",                                   +
+     "state": "NY",                                 +
+     "suite": "",                                   +
+     "npanxx": "212-785",                           +
+     "org_id": 7,                                   +
+     "status": "deleted",                           +
+     "country": "US",                               +
+     "created": "2010-07-29T00:00:00Z",             +
+     "rencode": "",                                 +
+     "updated": "2016-11-01T04:16:24Z",             +
+     "website": "http://www.telehouse.net",         +
+     "zipcode": "10004-1010",                       +
+     "address1": "25 Broadway",                     +
+     "address2": "",                                +
+     "latitude": null,                              +
+     "org_name": "Telehouse - Global Data Centers", +
+     "longitude": null,                             +
+     "name_long": "",                               +
+     "net_count": 0,                                +
+     "tech_email": "",                              +
+     "tech_phone": "",                              +
+     "sales_email": "",                             +
+     "sales_phone": ""                              +
+ }
+ {                                                  +
+     "id": 42,                                      +
+     "aka": "",                                     +
+     "city": "London",                              +
+     "clli": "LONDEN",                              +
+     "name": "Equinix London Docklands_ (LD8)",     +
+     "floor": "",                                   +
+     "notes": "",                                   +
+     "state": "",                                   +
+     "suite": "",                                   +
+     "npanxx": "",                                  +
+     "org_id": 2,                                   +
+     "status": "deleted",                           +
+     "country": "GB",                               +
+     "created": "2010-07-29T00:00:00Z",             +
+     "rencode": "",                                 +
+     "updated": "2017-01-22T17:23:59Z",             +
+     "website": "http://www.equinix.com/locations/",+
+     "zipcode": "E14 9GE",                          +
+     "address1": "6-9 Harbour Exchange Square",     +
+     "address2": "",                                +
+     "latitude": null,                              +
+     "org_name": "Equinix, Inc.",                   +
+     "longitude": null,                             +
+     "name_long": "",                               +
+     "net_count": 0,                                +
+     "tech_email": "",                              +
+     "tech_phone": "",                              +
+     "sales_email": "",                             +
+     "sales_phone": ""                              +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.ix
+#+BEGIN_SRC sql-mode
+select * from peeringdb.ix limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | org_id | status  |                                                                                                                                                                                                                                                                                           data                                                                                                                                                                                                                                                                                            |        created         |        updated         |        deleted
+----+--------+---------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+------------------------
+ 36 |     85 | deleted | {"id": 36, "aka": "", "city": "Paris", "name": "FreeIX", "media": "Ethernet", "notes": "", "org_id": 85, "status": "deleted", "country": "FR", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-14T20:42:55Z", "website": "http://www.freeix.net/", "name_long": "Free Internet eXchange", "net_count": 0, "url_stats": "http://www.freeix.net/mrtg/", "proto_ipv6": false, "tech_email": "", "tech_phone": "", "policy_email": "", "policy_phone": "", "ixf_net_count": 0, "proto_unicast": true, "ixf_last_import": null, "proto_multicast": false, "region_continent": "Europe"} | 2010-07-29 00:00:00+00 | 2016-03-14 20:42:55+00 | 2016-03-14 20:42:55+00
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.ix limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                     jsonb_pretty
+------------------------------------------------------
+ {                                                   +
+     "id": 36,                                       +
+     "aka": "",                                      +
+     "city": "Paris",                                +
+     "name": "FreeIX",                               +
+     "media": "Ethernet",                            +
+     "notes": "",                                    +
+     "org_id": 85,                                   +
+     "status": "deleted",                            +
+     "country": "FR",                                +
+     "created": "2010-07-29T00:00:00Z",              +
+     "updated": "2016-03-14T20:42:55Z",              +
+     "website": "http://www.freeix.net/",            +
+     "name_long": "Free Internet eXchange",          +
+     "net_count": 0,                                 +
+     "url_stats": "http://www.freeix.net/mrtg/",     +
+     "proto_ipv6": false,                            +
+     "tech_email": "",                               +
+     "tech_phone": "",                               +
+     "policy_email": "",                             +
+     "policy_phone": "",                             +
+     "ixf_net_count": 0,                             +
+     "proto_unicast": true,                          +
+     "ixf_last_import": null,                        +
+     "proto_multicast": false,                       +
+     "region_continent": "Europe"                    +
+ }
+ {                                                   +
+     "id": 19,                                       +
+     "aka": "",                                      +
+     "city": "Chicago",                              +
+     "name": "AADS",                                 +
+     "media": "ATM",                                 +
+     "notes": "",                                    +
+     "org_id": 48,                                   +
+     "status": "deleted",                            +
+     "country": "US",                                +
+     "created": "2010-07-29T00:00:00Z",              +
+     "updated": "2016-03-14T21:08:05Z",              +
+     "website": "",                                  +
+     "name_long": "Ameritech Advanced Data Services",+
+     "net_count": 0,                                 +
+     "url_stats": "",                                +
+     "proto_ipv6": false,                            +
+     "tech_email": "",                               +
+     "tech_phone": "",                               +
+     "policy_email": "",                             +
+     "policy_phone": "",                             +
+     "ixf_net_count": 0,                             +
+     "proto_unicast": true,                          +
+     "ixf_last_import": null,                        +
+     "proto_multicast": false,                       +
+     "region_continent": "North America"             +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.ixfac
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.ixfac limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | ix_id | fac_id | status |                                                             data                                                             |        created         |        updated         | deleted
+----+-------+--------+--------+------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 72 |    48 |    164 | ok     | {"id": 72, "ix_id": 48, "fac_id": 164, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:43Z"} | 2010-07-29 00:00:00+00 | 2016-03-11 07:21:43+00 |
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.ixfac limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+              jsonb_pretty
+----------------------------------------
+ {                                     +
+     "id": 72,                         +
+     "ix_id": 48,                      +
+     "fac_id": 164,                    +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2016-03-11T07:21:43Z" +
+ }
+ {                                     +
+     "id": 73,                         +
+     "ix_id": 48,                      +
+     "fac_id": 177,                    +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2016-03-11T07:21:43Z" +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.ixlan
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.ixlan limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | ix_id | status |                                                                                                                            data                                                                                                                            |        created         |        updated         | deleted
+----+-------+--------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 41 |    41 | ok     | {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"} | 2010-07-29 00:00:00+00 | 2016-03-11 07:21:58+00 |
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.ixlan limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                   jsonb_pretty
+--------------------------------------------------
+ {                                               +
+     "id": 41,                                   +
+     "mtu": null,                                +
+     "name": "",                                 +
+     "descr": "",                                +
+     "ix_id": 41,                                +
+     "rs_asn": 0,                                +
+     "status": "ok",                             +
+     "created": "2010-07-29T00:00:00Z",          +
+     "updated": "2016-03-11T07:21:58Z",          +
+     "arp_sponge": null,                         +
+     "dot1q_support": false,                     +
+     "ixf_ixp_member_list_url_visible": "Private"+
+ }
+ {                                               +
+     "id": 43,                                   +
+     "mtu": null,                                +
+     "name": "",                                 +
+     "descr": "",                                +
+     "ix_id": 43,                                +
+     "rs_asn": 0,                                +
+     "status": "ok",                             +
+     "created": "2010-07-29T00:00:00Z",          +
+     "updated": "2016-03-11T07:21:58Z",          +
+     "arp_sponge": null,                         +
+     "dot1q_support": false,                     +
+     "ixf_ixp_member_list_url_visible": "Private"+
+ }
+(2 rows)
+
+#+end_SRC
+
+
+
+*** peeringdb.ixpfx
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.ixpfx limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | ixlan_id | status  |                                                                                         data                                                                                          |        created         |        updated         |        deleted
+----+----------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+------------------------
+  1 |        1 | deleted | {"id": 1, "in_dfz": true, "prefix": "206.223.115.0/24", "status": "deleted", "created": "2010-07-29T00:00:00Z", "updated": "2020-08-26T05:23:06Z", "ixlan_id": 1, "protocol": "IPv4"} | 2010-07-29 00:00:00+00 | 2020-08-26 05:23:06+00 | 2020-08-26 05:23:06+00
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.ixpfx limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+              jsonb_pretty
+----------------------------------------
+ {                                     +
+     "id": 1,                          +
+     "in_dfz": true,                   +
+     "prefix": "206.223.115.0/24",     +
+     "status": "deleted",              +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2020-08-26T05:23:06Z",+
+     "ixlan_id": 1,                    +
+     "protocol": "IPv4"                +
+ }
+ {                                     +
+     "id": 2,                          +
+     "in_dfz": true,                   +
+     "prefix": "2001:504:0:2::/64",    +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "updated": "2020-08-26T05:23:08Z",+
+     "ixlan_id": 1,                    +
+     "protocol": "IPv6"                +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.net
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.net limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | org_id | asn  | status |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  data                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |        created         |        updated         | deleted
+----+--------+------+--------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 83 |   3152 | 5388 | ok     | {"id": 83, "aka": "", "asn": 5388, "name": "Cable&Wireless UK", "notes": "This is former Energis Communications UK backbone network (AS5388) which is now owned by Cable and Wireless.\r\n\r\nAS5388 have no direct peering relations any longer, for peering request please contact our backbone AS1273 peering team.\r\n\r\nCable and Wireless global backbone network (AS1273) has a separate PeeringDB entry.\r\n", "org_id": 3152, "status": "ok", "created": "2004-08-03T10:30:54Z", "updated": "2016-03-14T20:23:33Z", "website": "http://www.cw.com/uk", "info_ipv6": false, "info_type": "NSP", "name_long": "", "info_ratio": "Balanced", "info_scope": "Regional", "irr_as_set": "AS-ENERGIS", "policy_url": "", "poc_updated": "2020-01-22T04:24:08Z", "info_traffic": "10-20Gbps", "info_unicast": true, "policy_ratio": false, "route_server": "", "looking_glass": "http://as5388.net/cgi-bin/lg.pl", "info_multicast": false, "info_prefixes4": 30, "info_prefixes6": 2, "netfac_updated": "2016-03-14T21:24:34Z", "policy_general": "Restrictive", "allow_ixp_update": false, "netixlan_updated": null, "policy_contracts": "Not Required", "policy_locations": "Not Required", "info_never_via_route_servers": false} | 2004-08-03 10:30:54+00 | 2016-03-14 20:23:33+00 |
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.net limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                                                                                                                                                                        jsonb_pretty
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {                                                                                                                                                                                                                                                                                                                                                          +
+     "id": 83,                                                                                                                                                                                                                                                                                                                                              +
+     "aka": "",                                                                                                                                                                                                                                                                                                                                             +
+     "asn": 5388,                                                                                                                                                                                                                                                                                                                                           +
+     "name": "Cable&Wireless UK",                                                                                                                                                                                                                                                                                                                           +
+     "notes": "This is former Energis Communications UK backbone network (AS5388) which is now owned by Cable and Wireless.\r\n\r\nAS5388 have no direct peering relations any longer, for peering request please contact our backbone AS1273 peering team.\r\n\r\nCable and Wireless global backbone network (AS1273) has a separate PeeringDB entry.\r\n",+
+     "org_id": 3152,                                                                                                                                                                                                                                                                                                                                        +
+     "status": "ok",                                                                                                                                                                                                                                                                                                                                        +
+     "created": "2004-08-03T10:30:54Z",                                                                                                                                                                                                                                                                                                                     +
+     "updated": "2016-03-14T20:23:33Z",                                                                                                                                                                                                                                                                                                                     +
+     "website": "http://www.cw.com/uk",                                                                                                                                                                                                                                                                                                                     +
+     "info_ipv6": false,                                                                                                                                                                                                                                                                                                                                    +
+     "info_type": "NSP",                                                                                                                                                                                                                                                                                                                                    +
+     "name_long": "",                                                                                                                                                                                                                                                                                                                                       +
+     "info_ratio": "Balanced",                                                                                                                                                                                                                                                                                                                              +
+     "info_scope": "Regional",                                                                                                                                                                                                                                                                                                                              +
+     "irr_as_set": "AS-ENERGIS",                                                                                                                                                                                                                                                                                                                            +
+     "policy_url": "",                                                                                                                                                                                                                                                                                                                                      +
+     "poc_updated": "2020-01-22T04:24:08Z",                                                                                                                                                                                                                                                                                                                 +
+     "info_traffic": "10-20Gbps",                                                                                                                                                                                                                                                                                                                           +
+     "info_unicast": true,                                                                                                                                                                                                                                                                                                                                  +
+     "policy_ratio": false,                                                                                                                                                                                                                                                                                                                                 +
+     "route_server": "",                                                                                                                                                                                                                                                                                                                                    +
+     "looking_glass": "http://as5388.net/cgi-bin/lg.pl",                                                                                                                                                                                                                                                                                                    +
+     "info_multicast": false,                                                                                                                                                                                                                                                                                                                               +
+     "info_prefixes4": 30,                                                                                                                                                                                                                                                                                                                                  +
+     "info_prefixes6": 2,                                                                                                                                                                                                                                                                                                                                   +
+     "netfac_updated": "2016-03-14T21:24:34Z",                                                                                                                                                                                                                                                                                                              +
+     "policy_general": "Restrictive",                                                                                                                                                                                                                                                                                                                       +
+     "allow_ixp_update": false,                                                                                                                                                                                                                                                                                                                             +
+     "netixlan_updated": null,                                                                                                                                                                                                                                                                                                                              +
+     "policy_contracts": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "policy_locations": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "info_never_via_route_servers": false                                                                                                                                                                                                                                                                                                                  +
+ }
+ {                                                                                                                                                                                                                                                                                                                                                          +
+     "id": 24,                                                                                                                                                                                                                                                                                                                                              +
+     "aka": "Extreme Telecom",                                                                                                                                                                                                                                                                                                                              +
+     "asn": 19817,                                                                                                                                                                                                                                                                                                                                          +
+     "name": "DSLExtreme",                                                                                                                                                                                                                                                                                                                                  +
+     "notes": "",                                                                                                                                                                                                                                                                                                                                           +
+     "org_id": 62,                                                                                                                                                                                                                                                                                                                                          +
+     "status": "ok",                                                                                                                                                                                                                                                                                                                                        +
+     "created": "2004-07-28T00:00:00Z",                                                                                                                                                                                                                                                                                                                     +
+     "updated": "2016-03-14T20:47:30Z",                                                                                                                                                                                                                                                                                                                     +
+     "website": "http://www.dslextreme.com",                                                                                                                                                                                                                                                                                                                +
+     "info_ipv6": false,                                                                                                                                                                                                                                                                                                                                    +
+     "info_type": "Cable/DSL/ISP",                                                                                                                                                                                                                                                                                                                          +
+     "name_long": "",                                                                                                                                                                                                                                                                                                                                       +
+     "info_ratio": "Mostly Inbound",                                                                                                                                                                                                                                                                                                                        +
+     "info_scope": "Regional",                                                                                                                                                                                                                                                                                                                              +
+     "irr_as_set": "",                                                                                                                                                                                                                                                                                                                                      +
+     "policy_url": "",                                                                                                                                                                                                                                                                                                                                      +
+     "poc_updated": "2016-03-14T21:35:12Z",                                                                                                                                                                                                                                                                                                                 +
+     "info_traffic": "1-5Gbps",                                                                                                                                                                                                                                                                                                                             +
+     "info_unicast": true,                                                                                                                                                                                                                                                                                                                                  +
+     "policy_ratio": false,                                                                                                                                                                                                                                                                                                                                 +
+     "route_server": "",                                                                                                                                                                                                                                                                                                                                    +
+     "looking_glass": "",                                                                                                                                                                                                                                                                                                                                   +
+     "info_multicast": false,                                                                                                                                                                                                                                                                                                                               +
+     "info_prefixes4": 69,                                                                                                                                                                                                                                                                                                                                  +
+     "info_prefixes6": 3,                                                                                                                                                                                                                                                                                                                                   +
+     "netfac_updated": "2016-03-14T20:33:54Z",                                                                                                                                                                                                                                                                                                              +
+     "policy_general": "Open",                                                                                                                                                                                                                                                                                                                              +
+     "allow_ixp_update": false,                                                                                                                                                                                                                                                                                                                             +
+     "netixlan_updated": "2021-05-12T00:13:00.764215Z",                                                                                                                                                                                                                                                                                                     +
+     "policy_contracts": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "policy_locations": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "info_never_via_route_servers": false                                                                                                                                                                                                                                                                                                                  +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.netixlan
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.netixlan limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | net_id | ix_id | ixlan_id | status |                                                                                                                                                 data                                                                                                                                                 |        created         |        updated         | deleted
+----+--------+-------+----------+--------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 81 |      3 |    64 |       64 | ok     | {"id": 81, "asn": 31800, "name": "NL-ix: Main", "ix_id": 64, "notes": "", "speed": 1000, "net_id": 3, "status": "ok", "created": "2010-07-29T00:00:00Z", "ipaddr4": "193.239.116.162", "ipaddr6": null, "updated": "2016-03-14T21:02:11Z", "ixlan_id": 64, "is_rs_peer": false, "operational": true} | 2010-07-29 00:00:00+00 | 2016-03-14 21:02:11+00 |
+(1 row)
+#+end_SRC
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.netixlan limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+              jsonb_pretty
+----------------------------------------
+ {                                     +
+     "id": 81,                         +
+     "asn": 31800,                     +
+     "name": "NL-ix: Main",            +
+     "ix_id": 64,                      +
+     "notes": "",                      +
+     "speed": 1000,                    +
+     "net_id": 3,                      +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "ipaddr4": "193.239.116.162",     +
+     "ipaddr6": null,                  +
+     "updated": "2016-03-14T21:02:11Z",+
+     "ixlan_id": 64,                   +
+     "is_rs_peer": false,              +
+     "operational": true               +
+ }
+ {                                     +
+     "id": 84,                         +
+     "asn": 31800,                     +
+     "name": "Equinix Dallas",         +
+     "ix_id": 3,                       +
+     "notes": "",                      +
+     "speed": 1000,                    +
+     "net_id": 3,                      +
+     "status": "ok",                   +
+     "created": "2010-07-29T00:00:00Z",+
+     "ipaddr4": "206.223.118.88",      +
+     "ipaddr6": null,                  +
+     "updated": "2016-03-14T21:02:11Z",+
+     "ixlan_id": 3,                    +
+     "is_rs_peer": false,              +
+     "operational": true               +
+ }
+(2 rows)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select count(data) from peeringdb.netixlan limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 55319
+(1 row)
+
+#+end_SRC
+
+*** peeringdb.org
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.org limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | status |                                                                                                                                                                      data                                                                                                                                                                      |        created         |        updated         | deleted
+----+--------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 46 | ok     | {"id": 46, "aka": "", "city": "", "name": "XS4ALL Internet B.V.", "floor": "", "notes": "", "state": "", "suite": "", "status": "ok", "country": "", "created": "2004-07-28T00:00:00Z", "updated": "2016-03-14T20:23:26Z", "website": "", "zipcode": "", "address1": "", "address2": "", "latitude": null, "longitude": null, "name_long": ""} | 2004-07-28 00:00:00+00 | 2016-03-14 20:23:26+00 |
+(1 row)
+
+#+end_SRC
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.org limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+              jsonb_pretty
+----------------------------------------
+ {                                     +
+     "id": 46,                         +
+     "aka": "",                        +
+     "city": "",                       +
+     "name": "XS4ALL Internet B.V.",   +
+     "floor": "",                      +
+     "notes": "",                      +
+     "state": "",                      +
+     "suite": "",                      +
+     "status": "ok",                   +
+     "country": "",                    +
+     "created": "2004-07-28T00:00:00Z",+
+     "updated": "2016-03-14T20:23:26Z",+
+     "website": "",                    +
+     "zipcode": "",                    +
+     "address1": "",                   +
+     "address2": "",                   +
+     "latitude": null,                 +
+     "longitude": null,                +
+     "name_long": ""                   +
+ }
+ {                                     +
+     "id": 17,                         +
+     "aka": "",                        +
+     "city": "",                       +
+     "name": "DALnet IRC Network",     +
+     "floor": "",                      +
+     "notes": "",                      +
+     "state": "",                      +
+     "suite": "",                      +
+     "status": "ok",                   +
+     "country": "",                    +
+     "created": "2004-07-28T00:00:00Z",+
+     "updated": "2016-03-14T20:27:47Z",+
+     "website": "",                    +
+     "zipcode": "",                    +
+     "address1": "",                   +
+     "address2": "",                   +
+     "latitude": null,                 +
+     "longitude": null,                +
+     "name_long": ""                   +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.poc
+#+BEGIN_SRC sql-mode
+select * from peeringdb.poc limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id  | net_id | status |                                                                                                                            data                                                                                                                             |        created         |        updated         | deleted
+-----+--------+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 100 |    115 | ok     | {"id": 100, "url": "", "name": "Telefonica DE Peering Team", "role": "Policy", "email": "peering.de@telefonica.com", "phone": "", "net_id": 115, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-05-20T13:55:47Z", "visible": "Public"} | 2010-07-29 00:00:00+00 | 2016-05-20 13:55:47+00 |
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.poc limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ {                                        +
+     "id": 100,                           +
+     "url": "",                           +
+     "name": "Telefonica DE Peering Team",+
+     "role": "Policy",                    +
+     "email": "peering.de@telefonica.com",+
+     "phone": "",                         +
+     "net_id": 115,                       +
+     "status": "ok",                      +
+     "created": "2010-07-29T00:00:00Z",   +
+     "updated": "2016-05-20T13:55:47Z",   +
+     "visible": "Public"                  +
+ }
+ {                                        +
+     "id": 48,                            +
+     "url": "",                           +
+     "name": "NOC",                       +
+     "role": "NOC",                       +
+     "email": "noc@stealth.net",          +
+     "phone": "+12122322020",             +
+     "net_id": 26,                        +
+     "status": "ok",                      +
+     "created": "2010-07-29T00:00:00Z",   +
+     "updated": "2020-05-20T23:14:22Z",   +
+     "visible": "Public"                  +
+ }
+
+#+end_SRC
+
+
+** Post process org blocks
+#+NAME: json-res
+#+BEGIN_SRC sql-mode :var json-r=""
+select data from peeringdb.ixlan limit 1;
+#+END_SRC
+
+#+RESULTS: json-res
+#+begin_SRC example
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+
+#+end_SRC
+
+Dang it I am missing something here....
+#+BEGIN_SRC shell :process_r yes :post json-res[:process_r yes](*this*)
+jq '.'
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+#+end_example
+
+** Wrap header
+#+BEGIN_SRC sql-mode :results sql :wrap EXPORT json
+select data from peeringdb.ixlan limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXPORT json
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+
+#+end_EXPORT
+
+
+** Building with Postgres
+#+BEGIN_SRC sql-mode
+create schema asntocompany;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ERROR:  schema "asntocompany" already exists
+#+end_SRC
+#+BEGIN_SRC sql-mode
+create table asnproc (
+       asn bigint not null primary key
+);
+\copy asnproc from '/home/ii/peeringdb-simplesync/asns.txt';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+CREATE TABLE
+COPY 415
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select (net.data ->> 'name') as "name",
+       asn
+    from peeringdb.net
+    where (net.data ->> 'name') ilike '%google%'
+    limit 5;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+select count(*)
+from peeringdb.poc p
+where (p.data ->> 'email') is not null;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 10756
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select asn.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website",
+       (poc.data ->> 'email') as email
+       from asnproc asn
+       left join peeringdb.net net on (net.asn = asn.asn)
+       left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- where (poc.data ->> 'email') is not null
+       order by email asc;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+select
+       (poc.data ->> 'name') as poc_name
+from peeringdb.poc poc
+-- left join peeringdb.poc poc on ((net.data ->>'name') = (poc.data ->>'name'))
+where (poc.data ->> 'name') ilike '%google%'
+or (poc.data ->> 'name') ilike '%amazon%'
+or (poc.data ->> 'name') ilike '%microsoft%';
+-- where (net.data ->>'name') ilike '%google%';
+-- select data from peeringdb.net where (data ->> 'asn')::bigint = 21789 limit 1;
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+begin;
+-- create table asnproc (
+--        asn bigint not null primary key
+-- );
+-- \copy asnproc from '/home/ii/peeringdb-simplesync/asns.txt';
+select count(*) from peeringdb.poc;
+select net.id,
+       asnproc.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website"
+       -- (poc.data ->> 'email') as email
+       from asnproc
+       join peeringdb.net net on ((net.data ->> 'asn')::bigint = asnproc.asn)
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = 'chonkers')
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- order by email asc
+       limit 5;
+rollback;
+#+END_SRC
+
+** Building with Go
+
+Scripting the data fetching in Go
+#+BEGIN_SRC go :tangle ./asn-db-data-processor.go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"database/sql"
+	_ "github.com/lib/pq"
+)
+
+type asnToCompany struct {
+	ID string
+	Name string
+	ASN string
+	Email string
+}
+
+type asnToCompanySet []asnToCompany
+
+func GetDBConnection() (*sql.DB, error) {
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://postgres:password@%v/peeringdb", os.Getenv("SHARINGIO_PAIR_LOAD_BALANCER_IP")))
+	db.Ping()
+	return db, err
+}
+
+func main() {
+	db, err := GetDBConnection()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	db.Ping()
+}
+#+END_SRC
+
+* Clean up
+Remove the table
+#+BEGIN_SRC shell
+bq rm k8s_artifacts_gcslogs_appspot.asn_company_lookup
+#+END_SRC
+
+Clean up
+#+BEGIN_SRC shell :results silent
+rm -f asn-data.csv
+#+END_SRC
+* scratch
+#+begin_src sql-mode
+begin;
+create table netfun(ip cidr);
+insert into netfun(ip) values('206.223.115.0/24'::cidr);
+select ip as ip,
+host(network(ip)::inet) as start,
+host(broadcast(ip)::inet) as end
+from netfun;
+rollback;
+#+end_src
+
+
+#+RESULTS:
+#+begin_SRC example
+BEGIN
+CREATE TABLE
+INSERT 0 1
+        ip        |     start     |       end
+------------------+---------------+-----------------
+ 206.223.115.0/24 | 206.223.115.0 | 206.223.115.255
+(1 row)
+
+ROLLBACK
+#+end_SRC
+
+select id, ixlan_id, status, data::jsonb ->> 'name' as name, data::jsonb ->> 'prefix' as prefix from peeringdb.ixpfx limit 5;
+#+begin_src sql-mode
+    do $$
+    DECLARE
+        Counter integer := 1;
+        BEGIN
+            create table netfun(ip cidr);
+            WHILE Counter <= 2275 loop
+                insert into netfun(ip) values((select prefix from peeringdb.ixlanid_ip where id = Counter limit 1)::cidr);
+                Counter := Counter + 1;
+            end loop;
+        END
+            $$;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# peeringdb$# DO
+#+end_SRC
+
+
+#+begin_src sql-mode
+select ip as ip,
+host(network(ip)::inet) as ip_start,
+host(broadcast(ip)::inet) as ip_end
+into table peeringdb.expanded_ip3
+from netfun;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+SELECT 2275
+#+end_SRC
+
+#+begin_src sql-mode
+        select prefix as ip, host(network(prefix)::inet) as start, host(broadcast(ip)::inet) from peeringdb.ixlanid_ip limit 10;
+#+end_src
+
+#+begin_src sql-mode
+\copy (select * from peeringdb.expanded_ip3 where ip_end NOT LIKE '%:%') to '~/peeringdb_expanded_ipv4.csv' csv header;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+COPY 1058
+#+end_SRC
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_gcslogs_appspot.peeringdb_expanded_ipv6 /home/ii/peeringdb_expanded_ipv6.csv
+
+#+end_src
+
+#+begin_src sql-mode
+        select count(id) from peeringdb.ixpfx;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+  2275
+(1 row)
+
+#+end_SRC
+
+
+#+begin_src sql-mode
+        select id, ixlan_id, data::jsonb ->> 'prefix' as prefix INTO TABLE peeringdb.ixlanid_ip from peeringdb.ixpfx;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+SELECT 2275
+#+end_SRC
+
+#+begin_src sql-mode
+        select prefix from peeringdb.ixlanid_ip limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      prefix
+-------------------
+ 206.223.115.0/24
+ 2001:504:0:2::/64
+ 208.115.136.0/23
+ 2001:504:0:4::/64
+ 206.223.118.0/23
+ 2001:504:0:5::/64
+ 206.223.123.0/24
+ 2001:504:0:3::/64
+ 206.223.116.0/23
+ 2001:504:0:1::/64
+(10 rows)
+
+#+end_SRC
+
+
+#+begin_src sql-mode
+       \l
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                 List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ peeringdb | postgres | UTF8     | en_US.utf8 | en_US.utf8 |
+ postgres  | postgres | UTF8     | en_US.utf8 | en_US.utf8 |
+ template0 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+(4 rows)
+
+#+end_SRC

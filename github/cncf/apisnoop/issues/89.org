@@ -169,6 +169,5 @@ I am not sure what's the best way to manage this for long-term reliability and s
 # eval: (gui-select-text start-tmate-command)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

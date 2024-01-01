@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- 2021-02-25 Thu 11:14 -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session 01</title>
+<meta name="generator" content="Org mode">
+<meta name="author" content="ii friend">
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #ccc;
+    box-shadow: 3px 3px 3px #eee;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: visible;
+    padding-top: 1.2em;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    background-color: white;
+    top: -10px;
+    right: 10px;
+    padding: 3px;
+    border: 1px solid black;
+  }
+  pre.src:hover:before { display: inline;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { width: 90%; }
+  /*]]>*/-->
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+<link rel='stylesheet' href='aesthetic/main.css' />
+<script type="text/javascript">
+// @license magnet:?xt=urn:btih:1f739d935676111cfff4b4693e3816e664797050&amp;dn=gpl-3.0.txt GPL-v3-or-Later
+<!--/*--><![CDATA[/*><!--*/
+     function CodeHighlightOn(elem, id)
+     {
+       var target = document.getElementById(id);
+       if(null != target) {
+         elem.cacheClassElem = elem.className;
+         elem.cacheClassTarget = target.className;
+         target.className = "code-highlighted";
+         elem.className   = "code-highlighted";
+       }
+     }
+     function CodeHighlightOff(elem, id)
+     {
+       var target = document.getElementById(id);
+       if(elem.cacheClassElem)
+         elem.className = elem.cacheClassElem;
+       if(elem.cacheClassTarget)
+         target.className = elem.cacheClassTarget;
+     }
+    /*]]>*///-->
+// @license-end
+</script>
+</head>
+<body>
+<article id="content">
+<header>
+<h1 class="title">Session 01</h1>
+</header>
+<section id="outline-container-orgd3e1d71" class="outline-2">
+<h2 id="orgd3e1d71">Introduction</h2>
+<div class="outline-text-2" id="text-orgd3e1d71">
+<p>
+Welcome to part one of our &ldquo;New Contributor Summit&rdquo; guide. In this series we will learn how to run, customize, test, and contribute to <span class='glossary-term'
+                                onclick='this.classList.toggle("visible")'>
+                            Kubernetes
+                           <span class='glossary-term_inner'>
+                             A container orchestration platform intended to simplify the management of complex infrastructure. see its <a href='https://kubernetes.io'>homepage</a>
+                           </span>
+                          </span>.
+</p>
+
+<p>
+This first part assumes you are getting started on this path, and have little to no knowledge of running Kubernetes.  You will want some familiarity with the <span class='glossary-term'
+                                onclick='this.classList.toggle("visible")'>
+                            terminal
+                           <span class='glossary-term_inner'>
+                             Also known as the command line, a program on your computer for talking directly to the computer using written commands. <a href='https://www.digitalocean.com/community/tutorials/an-introduction-to-the-linux-terminal' target="_blank">Digital Ocean has a nice introduction</a>
+                           </span>
+                          </span> though.
+</p>
+</div>
+</section>
+
+<section id="outline-container-orgd85efe4" class="outline-2">
+<h2 id="orgd85efe4">Agenda</h2>
+<div class="outline-text-2" id="text-orgd85efe4">
+<p>
+In this session, we tackle:
+</p>
+<ul class="org-ul">
+<li>hardware and OS requirements to run Kubernetes</li>
+<li>Setting up your environment</li>
+<li>github and your git configuration</li>
+<li>forking and cloning Kubernetes</li>
+<li>the workflow for contributing changes back to Kubernetes.</li>
+</ul>
+</div>
+</section>
+<section id="outline-container-org831d51a" class="outline-2">
+<h2 id="org831d51a">Hardware and OS Requirements</h2>
+<div class="outline-text-2" id="text-org831d51a">
+<p>
+Kubernetes can run on linux, mac, windows, or within <span class='glossary-term'
+                                onclick='this.classList.toggle("visible")'>
+                            Docker
+                           <span class='glossary-term_inner'>
+                             Containerization software that lets you package programs, and the hardware required to run them, into self-contained virtual machines. This makes them easier to share, copy, and run on different computers.
+                           </span>
+                          </span>.
+</p>
+
+<p>
+It is a large project, and will require a lot of computing power. Whichever system you use, ensure that it has at least:
+</p>
+<ul class="org-ul">
+<li>8GB of RAM</li>
+<li>50gb or more of free disk space</li>
+<li>multiple cores</li>
+</ul>
+</div>
+</section>
+<section id="outline-container-org2d42664" class="outline-2">
+<h2 id="org2d42664">Setting up your environment</h2>
+<div class="outline-text-2" id="text-org2d42664">
+<p>
+To get started, you will want to configure your computer to be able to build and run Kubernetes.  The way you configure it will change depending on if you are using Linux, Mac, or Windows.
+</p>
+</div>
+<div id="outline-container-org76a511b" class="outline-3">
+<h3 id="org76a511b">On linux</h3>
+<div class="outline-text-3" id="text-org76a511b">
+<p>
+This one is the easiest: there&rsquo;s no additional configuration needed!
+</p>
+</div>
+</div>
+<div id="outline-container-org105f55f" class="outline-3">
+<h3 id="org105f55f">On Mac</h3>
+<div class="outline-text-3" id="text-org105f55f">
+<p>
+Kubernetes assumes you have a set of GNU command line tools installed, which don&rsquo;t come natively with the Mac.  So you will want to install a package manager, called Brew, then use this to install the GNU tools.
+</p>
+</div>
+<ul class="org-ul">
+<li><a id="orgebc6b3e"></a><b><b>Install Brew</b></b><br>
+<div class="outline-text-4" id="text-orgebc6b3e">
+<p>
+The easiest way to install is from the <a href="https://brew.sh">brew homepage</a>
+</p>
+
+<p>
+After installed, you should be able to run this command in the terminal:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-shell">brew -v
+</pre>
+</div>
+
+<p>
+And see output similar to:
+</p>
+
+<pre class="example">
+Homebrew 2.7.5
+Homebrew/homebrew-core (git revision 33c47; last commit 2021-01-17)
+Homebrew/homebrew-cask (git revision 4dc8d; last commit 2021-01-17)
+</pre>
+</div>
+</li>
+</ul>
+</div>
+
+<div id="outline-container-orgd4e1a8d" class="outline-3">
+<h3 id="orgd4e1a8d">Install GNU tools</h3>
+<div class="outline-text-3" id="text-orgd4e1a8d">
+<p>
+In your terminal, enter the following command
+</p>
+<div class="org-src-container">
+<pre class="src src-shell">brew install coreutils ed findutils gawk gnu-sed gnu-tar <span style="color: #fabd2f;">grep</span> <span style="color: #fabd2f;">make</span>
+</pre>
+</div>
+<ul class="org-ul">
+<li><b><b>Setup your shell init script</b></b></li>
+</ul>
+
+<p>
+Lastly, you want your computer to know how to find these tools, which we can do by adding a code snippet
+to the end of your .bashrc.
+Add this snippet to the bottom of your <code>.bashrc</code>
+</p>
+<pre class="example">
+GNUBINS="$(find /usr/local/opt -type d -follow -name gnubin -print)"
+
+for bindir in ${GNUBINS[@]}
+do
+  export PATH=$bindir:$PATH
+done
+
+export PATH
+</pre>
+</div>
+<ul class="org-ul">
+<li><a id="org50d30c1"></a>Check out official docs<br>
+<div class="outline-text-4" id="text-org50d30c1">
+<p>
+You can find them here: <a href="https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos">k8s/community/development.md</a>
+</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+
+<section id="outline-container-org5b5a51e" class="outline-2">
+<h2 id="org5b5a51e">Installing prerequisites</h2>
+<div class="outline-text-2" id="text-org5b5a51e">
+<p>
+What you need to install, and how to install it, will change depending on the type of system you are using.
+</p>
+</div>
+<div id="outline-container-org67fd113" class="outline-3">
+<h3 id="org67fd113">If you are running Linux</h3>
+<div class="outline-text-3" id="text-org67fd113">
+<p>
+No additional considerations are needed!
+</p>
+</div>
+</div>
+<div id="outline-container-org686f5b5" class="outline-3">
+<h3 id="org686f5b5">Mac</h3>
+<div class="outline-text-3" id="text-org686f5b5">
+<p>
+With macs, you will want to have a mac package manager and then use that to install some necessary prerequisites.
+</p>
+</div>
+<ul class="org-ul">
+<li><a id="orgc5daaed"></a>Install Brew<br>
+<div class="outline-text-4" id="text-orgc5daaed">
+<p>
+This is a package manager for mac that you run in the command line. You can
+download and install it from the <a href="https://brew.sh">brew homepage</a>
+</p>
+</div>
+</li>
+<li><a id="orgeb5fdb1"></a>Install Dependencies<br>
+<div class="outline-text-4" id="text-orgeb5fdb1">
+<p>
+We&rsquo;ll use brew to install these.
+</p>
+<div class="org-src-container">
+<pre class="src src-shell">brew install coreutils ed findutils gawk gnu-sed gnu-tar <span style="color: #fabd2f;">grep</span> <span style="color: #fabd2f;">make</span>
+</pre>
+</div>
+</div>
+</li>
+<li><a id="orge345a87"></a>Setup your .bashrc<br>
+<div class="outline-text-4" id="text-orge345a87">
+<p>
+Add this snippet to the bottom of your <code>.bashrc</code>
+</p>
+<pre class="example">
+GNUBINS="$(find /usr/local/opt -type d -follow -name gnubin -print)"
+
+for bindir in ${GNUBINS[@]}
+do
+  export PATH=$bindir:$PATH
+done
+
+export PATH
+</pre>
+</div>
+</li>
+<li><a id="org2be5deb"></a>Check out official docs<br>
+<div class="outline-text-4" id="text-org2be5deb">
+<p>
+You can find them here: <a href="https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-macos">k8s/community/development.md</a>
+</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="outline-container-org2947d6b" class="outline-3">
+<h3 id="org2947d6b">Windows</h3>
+<div class="outline-text-3" id="text-org2947d6b">
+</div>
+<ul class="org-ul">
+<li><a id="org187c6b3"></a>If on windows 10<br>
+<div class="outline-text-4" id="text-org187c6b3">
+<p>
+setup the linux subsystem
+<a href="https://docs.microsoft.com/en-us/windows/wsl/install-win10">read the installaction instructions</a>
+</p>
+</div>
+</li>
+<li><a id="org08d0054"></a>If on &lt; windows 10<br>
+<div class="outline-text-4" id="text-org08d0054">
+<p>
+Switch to a virtual machine running linux
+<a href="https://www.vagrantup.com/docs/installation">install vagrant</a>
+</p>
+</div>
+</li>
+<li><a id="org53ddfe7"></a>Additional Details<br>
+<div class="outline-text-4" id="text-org53ddfe7">
+<p>
+<a href="https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#setting-up-windows">read official docs</a>
+</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="outline-container-org755e913" class="outline-2">
+<h2 id="org755e913">Software Prerequisites</h2>
+<div class="outline-text-2" id="text-org755e913">
+</div>
+<div id="outline-container-org0426d9e" class="outline-3">
+<h3 id="org0426d9e">Docker</h3>
+<div class="outline-text-3" id="text-org0426d9e">
+</div>
+<ul class="org-ul">
+<li><a id="org5121faf"></a>What is docker<br>
+<div class="outline-text-4" id="text-org5121faf">
+<ul class="org-ul">
+<li>a container engine</li>
+<li>allows you to bundle and package</li>
+</ul>
+<p>
+Docker is a set of platform as a service (PaaS) products that use OS-level virtualization to deliver software in packages called containers.
+Containers are isolated from one another and bundle their own software, libraries and configuration files; they can communicate with each other through well-defined channels.
+All containers are run by a single operating system kernel and therefore use fewer resources than virtual machines.
+</p>
+</div>
+</li>
+<li><a id="org0678656"></a>Check if you have docker installed<br>
+<div class="outline-text-4" id="text-org0678656">
+<p>
+The operating-system independent way to check whether Docker is running is to ask Docker, using the docker info command.
+You can also use operating system utilities, such as
+</p>
+<pre class="example">
+shell sudo systemctl is-active docker
+</pre>
+<p>
+or
+</p>
+<pre class="example">
+sudo status docker
+</pre>
+<p>
+or
+</p>
+<pre class="example">
+sudo service docker status
+</pre>
+<p>
+or checking the service status using Windows utilities.
+Finally, you can check in the process list for the `dockerd` process, using commands like
+</p>
+<pre class="example">
+ ps
+</pre>
+<p>
+or
+</p>
+<pre class="example">
+ top
+</pre>
+</div>
+</li>
+
+<li><a id="org561b65b"></a>Installing docker<br>
+<div class="outline-text-4" id="text-org561b65b">
+<p>
+*Docker Engine is available on a variety of Linux platforms, macOS and Windows 10 through Docker Desktop, and as a static binary installation.
+Find your preferred operating system below.
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="org320a26c"></a>MacOS<br>
+<div class="outline-text-5" id="text-org320a26c">
+<p>
+Instruction for MacOS <a href="https://docs.docker.com/docker-for-mac/install/">install</a>
+</p>
+</div>
+</li>
+
+<li><a id="org1976ed3"></a>Linux<br>
+<div class="outline-text-5" id="text-org1976ed3">
+<p>
+Instuctions for
+Debain <a href="https://docs.docker.com/engine/install/debian/">install</a>
+Fedora <a href="https://docs.docker.com/engine/install/fedora/">install</a>
+Ubuntu <a href="https://docs.docker.com/engine/install/ubuntu/">install</a>
+</p>
+</div>
+</li>
+
+<li><a id="orge8d9cbe"></a>Windows<br>
+<div class="outline-text-5" id="text-orge8d9cbe">
+<p>
+Docker Desktop for Windows is the Community version of Docker for Microsoft Windows.
+You can download Docker Desktop for Windows from Docker Hub to <a href="https://docs.docker.com/docker-for-windows/install/">install</a>
+</p>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+
+<div id="outline-container-org9a05e74" class="outline-3">
+<h3 id="org9a05e74">Git</h3>
+<div class="outline-text-3" id="text-org9a05e74">
+</div>
+<ul class="org-ul">
+<li><a id="org3ace627"></a>What is git<br>
+<div class="outline-text-4" id="text-org3ace627">
+<p>
+GitHub provides hosting for software development and version control using Git.
+It offers the distributed version control and source code management (SCM) functionality of Git, plus its own features.
+It provides access control and several collaboration features such as bug tracking, feature requests, task management and continuous integration.
+</p>
+</div>
+</li>
+
+<li><a id="org5cf2fe3"></a>Check if you have git installed<br></li>
+<li><a id="orgffee52e"></a>Installing git<br>
+<div class="outline-text-4" id="text-orgffee52e">
+<p>
+In a terminal window run
+`git &#x2013;version`
+If it is installed you will get a message like `git version 2.25.1`
+</p>
+</div>
+
+<ul class="org-ul">
+<li><a id="org2fb8112"></a>Mac<br>
+<div class="outline-text-5" id="text-org2fb8112">
+<p>
+<a href="https://github.com/git-guides/install-git#install-git-on-mac">Installing on macOS</a>
+</p>
+</div>
+</li>
+
+<li><a id="org5fe514a"></a>Linux<br>
+<div class="outline-text-5" id="text-org5fe514a">
+<p>
+<a href="https://github.com/git-guides/install-git#install-git-on-linux">Installing on Linux</a>
+</p>
+</div>
+</li>
+
+<li><a id="org8d5bd9f"></a>Windows<br>
+<div class="outline-text-5" id="text-org8d5bd9f">
+<p>
+<a href="https://github.com/git-guides/install-git#install-git-on-windows">Installing on Windows</a>
+</p>
+</div>
+</li>
+</ul>
+</li>
+
+<li><a id="org5b186f5"></a>Configure git<br>
+<div class="outline-text-4" id="text-org5b186f5">
+<p>
+To use get you need a Github account.
+If you do not have an account yet go to the <a href="https://github.com/">Github</a> website to sign up.
+You&rsquo;ll need:
+</p>
+<ul class="org-ul">
+<li>name</li>
+<li>email</li>
+<li>password</li>
+</ul>
+
+<p>
+preparing for working with the k8s repo.
+</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="outline-container-org5e4035e" class="outline-3">
+<h3 id="org5e4035e">Go</h3>
+<div class="outline-text-3" id="text-org5e4035e">
+</div>
+<ul class="org-ul">
+<li><a id="orgd1cc292"></a>What is go<br>
+<div class="outline-text-4" id="text-orgd1cc292">
+<p>
+Go or <a href="https://golang.org/">Golang</a> as it is also known is an open source programming language that makes it easy to build simple, reliable, and efficient software.
+</p>
+</div>
+</li>
+<li><a id="orga451a9f"></a>Installing go<br>
+<div class="outline-text-4" id="text-orga451a9f">
+<p>
+We want to make check is Go is installed and what version.
+Open Command Prompt / CMD ot Terminal window, execute the command to check the Go version. Make sure you have the latest version of Go.
+$ go version
+</p>
+
+<p>
+If you need to install Go the <a href="https://golang.org/doc/install">official installation page</a> have struction for Linux, Mac and Windows
+</p>
+</div>
+</li>
+
+<li><a id="org60bd1d0"></a>Adding go to your path<br>
+<div class="outline-text-4" id="text-org60bd1d0">
+<p>
+and knowing how to find your $GOPATH &#x2013; We can look here: <a href="https://golang.org/doc/gopath_code.html">https://golang.org/doc/gopath_code.html</a>
+</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="outline-container-org1105ffc" class="outline-3">
+<h3 id="org1105ffc">SSH Keys</h3>
+<div class="outline-text-3" id="text-org1105ffc">
+</div>
+<ul class="org-ul">
+<li><a id="orgcc518ba"></a>what is ssh<br>
+<div class="outline-text-4" id="text-orgcc518ba">
+<p>
+SSH is a secure protocol used as the primary means of connecting to Linux servers remotely.
+It provides a text-based interface by spawning a remote shell.
+After connecting, all commands you type in your local terminal are sent to the remote server and executed there.
+SSH keys are a matching set of cryptographic keys which can be used for authentication. Each set contains a public and a private key.
+The public key can be shared freely without concern, while the private key must be vigilantly guarded and never exposed to anyone.
+</p>
+</div>
+</li>
+<li><a id="org614efe1"></a>creating a new ssh key<br>
+<div class="outline-text-4" id="text-org614efe1">
+<p>
+To generate an RSA key pair on your local computer, type:
+</p>
+<ul class="org-ul">
+<li>ssh-keygen</li>
+</ul>
+<p>
+This will create to files in the .ssh directory. Your private key id<sub>rsa</sub>. and public key id<sub>rsa.pub</sub>
+</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+
+<section id="outline-container-org57b4f25" class="outline-2">
+<h2 id="org57b4f25">Github configuration</h2>
+<div class="outline-text-2" id="text-org57b4f25">
+</div>
+<div id="outline-container-org057c182" class="outline-3">
+<h3 id="org057c182">Signing up for github account</h3>
+</div>
+<div id="outline-container-org41ecc20" class="outline-3">
+<h3 id="org41ecc20">Uploading your SSH Key</h3>
+</div>
+<div id="outline-container-org963ba11" class="outline-3">
+<h3 id="org963ba11">Signing the CNCF CLA</h3>
+</div>
+</section>
+<section id="outline-container-orgc58731d" class="outline-2">
+<h2 id="orgc58731d">Forking and Cloning K8s</h2>
+<div class="outline-text-2" id="text-orgc58731d">
+</div>
+<div id="outline-container-org07f2fc1" class="outline-3">
+<h3 id="org07f2fc1">brief tour of k8s repo</h3>
+</div>
+<div id="outline-container-org634c515" class="outline-3">
+<h3 id="org634c515">forking to your own repo</h3>
+</div>
+<div id="outline-container-org6279562" class="outline-3">
+<h3 id="org6279562">cloning k8s down to your own computer</h3>
+</div>
+</section>
+<section id="outline-container-org3ad5fbc" class="outline-2">
+<h2 id="org3ad5fbc">The Kubernetes git workflow</h2>
+<div class="outline-text-2" id="text-org3ad5fbc">
+</div>
+<div id="outline-container-orgc6634d0" class="outline-3">
+<h3 id="orgc6634d0">k8s/k8s is &rsquo;upstream&rsquo;</h3>
+</div>
+<div id="outline-container-orgba2b0ca" class="outline-3">
+<h3 id="orgba2b0ca">you create a branch on your fork, and push and make changes.</h3>
+</div>
+<div id="outline-container-orgf9116b6" class="outline-3">
+<h3 id="orgf9116b6">then open a pr in upstream, comparing across forks.</h3>
+</div>
+</section>
+<section id="outline-container-org3c88712" class="outline-2">
+<h2 id="org3c88712">Getting Additional Help</h2>
+<div class="outline-text-2" id="text-org3c88712">
+<p>
+We won&rsquo;t be doing this live, but are there other resources we can offer for help?  perhaps a slack channel that we&rsquo;d be moderating during NCW times?  A repo in which they can open issues for their questions?
+</p>
+</div>
+</section>
+<section id="outline-container-orgbb0e148" class="outline-2">
+<h2 id="orgbb0e148">What&rsquo;s Next?</h2>
+<div class="outline-text-2" id="text-orgbb0e148">
+<p>
+Outline of session 2.  You have all the requirements, now we will build and hack on kubernetes!
+</p>
+</div>
+</section>
+</article>
+<div id="postamble" class="status">
+<p class="author">Author: ii friend</p>
+<p class="date">Created: 2021-02-25 Thu 11:14</p>
+</div>
+</body>
+</html>

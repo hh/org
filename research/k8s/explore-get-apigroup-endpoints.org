@@ -1,0 +1,257 @@
+# -*- ii:t; -*-
+#+TITLE: Explore get*APIGroup Endpoints
+
+
+* Goal
+
+Looking to the following endpoints so that a mock test can be created.
+
+#+begin_example
+getApiregistrationAPIGroup
+getAppsAPIGroup
+getAuditregistrationAPIGroup
+getAuthenticationAPIGroup
+getAuthorizationAPIGroup
+getAutoscalingAPIGroup
+getBatchAPIGroup
+getCertificatesAPIGroup
+getCodeVersion
+getCoordinationAPIGroup
+getDiscoveryAPIGroup
+getEventsAPIGroup
+getExtensionsAPIGroup
+getFlowcontrolApiserverAPIGroup
+getNetworkingAPIGroup
+getNodeAPIGroup
+getPolicyAPIGroup
+getRbacAuthorizationAPIGroup
+getSchedulingAPIGroup
+getSettingsAPIGroup
+getStorageAPIGroup
+#+end_example
+
+- `getCodeVersion` is found at `/version` so will need to be in another test as the test foucs will be the `/apis` path.
+
+* Explore endpoints with 1.17.0
+
+** Create cluster
+
+  #+begin_src bash
+  kind create cluster --name k8s1-17-0 --image kindest/node:v1.17.0@sha256:9512edae126da271b66b990b6fff768fbb7cd786c7d39e86bdf55906352fdf62
+  #+end_src
+
+  #+RESULTS:
+
+** Cluster version
+
+   #+begin_src bash :exports both
+     kubectl get nodes -o wide  --context kind-k8s1-17-0
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+   NAME                      STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE       KERNEL-VERSION     CONTAINER-RUNTIME
+   k8s1-17-0-control-plane   Ready    master   22m   v1.17.0   172.18.0.2    <none>        Ubuntu 19.10   5.3.0-59-generic   containerd://1.3.2
+   #+end_example
+
+** Locate alpha or beta endpoints
+
+   #+begin_src bash :exports both
+     kubectl get --context kind-k8s1-17-0 --raw /apis | jq -r ' .groups | .[].preferredVersion.groupVersion ' | egrep 'alpha|beta' | sort | nl
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+        1	certificates.k8s.io/v1beta1
+        2	discovery.k8s.io/v1beta1
+        3	events.k8s.io/v1beta1
+        4	extensions/v1beta1
+        5	node.k8s.io/v1beta1
+        6	policy/v1beta1
+   #+end_example
+
+** Locate stable endpoints
+
+   #+begin_src bash :exports both
+     kubectl get --context kind-k8s1-17-0 --raw /apis | jq -r ' .groups | .[].preferredVersion.groupVersion ' | egrep -v 'alpha|beta' | sort | nl
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+        1	admissionregistration.k8s.io/v1
+        2	apiextensions.k8s.io/v1
+        3	apiregistration.k8s.io/v1
+        4	apps/v1
+        5	authentication.k8s.io/v1
+        6	authorization.k8s.io/v1
+        7	autoscaling/v1
+        8	batch/v1
+        9	coordination.k8s.io/v1
+       10	networking.k8s.io/v1
+       11	rbac.authorization.k8s.io/v1
+       12	scheduling.k8s.io/v1
+       13	storage.k8s.io/v1
+   #+end_example
+
+* Explore endpoints with 1.19.0 beta
+
+** Create cluster
+
+  #+begin_src bash :results silent
+  kind create cluster --name k8s1-19-0b2 --image heyste/node:1.19.0-beta2
+  #+end_src
+
+** Cluster version
+
+   #+begin_src bash :exports both
+     kubectl get nodes -o wide  --context kind-k8s1-19-0b2
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+   NAME                        STATUS   ROLES    AGE   VERSION                            INTERNAL-IP   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION     CONTAINER-RUNTIME
+   k8s1-19-0b2-control-plane   Ready    master   42m   v1.19.0-beta.2.18+7151131d79674d   172.18.0.3    <none>        Ubuntu 20.04 LTS   5.3.0-59-generic   containerd://1.3.3-14-g449e9269
+   #+end_example
+
+** Locate alpha or beta endpoints
+
+   #+begin_src bash :exports both
+     kubectl get --context kind-k8s1-19-0b2 --raw /apis | jq -r ' .groups | .[].preferredVersion.groupVersion ' | egrep 'alpha|beta' | sort | nl
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+        1	discovery.k8s.io/v1beta1
+        2	events.k8s.io/v1beta1
+        3	extensions/v1beta1
+        4	node.k8s.io/v1beta1
+        5	policy/v1beta1
+   #+end_example
+
+** Locate stable endpoints
+
+   #+begin_src bash :exports both
+     kubectl get --context kind-k8s1-19-0b2 --raw /apis | jq -r ' .groups | .[].preferredVersion.groupVersion ' | egrep -v 'alpha|beta' | sort | nl
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+        1	admissionregistration.k8s.io/v1
+        2	apiextensions.k8s.io/v1
+        3	apiregistration.k8s.io/v1
+        4	apps/v1
+        5	authentication.k8s.io/v1
+        6	authorization.k8s.io/v1
+        7	autoscaling/v1
+        8	batch/v1
+        9	certificates.k8s.io/v1
+       10	coordination.k8s.io/v1
+       11	networking.k8s.io/v1
+       12	rbac.authorization.k8s.io/v1
+       13	scheduling.k8s.io/v1
+       14	storage.k8s.io/v1
+   #+end_example
+
+* Bash version of possible mock test
+
+  #+begin_src bash :exports both
+    kubectl get --context kind-k8s1-19-0b2 --raw /apis | jq -rc '.groups[]' | while IFS='' read stack
+    do
+        name=$(echo "$stack " | jq '.name')
+        echo "APIGroup: $name"
+        preferred_version=$(echo "$stack" | jq ' .preferredVersion.groupVersion' | sed 's/"//g')
+        echo "Preferred version: $preferred_version"
+
+        if echo $preferred_version | egrep -v 'alpha|beta' 1>/dev/null ; then
+          # echo ">>> $preferred_version"
+          versions=$(echo "$stack" | jq -rc '.versions')
+          # echo ">>> $versions"
+
+          for version in $(echo "$versions" | jq -rc ' .[] | .groupVersion')
+          do
+            # echo ">> $version <<"
+            # echo "## $preferred_version ##"
+            if [[ $version == $preferred_version ]] ; then
+              echo "MATCH !! $preferred_version"
+            fi
+          done
+
+        fi
+        echo
+    done
+  #+end_src
+
+  #+RESULTS:
+  #+begin_example
+  APIGroup: "apiregistration.k8s.io"
+  Preferred version: apiregistration.k8s.io/v1
+  MATCH !! apiregistration.k8s.io/v1
+
+  APIGroup: "extensions"
+  Preferred version: extensions/v1beta1
+
+  APIGroup: "apps"
+  Preferred version: apps/v1
+  MATCH !! apps/v1
+
+  APIGroup: "events.k8s.io"
+  Preferred version: events.k8s.io/v1beta1
+
+  APIGroup: "authentication.k8s.io"
+  Preferred version: authentication.k8s.io/v1
+  MATCH !! authentication.k8s.io/v1
+
+  APIGroup: "authorization.k8s.io"
+  Preferred version: authorization.k8s.io/v1
+  MATCH !! authorization.k8s.io/v1
+
+  APIGroup: "autoscaling"
+  Preferred version: autoscaling/v1
+  MATCH !! autoscaling/v1
+
+  APIGroup: "batch"
+  Preferred version: batch/v1
+  MATCH !! batch/v1
+
+  APIGroup: "certificates.k8s.io"
+  Preferred version: certificates.k8s.io/v1
+  MATCH !! certificates.k8s.io/v1
+
+  APIGroup: "networking.k8s.io"
+  Preferred version: networking.k8s.io/v1
+  MATCH !! networking.k8s.io/v1
+
+  APIGroup: "policy"
+  Preferred version: policy/v1beta1
+
+  APIGroup: "rbac.authorization.k8s.io"
+  Preferred version: rbac.authorization.k8s.io/v1
+  MATCH !! rbac.authorization.k8s.io/v1
+
+  APIGroup: "storage.k8s.io"
+  Preferred version: storage.k8s.io/v1
+  MATCH !! storage.k8s.io/v1
+
+  APIGroup: "admissionregistration.k8s.io"
+  Preferred version: admissionregistration.k8s.io/v1
+  MATCH !! admissionregistration.k8s.io/v1
+
+  APIGroup: "apiextensions.k8s.io"
+  Preferred version: apiextensions.k8s.io/v1
+  MATCH !! apiextensions.k8s.io/v1
+
+  APIGroup: "scheduling.k8s.io"
+  Preferred version: scheduling.k8s.io/v1
+  MATCH !! scheduling.k8s.io/v1
+
+  APIGroup: "coordination.k8s.io"
+  Preferred version: coordination.k8s.io/v1
+  MATCH !! coordination.k8s.io/v1
+
+  APIGroup: "node.k8s.io"
+  Preferred version: node.k8s.io/v1beta1
+
+  APIGroup: "discovery.k8s.io"
+  Preferred version: discovery.k8s.io/v1beta1
+
+  #+end_example

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Testing Reveal</title>
+<meta name="author" content="Zach Mandeville"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="./revealjs/dist/reveal.css"/>
+
+<link rel="stylesheet" href="./revealjs/dist/theme/black.css" id="theme"/>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide">
+<h1 class="title">Testing Reveal</h1><h2 class="author">Zach Mandeville</h2><p class="date">Created: 2023-06-13 Tue 23:43</p>
+</section>
+<section id="table-of-contents-section">
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#/slide-1">1. Intro</a></li>
+<li><a href="#/slide-2">2. Steps</a>
+<ul>
+<li><a href="#/slide-2-1">2.1. Make sure i have reveal enabled</a></li>
+<li><a href="#/slide-2-2">2.2. Export and see results</a></li>
+<li><a href="#/slide-2-3">2.3. Second export</a></li>
+<li><a href="#/slide-2-4">2.4. Research into tickets</a></li>
+<li><a href="#/slide-2-5">2.5. My current suspicion</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+</section>
+
+
+<section>
+<section id="slide-1">
+<h2 id="1"><span class="section-number-2">1.</span> Intro</h2>
+<p>
+We noticed that exporting an org file to a reveal presentation did not work.  Why not?
+</p>
+</section>
+</section>
+<section>
+<section id="slide-2">
+<h2 id="2"><span class="section-number-2">2.</span> Steps</h2>
+<div class="outline-text-2" id="text-2">
+</div>
+</section>
+<section id="slide-2-1">
+<h3 id="2-1"><span class="section-number-3">2.1.</span> Make sure i have reveal enabled</h3>
+<p>
+on your doom config, you want ot make sure org has the +present plugin
+so in yr init.el, the org line should be  at least:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-elisp"><span style="color: #528b8b;">(</span>org + present<span style="color: #528b8b;">)</span>
+</pre>
+</div>
+</section>
+<section id="slide-2-2">
+<h3 id="2-2"><span class="section-number-3">2.2.</span> Export and see results</h3>
+<p>
+When I first exported, I had an unstyled presentation.  Looking into the sourc,e it was trying to grab the CSS and JS from my emacs local packages.
+In the latest version of doom, your emacs config is now placed in <code>\~/.config/emacs/.local/straight/repos/revealjs</code>.  This path will cause permission issues, as it&rsquo;s nested within directories with restricted permissions.  I didn&rsquo;t want to change all of this, and pulling from a local directory wouldn&rsquo;t work long-term online, and so I copied down the src to
+this org directory, under revealjs
+</p>
+
+</section>
+<section id="slide-2-3">
+<h3 id="2-3"><span class="section-number-3">2.3.</span> Second export</h3>
+<p>
+Underneath the hood, doom&rsquo;s present plugin is using <a href="https://github.com/emacsmirror/org-re-reveal">org-re-reveal</a>. According to its documentation, you just add headers to the top of the org file pointing to the right multiplex server with an id and secret.  They have a demo server up that I used, and generated a token with something like:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #8181a6;">curl</span> https://reveal-multiplex.glitch.me/token
+</pre>
+</div>
+
+<p>
+Upon export, it still did not work. It was looking for a script that it assumed
+was in our revealjs folder that was not there. I grabbed the script from our own
+multiplex.ii.nz and added it to our revealjs folder.
+</p>
+</section>
+<section id="slide-2-4">
+<h3 id="2-4"><span class="section-number-3">2.4.</span> Research into tickets</h3>
+<p>
+Since the out of the box experience doesn&rsquo;t relaly work, i wanted to doublecheck
+if any issues were in the doom emacs repo around this.
+</p>
+
+<p>
+the closest is this ticket:
+<a href="https://github.com/doomemacs/doomemacs/issues/3595">https://github.com/doomemacs/doomemacs/issues/3595</a>
+</p>
+
+<p>
+which is old, and likely not it&#x2014;though this PR results in doom just pulling
+down the revealjs code locally&#x2026;however, according to revealjs&rsquo;s docs,
+multiplex is no longer included in it:
+</p>
+
+<p>
+<a href="https://revealjs.com/multiplex/">https://revealjs.com/multiplex/</a>
+</p>
+
+<p>
+And in that multiplex repo, it points out a demo on reveal-multiplex.glitch.me
+that is no longer working. No matter, I pulled in the latest code to our
+revealjs folder and got a <i>new</i> error, that I cannot explain. When I load up the
+exported html, i see this message:
+</p>
+
+<pre class="example">
+XHR GET https://reveal-multiplex.glitch.me/socket.io/1/?t=1686655944730 [HTTP/2 BAD REQUEST 400]
+</pre>
+
+<p>
+This seems like i&rsquo;t sproviding a token, but it&rsquo;s not the tokenn in the org file
+or our exported html file. I could not figure out where that ?t=16866&#x2026; token
+was coming from.
+</p>
+
+<p>
+The issues in the multiplex repo are not encouraging.
+<a href="https://github.com/reveal/multiplex/issues/14">https://github.com/reveal/multiplex/issues/14</a>
+</p>
+
+<p>
+Here is one where he is trying the site on glitch and using the demo and the
+slides don&rsquo;t move in the client, the same error I am having. The only answer is
+from a person with a working site, but that site does not use multiplex.
+Instead, it is using a new plugin called
+SEMINAR(<a href="https://github.com/rajgoel/reveal.js-plugins/tree/master/seminar">https://github.com/rajgoel/reveal.js-plugins/tree/master/seminar</a>), whose
+demo site&#x2026;also doesn&rsquo;t work.
+</p>
+</section>
+<section id="slide-2-5">
+<h3 id="2-5"><span class="section-number-3">2.5.</span> My current suspicion</h3>
+<p>
+I think that the multiplex server on glitch may not be the most up-to-date version of reveal or multiplex, or that there is some
+other similar mismatch between org,doom,org-re-reveal,revealjs, and reveal-multiplex.
+</p>
+
+<p>
+It may be good to set up a multiplex server that can be run on the fly, or deployed easily, that we can confirm works and we can
+point
+</p>
+</section>
+</section>
+</div>
+</div>
+<script src="./revealjs/dist/reveal.js"></script>
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: true,
+progress: true,
+history: false,
+center: true,
+slideNumber: 'c',
+rollingLinks: false,
+keyboard: true,
+mouseWheel: false,
+fragmentInURL: false,
+hashOneBasedIndex: false,
+pdfSeparateFragments: true,
+overview: true,
+
+transition: 'convex',
+transitionSpeed: 'default',
+multiplex: {
+    secret: null, // null if client
+    id: '3b7afa99cd46faa2', // id, obtained from socket.io server
+    url: 'https://multiplex.ii.nz' // Location of socket.io server
+},
+
+// Plugins with reveal.js 4.x
+plugins: [  ],
+
+// Optional libraries used to extend reveal.js
+dependencies: [
+ { src: 'http://cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.10/socket.io.min.js', async: true },
+ { src: './revealjs/plugin/multiplex/client.js', async: true }]
+
+});
+</script>
+</body>
+</html>

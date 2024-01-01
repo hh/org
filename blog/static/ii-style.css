@@ -1,0 +1,89 @@
+div.summary {
+    font-size: 1rem;
+    color: gray;
+}
+div.summary p {
+    padding: 0;
+    margin-top: 0.5rem;
+}
+
+.author {
+    padding: 3px;
+}
+
+div.authors {
+    margin-top: 1rem;
+}
+
+a.author {
+    margin-right: 0.25rem;
+}
+p.purpose {
+    max-width: 30rem;
+}
+
+div#about section#humans {
+    display: flex;
+    flex-flow: column;
+}
+
+div#about h2 {
+   font-size: 1.5rem;
+   border-top: 1px solid black;
+}
+
+section#humans article {
+    margin: 1rem 0 1rem 0;
+}
+
+section#humans article h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+section#humans div.profile-photo, div.profile-info > div.profile-photo {
+    margin: 1rem auto 1rem auto;
+    position: relative;
+    border-radius: 50%;
+    height: 200px;
+    width: 200px;
+    overflow: hidden;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+section#humans article div.content.long {
+    height: 200px;
+    overflow: hidden;
+}
+
+button.read-more {
+    font-size: 1rem;
+    outline: 0;
+    border: 0;
+    background: unset;
+    cursor: pointer;
+}
+
+button.read-more:hover {
+    color: dodgerblue;
+}
+
+div.profile-info {
+    max-width: 34rem;
+    width: 100%;
+    margin: 0 auto;
+}
+
+#humans a {
+    color: #000;
+}
+
+@media(min-width: 800px) {
+    div#about section#humans {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-column-gap: 7rem;
+    }
+}

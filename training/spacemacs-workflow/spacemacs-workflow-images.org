@@ -1,0 +1,164 @@
+# -*- ii:t; -*-
+#+TITLE: Spacemacs Workflow Images
+#+AUTHOR: Stephen Heywood
+
+
+* Initial file edit/save
+
+The diagram shows the sequence of keys for the user Alex to edit and then saving a file.
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-01.png
+title **Initial file edit/save**
+footer \nDiagram 1
+
+skinparam roundcorner 10
+actor Alex as alex
+participant GitLab as gitlab #lightgrey
+
+||20||
+hnote over gitlab #limegreen : version 1
+/ hnote over alex : copy of version 1
+
+||10||
+rnote left of alex #f8ebff : Wants to edit\nthe current file
+rnote left of alex #orange : **"" ""**
+rnote left of alex : **""i""**
+rnote left of alex #green : **"" ""**
+hnote over alex #ffe8e8 : edit file
+...some time later...
+rnote left of alex #f8ebff : Wants to save\ncurrent work
+
+rnote left of alex : **""ESC""**
+rnote left of alex #orange : **"" ""**
+rnote left of alex : **""SPC""**
+rnote left of alex : **""f""**
+rnote left of alex : **""s""**
+
+hnote over alex #e8ffe8 : file saved
+rnote left of alex #f8ebff : Repeat this\nfor all files\nas required
+||20||
+  #+end_src
+
+  #+RESULTS:
+  [[file:images/spacemacs-workflow-01.png]]
+
+* Sync work to GitLab
+
+The following two diagrams show the sequence of keys for the user Alex to sync his work to GitLab.
+
+** Part 1
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-02a.png
+title **Sync work to GitLab**
+footer \nDiagram 2A
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+actor Alex as alex
+participant GitLab as gitlab #lightgrey
+
+||20||
+hnote over gitlab #limegreen : version 1
+/ hnote over alex : copy of version 1
+
+||10||
+hnote over alex #e8ffe8 : updated files saved
+
+rnote left of alex #f8ebff : Wants to sync\nwork to GitLab
+rnote left of alex #orange : **"" ""**
+rnote left of alex : **""SPC""**
+rnote left of alex : **""g""**
+rnote left of alex : **""s""**
+rnote left of alex : **""F""**
+rnote left of alex : **""u""**
+alex <- gitlab : Pull any changes from GitLab
+
+||20||
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src plantuml
+  [[file:images/spacemacs-workflow-02a.png]]
+  #+end_src
+
+** Part 2
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-02b.png
+title **Sync work to GitLab**
+footer \nDiagram 2B
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+actor Alex as alex
+participant GitLab as gitlab #lightgrey
+
+||20||
+
+rnote left of alex #orange : **"" ""**
+rnote left of alex : **""c""**
+rnote left of alex : **""c""**
+rnote left of alex : **""i""**
+rnote left of alex #green : **"" ""**
+rnote left of alex #f8ebff : Provide a short\nsummary for the\nhistory log
+rnote left of alex : **""ESC""**
+rnote left of alex #orange : **"" ""**
+rnote left of alex : **"",""**
+rnote left of alex : **""c""**
+hnote over alex : version 2
+rnote left of alex #f8ebff : Sync the new\nhistory and file\nchanges to GitLab
+rnote left of alex : **""P""**
+rnote left of alex : **""u""**
+alex -> gitlab : Push current history and files to GitLab
+hnote over gitlab #limegreen : version 2
+
+||20||
+  #+end_src
+
+  #+RESULTS:
+  #+begin_src plantuml
+  [[file:images/spacemacs-workflow-02b.png]]
+  #+end_src
+
+* Issue when trying to sync work to GitLab
+
+The diagram shows a possible issue while trying to sync local changes to GitLab.
+GitLab already has a new history and files which Alex doesn't have locally in his local copy.
+
+  #+begin_src plantuml :dir "./images" :file spacemacs-workflow-03.png
+title **Issue when trying to sync work to GitLab**
+footer \nDiagram 3
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+actor Alex as alex
+participant GitLab as gitlab #lightgrey
+actor Sam as sam
+
+||20||
+hnote over gitlab #limegreen : version 2
+/ hnote over alex : copy of version 2
+/ hnote over sam : copy of version 2
+
+||10||
+hnote over alex #e8ffe8 : updated files saved
+
+rnote left of alex #f8ebff : Wants to sync\nwork to GitLab
+alex <- gitlab : Pull any changes from GitLab
+rnote left of alex #f8ebff : Needs to make the\nlocal changes part of\nthe local history
+rnote left of alex #f8ebff : Provide a short\nsummary for the\nhistory log
+hnote over alex : version 3
+hnote over sam #e8ffe8 : updated files saved
+rnote right of sam #f8ebff : Needs to make the\nlocal changes part of\nthe local history
+rnote right of sam #f8ebff : Provide a short\nsummary for the\nhistory log
+hnote over sam : version 3
+sam -> gitlab : Push current history and files to GitLab
+hnote over gitlab #limegreen : version 3
+rnote left of alex #f8ebff : Sync the new\nhistory and file\nchanges to GitLab
+alex ->X gitlab : Push current history and files to GitLab
+note left of gitlab #ffe8e8 : GitLab has a different\nhistory and files.\nThe "Push" will fail.
+||20||
+  #+end_src
+
+  #+RESULTS:
+  [[file:images/spacemacs-workflow-03.png]]
+

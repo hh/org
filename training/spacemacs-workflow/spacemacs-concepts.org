@@ -1,0 +1,17 @@
+# -*- ii:t; -*-
+#+TITLE: Spacemacs Concepts
+#+AUTHOR: Stephen Heywood
+#+DATE: 2 April, 2020
+#+STARTUP: showall
+
+* Objective
+
+The reader should gain practical knowledge around the various concepts used with Spacemacs.
+
+* Modes
+
+Spacemacs is different from most text editors in that you switch between different /modes/.
+These modes help the user focus on the task at hand with easy navigation through a clean system of mnemonics to remember in due time.
+
+** Normal Mode
+** Insert Mode

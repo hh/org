@@ -1,0 +1,167 @@
+#+TITLE: ii GCP CAPI
+
+* Image builder
+
+Clone
+#+BEGIN_SRC shell
+git clone https://github.com/kubernetes-sigs/image-builder
+cd image-builder/images/capi
+#+END_SRC
+
+Install dependencies
+#+BEGIN_SRC
+sudo apt update
+sudo apt install -y ansible
+make deps-gce
+#+END_SRC
+
+Ensure Kubernetes v1.21.0
+#+BEGIN_SRC shell
+find packer/config/ -type f -exec sed -i -e 's/1.18.15/1.21.0/g' {} \;
+find packer/config/ -type f -exec sed -i -e 's/1.18/1.21/g' {} \;
+#+END_SRC
+
+Set Env
+#+BEGIN_SRC shell
+read GCP_PROJECT_ID
+export GCP_PROJECT_ID
+
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-credentials.json
+#+END_SRC
+
+Build GCE image
+#+BEGIN_SRC
+make build-gce-ubuntu-1804
+#+END_SRC
+
+The image will now be available as something like /projects/$GCP_PROJECT_ID/global/images/cluster-api-ubuntu-1804-v1-21-0-1620356019/
+
+* Deploying
+
+#+BEGIN_SRC yaml :tangle ~/cluster-template.yaml
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: GCPCluster
+    name: "${CLUSTER_NAME}"
+  controlPlaneRef:
+    kind: KubeadmControlPlane
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    name: "${CLUSTER_NAME}-control-plane"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: GCPCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  project: "${GCP_PROJECT}"
+  region: "${GCP_REGION}"
+  network:
+    name: "${GCP_NETWORK_NAME}"
+---
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  infrastructureTemplate:
+    kind: GCPMachineTemplate
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    name: "${CLUSTER_NAME}-control-plane"
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data.local_hostname.split(".")[0] }}'
+        kubeletExtraArgs:
+          cloud-provider: gce
+    clusterConfiguration:
+      apiServer:
+        timeoutForControlPlane: 20m
+        extraArgs:
+          cloud-provider: gce
+      controllerManager:
+        extraArgs:
+          cloud-provider: gce
+          allocate-node-cidrs: "false"
+    joinConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data.local_hostname.split(".")[0] }}'
+        kubeletExtraArgs:
+          cloud-provider: gce
+  version: "${KUBERNETES_VERSION}"
+---
+kind: GCPMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  template:
+    spec:
+      instanceType: "${GCP_CONTROL_PLANE_MACHINE_TYPE}"
+      image: "${GCP_IMAGE_SELFLINK}"
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT}
+  selector:
+    matchLabels:
+  template:
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      failureDomain: "${GCP_REGION}-a"
+      version: "${KUBERNETES_VERSION}"
+      bootstrap:
+        configRef:
+          name: "${CLUSTER_NAME}-md-0"
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: "${CLUSTER_NAME}-md-0"
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+        kind: GCPMachineTemplate
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: GCPMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  template:
+    spec:
+      instanceType: "${GCP_NODE_MACHINE_TYPE}"
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data.local_hostname.split(".")[0] }}'
+          kubeletExtraArgs:
+            cloud-provider: gce
+#+END_SRC
+
+Prepare Env
+#+BEGIN_SRC shell
+export GCP_CONTROL_PLANE_MACHINE_TYPE=e2-standard-2 GCP_NETWORK_NAME=default GCP_NODE_MACHINE_TYPE=e2-standard-2 GCP_PROJECT=$GCP_PROJECT_ID GCP_REGION=us-east1 GCP_IMAGE_SELFLINK=projects/$GCP_PROJECT_ID/global/images/cluster-api-ubuntu-1804-v1-21-0-1620356019
+#+END_SRC
+
+Template
+#+BEGIN_SRC shell
+clusterctl config cluster --from ~/cluster-template.yaml ii-sandbox-test --kubernetes-version v1.21.0 --control-plane-machine-count=1 --worker-machine-count=0 --target-namespace=gcp-test > ii-sandbox-test.yaml
+#+END_SRC

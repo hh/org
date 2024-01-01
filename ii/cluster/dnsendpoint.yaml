@@ -1,0 +1,25 @@
+
+
+# #+NAME: DNSEndpoint
+
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: gitlab-ii-coop
+spec:
+  endpoints:
+  - dnsName: 'gitlab-staging.ii.coop'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: '*.gitlab-staging.ii.coop'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: gitlab-staging.ii.coop
+    recordTTL: 3600
+    recordType: SOA
+    targets:
+    - 'ns1.gitlab-staging.ii.coop. hostmaster.gitlab-staging.ii.coop. 5 3600 3600 3600 3600'

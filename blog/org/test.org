@@ -1,0 +1,29 @@
+#+TITLE: Test.org
+
+* something cool
+this is something cool and my thoughts /on it/.
+I can do small code blocks
+: print("like so")
+
+
+* something fun
+I can also do bigger code blocks
+#+begin_src js
+console.log("like so")
+#+end_src
+* Inline code
+there are a couple ways to do inline code
+** code block
+you use = for this to make =inline code=
+** preformatted
+you use ~ for this to make ~preformatted text~
+* something sassy
+I can make a nice list of things:
+- oranges
+- bananas
+- apples
+
+can I also do definitions?
+- something :: is cool
+
+- veranda :: a covered patio

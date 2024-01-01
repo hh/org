@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rook-ceph-pvc-test
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+  storageClassName: rook-ceph-block
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rook-ceph-pvc-test
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      name: rook-ceph-pvc-test
+  template:
+    metadata:
+      labels:
+        name: rook-ceph-pvc-test
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: name
+                    operator: In
+                    values:
+                      - rook-ceph-pvc-test
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: rook-ceph-pvc-test
+          image: alpine:3.12
+          command:
+            - sleep
+            - infinity
+          volumeMounts:
+            - name: rook-ceph-pvc-test
+              mountPath: /mnt
+      volumes:
+        - name: rook-ceph-pvc-test
+          persistentVolumeClaim:
+            claimName: rook-ceph-pvc-test

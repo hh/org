@@ -528,5 +528,4 @@ see-also:
 # eval: (require (quote ob-go))
 # #eval: (require (quote ob-tmux))
 # #eval: (require (quote ob-tmate))
-# org-confirm-babel-evaluate: nil
 # End:

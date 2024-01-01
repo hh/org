@@ -1,0 +1,61 @@
+# kind-cluster-config.yaml
+# #+NAME: kind kubeadm DynamicAuditing configuration
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+      "feature-gates": "DynamicAuditing=true"
+      "runtime-config": "auditregistration.k8s.io/v1alpha1=true"
+      "audit-dynamic-configuration": "true"
+kubeadmConfigPatchesJSON6902:
+- group: kubeadm.k8s.io
+  version: v1beta2
+  kind: ClusterConfiguration
+  patch: |
+    - op: add
+      path: /apiServer/certSANs/-
+      value: '*.kubemacs.org'
+    - op: add
+      path: /apiServer/certSANs/-
+      value: '*.ii.nz'
+    - op: add
+      path: /apiServer/certSANs/-
+      value: '*.ii.coop'
+    - op: add
+      path: /apiServer/certSANs/-
+      value: '*.sharing.io'
+nodes:
+ - role: control-plane
+   extraMounts:
+   - containerPath: /var/run/docker.sock
+     hostPath: /var/run/docker.sock
+     readOnly: False
+   - containerPath: /var/host/tmp
+     hostPath: /tmp
+     readOnly: False
+   extraPortMappings:
+   - containerPort: 6443
+     hostPort: 6443
+   - containerPort: 67
+     hostPort: 67
+     listenAddress: "192.168.1.99"
+     protocol: UDP
+   - containerPort: 69
+     hostPort: 69
+     listenAddress: "192.168.1.99"
+     protocol: UDP
+   kubeadmConfigPatches:
+   - |
+     apiVersion: kubeadm.k8s.io/v1beta2
+     kind: InitConfiguration
+     nodeRegistration:
+       kubeletExtraArgs:
+         node-labels: "ingress-ready=true"
+         authorization-mode: "AlwaysAllow"

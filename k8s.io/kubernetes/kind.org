@@ -144,6 +144,5 @@ Beware your copy paste methods and try pasting into a notepad first.
 # eval: (setq socket (concat "/tmp/" user-login-name "." (file-name-base buffer-file-name) ".iisocket"))
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

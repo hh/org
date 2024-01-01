@@ -1,0 +1,24 @@
+{
+  "id": "default-amd64",
+  "name": "default-amd64",
+  "boot": {
+    "kernel": "/assets/talos/vmlinuz-amd64",
+    "initrd": [
+      "/assets/talos/initramfs-amd64.xz"
+    ],
+    "args": [
+      "initrd=initramfs-amd64.xz",
+      "init_on_alloc=1",
+      "init_on_free=1",
+      "slub_debug=P",
+      "pti=on",
+      "random.trust_cpu=on",
+      "console=tty0",
+      "console=ttyS1,115200n8",
+      "slab_nomerge",
+      "printk.devkmsg=on",
+      "talos.platform=packet",
+      "talos.config=none"
+    ]
+  }
+}

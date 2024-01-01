@@ -1,0 +1,51 @@
+
+
+# #+NAME: PowerDNS
+
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: powerdns
+spec:
+  releaseName: powerdns
+  chart:
+    git: https://github.com/sharingio/helm-charts
+    ref: master
+    path: charts/powerdns
+  values:
+    domain: gitlab-staging.ii.coop
+    default_soa_name: gitlab-staging.ii.coop
+    apikey: pairingissharing
+    powerdns:
+      default_ttl: 3600
+      soa_minimum_ttl: 3600
+      domain: gitlab-staging.ii.coop
+      default_soa_name: gitlab-staging.ii.coop
+      mysql_host: powerdns-service-db
+      mysql_user: powerdns
+      extraEnv:
+        - name: PDNS_dnsupdate
+          value: "yes"
+        - name: PDNS_allow_dnsupdate_from
+          value: "192.168.0.0/24"
+    service:
+      dns:
+        tcp:
+          enabled: true
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          externalIPs:
+            - ${LOAD_BALANCER_IP}
+        udp:
+          annotations:
+            metallb.universe.tf/allow-shared-ip: nginx-ingress
+          externalIPs:
+            - ${LOAD_BALANCER_IP}
+    mariadb:
+      mysql_pass: pairingissharing
+      mysql_rootpass: pairingissharing
+    admin:
+      enabled: false
+      ingress:
+        enabled: false
+      secret: pairingissharing

@@ -1,0 +1,157 @@
+#+TITLE: Bq Ip Asn Start
+* Adding support for sql-bq
+#+begin_src emacs-lisp :results silent
+(defun ii-sql-comint-bq (product options &optional buf-name)
+  "Create a bq shell in a comint buffer."
+  ;; We may have 'options' like database later
+  ;; but for the most part, ensure bq command works externally first
+  (sql-comint product options buf-name)
+  )
+(defun ii-sql-bq (&optional buffer)
+  "Run bq by Google as an inferior process."
+  (interactive "P")
+  (sql-product-interactive 'bq buffer)
+  )
+(sql-add-product 'bq "Google Big Query"
+                   :free-software nil
+                   ;; :font-lock 'bqm-font-lock-keywords
+                   ;; :syntax-alist 'bqm-mode-syntax-table ; invalid
+                   :prompt-regexp "^[[:alnum:]-]+> "
+                   ;; I don't think we have a continuation prompt
+                   ;; but org-babel-execute:sql-mode requires it
+                   ;; otherwise re-search-forward errors on nil
+                   ;; when it requires a string
+                   :prompt-cont-regexp "3a83b8c2z93c89889a4c98r2z34"
+                   ;; :prompt-length 9 ; can't precalculate this
+                   :sqli-program "bq"
+                   :sqli-login nil ; probably just need to preauth
+                   :sqli-options '("shell" "--quiet" "--format" "pretty")
+                   :sqli-comint-func 'ii-sql-comint-bq
+                 )
+#+end_src
+
+#+begin_src emacs-lisp :results silent
+(sql-del-product 'bq)
+#+end_src
+
+#+begin_src sql-mode :product bq
+select 1;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
++-----+
+| f0_ |
++-----+
+|   1 |
++-----+
+#+end_SRC
+
+#+begin_src emacs-lisp
+(sql-product-interactive 'bq)
+#+end_src
+
+#+RESULTS:
+#+begin_src emacs-lisp
+#<window 66 on *SQL: bq:none*>
+#+end_src
+
+* Use headings
+- and subthing
+Interesting right?
+Aite mostly using this as scratch pad
+
+<#+begin_example
+Building the list of distinct ipv4 with int and ip_strings
+#####
+SELECT
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(c_ip)) AS ip,
+  c_ip AS c_ip
+FROM
+  k8s_artifacts_gcslogs_appspot.distinct_appspot_ip
+WHERE
+  REGEXP_CONTAINS(c_ip, r"\.")
+ORDER BY
+  ip
+LIMIT
+  1000000;
+####
+
+Going over the output from the above and pushing that to a file
+####
+select ip,
+c_ip,
+int64_field_2 as asn,
+string_field_4 as asn_name
+from `k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.distinct_appspot_ip_int`,
+`k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.ip2asn_int`
+where
+ip >= f0_ and ip <= f1_;
+#####
+I would like to take chunks of 10k and do the comparison streaming results to a table
+
+
+This is the while loop structure I came up with:
+####
+X = 1000
+Y = select count(*) from
+
+  Select folds from tab1, tab2
+WHERE ROWNUMBER >= x - 10000 and ROWNUMBER <= x ...
+x = x + 10000;
+
+#####
+
+Lets try and use that structure to do a simple select on one of the tables
+#######
+X = 10000
+Y = (select count(*) from distinct_appspot_ip_int)
+
+DO while X < y LOOP
+select ip,
+c_ip,
+int64_field_2 as asn,
+string_field_4 as asn_name
+from `k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.distinct_appspot_ip_int`,
+`k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.ip2asn_int`
+where
+ip >= f0_ and ip <= f1_;
+WHERE ROWNUMBER >= x - 10000 and ROWNUMBER <= x + 10000
+x = x + 1;
+
+END WHILE;
+####
+
+This is the version I got to run
+######
+DECLARE X INT64;
+DECLARE Y INT64;
+
+CREATE TEMP TABLE tmp_ip_int AS
+SELECT ip,
+       c_ip,
+       RANK() OVER(ORDER BY ip) row_number
+    FROM k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.distinct_appspot_ip_int;
+
+SET X = 0;
+SET Y = (select count(*) from k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.distinct_appspot_ip_int);
+
+WHILE X < y DO
+SELECT  ip,
+c_ip,
+int64_field_2 as asn,
+string_field_4 as asn_name
+FROM `tmp_ip_int`,
+`k8s-infra-ii-sandbox.k8s_artifacts_gcslogs_appspot.ip2asn_int`
+WHERE
+ip >= f0_ and ip <= f1_
+AND row_number = x;
+SET x = x + 1;
+
+END WHILE;
+#######
+Problem, I still need to output that to a file...
+
+
+
+#+end_example

@@ -1,0 +1,616 @@
+#+title: Istio Work
+#+PROPERTY: header-args:sql-mode+ :product postgres
+* Introduction
+this work looks into whether APISnoop can be extended to include custom resource definitions.
+
+If a cluster is extended with CRD's, then that cluster's apiserver will include their api endpoints.
+
+the server creates an openapi spec from it's existing endpoints...so can apisnoop be adjusted to pull from the cluster's open_api spec instead of the one on github?
+* Progress
+** Get connected
+#+begin_src sql-mode
+select * from describe_relations();
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+   schema    |             name             |                                                description
+-------------+------------------------------+------------------------------------------------------------------------------------------------------------
+ testing     | audit_event                  | every event from an e2e test run, or multiple test runs.
+ testing     | endpoint_hit_by_new_test     |
+ testing     | projected_change_in_coverage |
+ testing     | untested_stable_endpoint     |
+ public      | audit_event                  | every event from an e2e test run, or multiple test runs.
+ public      | audit_event_test             | every test in the audit_log of a release
+ public      | endpoint_coverage            | Coverage info for every endpoint in a release, taken from audit events for that release
+ public      | open_api                     | endpoint details from openAPI spec
+ conformance | coverage_per_release         | How many endopoints from a release are tested today?
+ conformance | eligible_endpoint            | all current stable endpoints for which conformant tests could be written, following conformance guidelines
+ conformance | ineligible_endpoint          | endpoints ineligible for conformance testing
+ conformance | new_endpoint                 | eligible endpoints sorted by release and whether they are tested
+ conformance | progress                     | per release, the # of new, eligible endpoints and coverage ratios
+ conformance | test                         | info for each conformance test, from latest conformance.yaml
+(14 rows)
+
+#+end_SRC
+
+** Review how load open api works
+#+begin_src sql-mode
+begin;
+delete from open_api;
+commit;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+BEGIN
+apisnoop=*# DELETE 22156
+apisnoop=*# COMMIT
+#+end_SRC
+
+The function for loading the open pai is defined in our initdb scripts as [[https://github.com/cncf/apisnoop/blob/main/apps/snoopdb/postgres/initdb/300_fn_load_open_api.sql][300_fn_load_open_api.sql]]
+
+It uses the request library to retrieve the url from the kubernetes repo.
+If you pass in a custom release, then it will use that as the branch to pull
+from, otherwise it pulls from the master branch.
+
+We could adjust this to say that custom is either:
+- a custom branch
+- incluster
+
+so then if custom_release = 'incluster', it pulls from the cluster.
+Otherwise, it pulls from the customrelease, otherwise master.
+** Write alternate function with incluster conditional
+Here is a naive, first version.  It just adds to the conditionals to check if the custom_release string is 'incluster'.
+
+This works, except it requires having the token in the root of the snoodb container.  Whenever I tried to read it directly from ~/run/secrets/kuberenetes.io/serviceaccount/token~ it would tell me "file does not exist", even though I could verify that it did exist in the pod itself.
+The permissions for the file look open enough and such, and I felt this was something that could be fixed in a quick pair, so i just copied the token to
+the root path and kept on. If we want this to be reproducible, we either wanna copy to root as part of the setup script or find another way to access it.
+
+Regardless, let's run it:
+
+#+begin_src sql-mode
+begin;
+create or replace function zload_open_api (
+  custom_release text default null
+  )
+returns text AS $$
+from string import Template
+import json
+import time
+import datetime
+from urllib.request import Request, urlopen, urlretrieve
+import urllib
+import yaml
+
+K8S_REPO_URL = 'https://raw.githubusercontent.com/kubernetes/kubernetes/'
+OPEN_API_PATH = '/api/openapi-spec/swagger.json'
+RELEASES_URL = 'https://raw.githubusercontent.com/cncf/apisnoop/main/resources/coverage/releases.yaml'
+
+# Get info about latest release from our releases.yaml
+releases = yaml.safe_load(urlopen(RELEASES_URL))
+latest_release = releases[0]
+
+# Set values for sql template  based on if custom_release argument was passed
+if custom_release == 'incluster':
+  plpy.notice("in the custom release branch")
+  import ssl
+  from pathlib import Path
+
+  ssl._create_default_https_context = ssl._create_unverified_context
+  token = Path('/token.txt').read_text()
+  req = Request('https://kubernetes/openapi/v2')
+  req.add_header('Authorization','Bearer ' + token)
+
+  open_api = json.loads(urlopen(req).kead().decode('utf-8'))
+  release =  '1.28.1'
+  release_date = time.mktime(datetime.datetime.now().timetuple())
+  open_api_url = 'incluster'
+elif custom_release is not None:
+  open_api_url = K8S_REPO_URL + 'v' + custom_release  + OPEN_API_PATH
+# check to see if we can load this custom_release url
+  try:
+    open_api = json.loads(urlopen(open_api_url).read().decode('utf-8'))
+    release = custom_release
+    rd = [r for r in releases if r['version'] == release][0]['release_date']
+    release_date = time.mktime(datetime.datetime.strptime(str(rd), "%Y-%m-%d").timetuple())
+  except urllib.error.HTTPError as e:
+    raise ValueError('http error with', custom_release)
+else:
+  plpy.notice("we should not see this")
+  open_api_url = K8S_REPO_URL + 'master' + OPEN_API_PATH
+  open_api = json.loads(urlopen(open_api_url).read().decode('utf-8'))
+  release = latest_release['version']
+  release_date = time.mktime(datetime.datetime.now().timetuple())
+sql = Template("""
+   WITH open AS (
+     SELECT '${open_api}'::jsonb as api_data
+     )
+       INSERT INTO open_api(
+         release,
+         release_date,
+         endpoint,
+         level,
+         category,
+         path,
+         k8s_group,
+         k8s_version,
+         k8s_kind,
+         k8s_action,
+         deprecated,
+         description,
+         spec
+       )
+   SELECT
+     '${release}' as release,
+     to_timestamp(${release_date}) as release_date,
+     (d.value ->> 'operationId'::text) as endpoint,
+     CASE
+       WHEN paths.key ~~ '%alpha%' THEN 'alpha'
+       WHEN paths.key ~~ '%beta%' THEN 'beta'
+       -- these endpoints are beta, but are not marked as such, yet, in the swagger.json
+       WHEN (d.value ->> 'operationId'::text) = any('{"getServiceAccountIssuerOpenIDConfiguration", "getServiceAccountIssuerOpenIDKeyset"}') THEN 'beta'
+       ELSE 'stable'
+     END AS level,
+     split_part((cat_tag.value ->> 0), '_'::text, 1) AS category,
+     paths.key AS path,
+     ((d.value -> 'x-kubernetes-group-version-kind'::text) ->> 'group'::text) AS k8s_group,
+     ((d.value -> 'x-kubernetes-group-version-kind'::text) ->> 'version'::text) AS k8s_version,
+     ((d.value -> 'x-kubernetes-group-version-kind'::text) ->> 'kind'::text) AS k8s_kind,
+     (d.value ->> 'x-kubernetes-action'::text) AS k8s_action,
+     CASE
+       WHEN (lower((d.value ->> 'description'::text)) ~~ '%deprecated%'::text) THEN true
+       ELSE false
+     END AS deprecated,
+                 (d.value ->> 'description'::text) AS description,
+                 '${open_api_url}' as spec
+     FROM
+         open
+          , jsonb_each((open.api_data -> 'paths'::text)) paths(key, value)
+          , jsonb_each(paths.value) d(key, value)
+          , jsonb_array_elements((d.value -> 'tags'::text)) cat_tag(value)
+    ORDER BY paths.key;
+              """).substitute(release = release,
+                              release_date = str(release_date),
+                              open_api = json.dumps(open_api).replace("'","''"),
+                              open_api_url = open_api_url)
+try:
+  plpy.execute((sql))
+  return "{} open api is loaded".format(release)
+except Exception as e:
+  return "an error occurred: " + str(e) + "\nrelease: " + release
+$$ LANGUAGE plpython3u ;
+reset role;
+
+comment on function load_open_api is 'loads given release to open_api table.  Pass release (as "X.XX.X") to load specific release, otherwise loads latest';
+
+select 'load_open_api function defined and commented' as "build log";
+select * from zload_open_api('incluster');
+select count(*) from open_api;
+commit;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+BEGIN
+apisnoop=*# apisnoop(*# apisnoop(*# apisnoop-*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# apisnoop$*# CREATE FUNCTION
+apisnoop=*# RESET
+apisnoop=*# apisnoop=*# COMMENT
+apisnoop=*# apisnoop=*#                   build log
+----------------------------------------------
+ load_open_api function defined and commented
+(1 row)
+
+apisnoop=*# NOTICE:  in the custom release branch
+      zload_open_api
+---------------------------
+ 1.28.1 open api is loaded
+(1 row)
+
+apisnoop=*#  count
+-------
+  1458
+(1 row)
+
+apisnoop=*# COMMIT
+#+end_SRC
+
+And now, we should have our open_api table loaded up, but only with the spec being 'incluster'.  I also added a custom release, so we can compare with the current release.
+
+#+begin_src sql-mode
+begin;
+-- select * from  zload_open_api('incluster');
+-- select count(*) from open_api;
+select * from  zload_open_api();
+select count(*) from open_api;
+commit;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+BEGIN
+apisnoop=*# apisnoop=*# apisnoop=*# NOTICE:  we should not see this
+      zload_open_api
+---------------------------
+ 1.28.0 open api is loaded
+(1 row)
+
+apisnoop=*#  count
+-------
+  2301
+(1 row)
+
+apisnoop=*# COMMIT
+#+end_SRC
+
+
+#+begin_src sql-mode
+\d open_api
+#+end_src
+
+#+begin_src sql-mode
+select spec,release, count(*)
+  from open_api group by spec,release;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                             spec                                             | release | count
+----------------------------------------------------------------------------------------------+---------+-------
+ incluster                                                                                    | 1.28.1  |  1458
+ https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json | 1.28.0  |   843
+(2 rows)
+
+#+end_SRC
+
+If I load up the open_api spec like normal
+
+#+begin_src sql-mode
+select * from load_open_api();
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+       load_open_api
+---------------------------
+ 1.28.0 open api is loaded
+(1 row)
+
+#+end_SRC
+
+Then run the comparison again:
+
+#+begin_src sql-mode
+select spec,release,count(distinct endpoint)
+  from open_api group by spec,release;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                             spec                                             | release | count
+----------------------------------------------------------------------------------------------+---------+-------
+ https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json | 1.28.0  |   843
+ incluster                                                                                    | 1.28.1  |  1209
+(2 rows)
+
+#+end_SRC
+
+There are 366 more endpoints in our incluster spec.
+
+In the open api spec you have a path, that is the full api path of that endpoint.  the CRD should have istio in their path...
+
+So then, how many of our endpoints have isto in their path?
+
+#+begin_src sql-mode
+select spec, count(distinct endpoint)filter(where path like '%istio%')
+  from open_api
+ group by spec;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                             spec                                             | count
+----------------------------------------------------------------------------------------------+-------
+ https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json |     0
+ incluster                                                                                    |   264
+(2 rows)
+
+#+end_SRC
+
+This is basically what we'd expect!  It is interesting that there are 366 new endpoints, but only 264 that have to do with istio.  Let's look more into them.
+
+** Taking a look at the new endpoints
+
+So I wanna narrow our queries to only the endpoints whose paths don't exist in the standard spec.
+#+begin_src sql-mode
+with incluster_endpoints as (
+  select endpoint
+    from open_api
+   where spec = 'incluster'
+  except
+  select endpoint
+    from open_api where spec != 'incluster'
+)
+select count(*) from incluster_endpoints;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+   735
+(1 row)
+
+#+end_SRC
+
+#+begin_src sql-mode
+with spec_endpoints as (
+  select endpoint
+    from open_api
+   where spec != 'incluster'
+  except
+  select endpoint
+    from open_api where spec = 'incluster'
+)
+select count(*) from spec_endpoints;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+   120
+(1 row)
+
+#+end_SRC
+
+So there are 120 endpoints in the standard openapi that aren't being used in this specific cluster, while there are 483 endpoints in the cluster that don't show up in the standard spec.  I'd assume that the cluster spec would have ALL endpoints though, not be missing any.  What are missing?
+
+
+Do the istio endpoints...just show up in our list?
+
+#+begin_src sql-mode
+with incluster_endpoints as (
+  select endpoint
+    from open_api
+   where spec = 'incluster'
+  except
+  select endpoint
+    from open_api where spec != 'incluster'
+)
+select category,k8s_group
+  from open_api
+       join incluster_endpoints using(endpoint)
+ group by category,k8s_group;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+          category           |           k8s_group
+-----------------------------+--------------------------------
+ ciliumIo                    | cilium.io
+ notificationToolkitFluxcdIo | notification.toolkit.fluxcd.io
+ networkingIstioIo           | networking.istio.io
+ acmeCertManagerIo           | acme.cert-manager.io
+ certManagerIo               | cert-manager.io
+ telemetryIstioIo            | telemetry.istio.io
+ sourceToolkitFluxcdIo       | source.toolkit.fluxcd.io
+ kustomizeToolkitFluxcdIo    | kustomize.toolkit.fluxcd.io
+ installIstioIo              | install.istio.io
+ helmToolkitFluxcdIo         | helm.toolkit.fluxcd.io
+ networking                  | networking.k8s.io
+ extensionsIstioIo           | extensions.istio.io
+ securityIstioIo             | security.istio.io
+ gatewayNetworking           | gateway.networking.k8s.io
+(14 rows)
+
+#+end_SRC
+
+Awesome, we are seeing all our CRD's including ones we've set up for this ii coop space.
+
+And our istio endpoints are /just defined/ for us.
+
+#+begin_src sql-mode
+with incluster_endpoints as (
+  select endpoint
+    from open_api
+   where spec = 'incluster'
+  except
+  select endpoint
+    from open_api where spec != 'incluster'
+)
+select endpoint, k8s_kind
+  from open_api
+       join incluster_endpoints using(endpoint)
+ where k8s_group like '%istio%'
+       limit 20;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                               endpoint                                |       k8s_kind
+-----------------------------------------------------------------------+-----------------------
+ deleteNetworkingIstioIoV1beta1CollectionNamespacedSidecar             | Sidecar
+ deleteNetworkingIstioIoV1beta1CollectionNamespacedVirtualService      | VirtualService
+ patchNetworkingIstioIoV1alpha3NamespacedWorkloadGroupStatus           | WorkloadGroup
+ replaceSecurityIstioIoV1beta1NamespacedPeerAuthenticationStatus       | PeerAuthentication
+ listSecurityIstioIoV1beta1NamespacedRequestAuthentication             | RequestAuthentication
+ listNetworkingIstioIoV1alpha3NamespacedSidecar                        | Sidecar
+ listNetworkingIstioIoV1beta1NamespacedGateway                         | Gateway
+ createSecurityIstioIoV1NamespacedAuthorizationPolicy                  | AuthorizationPolicy
+ deleteSecurityIstioIoV1CollectionNamespacedRequestAuthentication      | RequestAuthentication
+ readExtensionsIstioIoV1alpha1NamespacedWasmPluginStatus               | WasmPlugin
+ patchInstallIstioIoV1alpha1NamespacedIstioOperatorStatus              | IstioOperator
+ deleteSecurityIstioIoV1beta1CollectionNamespacedRequestAuthentication | RequestAuthentication
+ replaceSecurityIstioIoV1beta1NamespacedRequestAuthentication          | RequestAuthentication
+ patchNetworkingIstioIoV1beta1NamespacedVirtualService                 | VirtualService
+ patchNetworkingIstioIoV1beta1NamespacedWorkloadGroup                  | WorkloadGroup
+ replaceNetworkingIstioIoV1beta1NamespacedVirtualService               | VirtualService
+ listNetworkingIstioIoV1alpha3NamespacedDestinationRule                | DestinationRule
+ replaceNetworkingIstioIoV1beta1NamespacedSidecarStatus                | Sidecar
+ readNetworkingIstioIoV1alpha3NamespacedWorkloadGroup                  | WorkloadGroup
+ readNetworkingIstioIoV1alpha3NamespacedEnvoyFilterStatus              | EnvoyFilter
+(20 rows)
+
+#+end_SRC
+
+Very cool!
+
+What are the endpoints that aren't appearing here?
+
+#+begin_src sql-mode
+with spec_endpoints as (
+  select endpoint
+    from open_api
+   where spec != 'incluster'
+  except
+  select endpoint
+    from open_api where spec = 'incluster'
+)
+select category,k8s_group, count(*)
+  from open_api
+       join spec_endpoints using(endpoint)
+ group by category,k8s_group
+ order by count desc;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+       category        |          k8s_group           | count
+-----------------------+------------------------------+-------
+ resource              | resource.k8s.io              |    48
+ admissionregistration | admissionregistration.k8s.io |    21
+ networking            | networking.k8s.io            |    18
+ internalApiserver     | internal.apiserver.k8s.io    |    12
+ certificates          | certificates.k8s.io          |     9
+ authentication        | authentication.k8s.io        |     3
+ authentication        |                              |     2
+ internalApiserver     |                              |     2
+ resource              |                              |     2
+ admissionregistration |                              |     1
+ certificates          |                              |     1
+ networking            |                              |     1
+(12 rows)
+
+#+end_SRC
+
+more than likely,k these are endpoints that are introduced in the latest aapisnoop that are not yet in the cluster we are using in these spaces.
+
+If we look at reosurce, and then reduce down to those that aren't alpha...it goes from 48 missing endpoints to 1.
+
+#+begin_src sql-mode
+with spec_endpoints as (
+  select endpoint
+    from open_api
+   where spec != 'incluster'
+  except
+  select endpoint
+    from open_api where spec = 'incluster'
+)
+select endpoint
+  from open_api
+       join spec_endpoints using(endpoint)
+where category = 'resource' and level != 'alpha';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      endpoint
+---------------------
+ getResourceAPIGroup
+(1 row)
+
+#+end_SRC
+
+So it makes a bit of sense for there to be endpoints that aren't in this cluster, if this cluster is a version behind the alpha, dev version of kubernetes.
+** Syncing with auditlogger
+When we look into the audit events coming from the auditlogger, we can see some requests being made ot istio but, not the correct endpoints.
+This is due to how endpoints are added when coming from the auditlogger.
+
+Specifically, we have a trigger for every time a new endpoint is added:
+
+#+begin_src sql
+create trigger add_endpoint
+before insert on testing.audit_event
+for each row
+execute procedure determine_endpoint();
+#+end_src
+
+which calls the function determine_endpoint, defined as:
+
+#+begin_src sql
+create or replace function determine_endpoint() RETURNS TRIGGER as $$
+   import json
+   from snoopUtils import load_openapi_spec, find_operation_id
+   CURRENT_SWAGGER_URL = "https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json"
+   if "spec" not in GD:
+       GD["spec"] = load_openapi_spec(CURRENT_SWAGGER_URL)
+   spec = GD["spec"]
+   event = json.loads(TD["new"]["data"])
+   if TD["new"]["endpoint"] is None:
+       TD["new"]["endpoint"] = find_operation_id(spec, event);
+   return "modify";
+$$ language plpython3u;
+#+end_src
+
+So this is, by default, grabbing the master swagger.json and mapping endpoints according to that.  We want to do it from the cluste rinstead.
+
+We pass in a url to the load_openapi_spec, which then does a ~requests.get(url)~.
+We could just put in the kubernetes url, but we need to make sure that auth is handled correctly and that we ignore ssl.  I wonder if we
+could just add those headers no matter what...and so we would adjust this function to say: if the env vars say you are in cluster, then the
+url we want is ~https://kubernetes/openapi/v2~.  And then adjust the load_openapi_spec's request to add the auth and ssl verification.
+
+We can test the function with a random url.
+#+begin_src python :results output
+import requests
+url = 'https://jsonplaceholder.typicode.com/comments/1'
+res = requests.get(url)
+authres = requests.get(url, headers={'Authorization': 'Bearer dummytoken'}, verify=False)
+print('no auth response: \n',res.json())
+print('with auth response: \n',authres.json())
+
+#+end_src
+
+#+RESULTS:
+: no auth response:
+:  {'postId': 1, 'id': 1, 'name': 'id labore ex et quam laborum', 'email': 'Eliseo@gardner.biz', 'body': 'laudantium enim quasi est quidem magnam voluptate ipsam eos\ntempora quo necessitatibus\ndolor quam autem quasi\nreiciendis et nam sapiente accusantium'}
+: with auth response:
+:  {'postId': 1, 'id': 1, 'name': 'id labore ex et quam laborum', 'email': 'Eliseo@gardner.biz', 'body': 'laudantium enim quasi est quidem magnam voluptate ipsam eos\ntempora quo necessitatibus\ndolor quam autem quasi\nreiciendis et nam sapiente accusantium'}
+
+They identical...so I think this would work.
+
+Oh, we also need to pass in the token though...so we could adjust the function to grab a token if in cluster and pass that along, and ajdust our openapi_spec to
+take a token, but by defualt by an empty string.
+
+In any case, we will need to adjust our snooputils slightly, which is going to mean pushing a new image. so i am going to pause and make some changes to aisnoop and then come back to here.
+* Issues with the token
+I am ending up having issues with the token. It is expected that postgres
+(specifically plpython3u, the python engine inside postgres) is able to read the
+token value from its machine. but it cannot do it, as we are in a read-only
+filesystem in root and the permissions are denied.
+
+If we want this to work cleanly, then ideally we could have this file readable at the start.
+
+I attempted to change the chart for snoopdb so that it was no longer a readonly filesystem, but that did not work.
+Furthermore, it made it so that new workspaces no longer loaded auditlogger or snoopdb, but with no clear indication why.
+
+I reverted that change, and then changed the location our program looks for to be '/token.txt'.  This will make auditlogger
+fail to insert items at the start, but we can then manually copy the token to that location, where we can ajdust the permissions,
+and then from that point forward the auditlogger should work.
+
+I tried to do this, but could not get the workspaces to create snoopdb anymore.  It also is no longer loading istio for some reason.
+
+* What's next...
+If we can get the workspaces to load up with the latest chart from apisnoop, then we should have the latest auditlogger.
+Then, we would want to exec into the snoopdb pod and copy the token to '/token.txt'.
+
+Then, watch ~testing.audit_event~ and see if there are any istio endpoints that appear.  If so, we got ourselves something that is kinda working!
+
+
+* coder.ii.nz notices
+things that came up while working
+** use ii instead of root in scp and ssh commands
+cannot log in with root, but could with ii and the rest worked.
+** rename scp command to use scp instead of ssh
+the title of the command is correct, but the actual command you copy should
+start with ~scp~ instead of ~ssh~

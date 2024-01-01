@@ -1,0 +1,146 @@
+#+TITLE: Pi Client
+#+AUTHOR: Stephen Heywood
+#+DATE: 11 December, 2019
+
+
+* Overview
+
+This document will cover the process of setting up a Raspberry Pi 4 that will boot it's operating system from the network without needing any SD card.
+
+* Prerequisites
+
+To make the Raspberry Pi a network bootable system there are some key bits of software that's required. Double check that the Pi is booting the latest version of [[https://www.raspberrypi.org/downloads/raspbian/][Raspbian]].
+
+#+begin_src shell :eval never
+sudo apt install rpi-eeprom
+sudo rpi-eeprom-update
+#+end_src
+
+Current output is
+
+#+begin_example
+BOOTLOADER: up-to-date
+CURRENT: Wed Oct 16 17:00:03 UTC 2019 (1571245203)
+ LATEST: Tue Sep 10 10:41:50 UTC 2019 (1568112110)
+VL805: up-to-date
+CURRENT: 000137ab
+ LATEST: 000137ab
+#+end_example
+
+* Initial Boot Process
+
+The [[https://www.raspberrypi.org/documentation/hardware/raspberrypi/bootmodes/bootflow_2711.md][Raspberry Pi website]] lists in full the details on how a Raspberry Pi 4 boots. The keys points that we are interested in are shown in the diagram below.
+
+[[./images/pi-diagram2-boot-sequence.png]]
+
+By checking the ~BOOT_ORDER~ setting the Pi will decide what boot modes it will use and in what order. These boot modes are stored as a 32bit unsigned integer.
+
+#+begin_example
+0x0 NONE
+0x1 SD CARD
+0x2 NETWORK
+#+end_example
+
+Using the following command will confirm the current boot modes. Within the list of other options, ~BOOT_ORDER=0x1~ is the default configuration to boot via a SD card.
+
+#+begin_src shell :eval never
+vcgencmd bootloader_config
+#+end_src
+
+To setup the Raspberry Pi to boot from the network we will be using the config option ~BOOT_ORDER=0x21~. This configuration will cause the Pi to first boot from a SD card if present, if not then to boot from the network.
+
+** Update ~BOOT_ORDER~ setting
+
+To write the new ~BOOT_ORDER~ to the EEPROM will require the following steps.
+
+*** Extract the configuration file
+
+#+begin_src shell :eval never
+cp /lib/firmware/raspberrypi/bootloader/beta/pieeprom-2019-11-18.bin pieeprom.bin
+rpi-eeprom-config pieeprom.bin > bootconf.txt
+#+end_src
+
+*** Update and save the configuration file
+
+- use an text editor to open ~bootconf.txt~
+- locate ~BOOT_ORDER~ and update the line to be ~BOOT_ORDER=0x21~
+- save the file
+
+*** Update EEPROM image with new configuration
+
+#+begin_src shell :eval never
+rpi-eeprom-config --out pieeprom-netboot.bin --config bootconf.txt pieeprom.bin
+#+end_src
+
+*** Flash the EEPROM with the new image
+
+#+begin_src shell :eval never
+sudo rpi-eeprom-update -d -f ./pieeprom-netboot.bin
+sudo reboot
+#+end_src
+
+*** Recheck ~BOOT_ORDER~ setting
+
+#+begin_src shell :eval never
+vcgencmd bootloader_config
+#+end_src
+
+Make sure that the output contains ~BOOT_ORDER=0x21~ now. Details about the other configuration options are on the [[https://www.raspberrypi.org/documentation/hardware/raspberrypi/bcm2711_bootloader_config.md][Pi4 Bootloader Configuration]] web page.
+* Image Client
+** Prep Image
+
+Before we image the client Pi we need to update a few local settings.
+
+*** Check Kernel version
+
+Make sure that the kernel version used by the Pi is in sync with the kernel version that will be served from the [[https://github.com/Hexxeh/rpi-firmware][/tftpboot]] folder.
+If the kernel versions get out of sync it will cause issues with the keyboard and mouse. Further details are logged in this [[https://gitlab.ii.coop/ii/infra/ii-pi/issues/16][issue]].
+
+#+begin_src shell :eval never
+  uname -a
+#+end_src
+
+#+begin_example
+Linux rpi-40 4.19.80-v7l+ #1275 SMP Mon Oct 28 18:37:34 GMT 2019 armv7l GNU/Linux
+#+end_example
+
+*** Enable SSH
+
+Use ~raspi-config~ to enable the local SSH server. This will help with any remote debugging of the client. Locate ~SSH~ inside of the /Interfacing Options/
+
+*** Disable Swapfile
+
+As the client will be booting from the server we need to disable the swapfile
+
+#+begin_src shell :eval never
+sudo dphys-swapfile swapoff
+sudo dphys-swapfile uninstall
+sudo systemctl stop dphys-swapfile
+sudo systemctl disable dphys-swapfile
+#+end_src
+
+** Clone the file system
+
+Let's create a copy of the core file system so that we can then make a /tar/ file. The /tar/ file will be copied to the server.
+
+   #+begin_src shell :eval never
+     sudo mkdir -p /nfs/client1
+     sudo rsync -xa --progress --exlude /nfs --exlude /dev --exclude /sys --exclude /tmp  / /nfs
+     sudo tar -cpf /nfs-client1.tar /nfs
+   #+end_src
+
+** Copy compressed file to server
+
+Make sure that the key steps in the server documentation have been completed first. Also make the folder ~/nfs/tmp~ as well.
+
+   #+begin_src shell :eval never
+     scp /nfs-client1.tar ubuntu@192.168.1.200:/nfs/tmp
+   #+end_src
+
+** Extract the file system
+
+On the server we will extract the file system for the client to ~/nfs/client1~
+
+   #+begin_src shell :eval never
+     sudo tar --same-owner -xvf nfs-client1.tar -C /nfs
+   #+end_src

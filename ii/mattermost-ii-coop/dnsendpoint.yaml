@@ -1,0 +1,25 @@
+
+
+# #+NAME: DNSEndpoint
+
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: mattermost-ii-coop
+spec:
+  endpoints:
+  - dnsName: 'mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: '*.mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}'
+    recordTTL: 3600
+    recordType: A
+    targets:
+    - ${LOAD_BALANCER_IP}
+  - dnsName: mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}
+    recordTTL: 3600
+    recordType: SOA
+    targets:
+    - 'ns1.mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}. hostmaster.mattermosttest.${SHARINGIO_PAIR_BASE_DNS_NAME}. 5 3600 3600 3600 3600'

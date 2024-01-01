@@ -47,6 +47,5 @@ tmpdir creates folder in the ramdisk on load
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

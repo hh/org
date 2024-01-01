@@ -1221,6 +1221,5 @@ https://gitlab.com/charts/gitlab/blob/master/doc/installation/secrets.md#registr
 # eval: (xclip-mode 1) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

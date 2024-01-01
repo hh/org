@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- 2021-02-24 Wed 13:47 -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session 03</title>
+<meta name="generator" content="Org mode">
+<meta name="author" content="ii friend">
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #ccc;
+    box-shadow: 3px 3px 3px #eee;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: visible;
+    padding-top: 1.2em;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    background-color: white;
+    top: -10px;
+    right: 10px;
+    padding: 3px;
+    border: 1px solid black;
+  }
+  pre.src:hover:before { display: inline;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { width: 90%; }
+  /*]]>*/-->
+</style>
+<link rel='stylesheet' href='aesthetic/main.css' />
+<script type="text/javascript">
+// @license magnet:?xt=urn:btih:1f739d935676111cfff4b4693e3816e664797050&amp;dn=gpl-3.0.txt GPL-v3-or-Later
+<!--/*--><![CDATA[/*><!--*/
+     function CodeHighlightOn(elem, id)
+     {
+       var target = document.getElementById(id);
+       if(null != target) {
+         elem.cacheClassElem = elem.className;
+         elem.cacheClassTarget = target.className;
+         target.className = "code-highlighted";
+         elem.className   = "code-highlighted";
+       }
+     }
+     function CodeHighlightOff(elem, id)
+     {
+       var target = document.getElementById(id);
+       if(elem.cacheClassElem)
+         elem.className = elem.cacheClassElem;
+       if(elem.cacheClassTarget)
+         target.className = elem.cacheClassTarget;
+     }
+    /*]]>*///-->
+// @license-end
+</script>
+</head>
+<body>
+<article id="content">
+<header>
+<h1 class="title">Session 03</h1>
+</header><nav id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#org220495e">1. Introduction</a></li>
+<li><a href="#orgb99c62c">2. Agenda</a></li>
+<li><a href="#orgf777012">3. Setup</a>
+<ul>
+<li><a href="#org74bd9fd">3.1. Kind</a></li>
+<li><a href="#org88add3e">3.2. a working kubectl binary of some sort</a></li>
+<li><a href="#org0eabb6f">3.3. go</a></li>
+<li><a href="#org2e71659">3.4. make</a></li>
+</ul>
+</li>
+<li><a href="#org47cc21b">4. Edit our kubectl binary</a></li>
+<li><a href="#org95a6a8f">5. Unit Tests</a>
+<ul>
+<li><a href="#org0d23b59">5.1. what are they?</a></li>
+<li><a href="#orgb3857c1">5.2. why they important?</a></li>
+<li><a href="#orgdfc7949">5.3. how k8s uses them</a></li>
+</ul>
+</li>
+<li><a href="#org903fc6b">6. Write a unit test for our kubectl binary</a></li>
+<li><a href="#orgab7ae30">7. check our test with go test</a></li>
+<li><a href="#org6297d24">8. check our test with make</a></li>
+<li><a href="#org4a5d50c">9. Test scope</a>
+<ul>
+<li><a href="#orgf9df97b">9.1. only run some tests</a></li>
+<li><a href="#org7d3adc4">9.2. run all tests</a></li>
+<li><a href="#org31ea010">9.3. time to run all tests</a></li>
+</ul>
+</li>
+<li><a href="#org6af5bbd">10. PR&rsquo;s</a></li>
+<li><a href="#orgda3ec44">11. Prow</a>
+<ul>
+<li><a href="#org37ba9d2">11.1. k8s git ops</a></li>
+<li><a href="#orgb661fbc">11.2. helps manage these steps of the pr</a></li>
+<li><a href="#orgca2fa83">11.3. ensures yr pr follows the guidelines and passes all existing tests.</a></li>
+</ul>
+</li>
+<li><a href="#org324fe3b">12. Testgrid</a>
+<ul>
+<li><a href="#org45acf42">12.1. show all the tests being run and their success</a></li>
+<li><a href="#orga0a4dad">12.2. this can be optional, and so</a></li>
+</ul>
+</li>
+<li><a href="#orge7f7a6b">13. Additional Help</a></li>
+<li><a href="#orgc2fba72">14. What&rsquo;s Next?</a></li>
+</ul>
+</div>
+</nav>
+
+<section id="outline-container-org220495e" class="outline-2">
+<h2 id="org220495e"><span class="section-number-2">1</span> Introduction</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+In this, we&rsquo;ll ramp up our abilities by adding testing into the mix!
+Like session 2, we will edit, make, and run commands like kubectl, but now checking our builds with unit testing, using go test.
+With these tests, we&rsquo;ll have increased confidence in contributing our work back upstream and so we&rsquo;ll also talk about pull requests, and the PR pre-submission practices.
+</p>
+</div>
+</section>
+<section id="outline-container-orgb99c62c" class="outline-2">
+<h2 id="orgb99c62c"><span class="section-number-2">2</span> Agenda</h2>
+<div class="outline-text-2" id="text-2">
+<ul class="org-ul">
+<li>Setup our Dev environments</li>
+<li>introduce unit tests</li>
+<li>testing with go test and make</li>
+<li>PR&rsquo;s</li>
+<li>An intro to prow and test grid</li>
+</ul>
+</div>
+</section>
+<section id="outline-container-orgf777012" class="outline-2">
+<h2 id="orgf777012"><span class="section-number-2">3</span> Setup</h2>
+<div class="outline-text-2" id="text-3">
+</div>
+<div id="outline-container-org74bd9fd" class="outline-3">
+<h3 id="org74bd9fd"><span class="section-number-3">3.1</span> Kind</h3>
+</div>
+<div id="outline-container-org88add3e" class="outline-3">
+<h3 id="org88add3e"><span class="section-number-3">3.2</span> a working kubectl binary of some sort</h3>
+</div>
+<div id="outline-container-org0eabb6f" class="outline-3">
+<h3 id="org0eabb6f"><span class="section-number-3">3.3</span> go</h3>
+</div>
+<div id="outline-container-org2e71659" class="outline-3">
+<h3 id="org2e71659"><span class="section-number-3">3.4</span> make</h3>
+</div>
+</section>
+<section id="outline-container-org47cc21b" class="outline-2">
+<h2 id="org47cc21b"><span class="section-number-2">4</span> Edit our kubectl binary</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Adjust its message again, or have it do something in addition
+don&rsquo;t build just yet
+</p>
+</div>
+</section>
+<section id="outline-container-org95a6a8f" class="outline-2">
+<h2 id="org95a6a8f"><span class="section-number-2">5</span> Unit Tests</h2>
+<div class="outline-text-2" id="text-5">
+</div>
+<div id="outline-container-org0d23b59" class="outline-3">
+<h3 id="org0d23b59"><span class="section-number-3">5.1</span> what are they?</h3>
+</div>
+<div id="outline-container-orgb3857c1" class="outline-3">
+<h3 id="orgb3857c1"><span class="section-number-3">5.2</span> why they important?</h3>
+</div>
+<div id="outline-container-orgdfc7949" class="outline-3">
+<h3 id="orgdfc7949"><span class="section-number-3">5.3</span> how k8s uses them</h3>
+</div>
+</section>
+<section id="outline-container-org903fc6b" class="outline-2">
+<h2 id="org903fc6b"><span class="section-number-2">6</span> Write a unit test for our kubectl binary</h2>
+</section>
+<section id="outline-container-orgab7ae30" class="outline-2">
+<h2 id="orgab7ae30"><span class="section-number-2">7</span> check our test with go test</h2>
+</section>
+<section id="outline-container-org6297d24" class="outline-2">
+<h2 id="org6297d24"><span class="section-number-2">8</span> check our test with make</h2>
+</section>
+<section id="outline-container-org4a5d50c" class="outline-2">
+<h2 id="org4a5d50c"><span class="section-number-2">9</span> Test scope</h2>
+<div class="outline-text-2" id="text-9">
+</div>
+<div id="outline-container-orgf9df97b" class="outline-3">
+<h3 id="orgf9df97b"><span class="section-number-3">9.1</span> only run some tests</h3>
+</div>
+<div id="outline-container-org7d3adc4" class="outline-3">
+<h3 id="org7d3adc4"><span class="section-number-3">9.2</span> run all tests</h3>
+</div>
+<div id="outline-container-org31ea010" class="outline-3">
+<h3 id="org31ea010"><span class="section-number-3">9.3</span> time to run all tests</h3>
+</div>
+</section>
+<section id="outline-container-org6af5bbd" class="outline-2">
+<h2 id="org6af5bbd"><span class="section-number-2">10</span> PR&rsquo;s</h2>
+<div class="outline-text-2" id="text-10">
+<ul class="org-ul">
+<li>review the pr flow again</li>
+<li>review the PR pre-submission guidelines</li>
+<li>review the style guidelines</li>
+<li>show some of the checks done on an existing pr and the checks for the pre-submission and style</li>
+<li>what is doing these checks?</li>
+</ul>
+</div>
+</section>
+<section id="outline-container-orgda3ec44" class="outline-2">
+<h2 id="orgda3ec44"><span class="section-number-2">11</span> Prow</h2>
+<div class="outline-text-2" id="text-11">
+</div>
+<div id="outline-container-org37ba9d2" class="outline-3">
+<h3 id="org37ba9d2"><span class="section-number-3">11.1</span> k8s git ops</h3>
+</div>
+<div id="outline-container-orgb661fbc" class="outline-3">
+<h3 id="orgb661fbc"><span class="section-number-3">11.2</span> helps manage these steps of the pr</h3>
+</div>
+<div id="outline-container-orgca2fa83" class="outline-3">
+<h3 id="orgca2fa83"><span class="section-number-3">11.3</span> ensures yr pr follows the guidelines and passes all existing tests.</h3>
+</div>
+</section>
+<section id="outline-container-org324fe3b" class="outline-2">
+<h2 id="org324fe3b"><span class="section-number-2">12</span> Testgrid</h2>
+<div class="outline-text-2" id="text-12">
+</div>
+<div id="outline-container-org45acf42" class="outline-3">
+<h3 id="org45acf42"><span class="section-number-3">12.1</span> show all the tests being run and their success</h3>
+</div>
+<div id="outline-container-orga0a4dad" class="outline-3">
+<h3 id="orga0a4dad"><span class="section-number-3">12.2</span> this can be optional, and so</h3>
+</div>
+</section>
+<section id="outline-container-orge7f7a6b" class="outline-2">
+<h2 id="orge7f7a6b"><span class="section-number-2">13</span> Additional Help</h2>
+</section>
+<section id="outline-container-orgc2fba72" class="outline-2">
+<h2 id="orgc2fba72"><span class="section-number-2">14</span> What&rsquo;s Next?</h2>
+</section>
+</article>
+<div id="postamble" class="status">
+<p class="author">Author: ii friend</p>
+<p class="date">Created: 2021-02-24 Wed 13:47</p>
+</div>
+</body>
+</html>

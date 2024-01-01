@@ -1,0 +1,272 @@
+#+HUGO_BASE_DIR: ./
+#+HUGO_SECTION: ./blog
+#+HUGO_WEIGHT: auto
+#+HUGO_AUTO_SET_LASTMOD: t
+* Welcome to the blog scroll!  Wanna contribute? Read this first!
+This org file contains all the blog posts published to [[https://blog.ii.coop]].
+** About the Blog
+Our blog is made with [[https://gohugo.io][hugo]], a static site generator.  All necessary code and content for the site are contained in this ~/blog~ directory.
+Hugo parses the markdown files contained in [[file:content/][/content]] , with all our blog posts held in [[file:content/posts/][/content/posts]].
+
+NOTE: While hugo can also parse org, we felt it best to use the syntax it is designed for.
+
+We generate our markdown with [[file:~/humacs/doom-emacs/modules/lang/org/README.org::*Module Flags][org-export]].  This is done intentionally from within this file.  After exporting a blog article, you can commit and push your changes to see it go live after a minute or two at blog.ii.coop.
+
+** Adding a new blog post
+This file is organized by categories, like [[Guides]].  To add a new blog post, create a newline beneath a category heading, then type ~<blog~ and hit ~TAB~.  This will trigger our blog snippet, running through all the fields necessary.
+
+Fill out the field, press tab to move to the next one, until you reach the line below properties.  Then, you can either just start typing your blog /or/ you can include an org file in our org repo with this code block
+: #+include: ../relative/path/to/file.org
+
+** Marking the blog post as a draft
+If you are not yet ready to publish, you can mark the blog heading with =TODO= and, even if it's exported, it will be marked as a draft.  Remove the TODO when it's ready to go live!
+** Exporting blog posts from this org scroll
+You can either export all the blogs in this file or an individual piece.
+*** Exporting an individual blog
+Navigate to the blog post, and iwth your point somewhere in that post hit ~,eHH~.  This is an org dispatch to Hugo with option `export subtree or file to .md file`.  This will create, or overwrite if it exists, a markdown file in [[file:content/posts/][content/posts]] named whatever is set in the blogs property drawer.  Tags, category, draft status, author, summary, etc. all come over.
+*** Exporting all the blogs
+Anywhere in the file hit ~,eHA~.  This will create, or overwrite if it exists, markdown files in content/posts for every blog post with a proper property drawer, each named what's set in that drawer.
+** Tips
+- you can use the following command to serve right out of a Pair instance:
+#+BEGIN_SRC bash
+hugo serve -b https://hugo.$SHARINGIO_PAIR_BASE_DNS_NAME/ --appendPort=false --bind 0.0.0.0 -p 443
+#+END_SRC
+** That's it! enjoy!!
+Though if i missed something, or it's confusing, lemme know!
+* Tasks
+** TODO about page shows list of ii humans
+*** TODO List of humans only includes ii people, no guest authors
+*** TODO List includes bio and picture
+*** TODO If human has articles, list includes link to articles
+* Guides :@guides:
+** Deploying Talos to Equinix                                                                                           :kubernetes:equinix:talos:org:
+:PROPERTIES:
+:EXPORT_FILE_NAME: deplying-talos-to-equinix
+:EXPORT_DATE: 2021-02-03
+:EXPORT_HUGO_MENU: :menu "main"
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "From nodes to workloads on baremetal"
+:END:
+#+include: "../ii/equinix-metal-capi-talos-kubernetes/README.org"
+** TODO New Contributor Summit Session 01                                                                                     :kubernetes:ncw:testing:
+:PROPERTIES:
+:EXPORT_FILE_NAME: new-contributor-summit-session-01
+:EXPORT_DATE: 2021-02-05
+:EXPORT_HUGO_MENU: :menu "main"
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Intro to Testing for new K8s contributors"
+:END:
+#+include: ../ncw/session-01.org
+** TODO New Contributor Summit Session 02                                                                                 :kubernetes:ncw:testing:org:
+:PROPERTIES:
+:EXPORT_FILE_NAME: new-contributor-summit-session-02
+:EXPORT_DATE: 2021-02-05
+:EXPORT_HUGO_MENU: :menu "main"
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Part Two to our intro to testing for new K8s contributors"
+:END:
+#+include: ../ncw/session-02.org
+** TODO New Contributor Summit Session 03                                                                                 :kubernetes:ncw:testing:org:
+:PROPERTIES:
+:EXPORT_FILE_NAME: new-contributor-summit-session-03
+:EXPORT_DATE: 2021-02-05
+:EXPORT_HUGO_MENU: :menu "main"
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Part Three to our intro to testing for new K8s contributors"
+:END:
+#+include: ../ncw/session-03.org
+
+* Learning :@learning:
+** Learning Update: Introduction to gRPC
+:PROPERTIES:
+:EXPORT_FILE_NAME: grpc-learning
+:EXPORT_DATE: 2021-03-09
+:EXPORT_HUGO_MENU: :menu "main"
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "An update on an ii member's journey on learning gRPC"
+:EXPORT_AUTHOR: Zach Mandeville, Caleb Woodbine
+:END:
+*** Prelude
+As I continue my career in code, I've come to find the most important part of my
+practice is also the least visible: how I learn. There are beautiful moments
+when I know exactly how to do something and just need to implement it so I'll
+pour myself a cup of coffee, put [[https://www.youtube.com/watch?v=wmin5WkOuPw][Firestarter]] on repeat, and watch my beautiful code
+unfurl down the screen as fast as I can type it. These moments, though, are not
+typical.
+
+Most of the time, I am discovering a new problem I do not yet know how to solve,
+within a domain or technology I have not yet experienced, and to solve the
+problem i have to first understand it. Here my coding life is a bit quieter and
+boring to watch: I'll pour myself a cup of tea, put Firestarter(lo-fi ambient
+remix) on repeat, and start poring through reference docs and tutorials and
+writing "TODO: FIGURE OUT WHAT {X} MEANS" in my expanding network of notes.
+
+This work is crucial for code, but often unseen, happening silently in the space
+between git commits. And so, to celebrate this work and make it more visible,
+we'll be posting periodic learning updates on this blog. These are written as
+honest checkpoints taken mid-understanding, so while they are hopefully
+illuminating, they should not be read as any sort of authoratative guide.
+
+Sweet as, let's set a checkpoint! Right now, I'm learning all about gRPC and
+protocol buffers and am quite excited about everything I've found.
+
+*** gRPC: what's it mean?
+gRPC stands for (google)Remote Procedure Call. It is an evolution of Remote
+Procedure Calls, which is one of the primary models of api design (the other
+being REST). So RPC involves specifying how clients and servers should
+communicate with one another, but using a completely different paradigm than
+REST. One of the most immediate distinctions, for me, is with REST you have
+paths on the server that you make requests to, whereas with RPC it's more like
+methods of a server interface that you can call. This is the "remote procedure"
+aspect of the design, where on the client's side, the communication feels like
+running functions directly on the server.
+
+The way gRPC operates, sort of the material of the design, is with protocol
+buffers. And so to learn gRPC you want to have a good understanding of protocol
+buffers (or protobuf) first.
+
+*** Protocol Buffers: What do they mean?
+Protocol Buffers are another creation of Google, and are a way to define and
+serialize data. They tackle the same problem as XML or JSON, but in a much
+different way.
+
+Protocol buffers work by defining a fully typed contract for your API in a
+.proto file, which is then used to generate source code and compile your data
+into streamable bytes. So the data being passed along is binary instead of
+text-based, but the specification of this data is extremely readable, and
+can easily generate introspective tools and documentation.
+
+Proto buffers also feel distinct in that they were designed with modern
+technology and modern paradigms. So they work with HTTP/2 and work extremely
+well for micro-services architectures utilizing streams of data. This HTTP/2
+requirement also means, though, that they cannot be consumed direclty by a web
+browser.
+*** Well-Known Advantages of gRPC and protobuf
+Many of the advantages of gRPC are articulated well on the grpc.io homepage and
+other blogs and resources. I do not want to reiterate the same points, and will
+have links to resources I find useful at the bottom of this post. In short,
+gRPC:
+- saves network bandwidth
+- provides faster and more efficient communication
+- can be used by any language
+- offers client-streaming, server-streaming, and bidirectional streaming services
+- allows for easy evolution and iteration of your api, while keeping backward compatability.
+- has an api contract that is easy to write and understand.
+*** My favourite things so far about gRPC
+Since I am just starting to explore gRPC, I cannot speak well to the system-wide
+advantages of it and how I find it works in production. There are immediate
+ergonomic and conceptual advantages to it though that I find quite exciting.
+**** Writing and Reading API's
+For one, the type definitions makes writing your api, and understanding others,
+quite simple. You can read a `.proto` file as if it were documentation (and
+still generate documentation from it). For example, a service that takes a
+subject and returns a poem would look like this:
+
+#+BEGIN_EXAMPLE c
+syntax = 'proto3';
+
+message Subject {
+ string name = 1;
+ string mood = 2;
+ repeated string keywords = 3;
+}
+
+message Poem {
+  string title = 1;
+  string body = 2;
+  int32 edition = 3;
+}
+
+message PoemGeneratorRequest {
+  Subject subject = 1;
+}
+
+message PoemGeneratorResponse {
+  Poem poem = 1;
+}
+
+service PoemService {
+  rpc PoemGenerator(PoemGeneratorRequest) returns (PoemGeneratorResponse) {};
+}
+#+END_EXAMPLE
+
+I found that, with no knowledge of the syntax of protocol buffers, I could
+understand specs like this immediately. Much of the proto's syntax is
+understanble through context clues. You define some messages that are made up of
+fields with specific types, and then define a services for passing these
+messages. With protobuf, you work from foundational types that then get
+increasingly complex while maintaining consistent syntax. This is possible in a
+REST API too through discipline and convention, but here that discipline is
+baked into the structure itself.
+
+Also, evolving an API is relatively simple. If I wanted to introduce a new field
+in my poem subjects, it would look like so:
+
+#+BEGIN_EXAMPLE c
+message Subject {
+ string name = 1;
+ string mood = 2;
+ repeated string keywords = 3;
+ string season = 4;
+}
+#+END_EXAMPLE
+
+Each field has a default value, which is used if no other value is provided. So
+services set up for the older api would not pass along the ~season~ field, and
+it'd be interpreted as an empty string. Similarly, if we send messages from the
+new api to an old service, it will simply drop any field it doesn't understand.
+Deprecating fields requires a bit more work, but is equally straightforward. So
+while you will need to ensure your clients account for default values, gRPC
+makes it simple to evolve your api without breaking changes.
+**** Code generation and tool integration
+One awesome part of protobuf and gRPC is its code generation. After you've
+defined your API, you can use the program [[https://github.com/protocolbuffers/protobuf][protoc]] to generate code into several
+languages. This means much of the logic for my server and client is taken care
+of for me, and I could focus on the business logic.
+
+protoc outputs to several different languages, but the one I've been working
+with is Go. Go also originated in Google, and you can feel the shared principles
+and purpose through how well integrated these three services are. The biggest
+productivity boost for me was the LSP integration. I would define a new service,
+generate the go code, switch over to my server code and as I started to type the
+service's name, my editor would immediately start showing me the methods
+available to this service and their signatures. It is like having a quiet, eager
+assistant handing you all your tools as you need them. It also meant that I was
+immediately working on my code at this strategic higher-level. I was concerned
+with the structure and flow of data as so much of the implementation code was
+generated for me.
+**** Reflection and Introspection
+Lastly, a quality of gRPC that makes it real exciting to learn is in the ease of
+its introspection. The typed nature of protobuf allows for easy, consistent
+integration with a range of tools beyond your own services. I saw that
+immediately with the LSP integration and emacs, but was truly chuffed when I
+discovered the [[https://github.com/ktr0731/evans][Evans CLI]]. If you have reflection enabled on your server, which
+is straightforward to do, then you can immediately start communicating with it
+using Evans. Evans reminded me a bit of the postgres client `psql`, which is one
+of my favourite tools. With both, use a simple set of commands to investigate
+and richly describe the service you're building in a repl environment. It turns
+the development of your services into this dynamic, tangible experience that
+rewards curiosity.
+
+I know I have a lot to learn about gRPC, but I am immediately pleased, and
+grateful, that the framework has so many features that makes the learning
+experience rewarding and fun.
+*** Resources
+I've found the following online resources useful for getting into the why's and
+how's of gRPC and protobuf:
+- [[https://grpc.io/docs/what-is-grpc/introduction/][grpc.io's official docs]] are quite good and a great introduction.
+- [[https://developers.google.com/protocol-buffers/docs/overview][The Developer Docs for Protocol Buffers]] is similarly good.
+- [[https://www.youtube.com/watch?v=RoXT_Rkg8LA][Alan Shreve's Talk on gRPC]] is fun and engaging, and he offers a good
+  high-level look at the framework, its historical context, and its benefits.
+- [[https://www.udemy.com/course/grpc-golang/][Stephan Maarek's gRPC class on Udemy]] is in-depth, patient, and hands-on. It is
+  a good balance of theory and implementation, with enough footholds for you to
+  go on and learn more.
+- [[https://www.youtube.com/watch?v=RVZX4CwKhGE&t=2915s][Lyft's Envoy: from Monolith to Service Mesh]] is a talk by Matt Klein about the
+  Envoy proxy, which is a gRPC api. It's a good talk, that shows the exciting
+  and complex things you can design with this framework.
+
+* Discoveries :@discoveries:
+** Rerouting Container Registries With Envoy :envoy:oci:containers:discoveries:
+:PROPERTIES:
+:EXPORT_FILE_NAME: rerouting-container-registries-with-envoy
+:EXPORT_DATE: 2021-04-15
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :summary "Share the traffic across many container registries with Envoy"
+:EXPORT_AUTHOR: Caleb Woodbine
+:END:
+
+#+include: "./org/rerouting-container-registries-with-envoy.org"

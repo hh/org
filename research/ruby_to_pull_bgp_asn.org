@@ -1,0 +1,35 @@
+#+TITLE: Ruby To Pull Bgp Asn
+Found the following repo that seems to poll and query asn data
+https://github.com/codeout/transitive_bgp_community
+* get the repo
+EXEC_USER=${EXEC_USER:-root}
+EXEC_PWD=${EXEC_PWD}
+** Setup
+#+BEGIN_SRC tmate :window ruby_setup
+EXEC_USER=ii host-shell touch ruby123
+#+END_SRC
+
+
+#+BEGIN_SRC tmate :window ruby_setup
+ls -al /var/run/host/home/ii/
+#+END_SRC
+
+
+** WIP
+
+
+#+BEGIN_SRC tmate :window ruby_test :dir (getenv "HOME")
+mkdir -p ruby_test; cd ruby_test
+#+END_SRC
+
+
+#+BEGIN_SRC tmate :window ruby_test :dir (concat (getenv "HOME") "/ruby_test")
+EXEC_USER=ii EXEC_PWD=/home/ii/ruby_test host-shell git clone https://github.com/codeout/transitive_bgp_community
+#+END_SRC
+
+#+BEGIN_SRC tmate :window ruby_container :dir (concat (getenv "HOME") "/ruby_test")
+docker run -u 1000:1000 -d --rm -it -v /home/ii/ruby_test:/app ruby:2.4 /bin/bash
+#+END_SRC
+#+BEGIN_SRC tmate :window ruby_container :dir (concat (getenv "HOME") "/ruby_test")
+docker exec -it ruby:2.4 /bin/bash
+#+END_SRC

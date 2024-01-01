@@ -1,0 +1,64 @@
+{{ define "styles" }}
+    {{ $.Scratch.Set "style_opts" (dict "src" "scss/pages/posts.scss" "dest" "css/posts.css") }}
+{{ end }}
+
+{{ define "main" }}
+    
+{{ $dateFormat := .Site.Params.dateFormat | default "Jan 2 2006" }}
+{{ $hasAuthor := false }}
+{{- if .Data.Term }}
+  {{range where (where (where (where site.Pages "Section" "author") ".Params.guest" "!=" true) ".Params.name" "!=" nil) ".Data.Term" "==" $.Data.Term}}
+  {{$longContent := gt (len .Content) 250}}
+  {{ $hasAuthor = true }}
+  <div class="profile-info">
+  <h1 style="text-align: center;">{{.Params.name}}</h1>
+  {{if .Params.photo }}
+  <div class='profile-photo'
+    style='background-image: url("{{ .Params.photo }}");' >
+  </div>
+  {{ else }}
+  <div class='profile-photo missing'
+    style='background-image: url("/images/unknown-profile.svg")'>
+  </div>
+  {{ end }}
+  <div class='content long' id='{{.Params.name}}'>
+    {{ .Content }}
+  </div>
+  {{ end }}
+{{ end }}
+{{- if (not $hasAuthor) }}
+<h1 style="text-align: center;">BLOG</h1>
+{{- end }}
+<br/>
+<div class="post-list__container">
+  <ul class="post-list">
+    {{ range .Pages }}
+    <li class="post">
+      <div class="post__header">
+        <time class="post__date" datetime="{{ .Date }}"
+          >{{ .Date.Format $dateFormat }}</time>
+        <h2 class="post__title">
+          <a href="{{.RelPermalink}}">{{ .Title }}</a>
+        </h2>
+        <div class='summary'>
+          <p>
+            {{ .Summary }} <br/>
+            by
+            {{ range .Param "author" }}
+            <a class="author" href={{(path.Join "/author" (replace (lower .) " " "-"))}}>
+            {{ . }}
+            </a>
+            {{ end }}
+            </p>
+        </div>
+        {{ partial "tags.html" .}}
+      </div>
+    </li>
+    {{ end }}
+  </ul>
+  {{- if not $hasAuthor }}
+  {{ partial "browse-by-tag.html" .}}
+  {{- end }}
+</div>
+
+{{ end }}

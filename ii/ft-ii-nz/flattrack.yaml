@@ -1,0 +1,58 @@
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: ft-ii-nz
+  namespace: ft-ii-nz
+spec:
+  releaseName: ft-ii-nz
+  chart:
+    git: https://gitlab.com/flattrack/flattrack.git
+    ref: 0.0.1-alpha14
+    path: deployments/flattrack
+  values:
+    realIPHeader: X-Real-Ip
+    timezone: "Pacific/Auckland"
+
+    image:
+      tag: latest
+    # run one on each node
+    replicaCount: 3
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    # connect to an existing postgres database
+    postgres:
+      enabled: true
+      username: postgres
+      host: postgres
+      database: flattrack
+      passwordSecretRef:
+        name: postgres-configuration
+        key: POSTGRES_PASSWORD
+
+    ingress:
+      enabled: true
+      certmanager:
+        enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+      hosts:
+        - host: ft.ii.nz
+          paths:
+            - "/"
+      tls:
+        - hosts:
+            - "ft.ii.nz"
+          secretName: letsencrypt-prod
+
+    # affinity:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #         - matchExpressions:
+    #           - key: beta.kubernetes.io/arch
+    #             operator: In
+    #             values:
+    #               - amd64

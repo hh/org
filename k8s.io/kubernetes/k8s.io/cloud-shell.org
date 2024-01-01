@@ -247,6 +247,5 @@ Some of these layers are 2GB, and quite a few are over 1GB.
 # eval: (xclip-mode 1) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

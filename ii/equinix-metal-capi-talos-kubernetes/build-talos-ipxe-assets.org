@@ -1,0 +1,73 @@
+#+TITLE: Build Talos iPXE assets
+
+#+NAME: get-talos-version
+#+begin_src elisp
+(print "v0.8.1")
+#+end_src
+
+* Download tools
+
+#+begin_src tmate :dir . :window capi-talos-metal
+  wget -O $HOME/bin/packet-save2image https://raw.githubusercontent.com/packethost/packet-images/master/tools/packet-save2image
+  chmod +x $HOME/bin/packet-save2image
+#+end_src
+
+* Prepare custom image
+
+#+begin_src tmate :dir . :window capi-talos-metal :noweb yes
+  tmp=$(mktemp -d -t initrd4me-XXXXXXX)
+  mkdir -p $tmp/boot
+  OUTDIR=$PWD/metal
+  mkdir -p $OUTDIR
+#+end_src
+
+#+begin_src tmate :dir . :window capi-talos-metal :noweb yes
+  curl -O -L https://github.com/talos-systems/talos/releases/download/<<get-talos-version()>>/initramfs-amd64.xz
+  curl -O -L https://github.com/talos-systems/talos/releases/download/<<get-talos-version()>>/vmlinuz-amd64
+#+end_src
+
+#+begin_src tmate :dir . :window capi-talos-metal :noweb yes
+  docker pull ghcr.io/talos-systems/installer:<<get-talos-version()>>
+  docker save ghcr.io/talos-systems/installer:<<get-talos-version()>> > talos-installer-<<get-talos-version()>>.tar
+#+end_src
+
+#+begin_src tmate :dir . :window capi-talos-metal :noweb yes
+  IMAGE=talos-installer-<<get-talos-version()>>.tar
+  OUTDIR=metal
+
+  IMAGETMP=metal-tmp
+  mkdir -p $IMAGETMP
+  tar -xvf $IMAGE -C $IMAGETMP
+
+  tmp=$(mktemp -d -t initrd4me-XXXXXXX)
+  mkdir $tmp/boot
+  mkdir -p $OUTDIR
+  echo "Working directory is: $PWD"
+  echo "Temp directory is: $tmp"
+  echo "Archive dir is: $OUTDIR"
+
+  echo "Preparing kernel..."
+  xz -d initramfs-amd64.xz
+
+  echo "Archiving kernel..."
+  mv vmlinuz-amd64 $tmp/boot/vmlinuz
+  tar -czf $OUTDIR/kernel.tar.gz -C $tmp/boot ./vmlinuz --totals --checkpoint=.1000
+
+  echo "Archiving initrd..."
+  cp $INITRD $tmp/boot
+  mv initramfs-amd64 $tmp/boot/initrd
+  tar -czf $OUTDIR/initrd.tar.gz -C $tmp/boot ./initrd --totals --checkpoint=.1000
+
+  packet-save2image -v < talos-installer-<<get-talos-version()>>.tar > $OUTDIR/image.tar.gz
+  #rm -rf $IMAGETMP
+#+end_src
+
+#+begin_src tmate :dir . :window capi-talos-metal :noweb yes
+  packet-save2image -v < talos-installer-<<get-talos-version()>>.tar > packet-talos-installer-<<get-talos-version()>>.tar.gz
+#+end_src
+
+* Notes and references
+
+- https://github.com/talos-systems/cluster-api-control-plane-provider-talos
+- https://github.com/talos-systems/cluster-api-bootstrap-provider-talos/tree/fe0614e8f25f061cc7df641a9f627fc507e6f582/config/samples/cluster-deployment/gcp
+- https://github.com/talos-systems/cluster-api-bootstrap-provider-talos

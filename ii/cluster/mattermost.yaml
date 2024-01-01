@@ -1,0 +1,131 @@
+# Operator configuration
+# #+name: mattermost-cluster-definition
+
+apiVersion: installation.mattermost.com/v1beta1
+kind: Mattermost
+metadata:
+  name: mattermost # Name of your cluster as shown in Kubernetes.
+  namespace: mattermost
+spec:
+  database:
+    external:
+      secret: mattermost-database
+  elasticSearch: {}
+  fileStore:
+    operatorManaged:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 150m
+          memory: 512Mi
+      storageSize: 50Gi
+  image: mattermost/mattermost-enterprise-edition
+  imagePullPolicy: IfNotPresent
+  ingressAnnotations:
+    kubernetes.io/ingress.class: nginx
+  ingressName: mattermost.ii.coop
+  probes:
+    livenessProbe: {}
+    readinessProbe: {}
+  replicas: 1
+  scheduling:
+    affinity: {}
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 150m
+        memory: 256Mi
+  useIngressTLS: true
+  version: "5.39"
+  mattermostEnv:
+    - name: MM_GITLABSETTINGS_ENABLE
+      value: "true"
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+      value: "true"
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+      value: "true"
+    - name: MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION
+      value: "false"
+    - name: MM_EMAILSETTINGS_FEEDBACKEMAIL
+      value: "mattermost@ii.coop"
+    - name: MM_EMAILSETTINGS_FEEDBACKORGANIZATION
+      value: "ii.coop"
+    - name: MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_SENDPUSHNOTIFICATIONS
+      value: "true"
+    - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONSERVER
+      value: "https://push-test.mattermost.com"
+    - name: MM_EMAILSETTINGS_PUSHNOTIFICATIONCONTENTS
+      value: "full"
+    - name: MM_EMAILSETTINGS_ENABLESMTPAUTH
+      value: "true"
+    - name: MM_GITLABSETTINGS_ID
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_ID
+    - name: MM_GITLABSETTINGS_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_SECRET
+    - name: MM_GITLABSETTINGS_AUTHENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_AUTHENDPOINT
+    - name: MM_GITLABSETTINGS_TOKENENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_TOKENENDPOINT
+    - name: MM_GITLABSETTINGS_USERAPIENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_GITLABSETTINGS_USERAPIENDPOINT
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL
+    - name: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME
+    - name: MM_EMAILSETTINGS_FEEDBACKNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_FEEDBACKNAME
+    - name: MM_EMAILSETTINGS_SMTPUSERNAME
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPUSERNAME
+    - name: MM_EMAILSETTINGS_SMTPPASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPPASSWORD
+    - name: MM_EMAILSETTINGS_SMTPSERVER
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPSERVER
+    - name: MM_EMAILSETTINGS_SMTPPORT
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_SMTPPORT
+    - name: MM_EMAILSETTINGS_CONNECTIONSECURITY
+      valueFrom:
+        secretKeyRef:
+          name: mattermost-user-config
+          key: MM_EMAILSETTINGS_CONNECTIONSECURITY

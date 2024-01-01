@@ -205,3 +205,6 @@ This could help ALOT
  Captured On: [2019-11-07 Thu 09:01]
 ** TODO [[https://github.com/kubernetes/enhancements/pull/1306][Initial draft of Conformance Coverage PR Gate by hh · Pull Request #1306 · kubernetes/enhancements?body]]
  Captured On: [2019-11-07 Thu 13:24]
+**  [[https://github.com/alphapapa/org-ql][alphapapa/org-ql: An Org-mode query language, including search commands and saved views?body]]
+An Org-mode query language, including search commands and saved views
+ Captured On: [2020-01-16 Thu 16:22]

@@ -60,5 +60,4 @@ Skeleton Provider: prepare-e2e not implemented
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:

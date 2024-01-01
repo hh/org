@@ -1,0 +1,223 @@
+#+TITLE: Mailserver
+
+https://github.com/cyrusimap/cyrus-imapd
+
+* Group-Office
+#+begin_SRC yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dbdata
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-env
+stringData:
+  MYSQL_HOST: mariadb
+  MYSQL_DATABASE: groupoffice
+  MYSQL_PASSWORD: groupoffice
+  MYSQL_USER: groupoffice
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mariadb
+  name: db
+spec:
+  ports:
+    - name: "mariadb"
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: mariadb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: mariadb
+  name: mariadb
+spec:
+  serviceName: "mariadb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+        - env:
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_DATABASE
+                  name: db-env
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_PASSWORD
+                  name: db-env
+            - name: MYSQL_ROOT_PASSWORD
+              value: groupoffice
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_USER
+                  name: db-env
+          image: mariadb:10.6.4
+          name: mariadb
+          resources: {}
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: dbdata
+      restartPolicy: Always
+      volumes:
+        - name: dbdata
+          persistentVolumeClaim:
+            claimName: dbdata
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: godata
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: goetc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: groupoffice
+  name: groupoffice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: groupoffice
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: groupoffice
+    spec:
+      containers:
+        - env:
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_DATABASE
+                  name: db-env
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_PASSWORD
+                  name: db-env
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  key: MYSQL_USER
+                  name: db-env
+          image: intermesh/groupoffice:latest
+          name: groupoffice
+          command:
+            - /bin/sh
+            - -x
+            - -c
+            - |
+              set -ex
+              ls -alh /etc/groupoffice
+              cp /usr/local/share/groupoffice/go/modules/community/multi_instance/config.php.tpl /etc/groupoffice/config.php
+              chown -R www-data:www-data /var/lib/groupoffice
+
+              sed -i 's/{dbHost}/'${MYSQL_HOST}'/' /etc/groupoffice/config.php
+              sed -i 's/{dbName}/'${MYSQL_DATABASE}'/' /etc/groupoffice/config.php
+              sed -i 's/{dbUsername}/'${MYSQL_USER}'/' /etc/groupoffice/config.php
+              sed -i 's/{dbPassword}/'${MYSQL_PASSWORD}'/' /etc/groupoffice/config.php
+              sed -i 's,{dataPath},/var/lib/groupoffice,' /etc/groupoffice/config.php
+              sed -i 's,{tmpPath},/tmp/groupoffice,' /etc/groupoffice/config.php
+
+              #call original entry point
+              docker-php-entrypoint apache2-foreground
+          ports:
+            - containerPort: 80
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/lib/groupoffice
+              name: godata
+            - mountPath: /etc/groupoffice
+              name: goetc
+      restartPolicy: Always
+      volumes:
+        - name: godata
+          persistentVolumeClaim:
+            claimName: godata
+        - name: goetc
+          persistentVolumeClaim:
+            claimName: goetc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: groupoffice
+  name: groupoffice
+spec:
+  ports:
+    - name: "http"
+      port: 80
+      targetPort: 80
+  selector:
+    app: groupoffice
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: groupoffice
+  name: groupoffice
+spec:
+  rules:
+    - host: groupoffice.bobymcbobs.pair.sharing.io
+      http:
+        paths:
+          - backend:
+              service:
+                name: groupoffice
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - groupoffice.bobymcbobs.pair.sharing.io
+      secretName: letsencrypt-prod
+#+end_SRC

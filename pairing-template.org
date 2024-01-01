@@ -64,6 +64,5 @@ echo hello from nested
 # eval: (xclip-mode 0) 
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

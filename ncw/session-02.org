@@ -1,0 +1,44 @@
+#+TITLE: Session 02
+
+* Introduction
+- In this Session we will introduce you to the make command and kubernetes cmd folder.
+- You'll also learn about KinD (kubernetes in docker)
+- We'll learn more about how k8s buid process works
+
+  By the end, you will edit and build a kubernetes command that you can run on your own kind cluster!
+  **This session continues on Session 1.  If you haven't done that one yet, do it first!**
+* Agenda
+- Intro to make
+- Intro to CMD
+- The Build Process
+- Intro to KinD
+- Editing and Building
+- Running our command on KinD
+* Make
+** What it is
+** Ensuring you have it on your computer
+** How we use it
+* The CMD Folder
+** Where to find it
+** What it is
+* Making in Parts
+Why do we not make all of kubernetes (no don't run make release)
+What do we make in isolation?
+* Verify Dev envrionment ready to go
+/if needed, include instructions for each type of OS/
+** Have Docker
+** Have git
+** Have Go
+*** GOPATH set
+** Fork of k8s cloned to dev environment
+* Run a make command
+** cd into k8s from yr terminal
+** make WHAT=cmd/kubectl
+maybe edit the print output for fun, and see it change
+* Make a KinD Cluster
+** What is kind?
+** Install Kind
+** kind create cluster
+* Use newly-built kubectl binary in the KinD cluster
+* Additional Help
+* What's Next?

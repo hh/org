@@ -1,0 +1,192 @@
+#+TITLE: Deploying
+
+The ETL Pipeline is based off the /postgres:12.7-buster/ container image.
+
+* Variables and configuration
+
+| Name                             | Description                                                                                              | Default |
+|----------------------------------+----------------------------------------------------------------------------------------------------------+---------|
+| ~ASN_DATA_PIPELINE_RETAIN~       | Keep the Postgres instance up                                                                            |         |
+| ~GOOGLE_APPLICATION_CREDENTIALS~ | Used by the /gcloud/ command, the value represents a local JSON file containing credentials for GCP auth | ~""~    |
+| ~GCP_PROJECT~                    | The GCP project to use                                                                                   | ~""~    |
+| ~GCP_SERVICEACCOUNT~             | The GCP ServiceAccount to use                                                                            | ~""~    |
+| ~GCP_BIGQUERY_DATASET~           | The GCP BigQuery Dataset to use                                                                          | ~""~    |
+
+Also note the variables inherited from the Postgres image, [[https://github.com/docker-library/docs/blob/master/postgres/README.md#environment-variables][here]].
+
+* Running as a Kubernetes CronJob
+
+Define the CronJob
+#+begin_src yaml :tangle ./asn-etl-pipeline.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: asn-etl-pipeline
+  labels:
+    app: asn-etl-pipeline
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      name: asn-etl-pipeline
+    spec:
+      parallelism: 1
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: asn-etl-pipeline
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: asn-etl-pipeline
+              image: asn-etl-pipeline
+              imagePullPolicy: Never
+              # command:
+              #   - sleep
+              #   - +Inf
+              volumeMounts:
+                - name: gcp-app-creds
+                  mountPath: /etc/asn-etl-pipeline
+                # - name: gcp-user-account
+                #   mountPath: /tmp/gcp-user-account/.config/gcloud
+              env:
+                - name: POSTGRES_PASSWORD
+                  value: postgres
+                - name: GCP_PROJECT
+                  value: k8s-infra-ii-sandbox
+                - name: GCP_SERVICEACCOUNT
+                  value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+                - name: GCP_BIGQUERY_DATASET
+                  value: etl_script_generated_set
+                - name: GCP_BIGQUERY_DATASET_LOGS
+                  value: etl_script_generated_set_prod
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
+                - name: ASN_DATA_PIPELINE_RETAIN
+                  value: "false"
+                # - name: ASN_DATA_PIPELINE_PREINIT
+                #   value: |
+                #     mkdir -p /var/lib/postgresql/.config ;
+                #     cp -r /tmp/gcp-user-account/.config/gcloud/..data/ /var/lib/postgresql/.config/gcloud/ ;
+                #     mkdir -p /var/lib/postgresql/.config/gcloud/configurations/ ;
+                #     cat << EOF > ~/.config/gcloud/configurations/config_default
+                #     [core]
+                #     project = k8s-infra-ii-sandbox
+                #     account = bb@ii.coop
+                #     EOF
+                #     gsutil ls
+          volumes:
+            - name: gcp-app-creds
+              secret:
+                secretName: gcp-app-creds
+            # - name: gcp-user-account
+            #   secret:
+            #     secretName: gcp-user-account
+            #     defaultMode: 0777
+#+end_src
+
+Create the Secret
+#+begin_src shell :results silent
+kubectl create secret generic gcp-app-creds \
+    --from-file=asn-etl-pipeline-gcp-sa.json=/tmp/asn-etl-pipeline-gcp-sa.json \
+    --dry-run=client \
+    -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+Create the Secret, from local gcloud user creds
+#+begin_src shell :results silent
+cd "${HOME}/.config/gcloud"
+kubectl create secret generic gcp-user-account \
+    --from-file="." \
+    --dry-run=client \
+    -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+Deploy the CronJob
+#+begin_src shell :results silent
+kubectl apply -f ./asn-etl-pipeline.yaml
+#+end_src
+
+Get logs
+#+begin_src tmate :window asn-etl
+kubectl logs -l app=asn-etl-pipeline --prefix -f
+#+end_src
+
+Delete the CronJob
+#+begin_src shell :results silent
+kubectl delete -f ./asn-etl-pipeline.yaml
+#+end_src
+
+* Run as ProwJob
+In Prow Config
+#+begin_src yaml
+periodics:
+  - interval: 5m
+    agent: kubernetes
+    name: asn-data-pipeline
+    decorate: true
+    spec:
+      containers:
+        - name: asn-etl-pipeline
+          image: asn-etl-pipeline
+          command:
+            - /usr/local/bin/docker-entrypoint.sh
+            - postgres
+          imagePullPolicy: Never
+          volumeMounts:
+            - name: gcp-app-creds
+              mountPath: /etc/asn-etl-pipeline
+          env:
+            - name: GCP_PROJECT
+              value: k8s-infra-ii-sandbox
+            - name: GCP_SERVICEACCOUNT
+              value: asn-etl@k8s-infra-ii-sandbox.iam.gserviceaccount.com
+            - name: GCP_BIGQUERY_DATASET
+              value: etl_script_generated_set
+            - name: GCP_BIGQUERY_DATASET_LOGS
+              value: etl_script_generated_set_prod
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/asn-etl-pipeline/asn-etl-pipeline-gcp-sa.json
+      volumes:
+        - name: gcp-app-creds
+          secret:
+            secretName: gcp-app-creds
+#+end_src
+
+Create the Secret
+#+begin_src shell :results silent
+kubectl -n prow-workloads create secret generic gcp-app-creds \
+    --from-file=asn-etl-pipeline-gcp-sa.json=<(sudo cat /tmp/asn-etl-pipeline-gcp-sa.json) \
+    --dry-run=client \
+    -o yaml \
+    | kubectl apply -f -
+#+end_src
+
+Update the local =cncf-infra/prow-config/.sharing.io/prow-config-template.yaml= with the periodics contents above, then
+rerunning the =cncf-infra/prow-config/.sharing.io/init= script,
+#+begin_src shell :results silent
+$INIT_DEFAULT_REPOS_FOLDER/cncf-infra/prow-config/.sharing.io/init
+#+end_src
+
+Restart Prow Components
+#+begin_src shell
+kubectl -n prow rollout restart $(kubectl -n prow get deployments -o=jsonpath='{range .items[*]}{.kind}/{.metadata.name} {end}')
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/prow-crier restarted
+deployment.apps/prow-deck restarted
+deployment.apps/prow-ghproxy restarted
+deployment.apps/prow-hook restarted
+deployment.apps/prow-horologium restarted
+deployment.apps/prow-minio restarted
+deployment.apps/prow-plank restarted
+deployment.apps/prow-sinker restarted
+deployment.apps/prow-statusreconciler restarted
+deployment.apps/prow-tide restarted
+#+end_example

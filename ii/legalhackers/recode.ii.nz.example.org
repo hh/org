@@ -158,5 +158,4 @@ kubectl get secret gitlab-gitlab-initial-root-password -ojsonpath={.data.passwor
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:

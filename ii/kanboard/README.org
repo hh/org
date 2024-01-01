@@ -1,0 +1,195 @@
+#+TITLE: Kanboard deployment
+
+Install local-path-provisioner
+#+begin_src shell
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/local-path-storage created
+serviceaccount/local-path-provisioner-service-account created
+clusterrole.rbac.authorization.k8s.io/local-path-provisioner-role created
+clusterrolebinding.rbac.authorization.k8s.io/local-path-provisioner-bind created
+deployment.apps/local-path-provisioner created
+storageclass.storage.k8s.io/local-path created
+configmap/local-path-config created
+#+end_example
+
+Create a namespace
+#+begin_src shell
+kubectl create ns kanban-ii-coop
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/kanban-ii-coop created
+#+end_example
+
+Checkout a similar one
+#+begin_src shell
+kubectl -n sharingio-pair get certs sharingio-pair-letsencrypt -o yaml | osc52.sh
+#+end_src
+
+Certs
+#+begin_src yaml :tangle ./certs.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: kanban-ii-coop
+spec:
+  acme:
+    email: kanban@ii.coop
+    preferredChain: ""
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+      selector:
+        dnsNames:
+        - kanban.ii.coop
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kanban-ii-coop
+  namespace: kanban-ii-coop
+spec:
+  dnsNames:
+  - kanban.ii.coop
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: kanban-ii-coop
+  secretName: letsencrypt-prod
+#+end_src
+
+PVC
+#+begin_src yaml :tangle ./kanboard-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+#+end_src
+
+Deployment
+#+begin_src yaml :tangle ./kanboard-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kanboard
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kanboard
+  template:
+    metadata:
+      labels:
+        app: kanboard
+    spec:
+      containers:
+      - image: kanboard/kanboard:latest
+        name: kanboard
+        ports:
+          - containerPort: 80
+        volumeMounts:
+          - name: kanboard
+            mountPath: /var/www/app/data
+      volumes:
+      - name: kanboard
+        persistentVolumeClaim:
+          claimName: kanboard
+#+end_src
+
+Service
+#+begin_src yaml :tangle ./kanboard-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kanboard
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: kanboard
+#+end_src
+
+Ingress
+#+begin_src yaml :tangle ./kanboard-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kanboard
+  namespace: kanban-ii-coop
+spec:
+  rules:
+  - host: kanban.ii.coop
+    http:
+      paths:
+      - backend:
+          service:
+            name: kanboard
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - kanban.ii.coop
+    secretName: letsencrypt-prod
+#+end_src
+
+Apply all the things
+#+begin_src shell
+kubectl apply -f kanboard-deployment.yaml -f kanboard-pvc.yaml -f kanboard-service.yaml -f kanboard-ingress.yaml -f certs.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/kanboard unchanged
+persistentvolumeclaim/kanboard unchanged
+service/kanboard unchanged
+ingress.networking.k8s.io/kanboard unchanged
+clusterissuer.cert-manager.io/kanban-ii-coop created
+certificate.cert-manager.io/kanban-ii-coop created
+#+end_example
+
+Waiting for cert
+#+begin_src shell
+kubectl -n kanban-ii-coop get challenges
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+Checkout the ingress
+#+begin_src shell
+kubectl -n kanban-ii-coop get ing
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME       CLASS    HOSTS            ADDRESS          PORTS     AGE
+kanboard   <none>   kanban.ii.coop   139.178.68.219   80, 443   10m
+#+end_example

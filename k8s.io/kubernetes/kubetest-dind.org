@@ -815,5 +815,4 @@ kubeadm config migrate --new-config kubeadm.conf --old-config kubeadm.conf.orig
 # eval: (require (quote ob-emacs-lisp))
 # eval: (require (quote ob-js))
 # eval: (require (quote ob-go))
-# org-confirm-babel-evaluate: nil
 # End:

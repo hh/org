@@ -1,0 +1,17 @@
+#+TITLE: K8s Infra Status
+My place for keeping status of k8s-infra
+* week of 20210524
+** Feedback on [https://github.com/kubernetes/k8s.io/issues/1981](bulk-export)
+ #+begin_src shell
+gcloud alpha resource-config bulk-export
+--resource-format=terraform
+--project=k8s-staging-apisnoop
+--billing-project=k8s-infra-ii-sandbox
+--path=/tmp/k8s-staging-apisnoop
+ #+end_src
+- Gets us current infra, 2 line change allows us to apply that tf to build mirror
+- Suggestions for maintaining infra using it.
+- Do we want to test it as an improvement on audit.sh?
+** Feedback on data loading
+Right now we have script that loads and single transformation we do for datastudio consumption
+Looking for examples of best practices for building this kind of data flow.

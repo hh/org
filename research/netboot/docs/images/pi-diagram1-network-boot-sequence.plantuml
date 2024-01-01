@@ -1,0 +1,52 @@
+@startuml
+title Network Booting a Pi\n
+footer \nDiagram 1
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+participant "Pi Client" as PiC #red
+participant Network #grey
+participant Router #DodgerBlue
+participant "Pi Server" as PiS #LimeGreen
+
+hnote over PiC : Power On
+
+note left of PiC #aqua
+ BOOT_ORDER
+ Checks
+end note
+
+PiC --> Network: Broadcast request for an IP Address
+note left of PiC #aqua
+   DHCP
+end note
+
+Router -> PiC: Provides an IP address
+PiS -> PiC: Provides PXE & TFTP service
+||30||
+
+PiC -> PiS: Request TFTP files
+
+note right of PiS #aqua
+  TFTP files via
+  DNSMASQ
+end note
+
+PiS -> PiC: Receive TFTP files
+
+note left of PiC: Process\n**cmdline.txt**
+
+PiC -> PiS: Request NFS files
+
+note right of PiS #aqua
+  NFS files via
+  NFS-Ganesha
+end note
+
+PiS -> PiC: Receive NFS files
+||20||
+...~3 minutes later...
+
+hnote over PiC : Desktop Ready
+@enduml

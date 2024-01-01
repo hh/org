@@ -1,0 +1,32 @@
+
+
+# #+NAME: Postgres database
+
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: gitlab-db
+  namespace: gitlab
+spec:
+  enableConnectionPooler: true
+  connectionPooler:
+    mode: session
+    resources:
+      requests:
+        cpu: 250m
+        memory: 100Mi
+      limits:
+        cpu: "1"
+        memory: 100Mi
+  teamId: "gitlab"
+  volume:
+    size: 50Gi
+  numberOfInstances: 3
+  users:
+    gitlab:  # database owner
+    - superuser
+    - createdb
+  databases:
+    gitlab: gitlab  # dbname: owner
+  postgresql:
+    version: "13"

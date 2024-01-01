@@ -248,6 +248,5 @@ tmate -S /tmp/kind.kind-ci-box.iisocket new-session -A -s kind -n main \
 # eval: (xclip-mode 1)
 # org-babel-tmate-session-prefix: ""
 # org-babel-tmate-default-window-name: "main"
-# org-confirm-babel-evaluate: nil
 # org-use-property-inheritance: t
 # End:

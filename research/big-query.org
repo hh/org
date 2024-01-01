@@ -1,0 +1,44 @@
+#+TITLE: Big Query Sql-Mode SRC Blocks
+* gcloud auth login first
+Via tmate so we can interact
+#+BEGIN_SRC tmate :window gcloud
+gcloud auth login
+#+END_SRC
+* gcloud default to k8s-infra-ii-sandbox
+#+BEGIN_SRC shell :results silent
+gcloud config set project k8s-infra-ii-sandbox
+#+END_SRC
+* start bq shell in tmate :window 'bq'
+#+BEGIN_SRC tmate :window bq
+bq shell
+#+END_SRC
+* start bq comint-shell in emacs *SQL* buffer
+
+This will create an SQLi (interactive) 'comint' buffer backed by a bq shell.
+By default the name of the buffer is `*SQL*`
+
+#+BEGIN_SRC elisp
+(sql-product-interactive 'bq)
+#+END_SRC
+
+#+RESULTS:
+#+begin_src elisp
+#<buffer *SQL*>
+#+end_src
+
+* Org Block Execution of Big Query SRC blocks
+
+This will also create an SQLi buffer, but it's default name is `*SQL: bq:none*` and you can have multiple sessions.
+
+#+begin_src sql-mode :product bq
+select 1+2;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
++-----+
+| f0_ |
++-----+
+|   3 |
++-----+
+#+end_SRC

@@ -8,3 +8,9 @@ cncf/ci/*service*json
 cncf/ci/cookie
 cncf/ci/*auth-config
 cncf/ci/*-token
+.env
+.DS_Store
+.orgids
+blog/public
+blog/resources
+**/tmate-*.log

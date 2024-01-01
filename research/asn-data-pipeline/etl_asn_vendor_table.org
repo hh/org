@@ -1,0 +1,600 @@
+#+TITLE: Build_vendor_table
+Goal is to combine ip-asn data from 3 sources
+- peeringdb
+- shadowserver.org
+- pyasn
+* Desired ouput
+- ASN
+- Company name
+- subnet
+- start_ip
+- end_ip
+- start_ip_int
+- end_ip_int
+* Get company to asn list - delete heading below
+
+#+BEGIN_SRC shell :results silent
+gsutil cp ~/potaroo_company_asn.csv gs://ii_bq_scratch_dump/potaroo_company_asn.csv
+#+END_SRC
+#+BEGIN_SRC shell
+gsutil ls -al gs://ii_bq_scratch_dump/potaroo_company_asn.csv
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+   3334138  2021-06-08T00:10:05Z  gs://ii_bq_scratch_dump/potaroo_company_asn.csv#1623111005815246  metageneration=1
+TOTAL: 1 objects, 3334138 bytes (3.18 MiB)
+#+end_example
+#+BEGIN_SRC shell
+cat potaroo_company_asn.csv | wc -l
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+0
+#+end_example
+
+* Get asn to company list
+TODDO: this section needs to be replaced with:
+curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p'
+I tested it and it still failed on one line, I did not troubleshoot, but this would be a way better way to get the data
+
+I found quite a few, but the most complete list at this time is:
+https://bgp.potaroo.net/cidr/autnums.html
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME"))
+# mkdir autonums
+# cd autonums
+# wget https://bgp.potaroo.net/cidr/autnums.html
+curl -s  https://bgp.potaroo.net/cidr/autnums.html | sed -nre '/AS[0-9]/s/.*as=([^&]+)&.*">([^<]+)<\/a> ([^"]+)/"\1", "\3"/p' > ~/autnums_sed.csv
+#+END_SRC
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/")
+cat ~/autnums_sed.csv | head
+#+END_SRC
+
+
+** Import to postgres
+I stand up a postgres instance in the peeringdb section
+If you need one go look in peeringdb to see the command to start one.
+#+BEGIN_SRC sql-mode
+-- adding this table to match wat caleb used
+-- create table asnproc (asn varchar, name varchar);
+-- \COPY asnproc from '/home/ii/autonums/asn_company_results.csv' DELIMITER ',' CSV;
+-- create table company_asn  (asn varchar, name varchar);
+\COPY company_asn from '/home/ii/autonums_sed.csv' DELIMITER ',' CSV;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+#+BEGIN_SRC sql-mode
+--select * from company_asn limit 10;
+select * from company_asn limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+
+* Peeringdb - skipping open fold to see logic
+tldr; peeringdb only has 22 500 asn's we have 2 other sources with way more.
+I will rather use peeringdb to get asn metadata until we get access to arin and other registrars
+I found a very cool new way to look at the peeringdb data
+[https://www.peeringdb.com/api/](https://www.peeringdb.com/api/)
+Looks like direct access to the data on ix, ixlan, net, netfac, and org
+sadly it does confirm that we only have 22 320 records
+ `curl -sG https://www.peeringdb.com/api/net --data-urlencode fields=id | jq '.data | length`'
+22320
+** Parse from peeringdb using Postgres
+
+Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=peeringdb postgres:12.2-alpine
+#+END_SRC
+
+Clone https://git.2e8.dk/peeringdb-simplesync
+#+BEGIN_SRC tmate :window prepare :dir (getenv "HOME")
+git clone https://git.2e8.dk/peeringdb-simplesync
+cd peeringdb-simplesync
+#+END_SRC
+
+Set psql creds
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+export \
+    PGUSER=postgres \
+    PGPASSWORD=password
+#+END_SRC
+
+import the schema
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < schema.sql
+#+END_SRC
+
+Enter PeeringDB creds ( you will need valid credentials for peeringdb.com )
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+read -p 'PEERINGDB_USER    : ' PEERINGDB_USER
+#+END_SRC
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+read -p 'PEERINGDB_PASSWORD: ' PEERINGDB_PASSWORD
+#+END_SRC
+
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+export PEERINGDB_USER PEERINGDB_PASSWORD
+#+END_SRC
+
+Write the config for sync.py
+#+BEGIN_SRC python :tangle (concat (getenv "HOME") "/peeringdb-simplesync/config.py")
+from requests.auth import HTTPBasicAuth
+import os
+
+host=os.environ['SHARINGIO_PAIR_LOAD_BALANCER_IP']
+user=os.environ['PEERINGDB_USER']
+password=os.environ['PEERINGDB_PASSWORD']
+
+def get_config():
+    return {
+        'db_conn_str': 'dbname=peeringdb host=%s user=postgres password=password' % host,
+        'db_schema': 'peeringdb',
+        'auth': HTTPBasicAuth(user, password)
+    }
+#+END_SRC
+
+Dump all of the data
+I had to install psycopg2
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+pip install psycopg2-binary
+#+END_SRC
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+python3 ./sync.py
+#+END_SRC
+
+** Create a new dump
+After running the above Dump the database
+#+BEGIN_SRC tmate :window peeringdb-sync :dir (concat (getenv "HOME") "/peeringdb-simplesync")
+pg_dump -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP > peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+Upload the dump
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp peeringdb-dump-$(date +%Y%m%d).sql gs://ii_bq_scratch_dump/peeringdb-dump-$(date +%Y%m%d).sql
+#+END_SRC
+
+** Stand up local peeringdb with pre-prepared dump
+Download from the bucket
+#+BEGIN_SRC tmate :window peeringdb-sync
+gsutil cp gs://ii_bq_scratch_dump/peeringdb-dump-20210512.sql ./peeringdb-dump-20210512.sql
+#+END_SRC
+
+Load the data from the dump into a new/separate Postgres instance
+#+BEGIN_SRC tmate :window peeringdb-sync
+psql -U postgres -d peeringdb -h $SHARINGIO_PAIR_LOAD_BALANCER_IP < ./peeringdb-dump-20210512.sql
+#+END_SRC
+** Peeringdb Schema exploration
+There is a full schema explorationon on: https://github.com/ii/org/blob/main/research/asn-to-company-peeringdb-data/asn-to-company-peeringdb-data.org#schema-exploration
+Api docs on: https://www.peeringdb.com/apidocs/
+Quick review of the scehma:
+#+begin_SRC example
+ schemaname | tablename
+------------+-----------
+ peeringdb  | fac
+ peeringdb  | ix
+ peeringdb  | ixfac
+ peeringdb  | ixlan
+ peeringdb  | ixpfx
+ peeringdb  | net
+ peeringdb  | netfac
+ peeringdb  | netixlan
+ peeringdb  | org
+ peeringdb  | poc
+(10 rows)
+
+#+end_SRC
+
+The only tables I care about for this document is: peeringdb.net and peeringdb.poc
+
+*** peeringdb.net
+
+#+BEGIN_SRC sql-mode
+select * from peeringdb.net limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | org_id | asn  | status |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  data                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |        created         |        updated         | deleted
+----+--------+------+--------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 83 |   3152 | 5388 | ok     | {"id": 83, "aka": "", "asn": 5388, "name": "Cable&Wireless UK", "notes": "This is former Energis Communications UK backbone network (AS5388) which is now owned by Cable and Wireless.\r\n\r\nAS5388 have no direct peering relations any longer, for peering request please contact our backbone AS1273 peering team.\r\n\r\nCable and Wireless global backbone network (AS1273) has a separate PeeringDB entry.\r\n", "org_id": 3152, "status": "ok", "created": "2004-08-03T10:30:54Z", "updated": "2016-03-14T20:23:33Z", "website": "http://www.cw.com/uk", "info_ipv6": false, "info_type": "NSP", "name_long": "", "info_ratio": "Balanced", "info_scope": "Regional", "irr_as_set": "AS-ENERGIS", "policy_url": "", "poc_updated": "2020-01-22T04:24:08Z", "info_traffic": "10-20Gbps", "info_unicast": true, "policy_ratio": false, "route_server": "", "looking_glass": "http://as5388.net/cgi-bin/lg.pl", "info_multicast": false, "info_prefixes4": 30, "info_prefixes6": 2, "netfac_updated": "2016-03-14T21:24:34Z", "policy_general": "Restrictive", "allow_ixp_update": false, "netixlan_updated": null, "policy_contracts": "Not Required", "policy_locations": "Not Required", "info_never_via_route_servers": false} | 2004-08-03 10:30:54+00 | 2016-03-14 20:23:33+00 |
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select id, org_id, status, data::jsonb ->> 'asn' as asn, data::jsonb ->> 'name' as name, data::jsonb ->> 'website' as website from peeringdb.net limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id | org_id | status | asn  |       name        |       website
+----+--------+--------+------+-------------------+----------------------
+ 83 |   3152 | ok     | 5388 | Cable&Wireless UK | http://www.cw.com/uk
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select count(data::jsonb ->> 'asn') from peeringdb.net limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 23095
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.net limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                                                                                                                                                                        jsonb_pretty
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {                                                                                                                                                                                                                                                                                                                                                          +
+     "id": 83,                                                                                                                                                                                                                                                                                                                                              +
+     "aka": "",                                                                                                                                                                                                                                                                                                                                             +
+     "asn": 5388,                                                                                                                                                                                                                                                                                                                                           +
+     "name": "Cable&Wireless UK",                                                                                                                                                                                                                                                                                                                           +
+     "notes": "This is former Energis Communications UK backbone network (AS5388) which is now owned by Cable and Wireless.\r\n\r\nAS5388 have no direct peering relations any longer, for peering request please contact our backbone AS1273 peering team.\r\n\r\nCable and Wireless global backbone network (AS1273) has a separate PeeringDB entry.\r\n",+
+     "org_id": 3152,                                                                                                                                                                                                                                                                                                                                        +
+     "status": "ok",                                                                                                                                                                                                                                                                                                                                        +
+     "created": "2004-08-03T10:30:54Z",                                                                                                                                                                                                                                                                                                                     +
+     "updated": "2016-03-14T20:23:33Z",                                                                                                                                                                                                                                                                                                                     +
+     "website": "http://www.cw.com/uk",                                                                                                                                                                                                                                                                                                                     +
+     "info_ipv6": false,                                                                                                                                                                                                                                                                                                                                    +
+     "info_type": "NSP",                                                                                                                                                                                                                                                                                                                                    +
+     "name_long": "",                                                                                                                                                                                                                                                                                                                                       +
+     "info_ratio": "Balanced",                                                                                                                                                                                                                                                                                                                              +
+     "info_scope": "Regional",                                                                                                                                                                                                                                                                                                                              +
+     "irr_as_set": "AS-ENERGIS",                                                                                                                                                                                                                                                                                                                            +
+     "policy_url": "",                                                                                                                                                                                                                                                                                                                                      +
+     "poc_updated": "2020-01-22T04:24:08Z",                                                                                                                                                                                                                                                                                                                 +
+     "info_traffic": "10-20Gbps",                                                                                                                                                                                                                                                                                                                           +
+     "info_unicast": true,                                                                                                                                                                                                                                                                                                                                  +
+     "policy_ratio": false,                                                                                                                                                                                                                                                                                                                                 +
+     "route_server": "",                                                                                                                                                                                                                                                                                                                                    +
+     "looking_glass": "http://as5388.net/cgi-bin/lg.pl",                                                                                                                                                                                                                                                                                                    +
+     "info_multicast": false,                                                                                                                                                                                                                                                                                                                               +
+     "info_prefixes4": 30,                                                                                                                                                                                                                                                                                                                                  +
+     "info_prefixes6": 2,                                                                                                                                                                                                                                                                                                                                   +
+     "netfac_updated": "2016-03-14T21:24:34Z",                                                                                                                                                                                                                                                                                                              +
+     "policy_general": "Restrictive",                                                                                                                                                                                                                                                                                                                       +
+     "allow_ixp_update": false,                                                                                                                                                                                                                                                                                                                             +
+     "netixlan_updated": null,                                                                                                                                                                                                                                                                                                                              +
+     "policy_contracts": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "policy_locations": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "info_never_via_route_servers": false                                                                                                                                                                                                                                                                                                                  +
+ }
+ {                                                                                                                                                                                                                                                                                                                                                          +
+     "id": 24,                                                                                                                                                                                                                                                                                                                                              +
+     "aka": "Extreme Telecom",                                                                                                                                                                                                                                                                                                                              +
+     "asn": 19817,                                                                                                                                                                                                                                                                                                                                          +
+     "name": "DSLExtreme",                                                                                                                                                                                                                                                                                                                                  +
+     "notes": "",                                                                                                                                                                                                                                                                                                                                           +
+     "org_id": 62,                                                                                                                                                                                                                                                                                                                                          +
+     "status": "ok",                                                                                                                                                                                                                                                                                                                                        +
+     "created": "2004-07-28T00:00:00Z",                                                                                                                                                                                                                                                                                                                     +
+     "updated": "2016-03-14T20:47:30Z",                                                                                                                                                                                                                                                                                                                     +
+     "website": "http://www.dslextreme.com",                                                                                                                                                                                                                                                                                                                +
+     "info_ipv6": false,                                                                                                                                                                                                                                                                                                                                    +
+     "info_type": "Cable/DSL/ISP",                                                                                                                                                                                                                                                                                                                          +
+     "name_long": "",                                                                                                                                                                                                                                                                                                                                       +
+     "info_ratio": "Mostly Inbound",                                                                                                                                                                                                                                                                                                                        +
+     "info_scope": "Regional",                                                                                                                                                                                                                                                                                                                              +
+     "irr_as_set": "",                                                                                                                                                                                                                                                                                                                                      +
+     "policy_url": "",                                                                                                                                                                                                                                                                                                                                      +
+     "poc_updated": "2016-03-14T21:35:12Z",                                                                                                                                                                                                                                                                                                                 +
+     "info_traffic": "1-5Gbps",                                                                                                                                                                                                                                                                                                                             +
+     "info_unicast": true,                                                                                                                                                                                                                                                                                                                                  +
+     "policy_ratio": false,                                                                                                                                                                                                                                                                                                                                 +
+     "route_server": "",                                                                                                                                                                                                                                                                                                                                    +
+     "looking_glass": "",                                                                                                                                                                                                                                                                                                                                   +
+     "info_multicast": false,                                                                                                                                                                                                                                                                                                                               +
+     "info_prefixes4": 69,                                                                                                                                                                                                                                                                                                                                  +
+     "info_prefixes6": 3,                                                                                                                                                                                                                                                                                                                                   +
+     "netfac_updated": "2016-03-14T20:33:54Z",                                                                                                                                                                                                                                                                                                              +
+     "policy_general": "Open",                                                                                                                                                                                                                                                                                                                              +
+     "allow_ixp_update": false,                                                                                                                                                                                                                                                                                                                             +
+     "netixlan_updated": "2021-05-12T00:13:00.764215Z",                                                                                                                                                                                                                                                                                                     +
+     "policy_contracts": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "policy_locations": "Not Required",                                                                                                                                                                                                                                                                                                                    +
+     "info_never_via_route_servers": false                                                                                                                                                                                                                                                                                                                  +
+ }
+(2 rows)
+
+#+end_SRC
+
+*** peeringdb.poc
+#+BEGIN_SRC sql-mode
+select * from peeringdb.poc limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ id  | net_id | status |                                                                                                                            data                                                                                                                             |        created         |        updated         | deleted
+-----+--------+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------+------------------------+---------
+ 100 |    115 | ok     | {"id": 100, "url": "", "name": "Telefonica DE Peering Team", "role": "Policy", "email": "peering.de@telefonica.com", "phone": "", "net_id": 115, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-05-20T13:55:47Z", "visible": "Public"} | 2010-07-29 00:00:00+00 | 2016-05-20 13:55:47+00 |
+(1 row)
+
+#+end_SRC
+
+
+#+BEGIN_SRC sql-mode
+select jsonb_pretty(data) from peeringdb.poc limit 2;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ {                                        +
+     "id": 100,                           +
+     "url": "",                           +
+     "name": "Telefonica DE Peering Team",+
+     "role": "Policy",                    +
+     "email": "peering.de@telefonica.com",+
+     "phone": "",                         +
+     "net_id": 115,                       +
+     "status": "ok",                      +
+     "created": "2010-07-29T00:00:00Z",   +
+     "updated": "2016-05-20T13:55:47Z",   +
+     "visible": "Public"                  +
+ }
+ {                                        +
+     "id": 48,                            +
+     "url": "",                           +
+     "name": "NOC",                       +
+     "role": "NOC",                       +
+     "email": "noc@stealth.net",          +
+     "phone": "+12122322020",             +
+     "net_id": 26,                        +
+     "status": "ok",                      +
+     "created": "2010-07-29T00:00:00Z",   +
+     "updated": "2020-05-20T23:14:22Z",   +
+     "visible": "Public"                  +
+ }
+
+#+end_SRC
+
+** Building asn-ip list with Postgres (this requires import of a asn list)
+#+BEGIN_SRC sql-mode
+create schema asntocompany;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+CREATE SCHEMA
+#+end_SRC
+Split asn from dump so we have table with ony asns, will name that one `asnproc`
+#+BEGIN_SRC tmate :window autonums :dir (concat (getenv "HOME") "/autonums")
+cat /home/ii/autonums/asn_company_results.csv | cut -d ',' -f1 | sed 's/"//' | sed 's/"//'| cut -d 'S' -f2 >> asns_only.txt
+#+END_SRC
+
+#+BEGIN_SRC sql-mode
+-- create table asnproc (
+--       asn bigint not null primary key
+-- );
+\copy asnproc from '/home/ii/autonums/asns_only.txt';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+** Trying a few queries to see what I see
+#+BEGIN_SRC sql-mode
+select (net.data ->> 'name') as "name",
+       asn
+    from peeringdb.net
+    where (net.data ->> 'name') ilike '%google%'
+    limit 5;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+        name        |  asn
+--------------------+-------
+ Google LLC         | 15169
+ Google LLC AS19527 | 19527
+ Google LLC AS36040 | 36040
+ Google LLC AS43515 | 43515
+ Google Fiber, Inc. | 16591
+(5 rows)
+
+#+end_SRC
+
+We only have 23k asns
+#+BEGIN_SRC sql-mode
+select count(*)
+    from peeringdb.net
+    where (net.data ->> 'asn') is not null;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 23097
+(1 row)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select count(*)
+from peeringdb.poc p
+where (p.data ->> 'email') is not null;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 10756
+(1 row)
+
+#+end_SRC
+
+
+#+BEGIN_SRC sql-mode
+select
+       (poc.data ->> 'name') as poc_name
+from peeringdb.poc poc
+-- left join peeringdb.poc poc on ((net.data ->>'name') = (poc.data ->>'name'))
+where (poc.data ->> 'name') ilike '%google%'
+or (poc.data ->> 'name') ilike '%amazon%'
+or (poc.data ->> 'name') ilike '%microsoft%';
+-- where (net.data ->>'name') ilike '%google%';
+-- select data from peeringdb.net where (data ->> 'asn')::bigint = 21789 limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+             poc_name
+-----------------------------------
+ noc@google.com
+ Google Fiber NOC
+ Diretoria de Tecnologia Amazontel
+ Diretoria de Tecnologia Amazontel
+ Ganesh Wakode Google Mail
+(5 rows)
+
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+begin;
+-- create table asnproc (
+--        asn bigint not null primary key
+-- );
+-- \copy asnproc from '/home/ii/peeringdb-simplesync/asns.txt';
+select count(*) from peeringdb.poc;
+select net.id,
+       asnproc.asn,
+       (net.data ->> 'name') as "name",
+       (net.data ->> 'website') as "website"
+       -- (poc.data ->> 'email') as email
+       from asnproc
+       join peeringdb.net net on ((net.data ->> 'asn')::bigint = asnproc.asn)
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = 'chonkers')
+       -- left join peeringdb.poc poc on ((poc.data ->> 'name') = (net.data ->> 'name'))
+       -- where (net.data ->>'website') is not null
+       -- order by email asc
+       limit 5;
+rollback;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+BEGIN
+ count
+-------
+ 34255
+(1 row)
+
+#+end_SRC
+
+* Combine data in shadowserver en pyasn datasets
+I already have the entire shadowserver table in bq, you can find the method that was used to generate it in https://github.com/ii/org/blob/main/research/shadowserver_asn.org
+I also have the entire pyasn lookup in bq method for loading it can be found on https://github.com/ii/org/blob/main/research/pyasn-lookup.org
+
+Lets get some basic queries working
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 20'
+#+end_src
+Confirming I can replace a table
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing --replace 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 10'
+#+end_src
+Testing appending
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.tmp_testing --append_table 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_potaroo_int` limit 10'
+#+end_src
+
+** Get asns with all distinct start times
+#+begin_src shell
+bq query --nouse_legacy_sql 'select count(*) from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`'
+#+end_src
+
+#+RESULTS:
+#+begin_example
++--------+
+|  f0_   |
++--------+
+| 518099 |
++--------+
+#+end_example
+
+#+begin_src shell
+bq query --nouse_legacy_sql 'select count(*) from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int`'
+#+end_src
+
+#+RESULTS:
+#+begin_example
++--------+
+|  f0_   |
++--------+
+| 923058 |
++--------+
+#+end_example
+
+This join is wonky, not fully understanding what I want to do.
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql 'select pyasn.asn, pyasn.cidr_ip, pyasn.start_ip, pyasn.end_ip, pyasn.start_ip_int, pyasn.end_ip_1 from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int` as shadow inner join `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` as pyasn on pyasn.asn=shadow.asn limit 10'
+#+end_src
+
+Lazy JOIN! I think this should get us what we want.
+Nah this got us what is not between them
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` where start_ip_int not in (select start_ip_int from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`)'
+#+end_src
+Lets try with except
+same result
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int` except distinct select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`'
+#+end_src
+
+This produced a table with what looks like a very good combination of everything in a and content of b that is not in a
+#+begin_src tmate :window bq_results
+bq query --nouse_legacy_sql --destination_table k8s_artifacts_dataset_bb_test.shadow_pyasn_expanded 'select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.pyasn_ip_asn_extended_int`  UNION DISTINCT (select * from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`)'
+#+end_src
+
+
+* org tools to process json, keep this in mind for this project
+** Post process org blocks
+Just making sure we can get to json
+#+NAME: json-res
+#+BEGIN_SRC sql-mode :var json-r=""
+select data from peeringdb.ixlan limit 1;
+#+END_SRC
+
+#+RESULTS: json-res
+#+begin_SRC example
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+
+#+end_SRC
+
+Dang it I am missing something here....
+#+BEGIN_SRC shell :process_r yes :post json-res[:process_r yes](*this*)
+jq '.'
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+#+end_example
+
+** Wrap header for json.
+#+BEGIN_SRC sql-mode :results sql :wrap EXPORT json
+select data from peeringdb.ixlan limit 1;
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXPORT json
+ {"id": 41, "mtu": null, "name": "", "descr": "", "ix_id": 41, "rs_asn": 0, "status": "ok", "created": "2010-07-29T00:00:00Z", "updated": "2016-03-11T07:21:58Z", "arp_sponge": null, "dot1q_support": false, "ixf_ixp_member_list_url_visible": "Private"}
+
+#+end_EXPORT

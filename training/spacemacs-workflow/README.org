@@ -1,0 +1,40 @@
+# -*- ii:t; -*-
+#+TITLE: Introducing Spacemacs
+#+AUTHOR: Stephen Heywood
+#+DATE: 2 April, 2020
+#+STARTUP: showall
+
+* Objective
+
+The reader should gain practical knowledge, skills, and confidence while progressing through the following material on Spacemacs.
+
+To help with the pace and focus of the material, it will concentrate on various scenarios.
+These scenarios will present two users, Alex and Sam, as they look to complete different tasks.
+In time, they will explore several tools Spacemacs provides to interact with other technologies as well.
+
+** What is Spacemacs?
+
+At its core, Spacemacs is just a text editor with an amazing array of options waiting to help the user be more productive.
+With practice, a user can move between various tasks with ease resulting in greater productivity.
+Welcome to a new way of working and experiencing technology.
+
+[[./images/spacemacs-initial-load-screen.png]]
+
+** Diagrams
+
+We want the reader to have a clear and focused way of working through the scenarios provided.
+So, as the saying goes, /A picture is worth a thousand words/.
+We will use diagrams with the help of Alex and Sam to show how Spacemacs can be used to complete numerous tasks efficiently.
+
+The [[diagram-guide.org][Diagram Guide]] provides a list of common symbols that we will be using through this guide and how they relate to Spacemacs.
+
+* Getting Started
+
+- [[spacemacs-concepts.org][Spacemacs concepts]]
+- Version control
+
+* Scenarios
+
+- Edit and save a document
+- Save a document to GitLab
+- When saving a document to GitLab doesn't work

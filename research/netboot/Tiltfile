@@ -1,0 +1,4 @@
+# -*- mode: python; -*-
+k8s_yaml(kustomize('.'))
+docker_build('ii/dnsmasq', 'dnsmasq')
+allow_k8s_contexts('in-cluster')

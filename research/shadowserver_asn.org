@@ -1,0 +1,187 @@
+#+TITLE: Shadowserver_asn
+Goal is to get ASN to CIDR match data from https://www.shadowserver.org/
+They are a paid service, but with free api calls for under 5 calls per second
+For this test I will stay under the free limit
+If it works we can look at upgrading our plan or having the CNCF parner with them.
+* Test the service
+They have a very simple api and with
+#+BEGIN_SRC shell
+curl https://api.shadowserver.org/net/asn\?prefix\=84
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+["130.46.0.0/16","192.5.27.0/24","192.5.47.0/24","192.91.138.0/24","198.97.79.0/24"]
+#+end_example
+
+* Find full list of ASN numbers
+There are lots out there, https://www.iana.org/numbers distributes the numbers but I struggled to get one list from them.
+Peeringdb has only about 10k entries
+arin.net has about 20k entries, that seem to be the missing se from peeringdb
+Best I could find is https://bgp.potaroo.net/cidr/autnums.html the page has amazing information
+I am going to use that as my source of asn-company
+TODO: clean up the curl to populate a csv we can use to upload to BQ
+#+BEGIN_SRC shell
+curl https://bgp.potaroo.net/cidr/autnums.html | tail
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+<a href="/cgi-bin/as-report?as=AS399722&view=2.0">AS399722</a> AS-MS-78065, US
+<a href="/cgi-bin/as-report?as=AS399723&view=2.0">AS399723</a> LYNXXNETWORKS01, US
+<a href="/cgi-bin/as-report?as=AS399724&view=2.0">AS399724</a> DIGICEL-STVINCENT, LC
+<a href="/cgi-bin/as-report?as=AS401308&view=2.0">AS401308</a> NOMAD-AIR, US
+</PRE>
+<HR>
+<I>File last modified at Mon May 31 18:14:41 2021
+ (UTC+1000)</I>
+</body>
+</html>
+#+end_example
+
+* Lets marry ASN numbers with results from shadowserver
+I realize this is imbarrising I can get the csv just with jq, but this worked for now
+#+BEGIN_SRC tmate :window curl-asn
+while IFS='' read -r LINE || [ -n "${LINE}" ]; do
+sleep .2 | curl https://api.shadowserver.org/net/asn\?prefix\=$LINE | jq '.' | sed -e "s/^/\"$LINE\",/" | grep -E -v '\",\[|\",\]' >> /tmp/asnTest.csv
+done < /home/ii/foo/asnNumbersOnly.txt
+#+END_SRC
+
+* Transform cidr to range using postgres
+** Bring up Postgres
+#+BEGIN_SRC tmate :window postgres
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=ii postgres:12.2-alpine
+#+END_SRC
+#+BEGIN_SRC sql-mode
+\dn
+--SELECT schemaname, tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+  List of schemas
+  Name  |  Owner
+--------+----------
+ public | postgres
+(1 row)
+#+end_SRC
+
+** Load csv into pg
+#+BEGIN_SRC sql-mode
+--create table shadowserver_ip_asn  (ip cidr);
+create table shadowserver_ip_asn  (asn int, ip cidr);
+\COPY shadowserver_ip_asn from '/tmp/asnTest.csv' DELIMITER ',' CSV;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+
+Confirmation:
+#+BEGIN_SRC sql-mode
+select * from shadowserver_ip_asn limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ asn |        ip
+-----+------------------
+   1 | 12.51.30.0/24
+   1 | 12.52.182.0/24
+   1 | 91.227.30.0/24
+   1 | 205.207.214.0/24
+   1 | 212.94.84.0/22
+   2 | 12.35.70.0/23
+   2 | 31.129.245.0/24
+   2 | 91.143.144.0/20
+   2 | 103.77.60.0/24
+   2 | 103.77.61.0/24
+(10 rows)
+
+#+end_SRC
+
+Split that into start and end
+#+BEGIN_SRC sql-mode
+select asn as asn,
+ip as ip,
+host(network(ip)::inet) as ip_start,
+host(broadcast(ip)::inet) as ip_end
+into table shadow_ip_asn_extended
+from shadowserver_ip_asn;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+SELECT 518099
+#+end_SRC
+
+#+BEGIN_SRC sql-mode
+select * from shadow_ip_asn_extended limit 10;
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ asn |        ip        |   ip_start    |     ip_end
+-----+------------------+---------------+-----------------
+   1 | 12.51.30.0/24    | 12.51.30.0    | 12.51.30.255
+   1 | 12.52.182.0/24   | 12.52.182.0   | 12.52.182.255
+   1 | 91.227.30.0/24   | 91.227.30.0   | 91.227.30.255
+   1 | 205.207.214.0/24 | 205.207.214.0 | 205.207.214.255
+   1 | 212.94.84.0/22   | 212.94.84.0   | 212.94.87.255
+   2 | 12.35.70.0/23    | 12.35.70.0    | 12.35.71.255
+   2 | 31.129.245.0/24  | 31.129.245.0  | 31.129.245.255
+   2 | 91.143.144.0/20  | 91.143.144.0  | 91.143.159.255
+   2 | 103.77.60.0/24   | 103.77.60.0   | 103.77.60.255
+   2 | 103.77.61.0/24   | 103.77.61.0   | 103.77.61.255
+(10 rows)
+
+#+end_SRC
+
+#+begin_src sql-mode
+\copy (select * from shadow_ip_asn_extended) to '/tmp/shadow_expanded_ipv4.csv' csv header;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+COPY 518099
+#+end_SRC
+
+#+begin_src shell
+bq load --autodetect k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended /tmp/shadow_expanded_ipv4.csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+** Create table with asn, ips as ints
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql \
+'
+SELECT
+  asn as asn,
+  ip as cidr_ip,
+  ip_start as start_ip,
+  ip_end as end_ip,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_start)) AS start_ip_int,
+  NET.IPV4_TO_INT64(NET.IP_FROM_STRING(ip_end)) AS end_ip
+  from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended`
+  WHERE regexp_contains(ip_start, r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}");
+'
+#+END_SRC
+** Run a lookup of cust ips against asn lookup
+There are 4 million distinct ips
+Right now this query fails,
+Riaan will break the 4 million ips into smaller chunks and try again
+#+BEGIN_SRC shell
+bq query --nouse_legacy_sql \
+'
+select asn,
+c_ip,
+from `k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.distinct_ip_with_count_of_ip_ipv4_only_int`,
+`k8s-infra-ii-sandbox.k8s_artifacts_dataset_bb_test.shadow_ip_asn_extended_int`
+where
+c_ip_int >= start_ip_int and c_ip_int <= end_ip_1;
+'
+
+#+END_SRC

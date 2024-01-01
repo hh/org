@@ -1,0 +1,64 @@
+#+TITLE: Apisnoop Release Process
+** How ii makes APISnoop releases :kubernetes:apisnoop:cncf:
+*** This is how ii makes apisnoop releases
+In this post we will capture the details involved in building and promoting a image from the apisnoop repo
+*** Repo and the tags we have:
+https://github.com/cncf/apisnoop/tags
+*** Overview of image publish jobs and how we can use them to promote our images
+Documentation: [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/image-pushing/README.md#image-pushing-jobs][test-infra-config/jobs/image-pushing/README]]
+- We set up a [[https://github.com/kubernetes/k8s.io/blob/main/k8s.gcr.io/README.md#managing-kubernetes-container-registries][GCR]] to build our images
+- We set up a image [[https://github.com/kubernetes/k8s.io/blob/main/k8s.gcr.io/README.md#image-promoter][promoter]]
+*** Prow definition of image-build for apisnoop:
+- Use this [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/image-pushing/README.md][documentation]], the  [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/image-pushing/README.md#prow-config-template][prow-config-template]]  is very strict.
+- This the postsubmit job we defined in
+   [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/image-pushing/k8s-staging-apisnoop.yaml][test-infra/config/jobs/image/pushing/k8s-staging-apisnoop.yaml]]
+#+BEGIN_SRC yaml
+  decorate: true
+      branches:
+        - ^main$
+#+END_SRC
+#+BEGIN_SRC yaml
+containers:
+          - image: gcr.io/k8s-testimages/image-builder:v20210302-aa40187
+            command:
+              - /run.sh
+            args:
+              # this is the project GCB will run in, which is the same as the GCR images are pushed to.
+              - --project=k8s-staging-apisnoop
+              - --scratch-bucket=gs://k8s-staging-apisnoop-gcb
+              - --env-passthrough=PULL_BASE_REF
+              - apps/snoopdb
+#+END_SRC
+*** The cloudbuild.yaml this job runs
+[[https://github.com/cncf/apisnoop/blob/main/apps/snoopdb/cloudbuild.yaml][cncf/apisnoop/apps/snoopdb/cloudbuild.yaml]]
+#+BEGIN_SRC yaml
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/snoopdb:$_GIT_TAG',
+           '--build-arg', 'IMAGE_ARG=gcr.io/$PROJECT_ID/snoopdb:$_GIT_TAG',
+           './postgres']
+images:
+  - 'gcr.io/$PROJECT_ID/snoopdb:$_GIT_TAG'
+substitutions:
+  _GIT_TAG: '12345'
+options:
+  substitution_option: 'ALLOW_LOOSE'
+#+END_SRC
+*** Prow jobs to build/push snoopdb:
+Where you can find the above job in prow: [[https://prow.k8s.io/?job=apisnoop-push-snoopdb-images][prow-apisnoop-push-snoopdb-images]]
+*** Logs
+Logs for the above [[https://prow.k8s.io/view/gs/kubernetes-jenkins/logs/apisnoop-push-snoopdb-images/1384977461019676672][prow-logs-apisnoop-push-snoopdb-images]]
+*** GCB Requires a promotion process
+Some information om image [[https://github.com/kubernetes/k8s.io/tree/main/k8s.gcr.io#readme][promotion process]]
+- Make changes to k8s.io.k8s.gcr.io/images/k8s-staging-apisnoop/images.yaml
+- Create PR that will then trigger a check that k8s-ci-robot gets 'Job succeeded'
+- The merged PR will trigger the promotion 'post-k8sio-cip'
+- Promoted images can be viewed on [[https://console.cloud.google.com/gcr/images/k8s-artifacts-prod][k8s-artifacts-prod]]
+Options for using tags [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/image-pushing/README.md#custom-substitutions][tags-custom-substitutions]]
+Apisnoop image file that holds our metadata: [[https://github.com/kubernetes/k8s.io/blob/main/k8s.gcr.io/images/k8s-staging-apisnoop/images.yaml][k8s.io/k8s.gcr.io/images/k8s-staging-apisnoop/images.yaml]]
+*** Promotion Definitions
+Infra promotor:
+**** [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-release/cip/container-image-promoter.yaml#L1][Presubmits]]
+**** [[https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/wg-k8s-infra/trusted/releng/releng-trusted.yaml#L3][Postsubmits]]
+*** Promotion Jobs
+https://prow.k8s.io/?job=post-k8sio-image-promo

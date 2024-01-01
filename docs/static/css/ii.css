@@ -1,0 +1,31 @@
+:root {
+    --cA: aliceblue;
+    --cB: midnightblue;
+    --cC: #fff1bc;
+}
+body {
+    background: var(--cA);
+    color: var(--cB);
+}
+
+section#recent {
+    max-width: var(--width-content);
+    margin: 0 auto;
+    padding: 32px;
+}
+
+section#recent ul {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0;
+}
+section#recent li {
+    max-width: 33%;
+    list-style-type: none;
+    background: var(--cC);
+    padding: 1rem;
+    margin: 0.25rem;
+}
+section#recent a.title {
+    font-size: 1.5rem;
+}
